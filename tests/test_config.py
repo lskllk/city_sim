@@ -6,8 +6,6 @@ from pathlib import Path
 import pytest
 
 from citysim.core.config import SIGNALS, SimConfig, load_config
-from citysim.npc.legacy.brain.review import MAX_INTERVAL_TICKS, MIN_INTERVAL_TICKS
-from citysim.npc.legacy.person import BasalMetabolism, Person
 
 ROOT = Path(__file__).resolve().parents[1]
 CFG_PATH = ROOT / "config" / "sim.toml"
@@ -27,16 +25,19 @@ def test_time_parity(cfg: SimConfig) -> None:
 
 
 def test_sleep_parity(cfg: SimConfig) -> None:
-    assert cfg.wake_energy == pytest.approx(Person.SLEEP_WAKE_E)  # 0.99
-    assert cfg.asleep_review_ticks == Person.SLEEP_DECIDE_TICKS  # 480
+    # 迁移自旧 Person.SLEEP_WAKE_E=0.99 / SLEEP_DECIDE_TICKS=480
+    assert cfg.wake_energy == pytest.approx(0.99)
+    assert cfg.asleep_review_ticks == 480
 
 
 def test_bladder_parity(cfg: SimConfig) -> None:
-    assert cfg.bladder_convert == pytest.approx(Person.BLADDER_CONVERT)  # 0.02
+    # 迁移自旧 Person.BLADDER_CONVERT = 0.02
+    assert cfg.bladder_convert == pytest.approx(0.02)
 
 
 def test_eat_parity(cfg: SimConfig) -> None:
-    assert cfg.eat_hunger_threshold == pytest.approx(Person.EAT_HUNGER)  # 0.42
+    # 迁移自旧 Person.EAT_HUNGER = 0.42
+    assert cfg.eat_hunger_threshold == pytest.approx(0.42)
 
 
 def test_default_duration_parity(cfg: SimConfig) -> None:
@@ -45,17 +46,23 @@ def test_default_duration_parity(cfg: SimConfig) -> None:
 
 
 def test_review_parity(cfg: SimConfig) -> None:
-    # DEVIATION(M0): design 文本写 min=5/max=120, 但真实 ReviewClock 现值是
-    # min=1/max=48。M0 不改行为、配置须与旧代码常量一致 → 采旧代码值。
-    assert cfg.review_min_ticks == MIN_INTERVAL_TICKS
-    assert cfg.review_max_ticks == MAX_INTERVAL_TICKS
+    # DEVIATION(M0): design 文本写 min=5/max=120, 真实旧 ReviewClock 现值是
+    # min=1/max=48; 采旧代码值(1/48), 配置与旧代码常量一致。
+    assert cfg.review_min_ticks == 1
+    assert cfg.review_max_ticks == 48
 
 
 def test_metabolism_parity(cfg: SimConfig) -> None:
-    legacy = BasalMetabolism().deltas
+    # 迁移自旧 BasalMetabolism.deltas
+    expected = {
+        "hunger": -1.0 / 1440.0, "thirst": -1.0 / 720.0,
+        "energy": -1.0 / 2880.0, "fun": -1.0 / 2880.0,
+        "health": 0.0, "social": 0.0, "comfort": 0.0,
+        "temperature": 0.0, "bladder": 0.0, "hp": 0.0,
+    }
     for s in SIGNALS:
         assert s in cfg.metabolism
-        assert cfg.metabolism[s] == pytest.approx(legacy.get(s, 0.0))
+        assert cfg.metabolism[s] == pytest.approx(expected[s])
 
 
 def test_metabolism_missing_signals_default_zero(cfg: SimConfig) -> None:

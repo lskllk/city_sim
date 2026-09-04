@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+from math import cos, pi
 from typing import Any, Mapping
 
 from citysim.core.config import SIGNALS, SimConfig
@@ -98,3 +99,45 @@ def decide(
             reason=f"目标 {entity_id} (utility={score:.3f})",
         ),
     )
+
+
+# ----------------------------------------------------------------------
+# 清醒度 / 重评节律(主循环调度用, 迁移自旧 brain/arousal.py + review.py)
+# ----------------------------------------------------------------------
+TROUGH_HOUR = 3.0      # 生物钟低谷时刻(困)
+PEAK_HOUR = 15.0       # 峰值时刻(最清醒)
+
+
+def circadian(hour_f: float) -> float:
+    """纯生物钟分量(0..1): 余弦拟合, 谷≈0.15, 峰≈1.0。"""
+    phase = 2.0 * pi * (hour_f - PEAK_HOUR) / 24.0
+    base = (cos(phase) + 1.0) / 2.0
+    return 0.15 + 0.85 * base
+
+
+def arousal(hour_f: float, energy: float, hunger: float) -> float:
+    """清醒度 0..1: 生物钟 × 精力乘性, 饥饿轻微拖累。"""
+    energy = max(0.0, min(1.0, float(energy)))
+    hunger = max(0.0, min(1.0, float(hunger)))
+    level = circadian(hour_f) * (0.4 + 0.6 * energy)
+    level -= 0.2 * (1.0 - hunger)
+    return max(0.0, min(1.0, level))
+
+
+def review_interval_ticks(
+    arousal_value: float,
+    cfg: SimConfig,
+    rng: Any = None,
+) -> int:
+    """清醒度(0..1) -> 距下次重评的 tick 间隔, clamp 到 [review_min, review_max]。
+
+    清醒度高 => 间隔短; 可选 rng 抖动 ±1 避免同拍。
+    """
+    a = max(0.0, min(1.0, float(arousal_value)))
+    lo, hi = cfg.review_min_ticks, cfg.review_max_ticks
+    span = hi - lo
+    interval = int(round(hi - span * a))
+    interval = max(lo, interval)
+    if rng is not None:
+        interval = max(lo, interval + int(rng.randint(-1, 1)))
+    return interval

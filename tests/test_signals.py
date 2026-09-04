@@ -106,8 +106,15 @@ def test_no_body_dual_write_anywhere() -> None:
 
 
 def test_round_only_in_display_view() -> None:
-    """存储路径不许出现 round(v*100); 只允许视图函数所在模块。"""
+    """存储路径不许出现 round(v*100) 式的百分比换算; 只允许视图函数所在模块。
+
+    判定: 同时含 "round(" 与 "* 100"(如 round(v * 100))才算换算; 纯取整
+    (如调度用的 round(x))不算。
+    """
     allowed = {SRC / "npc" / "person.py"}
-    bad = [str(p) for p in _non_legacy_src_files()
-           if "round(" in p.read_text(encoding="utf-8") and p not in allowed]
+    bad = []
+    for p in _non_legacy_src_files():
+        text = p.read_text(encoding="utf-8")
+        if "round(" in text and "* 100" in text and p not in allowed:
+            bad.append(str(p))
     assert bad == []

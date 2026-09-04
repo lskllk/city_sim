@@ -10,9 +10,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 from citysim.core.config import SIGNALS
+
+if TYPE_CHECKING:  # pragma: no cover
+    from citysim.core.types import Intent
 
 
 def _clamp(v: float) -> float:
@@ -98,6 +101,9 @@ class Person:
     current_activity: str = "idle"
     hour_f: float = 8.0                        # 当日时刻(供清醒度)
     bladder_pending: float = 0.0               # 待转化排泄负荷
+    location_id: str = ""                     # 所在 location(M3 世界侧登记)
+    active_interaction_id: str | None = None  # 正在交互的实体 id(观测/仲裁)
+    last_intent: "Intent | None" = None       # 最近一次决策(观测)
 
     def __post_init__(self) -> None:
         # 初始化必须含 SIGNALS 全集; 缺失补 1.0(充足)

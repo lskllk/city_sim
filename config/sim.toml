@@ -1,0 +1,28 @@
+# 全局常量（原 Person/BasalMetabolism/ReviewClock 里魔法数字全部搬来）
+# 信号统一 0..1 float。时间: tick=1 游戏分钟, 一天=1440 tick。
+
+[time]
+ticks_per_day = 1440
+
+[metabolism]                 # 每 tick 基础 delta（负=下降）; 其余信号缺省 0.0
+hunger = -0.0006944444444444445    # -1/1440（24h 耗尽）
+thirst = -0.001388888888888889     # -1/720 （12h 见底）
+energy = -0.00034722222222222224   # -1/2880（48h）
+fun    = -0.00034722222222222224   # -1/2880（48h）
+
+[sleep]
+wake_energy = 0.99             # 精力达此视为睡饱自动醒
+asleep_review_ticks = 480      # 入睡后距下次重评固定 8 小时
+
+[bladder]
+convert_per_tick = 0.02        # pending -> 膀胱 的每 tick 转化速率
+
+[eat]
+hunger_threshold = 0.42        # 饱腹低于此视为饿
+
+[interaction]
+default_duration_ticks = 30    # 未声明时长物品的缺省交互 tick
+
+[review]                       # 重评节律参数
+min_ticks = 1                  # 最清醒时每 tick 想一次
+max_ticks = 48                 # 最困时约每 48 tick 重评一次

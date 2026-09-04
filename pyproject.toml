@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "citysim"
+version = "0.1.0"
+description = "城市生活模拟 · NPC 认知/世界解耦内核 (M0~M8)"
+requires-python = ">=3.10"
+dependencies = ["tomli>=2.0; python_version < '3.11'"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

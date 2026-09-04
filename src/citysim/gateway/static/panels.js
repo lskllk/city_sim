@@ -1,126 +1,120 @@
-/* panels.js —— 右侧检查器(状态/为什么/知识/事件) + 底部事件流。 */
+/* panels.js —— 右侧检查器 + 底部事件流的 DOM 渲染 (g5-life 02/06/07)。 */
 const Panels = (() => {
-  let currentNpc = null, currentTab = "status", detail = null;
-
-  const sigColor = (v) => v > 0.6 ? "good" : v > 0.3 ? "mid" : "bad";
-
-  function sigBar(name, v) {
-    const pct = Math.round(Math.max(0, Math.min(1, v)) * 100);
-    return `<div class="sig"><span>${name}</span>
-      <div class="bar"><div class="fill ${sigColor(v)}" style="width:${pct}%"></div></div>
-      <span style="text-align:right">${pct}%</span></div>`;
+  const $ = s => document.querySelector(s);
+  const titleEl = $("#inspTitle"), panelEl = $("#panel");
+  const tabBtns = [...document.querySelectorAll("#tabs [data-tab]")];
+  const filterBtns = [...document.querySelectorAll("#evbar [data-filter]")];
+  const listEl = $("#events");
+  const clockEl = $("#clock"), connEl = $("#conn");
+  let curTab = "status", curFilter = "all";
+  let whoHandler = null;
+  const ACT_TXT = { sleep: "睡眠", eat: "进食", toilet: "如厕", fun: "娱乐",
+                    drink: "饮水", idle: "闲逛", move: "赶路" };
+  const NAME = s => String(s);
+  const bar = (label, v, color) => `
+    <div class="needrow"><span class="needlab">${label}</span>
+      <div class="sig"><div class="bar"><div class="fill" style="width:${Math.round(v*100)}%;background:${color||"#6fdc8c"}"></div></div></div>
+      <span class="needval">${(v*100).toFixed(0)}</span></div>`;
+  function bindHandlers(h) {
+    tabBtns.forEach(b => b.addEventListener("click", () => {
+      tabBtns.forEach(x => x.classList.remove("active"));
+      b.classList.add("active"); curTab = b.dataset.tab;
+      if (h.onTab) h.onTab(curTab);
+    }));
+    filterBtns.forEach(b => b.addEventListener("click", () => {
+      filterBtns.forEach(x => x.classList.remove("active"));
+      b.classList.add("active"); curFilter = b.dataset.filter;
+      if (h.onFilter) h.onFilter(curFilter);
+    }));
   }
-
-  function tabStatus(d) {
-    let h = `<h3>${d.name} (${d.id}) · ${d.loc}</h3>`;
-    h += `<div>活动: <b>${d.activity || "idle"}</b></div>`;
-    if (d.intent) h += `<div>意图: ${d.intent.kind} → ${d.intent.target || "—"}</div>
-       <div style="color:#9aa">${d.intent.reason || ""}</div>`;
-    h += `<h3>信号</h3>` + Object.entries(d.signals).map(([k, v]) => sigBar(k, v)).join("");
-    h += `<h3>KB</h3><div class="row"><span>overlay ${(d.kb_counts||{}).overlay}</span>
-         <span>tomb ${(d.kb_counts||{}).tombstones}</span>
-         <span>原型 ${(d.kb_counts||{}).archetype}</span></div>`;
-    return h;
+  function showTab(tab) {
+    curTab = tab;
+    tabBtns.forEach(x => x.classList.toggle("active", x.dataset.tab === tab));
   }
-
-  function factLine(f, kb) {
-    const c = { INJECTED: "#9aa", OBSERVED: "#6fdc8c", TOLD: "#7ab3ff", INFERRED: "#e6a94a" }[f.source_kind] || "#888";
-    let src = `[${f.source_kind} @t${f.tick}]`;
-    const refs = (f.source_ref || []);
-    if (refs.length) src += ` 来源: ${refs.map(r => r.startsWith("f:") ? `<span class='kbtn' title='追溯根 ${r}'>← fact ${r}</span>` : `<b>${r} 告知</b>`).join(" ")}`;
-    return `<div class="fact" style="border-left-color:${c}">
-      <b>${f.subject}</b> ${f.relation} <b>${f.obj}</b> c=${f.confidence}
-      <div class="src">${src}</div></div>`;
+  function title(html) { titleEl.innerHTML = html; }
+  function conn(ok) {
+    connEl.textContent = ok ? "● 已连接" : "● 已断开";
+    connEl.style.color = ok ? "#6fdc8c" : "#ff7a7a";
   }
+  function clock(txt) { if (clockEl.textContent !== txt) clockEl.textContent = txt; }
+  function sigColor(v) { return v < 0.15 ? "#ff7a7a" : v < 0.3 ? "#e6c04a" : "#6fdc8c"; }
 
-  function tabWhy(d) {
+  function header(n, d) {
+    const act = d.act_class || "idle";
+    return `<div class="row"><b>${NAME(n)}</b>
+      <span class="chip" data-act="${act}">${ACT_TXT[act] || act}</span></div>`;
+  }
+  function status(d) {
+    if (!d) { panelEl.innerHTML = "<p class='dim'>（暂无状态）</p>"; return; }
+    const s = d.signals || {};
+    const ord = [["hunger", "饥饿"], ["thirst", "口渴"], ["energy", "精力"],
+                 ["bladder", "膀胱"]];
+    const rows = ord.filter(([k]) => s[k] !== undefined)
+      .map(([k, l]) => bar(l, s[k], sigColor(s[k]))).join("");
     const it = d.intent;
-    if (!it) return `<p>（尚未决策）</p>`;
-    let h = `<div>意图: <b>${it.kind}</b> → ${it.target || "—"}</div>
-             <div style="color:#9aa">${it.reason || ""}</div>`;
-    if (it.ranked && it.ranked.length) {
-      h += `<h3>候选打分</h3>` + it.ranked.map(r =>
-        `<div class="row rank"><span style="width:110px">${r.id}</span>
-         <div class="sig" style="flex:1"><div class="bar"><div class="fill mid" style="width:${Math.min(100, r.score * 200)}%"></div></div></div>
-         <span>${r.score.toFixed(3)}</span></div>`).join("");
-    }
-    if (it.plan && it.plan.length) h += `<h3>计划</h3><div>${it.plan.join(" → ")}</div>`;
-    h += `<h3>依据事实</h3>`;
-    if (it.used_facts && it.used_facts.length) {
-      h += it.used_facts.map(f => factLine(f)).join("");
-    } else {
-      h += `<p style="color:#9aa">本次决策未使用知识（视野内直接可见）</p>`;
-    }
-    return h;
+    const tv = d.travel;
+    panelEl.innerHTML = `
+      <div class="head">${header(d.name || d.id, d)}</div>
+      <div class="sec">${d.loc || ""}${it ? ` · 想${it.kind} ${it.target || ""}` : ""}${tv ? ` · 前往 ${tv.to}` : ""}</div>
+      <div class="sec">${rows}</div>
+      ${it ? `<div class="sec dim">理由：${NAME(it.reason)}</div>` : ""}`;
   }
-
-  function tabKb(d) {
-    const div = document.createElement("div");
-    div.innerHTML = "";
-    kbGraph(div, d.kb, d.kb_counts || null, null);
-    return div.innerHTML;
+  function why(d, nameFn) {
+    if (!d) { panelEl.innerHTML = "<p class='dim'>（暂无）</p>"; return; }
+    const N = nameFn || NAME;
+    const it = d.intent;
+    if (!it) { panelEl.innerHTML = header(d.name || d.id, d)
+      + "<div class='sec dim'>当前无意图（闲逛/无需求）</div>"; return; }
+    const picked = it.kind;
+    const ranked = (it.ranked && it.ranked.length)
+      ? it.ranked : [{ id: picked, score: 1 }];
+    const maxScore = Math.max(...ranked.map(r => r.score), 0.0001);
+    const rows = ranked.map(r => {
+      const chosen = r.id === picked;
+      const w = Math.max(2, Math.round(r.score / maxScore * 100));
+      const label = ACT_TXT[r.id] || N(r.id) || r.id;
+      return `<tr${chosen ? ' class="sel"' : ""}>
+        <td>${label}${chosen ? " ✓" : ""}</td>
+        <td style="min-width:84px"><div class="mini"><i style="width:${w}%"></i></div></td>
+        <td class="rank">${r.score.toFixed(3)}</td>
+        <td>${chosen ? "采纳" : "未采纳"}</td></tr>`;
+    }).join("");
+    const used = it.used_facts && it.used_facts.length
+      ? `<div class="sec"><div class="sect">依据事实（本次决策）</div>` +
+        it.used_facts.map(f => `<div class="row mono sm">${N(f.src)} ${f.relation} ${N(f.dst)} · ${f.source_kind || ""} ${f.confidence ? f.confidence.toFixed(2) : ""}</div>`).join("") + "</div>" : "";
+    const plan = it.plan && it.plan.length
+      ? `<div class="sec"><div class="sect">执行计划</div><div class="mono">${it.plan.join(" → ")}</div></div>` : "";
+    panelEl.innerHTML = header(d.name || d.id, d)
+      + `<div class="sec">当前决策：想 <b>${ACT_TXT[picked] || N(picked)}</b>${it.target ? " · " + N(it.target) : ""}</div>`
+      + `<div class="sec dim">理由：${N(it.reason)}</div>`
+      + `<div class="sec"><div class="sect">决策表（候选意图打分）</div>
+         <table class="kbt"><tr><th>候选</th><th>得分</th><th>数值</th><th>结果</th></tr>${rows}</table></div>`
+      + plan + used;
   }
-
-  function tabEvents(d) {
-    if (!d.events || !d.events.length) return `<p>（暂无事件）</p>`;
-    return d.events.map(ev => eventLine(ev)).join("");
-  }
-
-  function eventLine(ev) {
-    const t = ev.tick;
-    const p = ev.payload || {};
-    if (ev.kind === "told")
-      return `<li class="told">[t${t}] ${ev.subject} 告知 ${p.audience}：${p.subject} ${p.relation} ${p.obj} (${p.conf})</li>`;
-    if (ev.kind === "intent_failed")
-      return `<li class="intent_failed">[t${t}] ${ev.subject} 失败: ${p.why || ev.target}</li>`;
-    if (ev.kind === "interaction_done")
-      return `<li class="interaction_done">[t${t}] ${ev.subject} 完成 ${p.entity || ev.target}</li>`;
-    if (ev.kind === "decision")
-      return `<li class="decision">[t${t}] ${ev.subject} → ${ev.intent} ${ev.target || ""} ${ev.plan ? "(" + ev.plan + ")" : ""}</li>`;
-    return `<li>[t${t}] ${ev.subject} ${ev.kind}</li>`;
-  }
-
-  function render() {
-    const panel = document.getElementById("panel");
-    if (!detail) { panel.innerHTML = "<p style='color:#9aa'>点一个小人查看</p>"; return; }
-    const tab = currentTab;
-    panel.innerHTML = tab === "status" ? tabStatus(detail)
-      : tab === "why" ? tabWhy(detail)
-      : tab === "kb" ? tabKb(detail)
-      : tabEvents(detail);
-    // kb tab 需要真实 DOM 挂 SVG/表
-    if (tab === "kb") {
-      panel.innerHTML = "";
-      kbGraph(panel, detail.kb, detail.kb_counts || null);
-    }
-  }
-
-  function askDetail() {
-    if (!currentNpc) return;
-    App.query({ what: "npc_detail", npc_id: currentNpc }, (reply) => {
-      if (reply && reply.ok) { detail = reply.data; document.getElementById("inspTitle").textContent =
-        `${reply.data.name} (${reply.data.id})`; render(); }
+  function kb(d, nameFn) {
+    if (!d) { panelEl.innerHTML = "<p class='dim'>（该模式无知识）</p>"; return; }
+    panelEl.innerHTML = header(d.name || d.id, d);
+    const wrap = document.createElement("div");
+    wrap.className = "kbwrap";
+    panelEl.appendChild(wrap);
+    kbGraph(wrap, d.kb, d.kb_counts, (subj, rel, obj) => {
+      if (whoHandler) whoHandler(subj, rel, obj);
     });
+    panelEl.appendChild(document.createElement("p")).className = "dim";
+    panelEl.lastChild.textContent = "提示：点表格行高亮" + (nameFn ? "" : "");
   }
-
-  function select(npcId) {
-    currentNpc = npcId; detail = null; askDetail();
+  function events(rows) {
+    if (!rows || !rows.length) { panelEl.innerHTML = "<p class='dim'>（无事件）</p>"; return; }
+    panelEl.innerHTML = rows.slice(0, 50)
+      .map(x => `<div class="evrow">${x}</div>`).join("");
   }
+  function feed(rows, filter) {
+    const f = filter || curFilter;
+    listEl.innerHTML = rows.filter(r => f === "all" || r.kind === f)
+      .slice(0, 120).map(r => `<li class="${r.kind}">${r.html}</li>`).join("");
+  }
+  function setWhoHandler(fn) { whoHandler = fn; }
 
-  return {
-    setTab(t) { currentTab = t; render(); },
-    select,
-    refresh: askDetail,
-    eventLine,
-  };
+  return { bindHandlers, showTab, title, conn, clock, status, why, kb, events,
+           feed, setWhoHandler, tab: () => curTab, filter: () => curFilter };
 })();
-
-// 页签绑定
-document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("tabs").addEventListener("click", (e) => {
-    const b = e.target.closest("button"); if (!b) return;
-    document.querySelectorAll("#tabs button").forEach(x => x.classList.remove("active"));
-    b.classList.add("active");
-    Panels.setTab(b.dataset.tab);
-  });
-});

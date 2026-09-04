@@ -23,7 +23,7 @@ function kbGraph(container, kb, counts, onClickFact) {
   for (const e of kb.edges) {
     const c = color[e.source_kind] || "#888";
     const conf = Number(e.confidence || 0).toFixed(2);
-    body += `<tr>
+    body += `<tr data-s="${e.src}" data-r="${e.relation}" data-o="${e.dst}">
       <td>${e.src}</td><td>${e.relation}</td><td>${e.dst}</td>
       <td style="width:70px"><div class="sig"><div class="bar"><div class="fill mid" style="width:${conf * 100}%"></div></div></div></td>
       <td><span class="dot" style="background:${c}"></span> ${e.source_kind}</td>
@@ -69,5 +69,12 @@ function kbGraph(container, kb, counts, onClickFact) {
   subs.forEach((s, i) => svg.appendChild(node(left, sy(i, subs.length), s)));
   objs.forEach((o, i) => svg.appendChild(node(right, sy(i, objs.length), o)));
   container.appendChild(svg);
-  if (onClickFact) table.addEventListener("click", (ev) => { /* 留作 who_knows 扩展 */ });
+  if (onClickFact) {                       // g5-life 07: who_knows 高亮入口
+    table.style.cursor = "pointer";
+    table.addEventListener("click", (ev) => {
+      const tr = ev.target.closest("tr");
+      if (tr && tr.dataset.s !== undefined)
+        onClickFact(tr.dataset.s, tr.dataset.r, tr.dataset.o);
+    });
+  }
 }

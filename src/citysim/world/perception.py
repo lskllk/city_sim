@@ -23,6 +23,7 @@ def build_percept(world, npc) -> Percept:
 
     views = []
     for e in world.entities_at(npc.location_id):
+        closed = not e.is_open_now(world.hour_f())   # 停业=空(触发 refute)且不可claim
         views.append(EntityView(
             entity_id=e.entity_id,
             name=e.name,
@@ -30,8 +31,8 @@ def build_percept(world, npc) -> Percept:
             affordances=dict(e.affordances),
             duration_ticks=e.duration_ticks,
             distance=0.0,
-            claimable=e.claimable_by(npc.person_id),
-            stock_zero=e.stock == 0,
+            claimable=e.claimable_by(npc.person_id) and not closed,
+            stock_zero=(e.stock == 0) or closed,
             provides=frozenset(e.provides),
             food_source=_food(e),
             location_id=e.location_id,
@@ -64,6 +65,16 @@ def consolidate_observations(npc, percept: Percept, kb, tick: int = 0) -> None:
 
     for v in percept.visible:
         if "container" not in v.tags:
+            # 静态可交互设施(非容器、非散落食物): 学 affords + located_at
+            if "edible" not in v.tags and v.affordances:
+                for signal, delta in v.affordances.items():
+                    if delta > 0:
+                        kb.learn(subject=v.entity_id, relation="affords",
+                                 obj=signal, confidence=1.0,
+                                 source=Source(kind="OBSERVED"), tick=tick)
+                kb.learn(subject=v.entity_id, relation="located_at",
+                         obj=npc.location_id, confidence=1.0,
+                         source=Source(kind="OBSERVED"), tick=tick)
             continue
         existing = kb.query(subject=v.entity_id, relation="contains")
         # 真空(stock==0): 证伪既有"有食"并学 none(design 5.3)

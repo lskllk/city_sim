@@ -15,13 +15,22 @@ from fastapi.staticfiles import StaticFiles
 
 from citysim.core.config import load_config
 from citysim.gateway.scenarios import build_scenario
-from citysim.gateway.snapshot import (build_snapshot, do_query, hello_payload,
-                                      parse_log_line)
+from citysim.gateway.snapshot import build_snapshot, do_query, hello_payload
 from citysim.sim.loop import attach_replay, run_tick
 
 SPEED_TPS = {"pause": 0, "1x": 2, "3x": 6, "10x": 20, "60x": 120, "max": -1}
 PUSH_HZ = 10
 STATIC = Path(__file__).parent / "static"
+
+
+def _real_tps(speed: str) -> int:
+    """当前档位真实 ticks/秒(canvasrecode 9: 顶层 tps 必须是真实推进率,
+    供前端 tick 外推; 低档因 100ms 取整 batch 会合并到 10/s)。"""
+    t = SPEED_TPS[speed]
+    if t == 0:
+        return 0
+    batch = 200 if t < 0 else max(1, round(t / PUSH_HZ))
+    return batch * PUSH_HZ
 
 
 class SimRunner:
@@ -32,8 +41,8 @@ class SimRunner:
         self.clients: set[WebSocket] = set()
         self.speed = "pause"          # 启动即暂停, 方便观察初态
         self.log_cursor = 0
-        self.params = dict(scenario="demo", seed=3, n_npc=5,
-                           kb_mode="off", tell_p=0.0)
+        self.params = dict(scenario="elm_lane", seed=3, n_npc=6,
+                           kb_mode="full", tell_p=0.1)
         self._build()
 
     def _build(self) -> None:
@@ -46,9 +55,9 @@ class SimRunner:
             run_tick(self.world, self.systems, self.cfg, self.rng_pool)
 
     def drain_log(self) -> list[dict]:
-        lines = (self.systems.log_lines or [])[self.log_cursor:]
-        self.log_cursor = len(self.systems.log_lines or [])
-        return [d for l in lines if (d := parse_log_line(l)) is not None]
+        evs = (self.systems.ui_events or [])[self.log_cursor:]
+        self.log_cursor = len(self.systems.ui_events or [])
+        return [dict(e) for e in evs]
 
     async def loop(self) -> None:
         interval = 1.0 / PUSH_HZ
@@ -70,7 +79,8 @@ class SimRunner:
             self.drain_log()          # 无人观看也要推进游标, 防积压
             return
         msg = json.dumps(build_snapshot(self.world, self.systems, self.cfg,
-                                        self.speed, self.drain_log()),
+                                        self.speed, self.drain_log(),
+                                        tps=_real_tps(self.speed)),
                          ensure_ascii=False)
         dead = []
         for ws in self.clients:

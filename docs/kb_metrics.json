@@ -6,11 +6,11 @@
   "failed": 0,
   "exploration": 0.0024,
   "empty_run": 0.0,
-  "jaccard_distance": 0.6,
+  "jaccard_distance": 0.41,
   "trace_complete": 1.0,
-  "overlay_per_npc_day3": 2.0,
-  "overlay_per_npc_day7": 2.0,
-  "overlay_max": 2,
+  "overlay_per_npc_day3": 56.0,
+  "overlay_per_npc_day7": 56.0,
+  "overlay_max": 56,
   "all_npc_ate": true,
   "used_samples": 6
 }

@@ -26,8 +26,16 @@ def _is_data(p: Path) -> bool:
     return p.suffix.lower() in (".toml", ".json", ".csv", ".txt", ".md")
 
 
+# 收录的扩展名: Python + 配置数据 + 前端静态(display_m5_ui G0-G4)
+_ALLOWED_EXT = {".py", ".toml", ".json", ".csv", ".txt", ".md",
+                ".html", ".js", ".css", ".mjs"}
+
+
 def collect_files(roots: list[str], include_data: bool) -> list[Path]:
-    """收集待导出文件：--root 目录里的 *.py(排除含 test 的)；可选数据文件。"""
+    """收集待导出文件：--root 里受支持扩展的所有文件(py 排除含 test 的)。
+
+    include_data 兼容保留: 前端 html/js/css 等非 py 文件恒收录(不入数据开关)。
+    """
     found: list[Path] = []
     seen: set[Path] = set()
     for r in roots:
@@ -41,8 +49,9 @@ def collect_files(roots: list[str], include_data: bool) -> list[Path]:
             cands = [base]
         else:
             cands = [p for p in sorted(base.rglob("*"))
-                     if p.is_file() and (p.suffix.lower() == ".py" or
-                                         (include_data and _is_data(p)))]
+                     if p.is_file()
+                     and p.suffix.lower() in _ALLOWED_EXT
+                     and "__pycache__" not in p.parts]
         for p in cands:
             name = p.name.lower()
             if p.suffix.lower() == ".py" and ("test" in name or

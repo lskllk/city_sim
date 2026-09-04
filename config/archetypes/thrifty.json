@@ -1,0 +1,10 @@
+{
+  "archetype": "thrifty",
+  "personality": {"hunger": 0.9, "fun": 0.5, "energy": 1.0},
+  "knowledge": [
+    {"subject": "meal_simple", "relation": "is_a", "obj": "edible", "confidence": 1.0},
+    {"subject": "shop24_meal", "relation": "sells", "obj": "meal_simple", "confidence": 0.7},
+    {"subject": "shop24_meal", "relation": "located_at", "obj": "shop24", "confidence": 1.0},
+    {"subject": "shop24_meal", "relation": "price_of", "obj": "12", "confidence": 0.9}
+  ]
+}

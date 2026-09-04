@@ -67,8 +67,32 @@ def parse_log_line(line: str) -> dict | None:
     return None
 
 
+def act_class_of(world, systems, pid: str) -> str:
+    """服务端推导活动类别(g5-life 01/B5): 按 active 实体 tags。"""
+    if pid in systems.travel:
+        return "move"
+    act = systems.interaction.active.get(pid)
+    if act is None:
+        return "idle"
+    ent = world.entities.get(act.entity_id)
+    if ent is None:
+        return "idle"
+    t = ent.tags
+    if "sleepable" in t:
+        return "sleep"
+    if "toilet" in t:
+        return "toilet"
+    if "drink" in t:
+        return "drink"
+    if "entertain" in t:
+        return "fun"
+    if "edible" in t or "container" in t:
+        return "eat"
+    return "idle"
+
+
 def build_snapshot(world, systems, cfg, speed: str,
-                   events: list[dict]) -> dict:
+                   events: list[dict], tps: int | None = None) -> dict:
     tick = world.clock_tick
     npcs = []
     for pid, p in sorted(world.npcs.items()):
@@ -78,6 +102,7 @@ def build_snapshot(world, systems, cfg, speed: str,
         npcs.append({
             "id": pid, "name": p.name, "loc": p.location_id,
             "activity": p.current_activity,
+            "act_class": act_class_of(world, systems, pid),
             "signals": {k: round(v, 4) for k, v in p.signals.items()},
             "active": None if act is None else {
                 "entity": act.entity_id, "remaining": act.remaining_ticks,
@@ -94,12 +119,49 @@ def build_snapshot(world, systems, cfg, speed: str,
              "tags": sorted(e.tags), "stock": e.stock,
              "claimed_by": e.claimed_by, "icon": icon_of(e)}
             for _, e in sorted(world.entities.items())]
+    # 实体房间内槽位(按 id 定序, g5-life 04)
+    slot_of: dict[str, int] = {}
+    by_loc: dict[str, list[str]] = {}
+    for e in ents:
+        by_loc.setdefault(e["loc"], []).append(e["id"])
+    for ids in by_loc.values():
+        for i, eid in enumerate(sorted(ids)):
+            slot_of[eid] = i
+    for e in ents:
+        e["shelf_index"] = slot_of.get(e["id"], 0)   # g5 canvasrecode 3.2
     return {"type": "snapshot", "tick": tick,
             "day": tick // cfg.ticks_per_day + 1,
             "hour_f": round(world.hour_f(), 4),
             "clock": fmt_clock(world.hour_f()),
             "speed": speed, "running": speed != "pause",
+            "tps": tps if tps is not None else 0,
             "entities": ents, "npcs": npcs, "events": events}
+
+
+def build_npc_state(world, systems, pid: str) -> dict | None:
+    """轻查询(g5-life 02): 信号+意图+活动, 供状态页 1Hz 实时。"""
+    npc = world.npcs.get(pid)
+    if npc is None:
+        return None
+    it = npc.last_intent
+    act = systems.interaction.active.get(pid)
+    tv = systems.travel.get(pid)
+    return {
+        "id": pid, "name": npc.name, "loc": npc.location_id,
+        "activity": npc.current_activity,
+        "act_class": act_class_of(world, systems, pid),
+        "signals": {k: round(v, 4) for k, v in npc.signals.items()},
+        "active": None if act is None else {
+            "entity": act.entity_id, "remaining": act.remaining_ticks,
+            "total": act.total_ticks},
+        "travel": None if tv is None else {
+            "from": tv.from_loc, "to": tv.to_loc,
+            "depart": tv.depart_tick, "arrive": tv.arrive_tick},
+        "intent": None if it is None else {
+            "kind": it.kind, "target": it.target_id,
+            "reason": it.trace.reason},
+        "kb_counts": kb_counts(npc.kb),
+    }
 
 
 def build_npc_detail(world, systems, pid: str) -> dict | None:
@@ -113,12 +175,12 @@ def build_npc_detail(world, systems, pid: str) -> dict | None:
         used = export_trace_chain(npc.kb, it.trace.used_fact_ids).get(
             "facts", [])
     recent = []
-    for line in (systems.log_lines or [])[-500:]:
-        ev = parse_log_line(line)
-        if ev is not None and ev.get("subject") == pid:
-            recent.append(ev)
+    for ev in (systems.ui_events or [])[-500:]:
+        if ev.get("subject") == pid:
+            recent.append(dict(ev))
             if len(recent) >= 50:
                 break
+    st = build_npc_state(world, systems, pid) or {}
     return {
         "id": pid, "name": npc.name, "loc": npc.location_id,
         "activity": npc.current_activity,
@@ -133,6 +195,7 @@ def build_npc_detail(world, systems, pid: str) -> dict | None:
              {"nodes": [], "edges": []},
         "kb_counts": kb_counts(npc.kb),
         "events": recent,
+        "act_class": st.get("act_class", "idle"),
     }
 
 
@@ -143,6 +206,9 @@ def _fact_payload(ev: dict) -> tuple:
 
 def do_query(runner, args: dict) -> dict | None:
     what = args.get("what")
+    if what == "npc_state":
+        return build_npc_state(runner.world, runner.systems,
+                               args.get("npc_id", ""))
     if what == "npc_detail":
         return build_npc_detail(runner.world, runner.systems,
                                 args.get("npc_id", ""))
@@ -169,12 +235,22 @@ def do_query(runner, args: dict) -> dict | None:
 
 
 def hello_payload(runner) -> dict:
-    locs_path = (Path(__file__).resolve().parents[3] / "config"
-                 / "locations.json")
+    """hello: 用单一场景(elm_lane)的 canvas/locations; 只发本场景实际用到的
+    房间(canvasrecode 2/9: 相机用【全部声明房间】bbox, 只在 hello/reset/resize 算)。"""
+    from citysim.gateway.scenarios import DEFAULT_SCENE
+    import json as _json
+    locs_path = DEFAULT_SCENE
     try:
-        locs = json.loads(locs_path.read_text(encoding="utf-8"))
+        all_scene = _json.loads(Path(locs_path).read_text(encoding="utf-8"))
     except OSError:
-        locs = {"canvas": {"w": 1200, "h": 700}, "locations": {}}
+        all_scene = {"canvas": {"w": 1280, "h": 760}, "locations": {}}
+    used = {e.location_id for e in runner.world.entities.values()}
+    used |= {n.location_id for n in runner.world.npcs.values()}
+    loc_map = all_scene.get("locations", {})
+    if used:
+        loc_map = {k: v for k, v in loc_map.items() if k in used}
+    locs = {"canvas": all_scene.get("canvas", {"w": 1280, "h": 760}),
+            "locations": loc_map}
     from citysim.core.config import SIGNALS
     return {"type": "hello", "protocol": 1,
             "scenario": runner.params["scenario"],

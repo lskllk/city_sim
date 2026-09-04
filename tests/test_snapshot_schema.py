@@ -52,7 +52,7 @@ def test_travel_fields_present_for_interpolation() -> None:
 
 def test_npc_detail_returns_trace_and_kb() -> None:
     w, s = _run("stale_kb", 300)
-    detail = build_npc_detail(w, s, "npc_00")
+    detail = build_npc_detail(w, s, "npc_wang")
     assert detail is not None
     assert {"signals", "intent", "kb", "events"} <= set(detail)
     assert "used_facts" in detail["intent"]

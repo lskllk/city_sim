@@ -109,6 +109,42 @@ def _kb_go_intent(kb: Any, percept: Percept, signals: Mapping[str, float],
     return None
 
 
+def _kb_afford_intent(kb: Any, percept: Percept, signals: Mapping[str, float],
+                      signal: str, threshold: float,
+                      afford_objs: tuple[str, ...],
+                      tag_hint: str, action_verb: str) -> Intent | None:
+    """通用觅补: 某需求低(signal<threshold)且视野无可用物(tag_hint)时,
+    按注入知识(affords {afford_objs} + located_at)去"解需求之地"。
+
+    与 _kb_go_intent(食) 对称: 不是引擎硬编码"回自家", 而是由每人 INJECTED
+    的 affords/located_at 事实驱动(elm_lane: 只注入自家寝位/自家水源)。
+    """
+    if signals.get(signal, 1.0) >= threshold:
+        return None
+    if any(tag_hint in e.tags and e.claimable for e in percept.visible):
+        return None
+    visible_ids = {e.entity_id for e in percept.visible}
+    cands = [(f.subject, f) for f in kb.query(relation="affords")
+             if f.obj in afford_objs and f.confidence >= 0.3]
+    if not cands:
+        return None
+    for subj, fact in sorted(cands, key=lambda t: t[0]):
+        if subj in visible_ids:
+            continue
+        loc_facts = kb.query(subject=subj, relation="located_at")
+        if not loc_facts:
+            continue
+        loc = loc_facts[0].obj
+        if not loc or loc == percept.location_id:
+            continue
+        return Intent(
+            kind="move_to", target_id=loc,
+            trace=DecisionTrace(ranked=((subj, 0.0),),
+                                reason=f"知识: {subj} 能{action_verb} → 去 {loc}"),
+        )
+    return None
+
+
 def decide(
     percept: Percept,
     signals: Mapping[str, float],
@@ -139,6 +175,19 @@ def decide(
         mv = _kb_go_intent(kb, percept, signals, cfg)
         if mv is not None:
             return mv
+
+    # --- KB 觅补(睡/渴): 需求低、本地无可用 → 按注入知识去自家 (对称于觅食) ---
+    if kb is not None:
+        sl = _kb_afford_intent(kb, percept, signals,
+                               "energy", 0.35, ("sleep", "energy"),
+                               "sleepable", "睡")
+        if sl is not None:
+            return sl
+        dr = _kb_afford_intent(kb, percept, signals,
+                               "thirst", 0.4, ("drink", "thirst"),
+                               "drink", "喝水")
+        if dr is not None:
+            return dr
 
     # --- utility 打分 + 排序 ---
     scored = [(e.entity_id, _utility(e, signals, personality, power))

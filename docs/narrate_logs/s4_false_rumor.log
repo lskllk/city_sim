@@ -10,7 +10,7 @@ D	46	p2	idle
 D	46	p3	idle		
 D	46	p4	idle		
 D	46	p5	idle		
-E	78	told	p0	audience=['p3'];from=p0;subject=warehouse_9;relation=contains;obj=edible;conf=0.8;origin=o:warehouse_9|contains|1;fact_id=o:warehouse_9|contains|1
+E	78	told	p0	audience=['p3'];from=p0;subject=warehouse_9;relation=contains;obj=edible;conf=0.8;origin=o:warehouse_9|contains|1;fact_id=o:warehouse_9|contains|1;short=warehouse_9 里有 edible
 D	78	p0	idle		
 D	93	p1	interact	water_home_1	
 D	93	p2	interact	water_home_1	
@@ -49,7 +49,7 @@ D	247	p1	idle
 D	247	p2	idle		
 D	247	p4	idle		
 D	247	p5	idle		
-E	260	told	p0	audience=['p2'];from=p0;subject=warehouse_9;relation=contains;obj=edible;conf=0.8;origin=o:warehouse_9|contains|1;fact_id=o:warehouse_9|contains|1
+E	260	told	p0	audience=['p2'];from=p0;subject=warehouse_9;relation=contains;obj=edible;conf=0.8;origin=o:warehouse_9|contains|1;fact_id=o:warehouse_9|contains|1;short=warehouse_9 里有 edible
 D	260	p0	idle		
 D	277	p3	idle		
 D	295	p1	idle		
@@ -65,7 +65,7 @@ D	343	p5	idle
 D	346	p0	idle		
 D	373	p2	idle		
 D	373	p3	idle		
-E	387	told	p0	audience=['p5'];from=p0;subject=warehouse_9;relation=contains;obj=edible;conf=0.8;origin=o:warehouse_9|contains|1;fact_id=o:warehouse_9|contains|1
+E	387	told	p0	audience=['p5'];from=p0;subject=warehouse_9;relation=contains;obj=edible;conf=0.8;origin=o:warehouse_9|contains|1;fact_id=o:warehouse_9|contains|1;short=warehouse_9 里有 edible
 D	387	p0	idle		
 D	391	p1	idle		
 D	391	p4	idle		
@@ -91,7 +91,7 @@ D	508	p2	idle
 D	508	p3	interact	water_warehouse_2	
 D	508	p5	idle		
 E	511	interaction_done	p0	entity=water_home_1
-E	511	told	p0	audience=['p4'];from=p0;subject=warehouse_9;relation=contains;obj=edible;conf=0.8;origin=o:warehouse_9|contains|1;fact_id=o:warehouse_9|contains|1
+E	511	told	p0	audience=['p4'];from=p0;subject=warehouse_9;relation=contains;obj=edible;conf=0.8;origin=o:warehouse_9|contains|1;fact_id=o:warehouse_9|contains|1;short=warehouse_9 里有 edible
 D	511	p0	idle		
 E	518	interaction_done	p3	entity=water_warehouse_2
 D	518	p3	idle		

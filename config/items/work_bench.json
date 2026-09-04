@@ -1,0 +1,11 @@
+{
+  "item_type": "work_bench",
+  "name": "工位",
+  "tags": ["work"],
+  "affordances": {},
+  "duration_ticks": 240,
+  "on_start": [],
+  "on_complete": [],
+  "attrs": {},
+  "stock": -1
+}

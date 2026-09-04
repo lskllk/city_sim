@@ -106,6 +106,8 @@ class Person:
     active_interaction_id: str | None = None  # 正在交互的实体 id(观测/仲裁)
     last_intent: "Intent | None" = None       # 最近一次决策(观测)
     kb: "KnowledgeBase | None" = None         # M5: 该 NPC 的知识库 | None
+    tell_bias: float = 1.0                     # 传闻讲话概率倍率(elm_lane 人设)
+    money: float = 30.0                        # 资金(采购食品用, 经济地基)
 
     def __post_init__(self) -> None:
         # 初始化必须含 SIGNALS 全集; 缺失补 1.0(充足)

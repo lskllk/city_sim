@@ -1,0 +1,5 @@
+{
+  "archetype": "old_resident",
+  "personality": {"hunger": 1.0, "energy": 1.0, "fun": 0.8, "social": 1.0},
+  "knowledge": []
+}

@@ -1,0 +1,5 @@
+{
+  "archetype": "night_owl",
+  "personality": {"energy": 0.65, "fun": 1.6, "hunger": 1.0},
+  "knowledge": []
+}

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <title>CitySim · M5 观察器</title>
-<link rel="stylesheet" href="style.css"/>
+<link rel="stylesheet" href="style.css?v=5"/>
 </head>
 <body>
 <header id="topbar">
@@ -17,12 +17,7 @@
     <button data-speed="max">MAX</button>
   </span>
   <span class="btnrow">
-    场景 <select id="scenario">
-      <option value="demo">demo · 生活节律</option>
-      <option value="scarce">scarce · 4人抢厕所</option>
-      <option value="stale_kb">stale_kb · 过时知识纠错</option>
-      <option value="gossip">gossip · 传闻扩散</option>
-    </select>
+    <span id="sceneName" class="stat">榆树巷 · 一个街区</span>
     seed <input id="seed" type="number" value="3" min="1" max="999"/>
     KB <select id="kb_mode"><option value="off">off</option>
         <option value="full" selected>full</option></select>
@@ -32,6 +27,7 @@
 </header>
 <main id="layout">
   <div id="canvasWrap"><canvas id="stage"></canvas></div>
+  <div id="inspHandle" title="拖动调整宽度"></div>
   <aside id="inspector">
     <div id="inspTitle">点一个小人查看</div>
     <div id="tabs" class="tabs">
@@ -54,9 +50,15 @@
   </span>
   <ul id="events"></ul>
 </footer>
-<script src="kbgraph.js"></script>
-<script src="render.js"></script>
-<script src="panels.js"></script>
-<script src="app.js"></script>
+<script src="kbgraph.js?v=5"></script>
+<script src="render/layout.js?v=5"></script>
+<script src="render/camera.js?v=5"></script>
+<script src="render/fx.js?v=5"></script>
+<script src="render/vm.js?v=5"></script>
+<script src="render/painter.js?v=5"></script>
+<script src="render/picker.js?v=5"></script>
+<script src="render.js?v=5"></script>
+<script src="panels.js?v=5"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

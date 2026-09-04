@@ -1,0 +1,12 @@
+{
+  "item_type": "canteen_counter",
+  "name": "食堂取餐台",
+  "tags": ["container"],
+  "affordances": {},
+  "provides": ["meal_simple"],
+  "duration_ticks": 2,
+  "on_start": [],
+  "on_complete": [],
+  "attrs": {},
+  "stock": 40
+}

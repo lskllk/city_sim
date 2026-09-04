@@ -29,6 +29,38 @@ class Entity:
     on_start: list[dict] = field(default_factory=list)       # M4 数据化效果
     on_complete: list[dict] = field(default_factory=list)    # M4 数据化效果
     provides: list[str] = field(default_factory=list)        # 容器可产物品类型
+    # elm_lane 开放时段: None=全天; []=永久关闭; [[start,end],...]分钟-of-day
+    open_hours: list | None = None
+
+    def is_open_now(self, hour_f: float) -> bool:
+        """当前是否营业。hour_f: 0..24 (含跨天则 mod 1440)。"""
+        if self.open_hours is None:
+            return True
+        if not self.open_hours:
+            return False
+        minute = int(round(hour_f * 60)) % 1440
+        return any(int(s) <= minute < int(e)
+                   for s, e in self.open_hours)
+
+    @staticmethod
+    def parse_open_hours(spec) -> list | None:
+        """'HH:MM-HH:MM,HH:MM-HH:MM' | 'closed' | None -> 分钟窗口 or None/[]。"""
+        if spec is None or str(spec).strip() == "":
+            return None
+        if isinstance(spec, str) and spec.strip().lower() == "closed":
+            return []
+        if isinstance(spec, list):      # 已是 [[s,e],...]
+            return spec
+        out = []
+        for part in str(spec).split(","):
+            part = part.strip()
+            if not part:
+                continue
+            a, _, b = part.partition("-")
+            a = int(a.split(":")[0]) * 60 + int(a.split(":")[1])
+            b = int(b.split(":")[0]) * 60 + int(b.split(":")[1])
+            out.append([a, b])
+        return out or []
 
     @property
     def is_consumable(self) -> bool:

@@ -13,6 +13,7 @@ from citysim.npc.brain import arousal, decide, review_interval_ticks
 from citysim.npc.goap import default_actions
 from citysim.npc.knowledge import CONF_UNKNOWN, Source
 from citysim.npc.person import apply_metabolism
+from citysim.sim.pulses import apply as apply_pulses
 from citysim.world.events import Event
 from citysim.world.interaction import InteractionSystem
 from citysim.world.perception import build_percept, consolidate_observations
@@ -50,8 +51,23 @@ class Systems:
     interaction: InteractionSystem
     travel: dict[str, Travel] = field(default_factory=dict)  # npc_id -> Travel
     log_lines: list[str] | None = None   # 录制/回放(非 None 即开启)
+    ui_events: list = field(default_factory=list)  # 结构化事件(UI/网关消费)
     tell_p: float = 0.0                  # 传闻概率(M5; 0=关闭)
     actions: tuple | None = None         # GOAP 动作库(装配期注入, m5-rectify 14)
+    log_attached: bool = False           # attach_replay 幂等标记
+    # elm_lane: 距离矩阵(key "a|b"->ticks) 与 归一化场景脉冲(见 sim/pulses)
+    travel_costs: dict[str, int] | None = None
+    pulses: list = field(default_factory=list)
+
+
+def _travel_cost(systems: "Systems", cfg: SimConfig, a: str, b: str) -> int:
+    """跨地点移动耗时: 优先 travel_costs 矩阵, 缺省回落到 cfg.move_ticks。"""
+    if systems.travel_costs:
+        c = systems.travel_costs.get(f"{a}|{b}") or \
+            systems.travel_costs.get(f"{b}|{a}")
+        if c is not None:
+            return c
+    return cfg.move_ticks
 
 
 def make_systems(*, log: bool = False, tell_p: float = 0.0,
@@ -66,14 +82,25 @@ def make_systems(*, log: bool = False, tell_p: float = 0.0,
 
 
 def attach_replay(world: World, systems: Systems) -> None:
-    """挂事件日志订阅(与 decide 日志一起构成回放流)。"""
+    """挂事件日志订阅 + 结构化事件流(g5-life 01: 幂等, 单一事件源)。
+
+    log_lines(文本, 供回放测试) 与 ui_events(结构化 dict, 供 UI/网关) 同时写;
+    重复调用不重复订阅。
+    """
     if systems.log_lines is None:
         return
+    if systems.log_attached:
+        return
+    systems.log_attached = True
 
     def _on_event(ev: Event) -> None:
         payload = ";".join(f"{k}={v}" for k, v in ev.payload.items())
         systems.log_lines.append(  # type: ignore[union-attr]
             f"E\t{ev.tick}\t{ev.kind}\t{ev.subject_id}\t{payload}")
+        systems.ui_events.append({
+            "tick": ev.tick, "kind": ev.kind, "subject": ev.subject_id,
+            "payload": dict(ev.payload),
+        })
 
     world.bus.subscribe_log(_on_event)
 
@@ -87,14 +114,17 @@ def _sleeping(world: World, systems: Systems, pid: str) -> bool:
     return ent is not None and ent.is_sleepable
 
 
-def _pick_tell_fact(kb, rng):
+def _pick_tell_fact(kb, rng, interesting=None):
     """传闻选样: overlay 非注入事实按 confidence 加权随机(m5-rectify 05)。
 
     避免恒取最高置信(陈旧 OBSERVED 1.0 永远压过新近 TOLD 0.8 → 假消息
-    无法二次传播)。
+    无法二次传播)。interesting(f)->bool 可选: 只从"对听众有信息量"的事实选,
+    排除人人可见的设施常识(如"床能睡"), 否则会稀释真消息。
     """
     cands = [f for f in kb.overlay.values()
              if f.source.kind != "INJECTED" and f.confidence >= CONF_UNKNOWN]
+    if interesting is not None:
+        cands = [f for f in cands if interesting(f)]
     if not cands:
         return None
     if len(cands) == 1:
@@ -110,36 +140,52 @@ def _gossip_due(world: World, systems: Systems, rng_pool: dict[str, Any],
     m5-rectify 05: 挂 due 重评(成本 O(due))而非每 tick 每对; 选样置信加权。
     m5-rectify 06: 接收方 TOLD 来源携带起源 fact 引用 (speaker, f:origin)。
     """
-    p = systems.tell_p
+    p = systems.tell_p * getattr(speaker_npc, "tell_bias", 1.0)
     if p <= 0.0 or speaker_npc.kb is None:
         return
     rng = rng_pool[speaker_id]
     if rng.random() >= p:
         return
-    fact = _pick_tell_fact(speaker_npc.kb, rng)
-    if fact is None:
-        return
+    # 先找同地可接收的听众(是否"已知"交给选样判定)
     ids = [pid for pid, npc in world.npcs.items()
            if pid != speaker_id and npc.kb is not None and npc.is_alive()
            and npc.location_id == speaker_npc.location_id
            and pid not in systems.interaction.active
-           and pid not in systems.travel
-           and not npc.kb.knows(fact.subject, fact.relation, fact.obj)]
+           and pid not in systems.travel]
     if not ids:
         return
-    receiver = rng.choice(ids)
+    # 只传播"至少有听众不知道"的事实(排除人人可见的设施常识)
+    fact = _pick_tell_fact(
+        speaker_npc.kb, rng,
+        interesting=lambda f: any(
+            not world.npcs[pid].kb.knows(f.subject, f.relation, f.obj)
+            for pid in ids))
+    if fact is None:
+        return
+    receivers = [pid for pid in ids
+                 if not world.npcs[pid].kb.knows(
+                     fact.subject, fact.relation, fact.obj)]
+    receiver = rng.choice(receivers)
     r_kb = world.npcs[receiver].kb
     f2 = r_kb.learn(subject=fact.subject, relation=fact.relation,
                     obj=fact.obj, confidence=fact.confidence * 0.8,
                     source=Source(kind="TOLD",
                                   ref=(speaker_id, f"f:{fact.fact_id}")),
                     tick=world.clock_tick)
+    _REL_ZH = {"contains": "里有", "sells": "在卖", "located_at": "在",
+               "price_of": "定价为", "is_a": "是", "affords": "可提供"}
+
+    def _term(x: str) -> str:      # 服务端生成人话(canvasrecode 9: short)
+        e = world.entities.get(x)
+        return e.name if (e is not None and e.name) else str(x)
+    short = f"{_term(fact.subject)} {_REL_ZH.get(fact.relation, fact.relation)} " \
+            f"{_term(fact.obj)}"
     world.bus.publish(world.bus.make(
         world.clock_tick, "told", speaker_id,
         {"audience": [receiver], "from": speaker_id,
          "subject": fact.subject, "relation": fact.relation,
          "obj": fact.obj, "conf": round(fact.confidence * 0.8, 3),
-         "origin": fact.fact_id, "fact_id": f2.fact_id}))
+         "origin": fact.fact_id, "fact_id": f2.fact_id, "short": short}))
 
 
 def run_tick(world: World, systems: Systems, cfg: SimConfig,
@@ -147,6 +193,11 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
     """推进一个 tick(唯一入口)。"""
     world.clock_tick += 1
     hour = world.hour_f()
+
+    # 0. 场景脉冲(世界侧定时, elm_lane): 在 NPC 感知前改库存/停业
+    if systems.pulses:
+        apply_pulses(world, systems.pulses, world.clock_tick,
+                     cfg.ticks_per_day)
 
     # 1. 代谢(全体活着的 NPC; 睡眠中冻结精力消耗, 否则永远睡不饱)
     for pid, npc in world.npcs.items():
@@ -188,17 +239,24 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
             systems.log_lines.append(
                 f"D\t{world.clock_tick}\t{npc_id}\t{intent.kind}\t"
                 f"{intent.target_id or ''}\t{plan}")
+            systems.ui_events.append({
+                "tick": world.clock_tick, "kind": "decision",
+                "subject": npc_id, "intent": intent.kind,
+                "target": intent.target_id or "", "plan": plan,
+                "payload": {},
+            })
         decisions.append((npc_id, npc, intent))
     for npc_id, npc, intent in decisions:
         if intent.kind == "move_to":
             # 旅行由主循环管理(不走 InteractionSystem); 出发前清残留 claim
             systems.interaction.release_active(world, npc_id)
             dest = intent.target_id or npc.location_id
+            cost = _travel_cost(systems, cfg, npc.location_id, dest)
             systems.travel[npc_id] = Travel(
                 from_loc=npc.location_id, to_loc=dest,
                 depart_tick=world.clock_tick,
-                arrive_tick=world.clock_tick + cfg.move_ticks)
-            systems.scheduler.schedule(npc_id, cfg.move_ticks)
+                arrive_tick=world.clock_tick + cost)
+            systems.scheduler.schedule(npc_id, cost)
             continue
         ok = systems.interaction.submit(world, npc, intent)
         if intent.kind == "interact" and ok:

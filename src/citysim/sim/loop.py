@@ -129,7 +129,6 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
     systems.interaction.step(world, cfg)
     # 3.5 传闻(M5; 同地 idle 分享)
     _rumor_pass(world, systems, rng_pool)
-    # 5. 到点重评
     # 5. 到点重评: 先对全部到点者算 Intent(同一世界快照, 反映 claim 竞争),
     #    再统一仲裁提交(先手 claim 成功, 后手收到 intent_failed)
     due = systems.scheduler.pop_due(world.clock_tick)
@@ -170,3 +169,11 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
             a = arousal(npc.hour_f, npc.signals.get("energy", 0.5),
                         npc.signals.get("hunger", 0.5))
             systems.scheduler.schedule(npc_id, review_interval_ticks(a, cfg))
+    # 5.5 M5 遗忘: 每游戏日 0 点对带 KB 的 NPC 批量 decay(design 553;
+    #    kb=None 不触发 → M4 golden 平价保持)。
+    if world.clock_tick % cfg.ticks_per_day == 0:
+        for npc in world.npcs.values():
+            kb = getattr(npc, "kb", None)
+            if kb is not None:
+                kb.decay(now_tick=world.clock_tick,
+                         half_life_ticks=cfg.half_life_ticks)

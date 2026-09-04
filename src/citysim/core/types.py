@@ -20,6 +20,7 @@ class EntityView:
     duration_ticks: int
     distance: float = 0.0                 # 到 NPC 的距离(M2 先全 0.0)
     claimable: bool = True                # True=当前无人占用
+    stock_zero: bool = False              # True=stock==0(真空), 区别于被占用
     location_id: str = ""
 
 

@@ -21,6 +21,7 @@ def build_percept(world, npc) -> Percept:
             duration_ticks=e.duration_ticks,
             distance=0.0,
             claimable=e.claimable_by(npc.person_id),
+            stock_zero=e.stock == 0,
             location_id=e.location_id,
         ))
     events = world.bus.drain_for(npc.person_id)
@@ -42,16 +43,9 @@ def consolidate_observations(npc, percept: Percept, kb) -> None:
     for v in percept.visible:
         if "container" not in v.tags:
             continue
-        has = bool(v.claimable and v.affordances.get("provides:edible", 0.0) > 0)
         existing = kb.query(subject=v.entity_id, relation="contains")
-        if has:
-            learned = any(f.source.kind == "OBSERVED" and f.obj == "edible"
-                          for f in existing)
-            if not learned:
-                kb.learn(subject=v.entity_id, relation="contains",
-                         obj="edible", confidence=1.0,
-                         source=Source(kind="OBSERVED"))
-        else:
+        # 真空(stock==0): 证伪既有"有食"并学 none(design 5.3)
+        if v.stock_zero:
             for f in existing:
                 if f.obj == "edible":
                     kb.refute(f.fact_id)
@@ -61,3 +55,25 @@ def consolidate_observations(npc, percept: Percept, kb) -> None:
                 kb.learn(subject=v.entity_id, relation="contains",
                          obj="none", confidence=1.0,
                          source=Source(kind="OBSERVED"))
+            continue
+        # 被他人占用(非空但 claimable=False): 不是"空"的证据, 不更新(避免误证伪)
+        if not v.claimable:
+            continue
+        # 可用且有食 → OBSERVED contains=edible + located_at(自住地)
+        has = v.affordances.get("provides:edible", 0.0) > 0
+        if not has:
+            continue
+        learned = any(f.source.kind == "OBSERVED" and f.obj == "edible"
+                      for f in existing)
+        if not learned:
+            kb.learn(subject=v.entity_id, relation="contains",
+                     obj="edible", confidence=1.0,
+                     source=Source(kind="OBSERVED"))
+        # 亲眼见到有食物的容器 -> 也记下它在哪(located_at), S1 收敛必需
+        loc = kb.query(subject=v.entity_id, relation="located_at")
+        known_loc = next((f.obj for f in loc
+                          if f.source.kind == "OBSERVED"), None)
+        if known_loc != npc.location_id:
+            kb.learn(subject=v.entity_id, relation="located_at",
+                     obj=npc.location_id, confidence=1.0,
+                     source=Source(kind="OBSERVED"))

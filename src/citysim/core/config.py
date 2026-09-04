@@ -31,6 +31,7 @@ class SimConfig:
     default_duration_ticks: int
     review_min_ticks: int
     review_max_ticks: int
+    half_life_ticks: int = 10080   # M5 知识半衰期(tick; 7 天)
 
     @classmethod
     def from_toml(cls, data: dict[str, Any]) -> "SimConfig":
@@ -46,6 +47,7 @@ class SimConfig:
             default_duration_ticks=int(data["interaction"]["default_duration_ticks"]),
             review_min_ticks=int(data["review"]["min_ticks"]),
             review_max_ticks=int(data["review"]["max_ticks"]),
+            half_life_ticks=int(data.get("knowledge", {}).get("half_life_ticks", 10080)),
         )
 
 

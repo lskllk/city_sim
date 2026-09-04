@@ -1,0 +1,16 @@
+{
+  "days": 7,
+  "n_npc": 6,
+  "decisions": 2462,
+  "moves": 6,
+  "failed": 0,
+  "exploration": 0.0024,
+  "empty_run": 0.0,
+  "jaccard_distance": 0.6,
+  "trace_complete": 1.0,
+  "overlay_per_npc_day3": 2.0,
+  "overlay_per_npc_day7": 2.0,
+  "overlay_max": 2,
+  "all_npc_ate": true,
+  "used_samples": 6
+}

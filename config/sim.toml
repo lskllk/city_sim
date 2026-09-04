@@ -26,3 +26,6 @@ default_duration_ticks = 30    # 未声明时长物品的缺省交互 tick
 [review]                       # 重评节律参数
 min_ticks = 1                  # 最清醒时每 tick 想一次
 max_ticks = 48                 # 最困时约每 48 tick 重评一次
+
+[knowledge]                    # M5: 知识库
+half_life_ticks = 10080        # 7 天 = 0.5^(1/7)/天(S5: 21 天=3 半衰期->0.125)

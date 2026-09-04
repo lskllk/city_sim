@@ -1,0 +1,1911 @@
+D	1	p0	idle		
+D	1	p1	idle		
+D	1	p2	idle		
+D	1	p3	idle		
+D	38	p0	idle		
+D	38	p1	idle		
+D	38	p2	idle		
+D	38	p3	idle		
+D	78	p0	idle		
+D	78	p1	idle		
+D	78	p2	idle		
+D	78	p3	idle		
+D	119	p0	interact	water_home_3	
+D	119	p1	interact	water_home_0	
+D	119	p2	interact	water_home_3	
+D	119	p3	interact	water_home_3	
+E	119	intent_failed	p2	target=water_home_3;why=已被他人占用
+E	119	intent_failed	p3	target=water_home_3;why=已被他人占用
+E	129	interaction_done	p0	entity=water_home_3
+E	129	interaction_done	p1	entity=water_home_0
+D	129	p0	idle		
+D	129	p1	idle		
+D	162	p2	interact	water_home_1	
+D	162	p3	interact	water_home_2	
+E	172	interaction_done	p2	entity=water_home_1
+E	172	interaction_done	p3	entity=water_home_2
+D	172	p0	idle		
+D	172	p1	idle		
+D	172	p2	idle		
+D	172	p3	idle		
+D	216	p0	idle		
+D	216	p1	idle		
+D	216	p2	idle		
+D	216	p3	idle		
+D	260	p0	idle		
+D	260	p1	idle		
+D	260	p2	idle		
+D	260	p3	idle		
+D	303	p0	idle		
+D	303	p1	idle		
+D	303	p2	idle		
+D	303	p3	idle		
+D	346	p0	idle		
+D	346	p1	idle		
+D	346	p2	idle		
+D	346	p3	idle		
+D	387	p0	idle		
+D	387	p1	idle		
+D	387	p2	idle		
+D	387	p3	idle		
+D	427	p0	idle		
+D	427	p1	idle		
+D	427	p2	idle		
+D	427	p3	idle		
+D	465	p0	idle		
+D	465	p1	idle		
+D	465	p2	idle		
+D	465	p3	idle		
+D	501	p0	interact	water_home_0	
+D	501	p1	interact	water_home_1	
+D	501	p2	idle		
+D	501	p3	idle		
+E	511	interaction_done	p0	entity=water_home_0
+E	511	interaction_done	p1	entity=water_home_1
+D	511	p0	idle		
+D	511	p1	idle		
+D	535	p2	interact	water_home_1	
+D	535	p3	interact	water_home_1	
+E	535	intent_failed	p3	target=water_home_1;why=已被他人占用
+E	545	interaction_done	p2	entity=water_home_1
+D	545	p0	interact	bed_home_3	
+D	545	p1	interact	bed_home_0	
+D	545	p2	interact	bed_home_1	
+D	568	p3	interact	water_home_3	
+E	578	interaction_done	p3	entity=water_home_3
+D	578	p3	interact	bed_home_2	
+E	874	interaction_done	p0	entity=bed_home_3
+E	874	interaction_done	p1	entity=bed_home_0
+E	874	interaction_done	p2	entity=bed_home_1
+D	875	p0	move_to	kitchen	
+D	875	p1	move_to	kitchen	
+D	875	p2	move_to	kitchen	
+D	905	p0	move_to	market	
+D	905	p1	move_to	market	
+D	905	p2	move_to	market	
+E	915	interaction_done	p3	entity=bed_home_2
+D	916	p3	move_to	kitchen	
+D	935	p0	interact	market_1	take_from_container,eat
+D	935	p1	interact	market_1	take_from_container,eat
+D	935	p2	interact	market_1	take_from_container,eat
+E	935	intent_failed	p1	target=market_1;why=已被他人占用
+E	935	intent_failed	p2	target=market_1;why=已被他人占用
+E	937	interaction_done	p0	entity=market_1
+D	943	p1	interact	market_1	take_from_container,eat
+D	943	p2	interact	market_1	take_from_container,eat
+E	943	intent_failed	p2	target=market_1;why=已被他人占用
+E	945	interaction_done	p1	entity=market_1
+D	946	p3	move_to	market	
+D	951	p2	interact	market_1	take_from_container,eat
+E	953	interaction_done	p2	entity=market_1
+E	957	interaction_done	p0	entity=auto1
+D	957	p0	interact	water_market_2	
+E	965	interaction_done	p1	entity=auto2
+D	965	p1	interact	water_market_3	
+E	967	interaction_done	p0	entity=water_market_2
+D	967	p0	idle		
+D	972	p0	idle		
+E	973	interaction_done	p2	entity=auto3
+D	973	p2	idle		
+E	975	interaction_done	p1	entity=water_market_3
+D	975	p1	idle		
+D	976	p3	interact	market_1	take_from_container,eat
+D	977	p0	idle		
+E	978	interaction_done	p3	entity=market_1
+D	978	p2	idle		
+D	980	p1	idle		
+D	982	p0	idle		
+D	983	p2	idle		
+D	985	p1	idle		
+D	987	p0	idle		
+D	988	p2	interact	water_market_2	
+D	990	p1	idle		
+D	992	p0	idle		
+D	996	p1	idle		
+E	998	interaction_done	p3	entity=auto4
+E	998	interaction_done	p2	entity=water_market_2
+D	998	p0	idle		
+D	998	p2	idle		
+D	998	p3	idle		
+D	1002	p1	idle		
+D	1004	p0	idle		
+D	1004	p2	idle		
+D	1004	p3	idle		
+D	1008	p1	idle		
+D	1010	p0	idle		
+D	1010	p2	idle		
+D	1010	p3	idle		
+D	1015	p1	idle		
+D	1016	p3	interact	water_market_3	
+D	1017	p0	idle		
+D	1017	p2	idle		
+D	1022	p1	idle		
+D	1024	p0	idle		
+D	1024	p2	idle		
+E	1026	interaction_done	p3	entity=water_market_3
+D	1026	p3	idle		
+D	1029	p1	idle		
+D	1031	p0	idle		
+D	1031	p2	idle		
+D	1033	p3	idle		
+D	1037	p1	idle		
+D	1039	p0	idle		
+D	1039	p2	idle		
+D	1041	p3	idle		
+D	1045	p1	idle		
+D	1047	p0	idle		
+D	1047	p2	idle		
+D	1049	p3	idle		
+D	1054	p1	idle		
+D	1056	p0	idle		
+D	1056	p2	idle		
+D	1058	p3	idle		
+D	1063	p1	idle		
+D	1065	p0	idle		
+D	1065	p2	idle		
+D	1067	p3	idle		
+D	1073	p1	idle		
+D	1075	p0	idle		
+D	1075	p2	idle		
+D	1077	p3	idle		
+D	1084	p1	idle		
+D	1086	p0	idle		
+D	1086	p2	idle		
+D	1088	p3	idle		
+D	1095	p1	idle		
+D	1098	p0	idle		
+D	1098	p2	idle		
+D	1099	p3	idle		
+D	1107	p1	idle		
+D	1111	p0	idle		
+D	1111	p2	idle		
+D	1111	p3	idle		
+D	1120	p1	idle		
+D	1124	p3	idle		
+D	1125	p0	idle		
+D	1125	p2	idle		
+D	1134	p1	idle		
+D	1138	p3	idle		
+D	1140	p0	idle		
+D	1140	p2	idle		
+D	1149	p1	idle		
+D	1153	p3	idle		
+D	1156	p0	idle		
+D	1156	p2	idle		
+D	1166	p1	idle		
+D	1170	p3	idle		
+D	1173	p0	idle		
+D	1173	p2	idle		
+D	1184	p1	idle		
+D	1188	p3	idle		
+D	1192	p0	idle		
+D	1192	p2	idle		
+D	1204	p1	idle		
+D	1208	p3	idle		
+D	1213	p0	idle		
+D	1213	p2	idle		
+D	1226	p1	idle		
+D	1230	p3	idle		
+D	1235	p0	idle		
+D	1235	p2	idle		
+D	1250	p1	idle		
+D	1254	p3	idle		
+D	1260	p0	idle		
+D	1260	p2	idle		
+D	1276	p1	idle		
+D	1280	p3	idle		
+D	1287	p0	idle		
+D	1287	p2	idle		
+D	1304	p1	idle		
+D	1308	p3	idle		
+D	1316	p0	idle		
+D	1316	p2	idle		
+D	1335	p1	idle		
+D	1339	p3	idle		
+D	1348	p0	interact	water_market_0	
+D	1348	p2	idle		
+E	1358	interaction_done	p0	entity=water_market_0
+D	1358	p0	idle		
+D	1369	p1	interact	water_market_3	
+D	1373	p3	idle		
+E	1379	interaction_done	p1	entity=water_market_3
+D	1379	p1	idle		
+D	1383	p2	interact	water_market_3	
+E	1393	interaction_done	p2	entity=water_market_3
+D	1393	p0	idle		
+D	1393	p2	idle		
+D	1409	p3	interact	water_market_3	
+D	1416	p1	idle		
+E	1419	interaction_done	p3	entity=water_market_3
+D	1419	p3	idle		
+D	1431	p0	idle		
+D	1431	p2	idle		
+D	1456	p1	idle		
+D	1459	p3	idle		
+D	1472	p0	idle		
+D	1472	p2	idle		
+D	1498	p1	idle		
+D	1501	p3	idle		
+D	1515	p0	idle		
+D	1515	p2	idle		
+D	1543	p1	idle		
+D	1546	p3	idle		
+D	1560	p0	interact	market_1	take_from_container,eat
+D	1560	p2	interact	market_1	take_from_container,eat
+E	1560	intent_failed	p2	target=market_1;why=已被他人占用
+E	1562	interaction_done	p0	entity=market_1
+E	1582	interaction_done	p0	entity=auto5
+D	1582	p0	interact	toilet_market	
+E	1587	interaction_done	p0	entity=toilet_market
+D	1587	p0	idle		
+D	1589	p1	interact	market_1	take_from_container,eat
+E	1591	interaction_done	p1	entity=market_1
+D	1592	p3	interact	market_1	take_from_container,eat
+E	1594	interaction_done	p3	entity=market_1
+D	1607	p2	interact	market_1	take_from_container,eat
+E	1609	interaction_done	p2	entity=market_1
+E	1611	interaction_done	p1	entity=auto6
+D	1611	p1	interact	toilet_market	
+E	1614	interaction_done	p3	entity=auto7
+D	1614	p3	idle		
+E	1616	interaction_done	p1	entity=toilet_market
+D	1616	p1	idle		
+E	1629	interaction_done	p2	entity=auto8
+D	1629	p2	interact	toilet_market	
+D	1630	p0	idle		
+E	1634	interaction_done	p2	entity=toilet_market
+D	1634	p2	idle		
+D	1657	p3	interact	toilet_market	
+D	1659	p1	idle		
+E	1662	interaction_done	p3	entity=toilet_market
+D	1662	p3	idle		
+D	1673	p0	idle		
+D	1677	p2	idle		
+D	1702	p1	idle		
+D	1705	p3	idle		
+D	1716	p0	idle		
+D	1720	p2	idle		
+D	1745	p1	idle		
+D	1748	p3	idle		
+D	1759	p0	idle		
+D	1763	p2	idle		
+D	1787	p1	idle		
+D	1790	p3	idle		
+D	1800	p0	interact	water_market_3	
+D	1804	p2	idle		
+E	1810	interaction_done	p0	entity=water_market_3
+D	1810	p0	idle		
+D	1828	p1	interact	water_market_1	
+D	1830	p3	idle		
+E	1838	interaction_done	p1	entity=water_market_1
+D	1838	p1	idle		
+D	1844	p2	interact	water_market_1	
+D	1850	p0	idle		
+E	1854	interaction_done	p2	entity=water_market_1
+D	1854	p2	idle		
+D	1869	p3	interact	water_market_3	
+D	1876	p1	idle		
+E	1879	interaction_done	p3	entity=water_market_3
+D	1879	p3	idle		
+D	1888	p0	idle		
+D	1892	p2	idle		
+D	1912	p1	idle		
+D	1915	p3	idle		
+D	1924	p0	idle		
+D	1928	p2	idle		
+D	1947	p1	idle		
+D	1949	p3	idle		
+D	1958	p0	idle		
+D	1962	p2	idle		
+D	1980	p1	idle		
+D	1981	p3	idle		
+D	1990	p0	idle		
+D	1994	p2	idle		
+D	2011	p1	idle		
+D	2012	p3	idle		
+D	2020	p0	idle		
+D	2024	p2	idle		
+D	2040	p1	idle		
+D	2041	p3	idle		
+D	2049	p0	idle		
+D	2053	p2	idle		
+D	2068	p1	idle		
+D	2068	p3	idle		
+D	2076	p0	idle		
+D	2080	p2	idle		
+D	2094	p1	idle		
+D	2094	p3	idle		
+D	2102	p0	idle		
+D	2106	p2	idle		
+D	2119	p1	idle		
+D	2119	p3	idle		
+D	2127	p0	idle		
+D	2131	p2	idle		
+D	2143	p1	idle		
+D	2143	p3	idle		
+D	2151	p0	idle		
+D	2155	p2	idle		
+D	2166	p1	idle		
+D	2166	p3	idle		
+D	2174	p0	idle		
+D	2178	p2	idle		
+D	2188	p3	idle		
+D	2189	p1	idle		
+D	2196	p0	interact	water_market_1	
+D	2200	p2	idle		
+E	2206	interaction_done	p0	entity=water_market_1
+D	2206	p0	idle		
+D	2210	p3	idle		
+D	2211	p1	interact	water_market_3	
+E	2221	interaction_done	p1	entity=water_market_3
+D	2221	p1	idle		
+D	2222	p2	interact	water_market_0	
+D	2228	p0	idle		
+D	2231	p3	idle		
+E	2232	interaction_done	p2	entity=water_market_0
+D	2232	p2	idle		
+D	2242	p1	idle		
+D	2249	p0	interact	bed_market_3	
+D	2252	p3	interact	water_market_0	
+D	2253	p2	interact	bed_market_2	
+E	2262	interaction_done	p3	entity=water_market_0
+D	2262	p3	idle		
+D	2263	p1	interact	bed_market_1	
+D	2283	p3	interact	market_1	take_from_container,eat
+E	2285	interaction_done	p3	entity=market_1
+E	2305	interaction_done	p3	entity=auto9
+D	2305	p3	interact	bed_market_0	
+E	2577	interaction_done	p0	entity=bed_market_3
+D	2578	p0	interact	market_1	take_from_container,eat
+E	2580	interaction_done	p0	entity=market_1
+E	2581	interaction_done	p2	entity=bed_market_2
+D	2582	p2	interact	market_1	take_from_container,eat
+E	2584	interaction_done	p2	entity=market_1
+E	2594	interaction_done	p1	entity=bed_market_1
+D	2595	p1	interact	market_1	take_from_container,eat
+E	2597	interaction_done	p1	entity=market_1
+E	2600	interaction_done	p0	entity=auto10
+D	2600	p0	idle		
+E	2604	interaction_done	p2	entity=auto11
+D	2604	p2	idle		
+D	2616	p0	idle		
+E	2617	interaction_done	p1	entity=auto12
+D	2617	p1	idle		
+D	2620	p2	idle		
+D	2633	p0	idle		
+D	2634	p1	idle		
+E	2636	interaction_done	p3	entity=bed_market_0
+D	2637	p3	idle		
+D	2638	p2	idle		
+D	2652	p0	interact	water_market_1	
+D	2653	p1	idle		
+D	2656	p3	idle		
+D	2657	p2	idle		
+E	2662	interaction_done	p0	entity=water_market_1
+D	2662	p0	idle		
+D	2674	p1	interact	water_market_3	
+D	2677	p3	interact	water_market_2	
+D	2678	p2	interact	water_market_1	
+E	2684	interaction_done	p1	entity=water_market_3
+D	2684	p0	idle		
+D	2684	p1	idle		
+E	2687	interaction_done	p3	entity=water_market_2
+D	2687	p3	idle		
+E	2688	interaction_done	p2	entity=water_market_1
+D	2688	p2	idle		
+D	2708	p0	idle		
+D	2708	p1	idle		
+D	2711	p3	idle		
+D	2712	p2	idle		
+D	2734	p0	idle		
+D	2734	p1	idle		
+D	2737	p3	idle		
+D	2738	p2	idle		
+D	2763	p0	idle		
+D	2763	p1	idle		
+D	2766	p3	idle		
+D	2767	p2	idle		
+D	2794	p0	idle		
+D	2794	p1	idle		
+D	2797	p3	idle		
+D	2799	p2	idle		
+D	2828	p0	idle		
+D	2828	p1	idle		
+D	2831	p3	idle		
+D	2833	p2	idle		
+D	2865	p0	idle		
+D	2865	p1	idle		
+D	2868	p3	idle		
+D	2870	p2	idle		
+D	2905	p0	idle		
+D	2905	p1	idle		
+D	2908	p3	idle		
+D	2910	p2	idle		
+D	2947	p0	idle		
+D	2947	p1	idle		
+D	2950	p3	idle		
+D	2953	p2	idle		
+D	2991	p0	idle		
+D	2991	p1	idle		
+D	2995	p3	idle		
+D	2998	p2	interact	market_1	take_from_container,eat
+E	3000	interaction_done	p2	entity=market_1
+E	3020	interaction_done	p2	entity=auto13
+D	3020	p2	interact	toilet_market	
+E	3025	interaction_done	p2	entity=toilet_market
+D	3025	p2	idle		
+D	3037	p0	interact	market_1	take_from_container,eat
+D	3037	p1	interact	market_1	take_from_container,eat
+E	3037	intent_failed	p1	target=market_1;why=已被他人占用
+E	3039	interaction_done	p0	entity=market_1
+D	3041	p3	interact	market_1	take_from_container,eat
+E	3043	interaction_done	p3	entity=market_1
+E	3059	interaction_done	p0	entity=auto14
+D	3059	p0	interact	toilet_market	
+E	3063	interaction_done	p3	entity=auto15
+D	3063	p3	idle		
+E	3064	interaction_done	p0	entity=toilet_market
+D	3064	p0	idle		
+D	3067	p2	idle		
+D	3084	p1	interact	market_1	take_from_container,eat
+E	3086	interaction_done	p1	entity=market_1
+E	3106	interaction_done	p1	entity=auto16
+D	3106	p1	interact	toilet_market	
+D	3106	p3	interact	toilet_market	
+E	3106	intent_failed	p3	target=toilet_market;why=已被他人占用
+D	3107	p0	interact	water_market_1	
+D	3110	p2	idle		
+E	3111	interaction_done	p1	entity=toilet_market
+D	3111	p1	idle		
+E	3117	interaction_done	p0	entity=water_market_1
+D	3117	p0	idle		
+D	3149	p3	interact	toilet_market	
+D	3153	p2	interact	water_market_0	
+E	3154	interaction_done	p3	entity=toilet_market
+D	3154	p1	interact	water_market_3	
+D	3154	p3	interact	water_market_2	
+D	3160	p0	idle		
+E	3163	interaction_done	p2	entity=water_market_0
+D	3163	p2	idle		
+E	3164	interaction_done	p1	entity=water_market_3
+E	3164	interaction_done	p3	entity=water_market_2
+D	3164	p1	idle		
+D	3164	p3	idle		
+D	3202	p0	idle		
+D	3205	p2	idle		
+D	3206	p1	idle		
+D	3206	p3	idle		
+D	3243	p0	idle		
+D	3246	p2	idle		
+D	3247	p1	idle		
+D	3247	p3	idle		
+D	3282	p0	idle		
+D	3285	p2	idle		
+D	3286	p1	idle		
+D	3286	p3	idle		
+D	3319	p0	idle		
+D	3322	p2	idle		
+D	3323	p1	idle		
+D	3323	p3	idle		
+D	3354	p0	idle		
+D	3357	p2	idle		
+D	3358	p1	idle		
+D	3358	p3	idle		
+D	3387	p0	idle		
+D	3390	p2	idle		
+D	3391	p1	idle		
+D	3391	p3	idle		
+D	3418	p0	idle		
+D	3421	p2	idle		
+D	3422	p1	idle		
+D	3422	p3	idle		
+D	3448	p0	idle		
+D	3450	p2	idle		
+D	3451	p1	idle		
+D	3451	p3	idle		
+D	3476	p0	idle		
+D	3478	p1	idle		
+D	3478	p2	idle		
+D	3478	p3	idle		
+D	3502	p0	interact	water_market_1	
+D	3504	p1	idle		
+D	3504	p2	idle		
+D	3504	p3	idle		
+E	3512	interaction_done	p0	entity=water_market_1
+D	3512	p0	idle		
+D	3528	p3	idle		
+D	3529	p1	idle		
+D	3529	p2	idle		
+D	3536	p0	idle		
+D	3551	p3	interact	water_market_0	
+D	3552	p1	interact	water_market_1	
+D	3552	p2	interact	water_market_1	
+E	3552	intent_failed	p2	target=water_market_1;why=已被他人占用
+D	3559	p0	idle		
+E	3561	interaction_done	p3	entity=water_market_0
+D	3561	p3	idle		
+E	3562	interaction_done	p1	entity=water_market_1
+D	3562	p1	idle		
+D	3574	p2	interact	water_market_1	
+D	3581	p0	idle		
+D	3583	p3	idle		
+E	3584	interaction_done	p2	entity=water_market_1
+D	3584	p1	idle		
+D	3584	p2	idle		
+D	3602	p0	idle		
+D	3604	p3	idle		
+D	3605	p1	idle		
+D	3605	p2	idle		
+D	3622	p0	idle		
+D	3624	p3	idle		
+D	3625	p1	idle		
+D	3625	p2	idle		
+D	3642	p0	idle		
+D	3643	p3	idle		
+D	3645	p1	idle		
+D	3645	p2	idle		
+D	3661	p0	idle		
+D	3662	p3	idle		
+D	3664	p1	idle		
+D	3664	p2	idle		
+D	3680	p0	idle		
+D	3680	p3	idle		
+D	3683	p1	idle		
+D	3683	p2	idle		
+D	3698	p3	idle		
+D	3699	p0	idle		
+D	3702	p1	idle		
+D	3702	p2	idle		
+D	3716	p3	interact	market_1	take_from_container,eat
+E	3718	interaction_done	p3	entity=market_1
+D	3718	p0	interact	market_1	take_from_container,eat
+E	3720	interaction_done	p0	entity=market_1
+D	3720	p1	interact	market_1	take_from_container,eat
+D	3720	p2	interact	market_1	take_from_container,eat
+E	3720	intent_failed	p2	target=market_1;why=已被他人占用
+E	3722	interaction_done	p1	entity=market_1
+E	3738	interaction_done	p3	entity=auto17
+D	3738	p2	interact	market_1	take_from_container,eat
+D	3738	p3	idle		
+E	3740	interaction_done	p0	entity=auto18
+E	3740	interaction_done	p2	entity=market_1
+D	3740	p0	idle		
+E	3742	interaction_done	p1	entity=auto19
+D	3742	p1	idle		
+D	3751	p3	idle		
+D	3754	p0	idle		
+D	3756	p1	idle		
+E	3760	interaction_done	p2	entity=auto20
+D	3760	p2	idle		
+D	3764	p3	idle		
+D	3768	p0	idle		
+D	3770	p1	idle		
+D	3774	p2	idle		
+D	3777	p3	idle		
+D	3782	p0	idle		
+D	3784	p1	idle		
+D	3788	p2	idle		
+D	3791	p3	idle		
+D	3796	p0	idle		
+D	3798	p1	idle		
+D	3802	p2	idle		
+D	3805	p3	idle		
+D	3810	p0	idle		
+D	3812	p1	idle		
+D	3817	p2	idle		
+D	3819	p3	idle		
+D	3825	p0	idle		
+D	3827	p1	idle		
+D	3832	p2	idle		
+D	3833	p3	idle		
+D	3840	p0	idle		
+D	3842	p1	idle		
+D	3847	p2	idle		
+D	3848	p3	idle		
+D	3856	p0	idle		
+D	3858	p1	idle		
+D	3863	p2	idle		
+D	3863	p3	idle		
+D	3872	p0	idle		
+D	3874	p1	idle		
+D	3879	p2	idle		
+D	3879	p3	idle		
+D	3889	p0	idle		
+D	3891	p1	idle		
+D	3896	p2	idle		
+D	3896	p3	idle		
+D	3907	p0	idle		
+D	3909	p1	idle		
+D	3913	p3	idle		
+D	3914	p2	idle		
+D	3925	p0	idle		
+D	3927	p1	idle		
+D	3931	p3	idle		
+D	3933	p2	idle		
+D	3944	p0	idle		
+D	3946	p1	idle		
+D	3950	p3	idle		
+D	3953	p2	interact	bed_market_0	
+D	3964	p0	interact	water_market_2	
+D	3966	p1	interact	bed_market_3	
+D	3970	p3	idle		
+E	3974	interaction_done	p0	entity=water_market_2
+D	3974	p0	interact	bed_market_2	
+D	3991	p3	idle		
+D	4014	p3	interact	water_market_3	
+E	4024	interaction_done	p3	entity=water_market_3
+D	4024	p3	interact	bed_market_1	
+E	4280	interaction_done	p2	entity=bed_market_0
+D	4281	p2	interact	water_market_3	
+E	4291	interaction_done	p2	entity=water_market_3
+D	4291	p2	idle		
+E	4293	interaction_done	p1	entity=bed_market_3
+D	4294	p1	interact	water_market_0	
+E	4304	interaction_done	p1	entity=water_market_0
+D	4304	p1	idle		
+E	4306	interaction_done	p0	entity=bed_market_2
+D	4307	p0	idle		
+D	4329	p2	idle		
+D	4343	p1	idle		
+D	4346	p0	interact	water_market_1	
+E	4354	interaction_done	p3	entity=bed_market_1
+D	4355	p3	idle		
+E	4356	interaction_done	p0	entity=water_market_1
+D	4356	p0	idle		
+D	4370	p2	idle		
+D	4384	p1	idle		
+D	4397	p3	interact	water_market_3	
+D	4398	p0	idle		
+E	4407	interaction_done	p3	entity=water_market_3
+D	4407	p3	idle		
+D	4413	p2	idle		
+D	4428	p1	idle		
+D	4442	p0	interact	market_1	take_from_container,eat
+E	4444	interaction_done	p0	entity=market_1
+D	4452	p3	interact	market_1	take_from_container,eat
+E	4454	interaction_done	p3	entity=market_1
+D	4458	p2	interact	market_1	take_from_container,eat
+E	4460	interaction_done	p2	entity=market_1
+E	4464	interaction_done	p0	entity=auto21
+D	4464	p0	interact	toilet_market	
+E	4469	interaction_done	p0	entity=toilet_market
+D	4469	p0	idle		
+E	4474	interaction_done	p3	entity=auto22
+D	4474	p1	interact	market_1	take_from_container,eat
+D	4474	p3	interact	toilet_market	
+E	4476	interaction_done	p1	entity=market_1
+E	4479	interaction_done	p3	entity=toilet_market
+D	4479	p3	idle		
+E	4480	interaction_done	p2	entity=auto23
+D	4480	p2	interact	toilet_market	
+E	4485	interaction_done	p2	entity=toilet_market
+D	4485	p2	idle		
+E	4496	interaction_done	p1	entity=auto24
+D	4496	p1	interact	toilet_market	
+E	4501	interaction_done	p1	entity=toilet_market
+D	4501	p1	idle		
+D	4511	p0	idle		
+D	4521	p3	idle		
+D	4527	p2	idle		
+D	4543	p1	interact	water_market_0	
+E	4553	interaction_done	p1	entity=water_market_0
+D	4553	p1	idle		
+D	4554	p0	idle		
+D	4563	p3	idle		
+D	4570	p2	interact	water_market_0	
+E	4580	interaction_done	p2	entity=water_market_0
+D	4580	p2	idle		
+D	4595	p1	idle		
+D	4596	p0	idle		
+D	4605	p3	idle		
+D	4622	p2	idle		
+D	4637	p1	idle		
+D	4638	p0	idle		
+D	4646	p3	idle		
+D	4663	p2	idle		
+D	4677	p1	idle		
+D	4678	p0	idle		
+D	4686	p3	idle		
+D	4702	p2	idle		
+D	4716	p1	idle		
+D	4717	p0	idle		
+D	4724	p3	idle		
+D	4740	p2	idle		
+D	4753	p1	idle		
+D	4754	p0	idle		
+D	4760	p3	idle		
+D	4775	p2	idle		
+D	4788	p1	idle		
+D	4789	p0	idle		
+D	4794	p3	idle		
+D	4808	p2	idle		
+D	4820	p1	idle		
+D	4821	p0	interact	water_market_2	
+D	4826	p3	idle		
+E	4831	interaction_done	p0	entity=water_market_2
+D	4831	p0	idle		
+D	4839	p2	idle		
+D	4850	p1	idle		
+D	4856	p3	interact	water_market_0	
+D	4861	p0	idle		
+E	4866	interaction_done	p3	entity=water_market_0
+D	4866	p3	idle		
+D	4868	p2	idle		
+D	4878	p1	idle		
+D	4889	p0	idle		
+D	4893	p3	idle		
+D	4895	p2	idle		
+D	4905	p1	idle		
+D	4915	p0	idle		
+D	4918	p3	idle		
+D	4921	p2	idle		
+D	4930	p1	interact	water_market_3	
+D	4939	p0	idle		
+E	4940	interaction_done	p1	entity=water_market_3
+D	4940	p1	idle		
+D	4942	p3	idle		
+D	4945	p2	idle		
+D	4962	p0	idle		
+D	4963	p1	idle		
+D	4964	p3	idle		
+D	4968	p2	interact	water_market_1	
+E	4978	interaction_done	p2	entity=water_market_1
+D	4978	p2	idle		
+D	4984	p0	idle		
+D	4985	p1	idle		
+D	4985	p3	idle		
+D	4999	p2	idle		
+D	5005	p0	idle		
+D	5005	p3	idle		
+D	5006	p1	idle		
+D	5019	p2	idle		
+D	5024	p3	idle		
+D	5025	p0	idle		
+D	5026	p1	idle		
+D	5038	p2	idle		
+D	5042	p3	idle		
+D	5044	p0	idle		
+D	5045	p1	idle		
+D	5056	p2	idle		
+D	5060	p3	idle		
+D	5062	p0	idle		
+D	5063	p1	idle		
+D	5074	p2	idle		
+D	5077	p3	idle		
+D	5079	p0	idle		
+D	5080	p1	idle		
+D	5091	p2	idle		
+D	5093	p3	idle		
+D	5096	p0	idle		
+D	5097	p1	idle		
+D	5108	p2	idle		
+D	5109	p3	idle		
+D	5112	p0	idle		
+D	5114	p1	idle		
+D	5124	p2	idle		
+D	5125	p3	idle		
+D	5128	p0	idle		
+D	5130	p1	idle		
+D	5140	p2	idle		
+D	5140	p3	idle		
+D	5144	p0	idle		
+D	5146	p1	idle		
+D	5155	p3	idle		
+D	5156	p2	interact	market_1	take_from_container,eat
+E	5158	interaction_done	p2	entity=market_1
+D	5160	p0	interact	market_1	take_from_container,eat
+E	5162	interaction_done	p0	entity=market_1
+D	5162	p1	interact	market_1	take_from_container,eat
+E	5164	interaction_done	p1	entity=market_1
+D	5170	p3	interact	market_1	take_from_container,eat
+E	5172	interaction_done	p3	entity=market_1
+E	5178	interaction_done	p2	entity=auto25
+D	5178	p2	idle		
+E	5182	interaction_done	p0	entity=auto26
+D	5182	p0	idle		
+E	5184	interaction_done	p1	entity=auto27
+D	5184	p1	idle		
+D	5189	p2	idle		
+E	5192	interaction_done	p3	entity=auto28
+D	5192	p3	idle		
+D	5193	p0	idle		
+D	5195	p1	idle		
+D	5200	p2	idle		
+D	5203	p3	idle		
+D	5204	p0	idle		
+D	5206	p1	idle		
+D	5211	p2	idle		
+D	5214	p3	idle		
+D	5215	p0	idle		
+D	5217	p1	idle		
+D	5223	p2	idle		
+D	5225	p3	idle		
+D	5226	p0	idle		
+D	5228	p1	idle		
+D	5235	p2	idle		
+D	5236	p3	idle		
+D	5237	p0	idle		
+D	5240	p1	idle		
+D	5247	p2	idle		
+D	5247	p3	idle		
+D	5249	p0	idle		
+D	5252	p1	idle		
+D	5258	p3	idle		
+D	5259	p2	idle		
+D	5261	p0	idle		
+D	5264	p1	idle		
+D	5270	p3	idle		
+D	5272	p2	idle		
+D	5273	p0	interact	water_market_1	
+D	5277	p1	idle		
+D	5282	p3	idle		
+E	5283	interaction_done	p0	entity=water_market_1
+D	5283	p0	idle		
+D	5285	p2	idle		
+D	5290	p1	idle		
+D	5295	p3	idle		
+D	5296	p0	idle		
+D	5298	p2	idle		
+D	5303	p1	idle		
+D	5308	p3	interact	water_market_2	
+D	5309	p0	idle		
+D	5312	p2	idle		
+D	5317	p1	idle		
+E	5318	interaction_done	p3	entity=water_market_2
+D	5318	p3	idle		
+D	5323	p0	idle		
+D	5326	p2	idle		
+D	5331	p1	idle		
+D	5332	p3	idle		
+D	5338	p0	idle		
+D	5341	p2	idle		
+D	5346	p1	idle		
+D	5347	p3	idle		
+D	5353	p0	idle		
+D	5357	p2	idle		
+D	5362	p1	idle		
+D	5362	p3	idle		
+D	5369	p0	idle		
+D	5374	p2	idle		
+D	5378	p3	idle		
+D	5379	p1	idle		
+D	5386	p0	idle		
+D	5391	p2	idle		
+D	5395	p3	idle		
+D	5397	p1	interact	water_market_1	
+D	5404	p0	idle		
+E	5407	interaction_done	p1	entity=water_market_1
+D	5407	p1	idle		
+D	5409	p2	idle		
+D	5413	p3	idle		
+D	5423	p0	idle		
+D	5426	p1	idle		
+D	5429	p2	interact	water_market_1	
+D	5432	p3	idle		
+E	5439	interaction_done	p2	entity=water_market_1
+D	5439	p2	idle		
+D	5443	p0	idle		
+D	5447	p1	idle		
+D	5453	p3	idle		
+D	5461	p2	idle		
+D	5465	p0	idle		
+D	5469	p1	idle		
+D	5475	p3	idle		
+D	5484	p2	idle		
+D	5488	p0	idle		
+D	5493	p1	idle		
+D	5499	p3	idle		
+D	5509	p2	idle		
+D	5513	p0	idle		
+D	5518	p1	idle		
+D	5524	p3	idle		
+D	5536	p2	idle		
+D	5540	p0	idle		
+D	5545	p1	idle		
+D	5551	p3	idle		
+D	5565	p2	idle		
+D	5569	p0	idle		
+D	5574	p1	idle		
+D	5580	p3	idle		
+D	5596	p2	idle		
+D	5600	p0	idle		
+D	5605	p1	idle		
+D	5612	p3	idle		
+D	5629	p2	idle		
+D	5633	p0	idle		
+D	5639	p1	idle		
+D	5646	p3	idle		
+D	5665	p2	interact	bed_market_2	
+D	5669	p0	interact	water_market_3	
+D	5675	p1	interact	bed_market_3	
+E	5679	interaction_done	p0	entity=water_market_3
+D	5679	p0	interact	bed_market_0	
+D	5682	p3	idle		
+D	5721	p3	interact	water_market_2	
+E	5731	interaction_done	p3	entity=water_market_2
+D	5731	p3	interact	bed_market_1	
+E	5995	interaction_done	p2	entity=bed_market_2
+D	5996	p2	interact	market_1	take_from_container,eat
+E	5998	interaction_done	p2	entity=market_1
+E	6004	interaction_done	p1	entity=bed_market_3
+D	6005	p1	interact	market_1	take_from_container,eat
+E	6006	interaction_done	p0	entity=bed_market_0
+E	6007	interaction_done	p1	entity=market_1
+D	6007	p0	interact	market_1	take_from_container,eat
+E	6009	interaction_done	p0	entity=market_1
+E	6018	interaction_done	p2	entity=auto29
+D	6018	p2	interact	water_market_3	
+E	6027	interaction_done	p1	entity=auto30
+D	6027	p1	interact	water_market_2	
+E	6028	interaction_done	p2	entity=water_market_3
+D	6028	p2	interact	toilet_market	
+E	6029	interaction_done	p0	entity=auto31
+D	6029	p0	idle		
+E	6033	interaction_done	p2	entity=toilet_market
+D	6033	p2	idle		
+E	6037	interaction_done	p1	entity=water_market_2
+D	6037	p1	interact	toilet_market	
+E	6042	interaction_done	p1	entity=toilet_market
+D	6042	p1	idle		
+E	6059	interaction_done	p3	entity=bed_market_1
+D	6060	p3	interact	market_1	take_from_container,eat
+E	6062	interaction_done	p3	entity=market_1
+D	6070	p0	interact	toilet_market	
+D	6074	p2	idle		
+E	6075	interaction_done	p0	entity=toilet_market
+D	6075	p0	idle		
+E	6082	interaction_done	p3	entity=auto32
+D	6082	p3	interact	toilet_market	
+D	6083	p1	idle		
+E	6087	interaction_done	p3	entity=toilet_market
+D	6087	p3	idle		
+D	6114	p2	idle		
+D	6115	p0	idle		
+D	6123	p1	idle		
+D	6126	p3	idle		
+D	6152	p2	idle		
+D	6153	p0	interact	water_market_0	
+D	6161	p1	idle		
+E	6163	interaction_done	p0	entity=water_market_0
+D	6163	p0	idle		
+D	6163	p3	idle		
+D	6188	p2	idle		
+D	6197	p1	idle		
+D	6198	p0	idle		
+D	6198	p3	interact	water_market_0	
+E	6208	interaction_done	p3	entity=water_market_0
+D	6208	p3	idle		
+D	6222	p2	idle		
+D	6230	p1	idle		
+D	6231	p0	idle		
+D	6240	p3	idle		
+D	6254	p2	idle		
+D	6261	p1	idle		
+D	6262	p0	idle		
+D	6270	p3	idle		
+D	6284	p2	idle		
+D	6290	p1	interact	water_market_1	
+D	6291	p0	idle		
+D	6298	p3	idle		
+E	6300	interaction_done	p1	entity=water_market_1
+D	6300	p1	idle		
+D	6311	p2	interact	water_market_2	
+D	6318	p0	idle		
+E	6321	interaction_done	p2	entity=water_market_2
+D	6321	p2	idle		
+D	6324	p3	idle		
+D	6326	p1	idle		
+D	6343	p0	idle		
+D	6346	p2	idle		
+D	6348	p3	idle		
+D	6351	p1	idle		
+D	6366	p0	idle		
+D	6369	p2	idle		
+D	6371	p3	idle		
+D	6374	p1	idle		
+D	6388	p0	idle		
+D	6391	p2	idle		
+D	6392	p3	idle		
+D	6395	p1	idle		
+D	6409	p0	idle		
+D	6411	p2	idle		
+D	6412	p3	idle		
+D	6415	p1	idle		
+D	6428	p0	idle		
+D	6430	p2	idle		
+D	6431	p3	idle		
+D	6434	p1	idle		
+D	6446	p0	idle		
+D	6448	p2	idle		
+D	6449	p3	idle		
+D	6452	p1	idle		
+D	6463	p0	idle		
+D	6465	p2	idle		
+D	6466	p3	idle		
+D	6469	p1	idle		
+D	6480	p0	idle		
+D	6482	p2	idle		
+D	6482	p3	idle		
+D	6485	p1	idle		
+D	6496	p0	idle		
+D	6497	p3	idle		
+D	6498	p2	idle		
+D	6501	p1	idle		
+D	6511	p0	idle		
+D	6512	p3	idle		
+D	6513	p2	idle		
+D	6516	p1	idle		
+D	6526	p0	idle		
+D	6526	p3	idle		
+D	6528	p2	idle		
+D	6531	p1	idle		
+D	6540	p0	interact	water_market_3	
+D	6540	p3	idle		
+D	6542	p2	idle		
+D	6545	p1	idle		
+E	6550	interaction_done	p0	entity=water_market_3
+D	6550	p0	idle		
+D	6553	p3	idle		
+D	6556	p2	idle		
+D	6559	p1	idle		
+D	6564	p0	idle		
+D	6566	p3	idle		
+D	6570	p2	idle		
+D	6573	p1	idle		
+D	6577	p0	idle		
+D	6579	p3	interact	water_market_1	
+D	6584	p2	idle		
+D	6586	p1	idle		
+E	6589	interaction_done	p3	entity=water_market_1
+D	6589	p3	idle		
+D	6590	p0	idle		
+D	6597	p2	interact	market_1	take_from_container,eat
+E	6599	interaction_done	p2	entity=market_1
+D	6599	p1	interact	market_1	take_from_container,eat
+E	6601	interaction_done	p1	entity=market_1
+D	6602	p3	interact	market_1	take_from_container,eat
+D	6603	p0	idle		
+E	6604	interaction_done	p3	entity=market_1
+D	6616	p0	interact	market_1	take_from_container,eat
+E	6618	interaction_done	p0	entity=market_1
+E	6619	interaction_done	p2	entity=auto33
+D	6619	p2	idle		
+E	6621	interaction_done	p1	entity=auto34
+D	6621	p1	idle		
+E	6624	interaction_done	p3	entity=auto35
+D	6624	p3	idle		
+D	6628	p2	idle		
+D	6629	p1	idle		
+D	6632	p3	idle		
+D	6637	p1	idle		
+D	6637	p2	idle		
+E	6638	interaction_done	p0	entity=auto36
+D	6638	p0	idle		
+D	6640	p3	idle		
+D	6646	p1	idle		
+D	6646	p2	idle		
+D	6647	p0	idle		
+D	6648	p3	idle		
+D	6655	p1	idle		
+D	6655	p2	idle		
+D	6656	p0	idle		
+D	6656	p3	idle		
+D	6664	p1	idle		
+D	6664	p2	idle		
+D	6664	p3	idle		
+D	6665	p0	idle		
+D	6672	p3	idle		
+D	6673	p1	idle		
+D	6673	p2	idle		
+D	6674	p0	idle		
+D	6681	p3	idle		
+D	6682	p1	idle		
+D	6682	p2	idle		
+D	6683	p0	idle		
+D	6690	p3	idle		
+D	6691	p1	idle		
+D	6691	p2	idle		
+D	6692	p0	idle		
+D	6699	p3	idle		
+D	6701	p1	idle		
+D	6701	p2	idle		
+D	6702	p0	idle		
+D	6708	p3	idle		
+D	6711	p1	idle		
+D	6711	p2	idle		
+D	6712	p0	idle		
+D	6717	p3	idle		
+D	6721	p1	idle		
+D	6721	p2	idle		
+D	6722	p0	idle		
+D	6727	p3	idle		
+D	6731	p1	idle		
+D	6732	p0	idle		
+D	6732	p2	idle		
+D	6737	p3	idle		
+D	6742	p1	interact	water_market_0	
+D	6743	p0	idle		
+D	6743	p2	idle		
+D	6748	p3	idle		
+E	6752	interaction_done	p1	entity=water_market_0
+D	6752	p1	idle		
+D	6754	p0	idle		
+D	6754	p2	idle		
+D	6759	p3	idle		
+D	6764	p1	idle		
+D	6766	p0	idle		
+D	6766	p2	interact	water_market_0	
+D	6771	p3	idle		
+E	6776	interaction_done	p2	entity=water_market_0
+D	6776	p1	idle		
+D	6776	p2	idle		
+D	6778	p0	idle		
+D	6783	p3	idle		
+D	6789	p1	idle		
+D	6789	p2	idle		
+D	6791	p0	idle		
+D	6796	p3	idle		
+D	6803	p1	idle		
+D	6803	p2	idle		
+D	6805	p0	idle		
+D	6809	p3	idle		
+D	6817	p1	idle		
+D	6817	p2	idle		
+D	6819	p0	idle		
+D	6823	p3	idle		
+D	6832	p1	idle		
+D	6832	p2	idle		
+D	6834	p0	idle		
+D	6838	p3	idle		
+D	6848	p1	idle		
+D	6848	p2	idle		
+D	6850	p0	idle		
+D	6854	p3	idle		
+D	6865	p1	idle		
+D	6865	p2	idle		
+D	6867	p0	idle		
+D	6871	p3	idle		
+D	6883	p1	idle		
+D	6883	p2	idle		
+D	6885	p0	idle		
+D	6889	p3	idle		
+D	6903	p1	idle		
+D	6903	p2	idle		
+D	6905	p0	idle		
+D	6909	p3	idle		
+D	6924	p1	idle		
+D	6924	p2	idle		
+D	6926	p0	idle		
+D	6930	p3	idle		
+D	6947	p1	idle		
+D	6947	p2	idle		
+D	6949	p0	idle		
+D	6953	p3	idle		
+D	6971	p1	idle		
+D	6972	p2	idle		
+D	6974	p0	idle		
+D	6978	p3	idle		
+D	6997	p1	idle		
+D	6999	p2	idle		
+D	7001	p0	interact	water_market_1	
+D	7005	p3	interact	water_market_3	
+E	7011	interaction_done	p0	entity=water_market_1
+D	7011	p0	idle		
+E	7015	interaction_done	p3	entity=water_market_3
+D	7015	p3	idle		
+D	7026	p1	idle		
+D	7028	p2	idle		
+D	7041	p0	idle		
+D	7045	p3	idle		
+D	7057	p1	idle		
+D	7059	p2	idle		
+D	7073	p0	idle		
+D	7077	p3	idle		
+D	7090	p1	idle		
+D	7093	p2	idle		
+D	7108	p0	idle		
+D	7112	p3	idle		
+D	7126	p1	interact	water_market_0	
+D	7129	p2	idle		
+E	7136	interaction_done	p1	entity=water_market_0
+D	7136	p1	idle		
+D	7145	p0	idle		
+D	7149	p3	idle		
+D	7168	p2	interact	water_market_3	
+D	7175	p1	idle		
+E	7178	interaction_done	p2	entity=water_market_3
+D	7178	p2	idle		
+D	7185	p0	idle		
+D	7189	p3	idle		
+D	7217	p1	idle		
+D	7220	p2	idle		
+D	7227	p0	idle		
+D	7231	p3	idle		
+D	7261	p1	idle		
+D	7264	p2	idle		
+D	7271	p0	idle		
+D	7276	p3	idle		
+D	7307	p1	idle		
+D	7310	p2	idle		
+D	7317	p0	interact	market_1	take_from_container,eat
+E	7319	interaction_done	p0	entity=market_1
+D	7322	p3	interact	market_1	take_from_container,eat
+E	7324	interaction_done	p3	entity=market_1
+E	7339	interaction_done	p0	entity=auto37
+D	7339	p0	interact	toilet_market	
+E	7344	interaction_done	p3	entity=auto38
+E	7344	interaction_done	p0	entity=toilet_market
+D	7344	p0	idle		
+D	7344	p3	interact	toilet_market	
+E	7349	interaction_done	p3	entity=toilet_market
+D	7349	p3	idle		
+D	7355	p1	interact	market_1	take_from_container,eat
+E	7357	interaction_done	p1	entity=market_1
+D	7358	p2	interact	market_1	take_from_container,eat
+E	7360	interaction_done	p2	entity=market_1
+E	7377	interaction_done	p1	entity=auto39
+D	7377	p1	interact	toilet_market	
+E	7380	interaction_done	p2	entity=auto40
+D	7380	p2	interact	bed_market_2	
+E	7382	interaction_done	p1	entity=toilet_market
+D	7382	p1	interact	bed_market_3	
+D	7388	p0	interact	bed_market_1	
+D	7393	p3	idle		
+D	7437	p3	interact	bed_market_0	
+E	7710	interaction_done	p2	entity=bed_market_2
+E	7710	interaction_done	p1	entity=bed_market_3
+D	7711	p1	interact	water_market_3	
+D	7711	p2	interact	water_market_0	
+E	7717	interaction_done	p0	entity=bed_market_1
+D	7718	p0	interact	water_market_2	
+E	7721	interaction_done	p1	entity=water_market_3
+E	7721	interaction_done	p2	entity=water_market_0
+D	7721	p1	idle		
+D	7721	p2	interact	toilet_market	
+E	7726	interaction_done	p2	entity=toilet_market
+D	7726	p2	idle		
+E	7728	interaction_done	p0	entity=water_market_2
+D	7728	p0	idle		
+D	7747	p1	idle		
+D	7752	p2	idle		
+D	7754	p0	idle		
+E	7765	interaction_done	p3	entity=bed_market_0
+D	7766	p3	interact	water_market_0	
+D	7771	p1	idle		
+E	7776	interaction_done	p3	entity=water_market_0
+D	7776	p2	idle		
+D	7776	p3	idle		
+D	7778	p0	idle		
+D	7794	p1	idle		
+D	7798	p2	idle		
+D	7798	p3	idle		
+D	7800	p0	idle		
+D	7815	p1	idle		
+D	7818	p3	idle		
+D	7819	p2	idle		
+D	7820	p0	idle		
+D	7834	p1	idle		
+D	7837	p3	idle		
+D	7838	p2	idle		
+D	7839	p0	idle		
+D	7852	p1	idle		
+D	7855	p3	idle		
+D	7856	p2	idle		
+D	7857	p0	idle		
+D	7869	p1	idle		
+D	7872	p3	idle		
+D	7873	p2	idle		
+D	7874	p0	idle		
+D	7885	p1	idle		
+D	7888	p3	interact	water_market_2	
+D	7889	p2	idle		
+D	7890	p0	interact	water_market_3	
+E	7898	interaction_done	p3	entity=water_market_2
+D	7898	p3	idle		
+E	7900	interaction_done	p0	entity=water_market_3
+D	7900	p0	idle		
+D	7900	p1	idle		
+D	7904	p2	idle		
+D	7912	p3	idle		
+D	7914	p0	idle		
+D	7914	p1	idle		
+D	7918	p2	idle		
+D	7925	p3	idle		
+D	7928	p0	idle		
+D	7928	p1	idle		
+D	7932	p2	idle		
+D	7938	p3	idle		
+D	7941	p0	idle		
+D	7941	p1	idle		
+D	7945	p2	idle		
+D	7950	p3	idle		
+D	7954	p0	idle		
+D	7954	p1	idle		
+D	7958	p2	idle		
+D	7962	p3	idle		
+D	7966	p0	idle		
+D	7966	p1	idle		
+D	7970	p2	idle		
+D	7974	p3	idle		
+D	7978	p0	idle		
+D	7978	p1	idle		
+D	7982	p2	idle		
+D	7985	p3	idle		
+D	7989	p0	idle		
+D	7990	p1	idle		
+D	7993	p2	idle		
+D	7996	p3	idle		
+D	8000	p0	idle		
+D	8001	p1	idle		
+D	8004	p2	idle		
+D	8007	p3	idle		
+D	8011	p0	idle		
+D	8012	p1	interact	water_market_1	
+D	8015	p2	idle		
+D	8017	p3	idle		
+E	8022	interaction_done	p1	entity=water_market_1
+D	8022	p0	idle		
+D	8022	p1	idle		
+D	8026	p2	idle		
+D	8027	p3	idle		
+D	8033	p0	idle		
+D	8033	p1	idle		
+D	8037	p2	interact	market_1	take_from_container,eat
+D	8037	p3	interact	market_1	take_from_container,eat
+E	8037	intent_failed	p3	target=market_1;why=已被他人占用
+E	8039	interaction_done	p2	entity=market_1
+D	8044	p0	interact	market_1	take_from_container,eat
+D	8044	p1	interact	market_1	take_from_container,eat
+E	8044	intent_failed	p1	target=market_1;why=已被他人占用
+E	8046	interaction_done	p0	entity=market_1
+D	8047	p3	interact	market_1	take_from_container,eat
+E	8049	interaction_done	p3	entity=market_1
+D	8055	p1	interact	market_1	take_from_container,eat
+E	8057	interaction_done	p1	entity=market_1
+E	8059	interaction_done	p2	entity=auto41
+D	8059	p2	idle		
+D	8065	p2	idle		
+E	8066	interaction_done	p0	entity=auto42
+D	8066	p0	idle		
+E	8069	interaction_done	p3	entity=auto43
+D	8069	p3	idle		
+D	8071	p2	idle		
+D	8072	p0	idle		
+D	8074	p3	idle		
+E	8077	interaction_done	p1	entity=auto44
+D	8077	p1	idle		
+D	8077	p2	idle		
+D	8078	p0	idle		
+D	8079	p3	idle		
+D	8083	p1	idle		
+D	8083	p2	idle		
+D	8084	p0	idle		
+D	8084	p3	idle		
+D	8089	p1	idle		
+D	8089	p2	idle		
+D	8090	p0	idle		
+D	8090	p3	idle		
+D	8095	p1	idle		
+D	8095	p2	idle		
+D	8096	p0	idle		
+D	8096	p3	idle		
+D	8101	p1	idle		
+D	8101	p2	idle		
+D	8102	p0	idle		
+D	8102	p3	idle		
+D	8107	p1	idle		
+D	8107	p2	idle		
+D	8108	p0	idle		
+D	8108	p3	idle		
+D	8113	p1	idle		
+D	8113	p2	idle		
+D	8114	p0	idle		
+D	8114	p3	idle		
+D	8119	p1	idle		
+D	8119	p2	idle		
+D	8120	p0	idle		
+D	8120	p3	idle		
+D	8126	p1	idle		
+D	8126	p2	interact	water_market_0	
+D	8126	p3	idle		
+D	8127	p0	idle		
+D	8132	p3	idle		
+D	8133	p1	idle		
+D	8134	p0	idle		
+E	8136	interaction_done	p2	entity=water_market_0
+D	8136	p2	idle		
+D	8138	p3	idle		
+D	8140	p1	idle		
+D	8141	p0	idle		
+D	8143	p2	idle		
+D	8145	p3	idle		
+D	8147	p1	idle		
+D	8148	p0	idle		
+D	8150	p2	idle		
+D	8152	p3	idle		
+D	8154	p1	idle		
+D	8155	p0	idle		
+D	8157	p2	idle		
+D	8159	p3	idle		
+D	8162	p1	idle		
+D	8163	p0	idle		
+D	8165	p2	idle		
+D	8166	p3	idle		
+D	8170	p1	idle		
+D	8171	p0	idle		
+D	8173	p2	idle		
+D	8174	p3	idle		
+D	8178	p1	idle		
+D	8179	p0	idle		
+D	8181	p2	idle		
+D	8182	p3	idle		
+D	8187	p1	idle		
+D	8188	p0	idle		
+D	8190	p2	idle		
+D	8190	p3	idle		
+D	8196	p1	idle		
+D	8197	p0	idle		
+D	8199	p2	idle		
+D	8199	p3	idle		
+D	8205	p1	idle		
+D	8206	p0	idle		
+D	8208	p2	idle		
+D	8208	p3	idle		
+D	8215	p1	idle		
+D	8216	p0	idle		
+D	8217	p3	idle		
+D	8218	p2	idle		
+D	8225	p1	idle		
+D	8226	p0	idle		
+D	8227	p3	idle		
+D	8228	p2	idle		
+D	8236	p1	idle		
+D	8237	p0	idle		
+D	8237	p3	idle		
+D	8239	p2	idle		
+D	8247	p1	idle		
+D	8248	p0	idle		
+D	8248	p3	idle		
+D	8251	p2	idle		
+D	8259	p1	idle		
+D	8260	p0	idle		
+D	8260	p3	idle		
+D	8263	p2	idle		
+D	8272	p1	idle		
+D	8273	p0	idle		
+D	8273	p3	idle		
+D	8276	p2	idle		
+D	8286	p1	idle		
+D	8286	p3	idle		
+D	8287	p0	idle		
+D	8290	p2	idle		
+D	8300	p3	idle		
+D	8301	p1	idle		
+D	8302	p0	idle		
+D	8305	p2	idle		
+D	8315	p3	idle		
+D	8317	p1	idle		
+D	8318	p0	idle		
+D	8321	p2	idle		
+D	8331	p3	idle		
+D	8334	p1	idle		
+D	8335	p0	idle		
+D	8338	p2	idle		
+D	8349	p3	interact	water_market_1	
+D	8352	p1	idle		
+D	8353	p0	interact	water_market_0	
+D	8357	p2	idle		
+E	8359	interaction_done	p3	entity=water_market_1
+D	8359	p3	idle		
+E	8363	interaction_done	p0	entity=water_market_0
+D	8363	p0	idle		
+D	8372	p1	idle		
+D	8377	p2	idle		
+D	8379	p3	idle		
+D	8384	p0	idle		
+D	8393	p1	idle		
+D	8399	p2	idle		
+D	8401	p3	idle		
+D	8406	p0	idle		
+D	8416	p1	idle		
+D	8423	p2	idle		
+D	8424	p3	idle		
+D	8430	p0	idle		
+D	8441	p1	idle		
+D	8449	p2	idle		
+D	8449	p3	idle		
+D	8456	p0	idle		
+D	8468	p1	interact	water_market_0	
+D	8477	p2	idle		
+D	8477	p3	idle		
+E	8478	interaction_done	p1	entity=water_market_0
+D	8478	p1	idle		
+D	8484	p0	idle		
+D	8507	p2	interact	water_market_3	
+D	8507	p3	idle		
+D	8508	p1	idle		
+D	8515	p0	idle		
+E	8517	interaction_done	p2	entity=water_market_3
+D	8517	p2	idle		
+D	8540	p3	idle		
+D	8541	p1	idle		
+D	8548	p0	idle		
+D	8551	p2	idle		
+D	8575	p3	idle		
+D	8577	p1	idle		
+D	8584	p0	idle		
+D	8587	p2	idle		
+D	8613	p3	idle		
+D	8615	p1	idle		
+D	8623	p0	idle		
+D	8626	p2	idle		
+D	8654	p3	idle		
+D	8656	p1	idle		
+D	8664	p0	idle		
+D	8668	p2	idle		
+D	8697	p3	idle		
+D	8699	p1	idle		
+D	8708	p0	idle		
+D	8712	p2	idle		
+D	8742	p3	interact	water_market_0	
+D	8744	p1	idle		
+E	8752	interaction_done	p3	entity=water_market_0
+D	8752	p3	idle		
+D	8754	p0	interact	water_market_0	
+D	8758	p2	interact	market_1	take_from_container,eat
+E	8760	interaction_done	p2	entity=market_1
+E	8764	interaction_done	p0	entity=water_market_0
+D	8764	p0	interact	market_1	take_from_container,eat
+E	8766	interaction_done	p0	entity=market_1
+E	8780	interaction_done	p2	entity=auto45
+D	8780	p2	interact	toilet_market	
+E	8785	interaction_done	p2	entity=toilet_market
+D	8785	p2	idle		
+E	8786	interaction_done	p0	entity=auto46
+D	8786	p0	interact	toilet_market	
+E	8791	interaction_done	p0	entity=toilet_market
+D	8791	p0	idle		
+D	8791	p1	interact	market_1	take_from_container,eat
+E	8793	interaction_done	p1	entity=market_1
+D	8799	p3	interact	market_1	take_from_container,eat
+E	8801	interaction_done	p3	entity=market_1
+E	8813	interaction_done	p1	entity=auto47
+D	8813	p1	interact	toilet_market	
+E	8818	interaction_done	p1	entity=toilet_market
+D	8818	p1	idle		
+E	8821	interaction_done	p3	entity=auto48
+D	8821	p3	interact	toilet_market	
+E	8826	interaction_done	p3	entity=toilet_market
+D	8826	p3	idle		
+D	8828	p2	idle		
+D	8834	p0	idle		
+D	8862	p1	idle		
+D	8870	p3	idle		
+D	8872	p2	idle		
+D	8878	p0	idle		
+D	8906	p1	idle		
+D	8914	p3	idle		
+D	8916	p2	idle		
+D	8922	p0	idle		
+D	8949	p1	interact	water_market_2	
+D	8957	p3	idle		
+E	8959	interaction_done	p1	entity=water_market_2
+D	8959	p1	idle		
+D	8959	p2	interact	water_market_0	
+D	8965	p0	idle		
+E	8969	interaction_done	p2	entity=water_market_0
+D	8969	p2	idle		
+D	8999	p3	idle		
+D	9001	p1	idle		
+D	9007	p0	idle		
+D	9011	p2	idle		
+D	9040	p3	idle		
+D	9042	p1	idle		
+D	9048	p0	idle		
+D	9052	p2	idle		
+D	9079	p3	idle		
+D	9081	p1	idle		
+D	9087	p0	idle		
+D	9091	p2	interact	bed_market_0	
+D	9117	p3	idle		
+D	9119	p1	interact	bed_market_2	
+D	9124	p0	interact	bed_market_3	
+D	9153	p3	interact	bed_market_1	
+E	9419	interaction_done	p2	entity=bed_market_0
+D	9420	p2	interact	water_market_3	
+E	9430	interaction_done	p2	entity=water_market_3
+D	9430	p2	idle		
+D	9439	p2	idle		
+D	9448	p2	idle		
+E	9454	interaction_done	p1	entity=bed_market_2
+D	9455	p1	interact	water_market_0	
+D	9456	p2	idle		
+E	9459	interaction_done	p0	entity=bed_market_3
+D	9460	p0	interact	water_market_3	
+D	9464	p2	idle		
+E	9465	interaction_done	p1	entity=water_market_0
+D	9465	p1	idle		
+E	9470	interaction_done	p0	entity=water_market_3
+D	9470	p0	idle		
+D	9472	p2	idle		
+D	9473	p1	idle		
+D	9478	p0	interact	market_1	take_from_container,eat
+E	9480	interaction_done	p0	entity=market_1
+D	9480	p2	interact	market_1	take_from_container,eat
+D	9481	p1	idle		
+E	9482	interaction_done	p2	entity=market_1
+E	9484	interaction_done	p3	entity=bed_market_1
+D	9485	p3	interact	market_1	take_from_container,eat
+E	9487	interaction_done	p3	entity=market_1
+D	9489	p1	interact	market_1	take_from_container,eat
+E	9491	interaction_done	p1	entity=market_1
+E	9500	interaction_done	p0	entity=auto49
+D	9500	p0	idle		
+E	9502	interaction_done	p2	entity=auto50
+D	9502	p2	idle		
+D	9503	p0	idle		
+D	9505	p2	idle		
+D	9506	p0	idle		
+E	9507	interaction_done	p3	entity=auto51
+D	9507	p3	interact	water_market_1	
+D	9508	p2	idle		
+D	9509	p0	idle		
+E	9511	interaction_done	p1	entity=auto52
+D	9511	p1	idle		
+D	9511	p2	idle		
+D	9512	p0	idle		
+D	9514	p1	idle		
+D	9514	p2	idle		
+D	9515	p0	idle		
+E	9517	interaction_done	p3	entity=water_market_1
+D	9517	p1	idle		
+D	9517	p2	idle		
+D	9517	p3	idle		
+D	9518	p0	idle		
+D	9520	p1	idle		
+D	9520	p2	idle		
+D	9520	p3	idle		
+D	9521	p0	idle		
+D	9523	p1	idle		
+D	9523	p2	idle		
+D	9523	p3	idle		
+D	9524	p0	idle		
+D	9526	p1	idle		
+D	9526	p2	idle		
+D	9526	p3	idle		
+D	9527	p0	idle		
+D	9529	p1	idle		
+D	9529	p2	idle		
+D	9529	p3	idle		
+D	9530	p0	idle		
+D	9532	p1	idle		
+D	9532	p2	idle		
+D	9532	p3	idle		
+D	9533	p0	idle		
+D	9535	p1	idle		
+D	9535	p3	idle		
+D	9536	p0	idle		
+D	9536	p2	idle		
+D	9538	p1	idle		
+D	9538	p3	idle		
+D	9539	p0	idle		
+D	9540	p2	idle		
+D	9541	p1	idle		
+D	9541	p3	idle		
+D	9542	p0	idle		
+D	9544	p1	idle		
+D	9544	p2	idle		
+D	9544	p3	idle		
+D	9545	p0	idle		
+D	9547	p1	idle		
+D	9547	p3	idle		
+D	9548	p0	idle		
+D	9548	p2	idle		
+D	9550	p1	idle		
+D	9550	p3	idle		
+D	9551	p0	idle		
+D	9552	p2	idle		
+D	9553	p1	idle		
+D	9553	p3	idle		
+D	9554	p0	idle		
+D	9556	p2	idle		
+D	9556	p3	idle		
+D	9557	p0	idle		
+D	9557	p1	idle		
+D	9559	p3	idle		
+D	9560	p2	idle		
+D	9561	p0	idle		
+D	9561	p1	idle		
+D	9562	p3	idle		
+D	9564	p2	idle		
+D	9565	p0	idle		
+D	9565	p1	idle		
+D	9565	p3	idle		
+D	9568	p2	idle		
+D	9569	p0	idle		
+D	9569	p1	idle		
+D	9569	p3	idle		
+D	9572	p2	idle		
+D	9573	p0	idle		
+D	9573	p1	idle		
+D	9573	p3	idle		
+D	9576	p2	idle		
+D	9577	p0	idle		
+D	9577	p1	idle		
+D	9577	p3	idle		
+D	9580	p2	idle		
+D	9581	p0	idle		
+D	9581	p1	idle		
+D	9581	p3	idle		
+D	9585	p0	idle		
+D	9585	p1	idle		
+D	9585	p2	idle		
+D	9585	p3	idle		
+D	9589	p0	idle		
+D	9589	p1	idle		
+D	9589	p3	idle		
+D	9590	p2	idle		
+D	9593	p0	idle		
+D	9593	p3	idle		
+D	9594	p1	idle		
+D	9595	p2	idle		
+D	9597	p3	idle		
+D	9598	p0	idle		
+D	9599	p1	idle		
+D	9600	p2	idle		
+D	9602	p3	idle		
+D	9603	p0	idle		
+D	9604	p1	idle		
+D	9605	p2	idle		
+D	9607	p3	idle		
+D	9608	p0	idle		
+D	9609	p1	idle		
+D	9610	p2	idle		
+D	9612	p3	idle		
+D	9613	p0	idle		
+D	9614	p1	idle		
+D	9616	p2	idle		
+D	9617	p3	idle		
+D	9618	p0	idle		
+D	9619	p1	idle		
+D	9622	p2	idle		
+D	9622	p3	idle		
+D	9624	p0	idle		
+D	9625	p1	idle		
+D	9628	p2	idle		
+D	9628	p3	idle		
+D	9630	p0	idle		
+D	9631	p1	idle		
+D	9634	p2	idle		
+D	9634	p3	idle		
+D	9636	p0	idle		
+D	9637	p1	idle		
+D	9640	p3	idle		
+D	9641	p2	idle		
+D	9642	p0	idle		
+D	9644	p1	idle		
+D	9646	p3	idle		
+D	9648	p2	idle		
+D	9649	p0	idle		
+D	9651	p1	idle		
+D	9653	p3	idle		
+D	9655	p2	idle		
+D	9656	p0	idle		
+D	9658	p1	idle		
+D	9660	p3	idle		
+D	9663	p2	idle		
+D	9664	p0	interact	water_market_1	
+D	9666	p1	idle		
+D	9667	p3	idle		
+D	9671	p2	idle		
+E	9674	interaction_done	p0	entity=water_market_1
+D	9674	p0	idle		
+D	9674	p1	idle		
+D	9675	p3	idle		
+D	9680	p2	idle		
+D	9683	p0	idle		
+D	9683	p1	idle		
+D	9683	p3	idle		
+D	9689	p2	idle		
+D	9692	p0	idle		
+D	9692	p1	idle		
+D	9692	p3	idle		
+D	9699	p2	idle		
+D	9701	p3	interact	water_market_3	
+D	9702	p0	idle		
+D	9702	p1	idle		
+D	9710	p2	idle		
+E	9711	interaction_done	p3	entity=water_market_3
+D	9711	p3	idle		
+D	9712	p0	idle		
+D	9712	p1	idle		
+D	9721	p2	idle		
+D	9722	p3	idle		
+D	9723	p0	idle		
+D	9723	p1	idle		
+D	9733	p2	idle		
+D	9734	p3	idle		
+D	9735	p0	idle		
+D	9735	p1	idle		
+D	9746	p2	idle		
+D	9746	p3	idle		
+D	9748	p0	idle		
+D	9748	p1	idle		
+D	9759	p3	idle		
+D	9760	p2	idle		
+D	9762	p0	idle		
+D	9762	p1	idle		
+D	9773	p3	idle		
+D	9775	p2	idle		
+D	9777	p0	idle		
+D	9777	p1	idle		
+D	9789	p3	idle		
+D	9791	p2	idle		
+D	9793	p0	idle		
+D	9793	p1	idle		
+D	9806	p3	idle		
+D	9809	p2	idle		
+D	9811	p0	idle		
+D	9811	p1	idle		
+D	9824	p3	idle		
+D	9828	p2	idle		
+D	9830	p0	idle		
+D	9830	p1	idle		
+D	9844	p3	idle		
+D	9849	p2	interact	water_market_2	
+D	9851	p0	idle		
+D	9851	p1	interact	water_market_3	
+E	9859	interaction_done	p2	entity=water_market_2
+D	9859	p2	idle		
+E	9861	interaction_done	p1	entity=water_market_3
+D	9861	p1	idle		
+D	9866	p3	idle		
+D	9874	p0	idle		
+D	9883	p2	idle		
+D	9885	p1	idle		
+D	9890	p3	idle		
+D	9899	p0	idle		
+D	9909	p2	idle		
+D	9911	p1	idle		
+D	9916	p3	idle		
+D	9926	p0	idle		
+D	9937	p2	idle		
+D	9939	p1	idle		
+D	9944	p3	idle		
+D	9955	p0	idle		
+D	9968	p2	idle		
+D	9970	p1	idle		
+D	9975	p3	idle		
+D	9987	p0	idle		
+D	10001	p2	idle		
+D	10003	p1	idle		
+D	10009	p3	idle		
+D	10022	p0	idle		
+D	10037	p2	idle		
+D	10039	p1	idle		
+D	10045	p3	idle		
+D	10060	p0	interact	water_market_1	
+E	10070	interaction_done	p0	entity=water_market_1
+D	10070	p0	idle		
+D	10076	p2	idle		
+D	10078	p1	idle		

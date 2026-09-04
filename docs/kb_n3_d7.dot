@@ -1,0 +1,6 @@
+digraph kb {
+  "market_b" -> "edible" [label="contains c=0.50" color="green"];
+  "market_b" -> "market_b" [label="located_at c=0.50" color="green"];
+  "market_b" -> "meal_simple" [label="sells c=1.00" color="gray"];
+  "market_b" -> "market_b" [label="located_at c=1.00" color="gray"];
+}

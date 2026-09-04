@@ -1,0 +1,297 @@
+{
+  "rows": [
+    {
+      "mode": "off",
+      "seed": 1,
+      "ate": 0,
+      "avg_first": null,
+      "stuck_ticks": 19245,
+      "empty_run": null,
+      "diversity": 0.0
+    },
+    {
+      "mode": "off",
+      "seed": 2,
+      "ate": 0,
+      "avg_first": null,
+      "stuck_ticks": 20154,
+      "empty_run": null,
+      "diversity": 0.0
+    },
+    {
+      "mode": "off",
+      "seed": 3,
+      "ate": 0,
+      "avg_first": null,
+      "stuck_ticks": 20637,
+      "empty_run": null,
+      "diversity": 0.0
+    },
+    {
+      "mode": "off",
+      "seed": 4,
+      "ate": 0,
+      "avg_first": null,
+      "stuck_ticks": 18802,
+      "empty_run": null,
+      "diversity": 0.0
+    },
+    {
+      "mode": "off",
+      "seed": 5,
+      "ate": 0,
+      "avg_first": null,
+      "stuck_ticks": 20517,
+      "empty_run": null,
+      "diversity": 0.0
+    },
+    {
+      "mode": "off",
+      "seed": 6,
+      "ate": 0,
+      "avg_first": null,
+      "stuck_ticks": 19517,
+      "empty_run": null,
+      "diversity": 0.0
+    },
+    {
+      "mode": "off",
+      "seed": 7,
+      "ate": 0,
+      "avg_first": null,
+      "stuck_ticks": 19956,
+      "empty_run": null,
+      "diversity": 0.0
+    },
+    {
+      "mode": "off",
+      "seed": 8,
+      "ate": 0,
+      "avg_first": null,
+      "stuck_ticks": 20303,
+      "empty_run": null,
+      "diversity": 0.0
+    },
+    {
+      "mode": "off",
+      "seed": 9,
+      "ate": 0,
+      "avg_first": null,
+      "stuck_ticks": 19842,
+      "empty_run": null,
+      "diversity": 0.0
+    },
+    {
+      "mode": "off",
+      "seed": 10,
+      "ate": 0,
+      "avg_first": null,
+      "stuck_ticks": 20074,
+      "empty_run": null,
+      "diversity": 0.0
+    },
+    {
+      "mode": "archetype_only",
+      "seed": 1,
+      "ate": 4,
+      "avg_first": 572.0,
+      "stuck_ticks": 0,
+      "empty_run": 0.0,
+      "diversity": 0.0
+    },
+    {
+      "mode": "archetype_only",
+      "seed": 2,
+      "ate": 4,
+      "avg_first": 258.5,
+      "stuck_ticks": 0,
+      "empty_run": 0.25,
+      "diversity": 0.0
+    },
+    {
+      "mode": "archetype_only",
+      "seed": 3,
+      "ate": 4,
+      "avg_first": 182.0,
+      "stuck_ticks": 0,
+      "empty_run": 0.25,
+      "diversity": 0.0
+    },
+    {
+      "mode": "archetype_only",
+      "seed": 4,
+      "ate": 4,
+      "avg_first": 566.5,
+      "stuck_ticks": 0,
+      "empty_run": 0.0,
+      "diversity": 0.0
+    },
+    {
+      "mode": "archetype_only",
+      "seed": 5,
+      "ate": 4,
+      "avg_first": 221.2,
+      "stuck_ticks": 0,
+      "empty_run": 0.25,
+      "diversity": 0.0
+    },
+    {
+      "mode": "archetype_only",
+      "seed": 6,
+      "ate": 4,
+      "avg_first": 365.5,
+      "stuck_ticks": 0,
+      "empty_run": 0.0,
+      "diversity": 0.0
+    },
+    {
+      "mode": "archetype_only",
+      "seed": 7,
+      "ate": 4,
+      "avg_first": 331.5,
+      "stuck_ticks": 0,
+      "empty_run": 0.25,
+      "diversity": 0.0
+    },
+    {
+      "mode": "archetype_only",
+      "seed": 8,
+      "ate": 4,
+      "avg_first": 208.5,
+      "stuck_ticks": 0,
+      "empty_run": 0.0,
+      "diversity": 0.0
+    },
+    {
+      "mode": "archetype_only",
+      "seed": 9,
+      "ate": 4,
+      "avg_first": 297.5,
+      "stuck_ticks": 0,
+      "empty_run": 0.0,
+      "diversity": 0.0
+    },
+    {
+      "mode": "archetype_only",
+      "seed": 10,
+      "ate": 4,
+      "avg_first": 324.2,
+      "stuck_ticks": 0,
+      "empty_run": 0.25,
+      "diversity": 0.0
+    },
+    {
+      "mode": "full",
+      "seed": 1,
+      "ate": 4,
+      "avg_first": 572.0,
+      "stuck_ticks": 0,
+      "empty_run": 0.0,
+      "diversity": 0.333
+    },
+    {
+      "mode": "full",
+      "seed": 2,
+      "ate": 4,
+      "avg_first": 258.5,
+      "stuck_ticks": 0,
+      "empty_run": 0.25,
+      "diversity": 0.333
+    },
+    {
+      "mode": "full",
+      "seed": 3,
+      "ate": 4,
+      "avg_first": 182.0,
+      "stuck_ticks": 0,
+      "empty_run": 0.25,
+      "diversity": 0.333
+    },
+    {
+      "mode": "full",
+      "seed": 4,
+      "ate": 4,
+      "avg_first": 566.5,
+      "stuck_ticks": 0,
+      "empty_run": 0.0,
+      "diversity": 0.333
+    },
+    {
+      "mode": "full",
+      "seed": 5,
+      "ate": 4,
+      "avg_first": 221.2,
+      "stuck_ticks": 0,
+      "empty_run": 0.25,
+      "diversity": 0.333
+    },
+    {
+      "mode": "full",
+      "seed": 6,
+      "ate": 4,
+      "avg_first": 365.5,
+      "stuck_ticks": 0,
+      "empty_run": 0.0,
+      "diversity": 0.333
+    },
+    {
+      "mode": "full",
+      "seed": 7,
+      "ate": 4,
+      "avg_first": 331.5,
+      "stuck_ticks": 0,
+      "empty_run": 0.25,
+      "diversity": 0.333
+    },
+    {
+      "mode": "full",
+      "seed": 8,
+      "ate": 4,
+      "avg_first": 208.5,
+      "stuck_ticks": 0,
+      "empty_run": 0.0,
+      "diversity": 0.333
+    },
+    {
+      "mode": "full",
+      "seed": 9,
+      "ate": 4,
+      "avg_first": 297.5,
+      "stuck_ticks": 0,
+      "empty_run": 0.0,
+      "diversity": 0.333
+    },
+    {
+      "mode": "full",
+      "seed": 10,
+      "ate": 4,
+      "avg_first": 324.2,
+      "stuck_ticks": 0,
+      "empty_run": 0.25,
+      "diversity": 0.333
+    }
+  ],
+  "agg": {
+    "off": {
+      "ate": 0,
+      "avg_first": null,
+      "stuck_ticks": 199047,
+      "empty_run": null,
+      "diversity": 0.0
+    },
+    "archetype_only": {
+      "ate": 40,
+      "avg_first": 332.7,
+      "stuck_ticks": 0,
+      "empty_run": 0.125,
+      "diversity": 0.0
+    },
+    "full": {
+      "ate": 40,
+      "avg_first": 332.7,
+      "stuck_ticks": 0,
+      "empty_run": 0.125,
+      "diversity": 0.333
+    }
+  }
+}

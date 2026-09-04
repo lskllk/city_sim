@@ -14,6 +14,10 @@ from citysim.npc.goap import hunger_plan
 
 # 分数低于此 => 不值得做(→ idle)。沿用旧 Person.setup_brain 默认 threshold。
 UTILITY_THRESHOLD = 0.08
+# 需求急迫度幂次: weight = deficit**UTILITY_POWER。
+# 线性(幂=1)会让"精力差 12%"也去打盹/喝水, 节律不像人(soak 实测一天睡 3.6 次)。
+# 幂>1 放大真实缺口, 压住无谓微需求; M4 后由曲线库/JSON 覆盖。
+UTILITY_POWER = 3.0
 
 
 def _utility(
@@ -23,9 +27,8 @@ def _utility(
 ) -> float:
     """候选实体效用分: u(e) = Σ_s affordance_delta_s * need_weight(s)。
 
-    need_weight = 缺口 need(=1-level) × 性格倍率(personality)。缺省线性曲线
-    (旧 Indicator: curve 缺省 linear=need)。非信号键(如 "provides:edible"
-    这类 M2 临时标记)不参与打分。
+    need_weight = 缺口 need(=1-level) 经急迫幂次映射 × 性格倍率(personality)。
+    非信号键(如 "provides:edible" 这类 M2 临时标记)不参与打分。
     """
     total = 0.0
     for s, delta in e.affordances.items():
@@ -33,7 +36,7 @@ def _utility(
             continue
         level = float(signals.get(s, 0.5))
         need = 1.0 - level
-        weight = need * float(personality.get(s, 1.0))
+        weight = (need ** UTILITY_POWER) * float(personality.get(s, 1.0))
         total += float(delta) * weight
     return total
 

@@ -29,7 +29,7 @@ def test_claim_conflict() -> None:
     seed_reviews(world, systems)
     _run(world, systems, rng_pool, 60)
 
-    assert world.entities["food_1"].stock == 0  # 吃完了
+    assert "food_1" not in world.entities       # 吃完即回收(空消耗品不滞留)
     done = [l for l in systems.log_lines
             if "\tinteraction_done\t" in l and "entity=food_1" in l]
     assert len(done) == 1                        # 只有一人完成对该食物的交互
@@ -46,8 +46,9 @@ def test_consumable_stock() -> None:
     seed_reviews(world, systems)
     _run(world, systems, rng_pool, 40)
     assert food.stock == 0
+    assert "food_1" not in world.entities       # 空消耗品已回收
     assert npc.signals["hunger"] > 0.5           # 吃了 → 饱了
-    # 再多跑一段, 不会再吃同一个已空食物
+    # 再多跑一段, 不会再吃同一个已空/已回收食物
     _run(world, systems, rng_pool, 30)
     assert food.stock == 0
 

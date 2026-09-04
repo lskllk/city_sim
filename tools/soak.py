@@ -51,12 +51,21 @@ class SoakTracker:
         self.failed = 0
         self.decisions = 0
         self.claims: dict[str, dict[str, list[int]]] = {}
-        self._completed: list[tuple[int, str, str]] = []
+        self._completed: list[tuple[int, str, str | None]] = []
 
         def _on_ev(ev):
             if ev.kind == "interaction_done":
-                self._completed.append((ev.tick, ev.subject_id,
-                                        ev.payload.get("entity", "")))
+                # 此刻(事件发布, 先于回收)实体仍在 → 立即解析 tags 分类
+                ent = world.entities.get(ev.payload.get("entity", ""))
+                tags = ent.tags if ent is not None else set()
+                cat: str | None = None
+                if "edible" in tags:
+                    cat = "eat"
+                elif "drink" in tags:
+                    cat = "drink"
+                if "toilet" in tags:
+                    cat = "toilet"
+                self._completed.append((ev.tick, ev.subject_id, cat))
             elif ev.kind == "intent_failed":
                 self.failed += 1
 
@@ -92,17 +101,17 @@ class SoakTracker:
                     (start, self.world.clock_tick))
         done = self._completed
         self._completed = []
-        for (tick, pid, eid) in done:
+        for (tick, pid, cat) in done:
+            if cat is None:
+                continue
             d = tick // 1440 + 1
-            ent = self.world.entities.get(eid)
-            tags = ent.tags if ent else set()
-            if "edible" in tags:
+            if cat == "eat":
                 self.eat.setdefault(pid, {}).setdefault(d, 0)
                 self.eat[pid][d] += 1
-            elif "drink" in tags:
+            elif cat == "drink":
                 self.drink.setdefault(pid, {}).setdefault(d, 0)
                 self.drink[pid][d] += 1
-            if "toilet" in tags:
+            elif cat == "toilet":
                 self.toilet.setdefault(pid, {}).setdefault(d, 0)
                 self.toilet[pid][d] += 1
         self.day = day

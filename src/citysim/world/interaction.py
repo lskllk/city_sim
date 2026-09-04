@@ -116,10 +116,13 @@ class InteractionSystem:
                   act: ActiveInteraction, *, early: bool) -> None:
         npc = world.npcs[pid]
         self._release(world, pid, cancel=False)
+        consumed_empty = False
 
-        # 2. 消耗品 stock-1
+        # 2. 消耗品 stock-1; 空则回收实体(防泄漏, 如吃完的餐/水不再滞留世界)
+        #    回收须在 interaction_done 事件发布之后, 否则观察者无法按实体分类
         if ent.is_consumable and ent.stock > 0:
             ent.stock -= 1
+            consumed_empty = ent.stock <= 0
         # 3. 马桶(清空膀胱) —— 硬编码, M4 搬进数据化 on_complete
         if "toilet" in ent.tags:
             npc.bladder_pending = 0.0
@@ -134,14 +137,26 @@ class InteractionSystem:
         else:
             npc.current_activity = "idle"
 
-        # 5. 事件
+        # 5. 事件(先发布, 观察者可解析实体 tags) -> 再回收空消耗品
         world.bus.publish(world.bus.make(
             world.clock_tick, "interaction_done", pid,
             {"entity": ent.entity_id}))
+        if consumed_empty:
+            world.entities.pop(ent.entity_id, None)
 
     def _continue_plan(self, world: World, npc: Person, act: ActiveInteraction) -> None:
-        """取食链: take 完成后生成一份餐并立即开吃。"""
-        # 弹出本步
+        """取食链: take 完成后生成一份餐并立即开吃。
+
+        有限库存容器(stock != -1)每次供餐扣 1; 扣到 0 后不再可占用。
+        """
+        container = world.entities.get(act.entity_id)
+        if container is None:
+            return
+        if container.stock != -1:
+            if container.stock <= 0:
+                return                     # 没货, 不再产餐
+            container.stock -= 1
+        # 弹出本步(取食成功)
         if act.plan_queue[0] == "eat":
             self._meal_seq += 1
             meal = Entity(

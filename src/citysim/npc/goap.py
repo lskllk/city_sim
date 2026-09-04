@@ -1,12 +1,18 @@
-"""goap —— 反向规划器(迁移自旧 planner)。
+"""goap —— 反向规划器 + 动作库 JSON 加载(M4 4.3)。
 
-单调增布尔事实集; 从目标后向搜索动作序列(正向执行序)。M4 会把动作库改成
-JSON 加载(config/actions/*.json), 本模块先保留 Python 定义, 接口不变。
+动作从 config/actions/*.json 加载(每文件一个动作: action/pre/add/zh/bind),
+转成 Action(name, pre, add)。谓词由世界侧派生喂给 decide(如容器可食 =>
+container_has_edible)。本模块只做规划, 不依赖 world。
 """
 from __future__ import annotations
 
+import functools
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable
+
+_ACTIONS_DIR = Path(__file__).resolve().parents[3] / "config" / "actions"
 
 
 @dataclass(frozen=True)
@@ -63,15 +69,42 @@ def backward_plan(
     )
 
 
-# --- 取食领域动作(事实: food_in_container -> food_at_hand -> fed) --------
-_TAKE_FOOD = Action("take_food", pre=frozenset({"food_in_container"}),
-                    add=frozenset({"food_at_hand"}))
-_EAT_FOOD = Action("eat", pre=frozenset({"food_at_hand"}),
-                   add=frozenset({"fed"}))
+# ----------------------------------------------------------------------
+# 动作库 JSON 加载
+# ----------------------------------------------------------------------
+@functools.lru_cache(maxsize=2)
+def _read_dir(directory: str):
+    actions: dict[str, Action] = {}
+    zh: dict[str, str] = {}
+    for p in sorted(Path(directory).glob("*.json")):
+        with p.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        name = data["action"]
+        actions[name] = Action(name=name,
+                               pre=frozenset(data.get("pre", [])),
+                               add=frozenset(data.get("add", [])))
+        zh[name] = data.get("zh", name)
+    return actions, zh
+
+
+def load_actions(directory: str | Path | None = None):
+    """读 config/actions/*.json -> ({name: Action}, {name: zh})。"""
+    d = _ACTIONS_DIR if directory is None else Path(directory)
+    return _read_dir(str(d))
 
 
 def hunger_plan() -> tuple[str, ...] | None:
-    """饿+食物在容器里 的 GOAP 计划: (take_food, eat)。不可达返回 None。"""
-    plan = backward_plan([_TAKE_FOOD, _EAT_FOOD],
-                         {"food_in_container"}, {"fed"})
+    """饿 + 容器里有食物 的 GOAP 计划(动作名来自 JSON)。不可达返回 None。
+
+    初始事实: 已站在容器(at_container) 且 容器有可食(container_has_edible);
+    目标: 吃饱(fed)。
+    """
+    actions, _ = load_actions()
+    if not actions:
+        return None
+    plan = backward_plan(
+        list(actions.values()),
+        {"at_container", "container_has_edible"},
+        {"fed"},
+    )
     return tuple(plan) if plan else None

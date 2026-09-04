@@ -1,0 +1,13 @@
+{
+  "item_type": "bed_basic",
+  "name": "床",
+  "tags": ["sleepable"],
+  "affordances": {"energy": 0.7, "comfort": 0.2},
+  "duration_ticks": 480,
+  "interruptible": false,
+  "wake_condition": "energy>=0.99",
+  "on_start": [],
+  "on_complete": [],
+  "attrs": {},
+  "stock": 1
+}

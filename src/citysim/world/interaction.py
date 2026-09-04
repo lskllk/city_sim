@@ -1,7 +1,7 @@
 """InteractionSystem —— 执行 Intent + claim 仲裁 + 分 tick 效果推进。
 
 世界侧唯一执行器: 校验 → claim → 登记 ActiveInteraction; 每 tick 分摊
-affordances; 完成时处理 消耗品/马桶/plan_queue 链; 睡眠用 wake_condition
+affordances; 完成时处理 消耗品/如厕/plan_queue 链; 睡眠用 wake_condition
 数据驱动提前结束。事件经 EventBus 发布给 NPC 信箱。
 """
 from __future__ import annotations
@@ -12,6 +12,8 @@ from typing import Any
 
 from citysim.core.config import SIGNALS
 from citysim.npc.person import Person
+from citysim.world.effects import apply_effects
+from citysim.world.itemdefs import load_item_defs
 from citysim.world.world import Entity, World
 
 _WAKE_RE = re.compile(r"^(\w+)\s*>=\s*([0-9.]+)$")
@@ -36,7 +38,6 @@ class InteractionSystem:
     def __init__(self, scheduler: Any = None) -> None:
         self.active: dict[str, ActiveInteraction] = {}   # key = npc_id
         self._scheduler = scheduler                       # TimingWheel | None
-        self._meal_seq = 0
 
     # --- 提交 ---------------------------------------------------------
     def submit(self, world: World, npc: Person, intent) -> bool:
@@ -78,9 +79,9 @@ class InteractionSystem:
         ent.claimed_by = pid
         npc.active_interaction_id = tid
         npc.current_activity = ent.name
-        # 开始 tick 一次性挂排泄负荷(不分摊; 如进食)
-        if not ent.is_sleepable and ent.attrs.get("bladder_load", 0) > 0:
-            npc.bladder_pending += float(ent.attrs["bladder_load"])
+        # 数据化开始效果(M4): on_start(如 add_pending 膀胱负荷)在开始 tick 应用
+        if ent.on_start:
+            apply_effects(world, npc, ent, ent.on_start)
         return True
 
     # --- 每 tick 推进 --------------------------------------------------
@@ -123,11 +124,9 @@ class InteractionSystem:
         if ent.is_consumable and ent.stock > 0:
             ent.stock -= 1
             consumed_empty = ent.stock <= 0
-        # 3. 马桶(清空膀胱) —— 硬编码, M4 搬进数据化 on_complete
-        if "toilet" in ent.tags:
-            npc.bladder_pending = 0.0
-            npc.signals["bladder"] = 1.0
-            npc.current_activity = "idle"
+        # 3. 数据化完成效果(M4 4.1): on_complete(替换硬编码)
+        if ent.on_complete:
+            apply_effects(world, npc, ent, ent.on_complete)
 
         # 4. plan_queue 非空 → 弹出下一步并直接续上(不等重评)
         if act.plan_queue:
@@ -158,15 +157,21 @@ class InteractionSystem:
             container.stock -= 1
         # 弹出本步(取食成功)
         if act.plan_queue[0] == "eat":
-            self._meal_seq += 1
-            meal = Entity(
-                entity_id="", name="简餐",
-                tags={"edible", "consumable"},
-                affordances={"hunger": 0.5, "thirst": 0.1},
-                duration_ticks=20, location_id=npc.location_id,
-                stock=1, attrs={"bladder_load": 0.3},
-            )
-            world.spawn_entity(meal)
+            # M4: 优先按容器 provides 的物品类型生成餐(JSON 数据化)
+            meal: Entity | None = None
+            defs = load_item_defs()
+            if container.provides:
+                for p in container.provides:
+                    if p in defs and "edible" in defs[p].tags:
+                        meal = world.spawn_item_type(p, npc.location_id)
+                        break
+            if meal is None:
+                # DEV(M4): 旧手工容器(无 provides)退回 JSON meal_simple 产餐
+                if "meal_simple" in defs:
+                    meal = world.spawn_item_type("meal_simple",
+                                                 npc.location_id)
+            if meal is None:
+                return
             # 直接开启新交互(吃)
             self.active[npc.person_id] = ActiveInteraction(
                 npc_id=npc.person_id, entity_id=meal.entity_id,
@@ -176,8 +181,9 @@ class InteractionSystem:
             meal.claimed_by = npc.person_id
             npc.active_interaction_id = meal.entity_id
             npc.current_activity = meal.name
-            if meal.attrs.get("bladder_load", 0) > 0:
-                npc.bladder_pending += float(meal.attrs["bladder_load"])
+            # 数据化开始效果(如餐的膀胱负荷)
+            if meal.on_start:
+                apply_effects(world, npc, meal, meal.on_start)
             # 重排下次重评到餐吃完(覆盖 take 的旧档)
             self._resched(world, npc.person_id, meal.duration_ticks)
 

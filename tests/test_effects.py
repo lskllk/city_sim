@@ -95,15 +95,18 @@ def test_spawn_item_creates_at_npc_loc() -> None:
     assert new and new[0].location_id == "home"
 
 
-def test_consume_self_removes_at_zero() -> None:
+def test_consume_self_stock_only_no_pop() -> None:
+    """m5-rectify 03: consume_self 只扣库存, 不自行移除实体(回收统一在
+    interaction 完成事件之后)。"""
     w, npc, ent = _ctx()
     meal = w.spawn_item_type("meal_simple", "home")
     apply_effects(w, npc, meal, [{"op": "consume_self"}])   # stock 1 -> 0
-    assert meal.entity_id not in w.entities
+    assert meal.stock == 0
+    assert meal.entity_id in w.entities        # 不在此处 pop
     # 无限(-1)不被消耗
     disp = w.spawn_item_type("water_dispenser", "home")
     apply_effects(w, npc, disp, [{"op": "consume_self"}])
-    assert disp.entity_id in w.entities
+    assert disp.entity_id in w.entities and disp.stock == -1
 
 
 # --- testm4 E: interaction.py 无领域硬编码字面 -------------------------

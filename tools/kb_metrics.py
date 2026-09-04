@@ -100,7 +100,8 @@ def build_town(seed: int = 1):
         mk = "market_a" if i % 2 == 0 else "market_b"
         arch = ArchetypeKB([
             _fact(1, mk, "sells", "meal_simple", 1.0),
-            _fact(2, mk, "located_at", mk, 1.0)])
+            _fact(2, mk, "located_at", mk, 1.0),
+            _fact(3, "meal_simple", "is_a", "edible", 1.0)])
         world.npcs[f"n{i}"].kb = KnowledgeBase(arch)
     return world, systems, rng_pool
 

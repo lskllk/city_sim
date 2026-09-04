@@ -1,0 +1,3441 @@
+# 核心代码库合并导出 (core codebase dump)
+# 生成时间: 2026-09-04T15:26:57
+# 文件数: 41 · 总行数: 3442
+# 用途: 一次性分析/评审输入; 目录行号 = 本文件内绝对行号(1-based)
+
+## 目录 (Table of Contents)
+
+| # | 模块/文件 | 起行 | LOC |
+|---|---------|-----|-----|
+| 1 | `src\citysim\__init__.py` | 52 | 1 |
+| 2 | `src\citysim\core\__init__.py` | 57 | 1 |
+| 3 | `src\citysim\core\config.py` | 62 | 64 |
+| 4 | `src\citysim\core\ids.py` | 130 | 1 |
+| 5 | `src\citysim\core\types.py` | 135 | 59 |
+| 6 | `src\citysim\nn\__init__.py` | 198 | 1 |
+| 7 | `src\citysim\nn\features.py` | 203 | 1 |
+| 8 | `src\citysim\nn\modulator.py` | 208 | 1 |
+| 9 | `src\citysim\npc\__init__.py` | 213 | 1 |
+| 10 | `src\citysim\npc\brain.py` | 218 | 209 |
+| 11 | `src\citysim\npc\goap.py` | 431 | 133 |
+| 12 | `src\citysim\npc\knowledge.py` | 568 | 281 |
+| 13 | `src\citysim\npc\memory.py` | 853 | 1 |
+| 14 | `src\citysim\npc\person.py` | 858 | 132 |
+| 15 | `src\citysim\sim\__init__.py` | 994 | 1 |
+| 16 | `src\citysim\sim\lod.py` | 999 | 1 |
+| 17 | `src\citysim\sim\loop.py` | 1004 | 206 |
+| 18 | `src\citysim\sim\soa.py` | 1214 | 1 |
+| 19 | `src\citysim\viz\__init__.py` | 1219 | 1 |
+| 20 | `src\citysim\viz\kb_export.py` | 1224 | 45 |
+| 21 | `src\citysim\viz\trace_export.py` | 1273 | 21 |
+| 22 | `src\citysim\world\__init__.py` | 1298 | 1 |
+| 23 | `src\citysim\world\effects.py` | 1303 | 103 |
+| 24 | `src\citysim\world\events.py` | 1410 | 60 |
+| 25 | `src\citysim\world\interaction.py` | 1474 | 257 |
+| 26 | `src\citysim\world\itemdefs.py` | 1735 | 122 |
+| 27 | `src\citysim\world\perception.py` | 1861 | 93 |
+| 28 | `src\citysim\world\scheduler.py` | 1958 | 58 |
+| 29 | `src\citysim\world\world.py` | 2020 | 100 |
+| 30 | `tools\ablation.py` | 2124 | 201 |
+| 31 | `tools\check_imports.py` | 2329 | 57 |
+| 32 | `tools\demo_scene.py` | 2390 | 154 |
+| 33 | `tools\dump_codebase.py` | 2548 | 135 |
+| 34 | `tools\gen_golden.py` | 2687 | 35 |
+| 35 | `tools\kb_metrics.py` | 2726 | 205 |
+| 36 | `tools\narrate.py` | 2935 | 71 |
+| 37 | `tools\scarcity_check.py` | 3010 | 48 |
+| 38 | `tools\soak.py` | 3062 | 150 |
+| 39 | `tools\soak_check.py` | 3216 | 62 |
+| 40 | `tools\soak_report.py` | 3282 | 61 |
+| 41 | `tools\watch.py` | 3347 | 93 |
+========================================================================================
+### src\citysim\__init__.py
+========================================================================================
+"""citysim —— 城市生活模拟内核 (M0~M8)。"""
+
+========================================================================================
+### src\citysim\core\__init__.py
+========================================================================================
+"""core —— 数据契约与基础工具层。"""
+
+========================================================================================
+### src\citysim\core\config.py
+========================================================================================
+"""SimConfig 加载器：把 config/sim.toml 读成 frozen 配置对象。
+
+信号全集 0.3 在此定死：后续加信号改 config 而非代码。
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+try:  # Python 3.11+
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib  # type: ignore[no-redef]
+
+# 信号全集（0..1 float, 1=充足/健康, 0=耗尽）。唯一表示, 禁 0..100 int 存储。
+SIGNALS: tuple[str, ...] = (
+    "energy", "hunger", "thirst", "bladder",
+    "temperature", "health", "fun", "social", "comfort", "hp",
+)
+
+
+@dataclass(frozen=True)
+class SimConfig:
+    ticks_per_day: int
+    metabolism: dict[str, float]     # 全信号 delta; 缺省信号补 0.0
+    wake_energy: float
+    asleep_review_ticks: int
+    bladder_convert: float
+    eat_hunger_threshold: float
+    default_duration_ticks: int
+    review_min_ticks: int
+    review_max_ticks: int
+    half_life_ticks: int = 10080   # M5 知识半衰期(tick; 7 天)
+    utility_power: float = 3.0     # 需求急迫度幂次(m5-rectify 13)
+    utility_threshold: float = 0.08
+    move_ticks: int = 30           # 跨地点移动耗时
+
+    @classmethod
+    def from_toml(cls, data: dict[str, Any]) -> "SimConfig":
+        meta = data.get("metabolism", {})
+        full_meta = {s: float(meta.get(s, 0.0)) for s in SIGNALS}
+        return cls(
+            ticks_per_day=int(data["time"]["ticks_per_day"]),
+            metabolism=full_meta,
+            wake_energy=float(data["sleep"]["wake_energy"]),
+            asleep_review_ticks=int(data["sleep"]["asleep_review_ticks"]),
+            bladder_convert=float(data["bladder"]["convert_per_tick"]),
+            eat_hunger_threshold=float(data["eat"]["hunger_threshold"]),
+            default_duration_ticks=int(data["interaction"]["default_duration_ticks"]),
+            review_min_ticks=int(data["review"]["min_ticks"]),
+            review_max_ticks=int(data["review"]["max_ticks"]),
+            half_life_ticks=int(data.get("knowledge", {}).get("half_life_ticks", 10080)),
+            utility_power=float(data.get("utility", {}).get("power", 3.0)),
+            utility_threshold=float(data.get("utility", {}).get("threshold", 0.08)),
+            move_ticks=int(data.get("motion", {}).get("move_ticks", 30)),
+        )
+
+
+def load_config(path: str | Path = "config/sim.toml") -> SimConfig:
+    """从 TOML 读配置。默认相对当前工作目录。"""
+    with Path(path).open("rb") as f:
+        data = tomllib.load(f)
+    return SimConfig.from_toml(data)
+
+========================================================================================
+### src\citysim\core\ids.py
+========================================================================================
+"""ID 生成规则占位。M3+ 使用。"""
+
+========================================================================================
+### src\citysim\core\types.py
+========================================================================================
+"""数据契约层：NPC <-> 世界 通信数据结构(全部 frozen + slots, 0.2 铁律)。
+
+M2 定死: Percept / Intent / DecisionTrace / EntityView / EventView。
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Literal, Mapping
+
+SourceKind = Literal["INJECTED", "OBSERVED", "TOLD", "INFERRED"]
+
+
+@dataclass(frozen=True, slots=True)
+class EntityView:
+    """NPC 视野里的一个可交互实体(世界侧不可变快照)。"""
+    entity_id: str
+    name: str
+    tags: frozenset[str]                  # {"edible","sleepable","toilet","container",...}
+    affordances: Mapping[str, float]      # 完成后信号效果 {"hunger": +0.4}
+    duration_ticks: int
+    distance: float = 0.0                 # 到 NPC 的距离(M2 先全 0.0)
+    claimable: bool = True                # True=当前无人占用
+    stock_zero: bool = False              # True=stock==0(真空), 区别于被占用
+    provides: frozenset[str] = frozenset()  # 容器可产物类型(m5-rectify 12)
+    food_source: bool = False             # True=容器能供食(defs 或 legacy 标记)
+    location_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class EventView:
+    event_id: str
+    tick: int
+    kind: str                             # "intent_failed" | "interaction_done" | "told" | ...
+    payload: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class Percept:
+    tick: int
+    hour_f: float
+    location_id: str
+    visible: tuple[EntityView, ...] = ()
+    events: tuple[EventView, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class DecisionTrace:
+    ranked: tuple[tuple[str, float], ...] = ()   # (entity_id, utility分) 降序
+    reason: str = ""
+    used_fact_ids: tuple[str, ...] = ()          # M5 前恒为 ()
+    plan: tuple[str, ...] = ()                   # GOAP 动作名序列, 无计划=()
+    features: Mapping[str, float] = field(default_factory=dict)  # M8 前为 {}
+
+
+@dataclass(frozen=True, slots=True)
+class Intent:
+    kind: Literal["interact", "move_to", "idle"]
+    target_id: str | None = None
+    trace: DecisionTrace = field(default_factory=DecisionTrace)
+
+========================================================================================
+### src\citysim\nn\__init__.py
+========================================================================================
+"""nn —— 调制网络(M8, 可选)。"""
+
+========================================================================================
+### src\citysim\nn\features.py
+========================================================================================
+"""特征构建占位。M8 实现。"""
+
+========================================================================================
+### src\citysim\nn\modulator.py
+========================================================================================
+"""共享 MLP 调制器占位。M8 实现。"""
+
+========================================================================================
+### src\citysim\npc\__init__.py
+========================================================================================
+"""npc —— 认知侧(纯数据 Person + 决策)。不得 import world/。"""
+
+========================================================================================
+### src\citysim\npc\brain.py
+========================================================================================
+"""brain —— decide() 纯函数 + utility。
+
+定位: 由 Percept + signals 决定下一个 Intent(做什么)。纯函数: 不得修改任何
+入参、不得访问全局状态。utility 打分迁移自旧 person/brain/indicator.py。
+"""
+from __future__ import annotations
+
+from math import cos, pi
+from typing import Any, Mapping
+
+from citysim.core.config import SIGNALS, SimConfig
+from citysim.core.types import DecisionTrace, EntityView, Intent, Percept
+from citysim.npc.goap import hunger_plan
+
+# 分数低于此 => 不值得做(→ idle)。沿用旧 Person.setup_brain 默认 threshold。
+# 需求急迫度幂次: weight = deficit**power; 线性会让"精力差 12%"也去打盹/喝水。
+# 幂>1 放大真实缺口, 压住无谓微需求; 两值现由 sim.toml [utility] 承载(13)。
+
+
+def _utility(
+    e: EntityView,
+    signals: Mapping[str, float],
+    personality: Mapping[str, float],
+    power: float,
+) -> float:
+    """候选实体效用分: u(e) = Σ_s affordance_delta_s * need_weight(s)。
+
+    need_weight = 缺口 need(=1-level) 经急迫幂次映射 × 性格倍率(personality)。
+    非信号键(如 "provides:edible" 这类 M2 临时标记)不参与打分。
+    """
+    total = 0.0
+    for s, delta in e.affordances.items():
+        if s not in SIGNALS:
+            continue
+        level = float(signals.get(s, 0.5))
+        need = 1.0 - level
+        weight = (need ** power) * float(personality.get(s, 1.0))
+        total += float(delta) * weight
+    return total
+
+
+def _hungry_plan(candidates: tuple[EntityView, ...], cfg: SimConfig,
+                 signals: Mapping[str, float],
+                 actions=None) -> tuple[str, tuple[str, ...]] | None:
+    """饿且无散落 edible 时, 找提供食物的 container → (target_id, plan)。"""
+    if signals.get("hunger", 1.0) >= cfg.eat_hunger_threshold:
+        return None
+    if any("edible" in e.tags for e in candidates):
+        return None
+    for e in candidates:
+        if "container" in e.tags and getattr(e, "food_source", False):
+            plan = hunger_plan(actions)
+            if plan:
+                return (e.entity_id, plan)
+    return None
+
+
+def _is_edible_obj(kb: Any, obj: Any) -> bool:
+    """判 obj 是否可食类别(m5-rectify 11): 直接类别 'edible', 或经 KB is_a
+    (meal_simple is_a edible) 归到类别。不再硬编码品名。"""
+    if obj == "edible":
+        return True
+    return any(f.subject == obj and f.obj == "edible"
+               for f in kb.query(relation="is_a"))
+
+
+def _kb_go_intent(kb: Any, percept: Percept, signals: Mapping[str, float],
+                  cfg: SimConfig) -> Intent | None:
+    """M5: 饿了但视野无食物时, 按 KB 里"哪里有食物"发起 move_to。
+
+    谓词由 KB 派生: contains/sells 命中可食 obj 且 conf>=0.3 → 该地有食;
+    需要 located_at 才知道去哪。返回 move_to(loc)。kb=None 时永不走此分支。
+    """
+    if signals.get("hunger", 1.0) >= cfg.eat_hunger_threshold:
+        return None
+    # 视野里有可吃的就不该出走(看得到 -> 已由可见路径处理)
+    if any("edible" in e.tags and e.claimable for e in percept.visible):
+        return None
+    visible_ids = {e.entity_id for e in percept.visible}
+    sources: list[tuple[str, Any]] = []
+    for f in kb.query(relation="contains"):
+        if f.obj == "edible" and f.confidence >= 0.3:
+            sources.append((f.subject, f))
+    for f in kb.query(relation="sells"):
+        if _is_edible_obj(kb, f.obj) and f.confidence >= 0.3:
+            sources.append((f.subject, f))
+    if not sources:
+        return None
+    # 稳定: 按 (subject) 排序取第一个知识源
+    for subj, fact in sorted(sources, key=lambda t: t[0]):
+        if subj in visible_ids:
+            continue
+        loc_facts = kb.query(subject=subj, relation="located_at")
+        if not loc_facts:
+            continue
+        loc = loc_facts[0].obj
+        if not loc:
+            continue
+        # T5①: 目标就在当前地点则不该发起 move_to(避免 30t 原地打转)
+        if loc == percept.location_id:
+            continue
+        used = (fact.fact_id, loc_facts[0].fact_id)
+        trace = DecisionTrace(
+            ranked=((subj, 0.0),),
+            reason=f"知识: {subj} 有食物 → 去 {loc}",
+            used_fact_ids=used,
+        )
+        return Intent(kind="move_to", target_id=loc, trace=trace)
+    return None
+
+
+def decide(
+    percept: Percept,
+    signals: Mapping[str, float],
+    personality: Mapping[str, float],
+    kb: Any,                      # KnowledgeBase | None; M5 前传 None
+    cfg: SimConfig,
+    rng: Any,                     # random.Random, 固定种子保回放确定性
+    actions: Any = None,          # GOAP 动作库(装配期注入); None 用默认
+) -> Intent:
+    """纯函数: 返回下一个 Intent。不修改任何入参、不访问全局状态。"""
+    candidates = [e for e in percept.visible if e.claimable]
+    thresh = cfg.utility_threshold
+    power = cfg.utility_power
+
+    # --- GOAP: 饿 → 从容器 取→吃 (优先于逐项打分) ---
+    goap = _hungry_plan(tuple(candidates), cfg, signals, actions)
+    if goap is not None:
+        target_id, plan = goap
+        trace = DecisionTrace(
+            ranked=((target_id, 0.0),),
+            reason="饿: 食物在容器里, 先取再吃",
+            plan=plan,
+        )
+        return Intent(kind="interact", target_id=target_id, trace=trace)
+
+    # --- M5 KB: 视野无食物但知识说别处有 → move_to(kb!=None 才走, 保平价) ---
+    if kb is not None:
+        mv = _kb_go_intent(kb, percept, signals, cfg)
+        if mv is not None:
+            return mv
+
+    # --- utility 打分 + 排序 ---
+    scored = [(e.entity_id, _utility(e, signals, personality, power))
+              for e in candidates]
+    ranked = tuple(sorted(scored, key=lambda t: (-t[1], t[0])))
+
+    if not ranked or ranked[0][1] <= thresh:
+        return Intent(
+            kind="idle",
+            target_id=None,
+            trace=DecisionTrace(ranked=ranked, reason="信号充足或没有值得做的目标"),
+        )
+
+    best = ranked[0][1]
+    tied = [x for x in ranked if x[1] == best]
+    chosen = rng.choice(tied) if len(tied) > 1 else tied[0]
+    entity_id, score = chosen
+
+    return Intent(
+        kind="interact",
+        target_id=entity_id,
+        trace=DecisionTrace(
+            ranked=ranked,
+            reason=f"目标 {entity_id} (utility={score:.3f})",
+        ),
+    )
+
+
+# ----------------------------------------------------------------------
+# 清醒度 / 重评节律(主循环调度用, 迁移自旧 brain/arousal.py + review.py)
+# ----------------------------------------------------------------------
+TROUGH_HOUR = 3.0      # 生物钟低谷时刻(困)
+PEAK_HOUR = 15.0       # 峰值时刻(最清醒)
+
+
+def circadian(hour_f: float) -> float:
+    """纯生物钟分量(0..1): 余弦拟合, 谷≈0.15, 峰≈1.0。"""
+    phase = 2.0 * pi * (hour_f - PEAK_HOUR) / 24.0
+    base = (cos(phase) + 1.0) / 2.0
+    return 0.15 + 0.85 * base
+
+
+def arousal(hour_f: float, energy: float, hunger: float) -> float:
+    """清醒度 0..1: 生物钟 × 精力乘性, 饥饿轻微拖累。"""
+    energy = max(0.0, min(1.0, float(energy)))
+    hunger = max(0.0, min(1.0, float(hunger)))
+    level = circadian(hour_f) * (0.4 + 0.6 * energy)
+    level -= 0.2 * (1.0 - hunger)
+    return max(0.0, min(1.0, level))
+
+
+def review_interval_ticks(
+    arousal_value: float,
+    cfg: SimConfig,
+    rng: Any = None,
+) -> int:
+    """清醒度(0..1) -> 距下次重评的 tick 间隔, clamp 到 [review_min, review_max]。
+
+    清醒度高 => 间隔短; 可选 rng 抖动 ±1 避免同拍。
+    """
+    a = max(0.0, min(1.0, float(arousal_value)))
+    lo, hi = cfg.review_min_ticks, cfg.review_max_ticks
+    span = hi - lo
+    interval = int(round(hi - span * a))
+    interval = max(lo, interval)
+    if rng is not None:
+        interval = max(lo, interval + int(rng.randint(-1, 1)))
+    return interval
+
+========================================================================================
+### src\citysim\npc\goap.py
+========================================================================================
+"""goap —— 反向规划器 + 动作库 JSON 加载(M4 4.3)。
+
+动作从 config/actions/*.json 加载(每文件一个动作: action/pre/add/zh/bind),
+转成 Action(name, pre, add)。谓词由世界侧派生喂给 decide(如容器可食 =>
+container_has_edible)。本模块只做规划, 不依赖 world。
+"""
+from __future__ import annotations
+
+import functools
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable
+
+_ACTIONS_DIR = Path(__file__).resolve().parents[3] / "config" / "actions"
+
+
+@dataclass(frozen=True)
+class Action:
+    """一条规划动作(只增事实的单调动作)。exec=执行处理器 id(m5-rectify 09)。"""
+    name: str
+    pre: frozenset[str] = frozenset()
+    add: frozenset[str] = frozenset()
+    exec: str = ""
+
+    def __str__(self) -> str:  # pragma: no cover - debug
+        return (f"Action({self.name}, pre={sorted(self.pre)}, "
+                f"add={sorted(self.add)}, exec={self.exec})")
+
+
+def _solve(
+    actions: list[Action],
+    initial: frozenset[str],
+    need: frozenset[str],
+    memo: dict[frozenset[str], list[str] | None],
+) -> list[str] | None:
+    """后向递归: 从 need 出发, 返回达成它所需动作的正向序列。"""
+    if need in memo:
+        return memo[need]
+    if need <= initial:
+        memo[need] = []
+        return []
+    missing = need - initial
+    for a in actions:
+        added = a.add & missing
+        if not added:
+            continue
+        new_need = (need - a.add) | a.pre
+        if new_need == need:          # 没进展, 防死循环
+            continue
+        sub = _solve(actions, initial, new_need, memo)
+        if sub is not None:
+            plan = sub + [a.name]
+            memo[need] = plan
+            return plan
+    memo[need] = None
+    return None
+
+
+def backward_plan(
+    actions: Iterable[Action],
+    initial: Iterable[str],
+    goal: Iterable[str],
+) -> list[str] | None:
+    """由目标后向搜索动作序列(正向执行序)。不可达返回 None。"""
+    return _solve(
+        list(actions),
+        frozenset(initial),
+        frozenset(goal),
+        {},
+    )
+
+
+# ----------------------------------------------------------------------
+# 动作库 JSON 加载
+# ----------------------------------------------------------------------
+@functools.lru_cache(maxsize=2)
+def _read_dir(directory: str):
+    actions: dict[str, Action] = {}
+    zh: dict[str, str] = {}
+    for p in sorted(Path(directory).glob("*.json")):
+        with p.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        name = data["action"]
+        actions[name] = Action(name=name,
+                               pre=frozenset(data.get("pre", [])),
+                               add=frozenset(data.get("add", [])),
+                               exec=data.get("exec", ""))
+        zh[name] = data.get("zh", name)
+    return actions, zh
+
+
+def load_actions(directory: str | Path | None = None):
+    """读 config/actions/*.json -> ({name: Action}, {name: zh})。"""
+    d = _ACTIONS_DIR if directory is None else Path(directory)
+    return _read_dir(str(d))
+
+
+# 默认动作库: 首次需要时载入一次(供未注入的 decide 路径与测试)
+_DEFAULT_ACTIONS: tuple | None = None
+
+
+def default_actions():
+    """模块级默认动作库(读盘一次并缓存); 生产路径应经 Systems 装配注入。"""
+    global _DEFAULT_ACTIONS
+    if _DEFAULT_ACTIONS is None:
+        actions, zh = load_actions()
+        _DEFAULT_ACTIONS = (tuple(actions.values()), dict(zh))
+    return _DEFAULT_ACTIONS
+
+
+def action_by_name(name: str) -> Action | None:
+    """默认动作库按名查(带 exec)。找不到返回 None。"""
+    acts, _ = default_actions()
+    return next((a for a in acts if a.name == name), None)
+
+
+def hunger_plan(actions=None) -> tuple[str, ...] | None:
+    """饿 + 容器里有食物 的 GOAP 计划(动作名来自 JSON)。不可达返回 None。
+
+    初始事实: 已站在容器(at_container) 且 容器有可食(container_has_edible);
+    目标: 吃饱(fed)。actions 可在装配期注入(m5-rectify 14), None 用默认库。
+    """
+    if actions is None:
+        actions, _ = default_actions()
+    if not actions:
+        return None
+    plan = backward_plan(
+        list(actions),
+        {"at_container", "container_has_edible"},
+        {"fed"},
+    )
+    return tuple(plan) if plan else None
+
+========================================================================================
+### src\citysim\npc\knowledge.py
+========================================================================================
+"""knowledge —— Fact/Source/双层知识库(M5 5.1)。
+
+ArchetypeKB = 共享只读原型(INJECTED); KnowledgeBase = 每 NPC: archetype +
+overlay(个体习得/覆盖) + tombstones(证伪的 fact_id)。
+
+语义(m5-rectify T1/T2/T4/T7 后):
+- fact_id 命名空间: 原型 `a:{subject}|{relation}|{n}`、overlay `o:{subject}|{relation}|{seq}`,
+  refute/fact() 不再跨层误伤。
+- query 为"逐事实覆盖": 按 (subject, relation, obj) 键合并 —— 原型(未 tombstone)
+  先入, overlay 同键覆盖、不同键并存; 不再"overlay 一命中就整层遮蔽原型"。
+- learn 为 upsert: 同键已存在且未 tombstone → 原位替换(取更高 confidence、刷新
+  tick、保留 id); 否则新建。tick 显式传入, decay 不再兼任学习时钟。
+- decay 按每 fact 的衰减基线(学习/上次衰减 tick)推进; half_life_ticks 必传。
+- conf<0.05 视为不知道。
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Iterable
+
+from citysim.core.types import SourceKind
+
+_ARCHETYPES_DIR = Path(__file__).resolve().parents[3] / "config" / "archetypes"
+
+_KNOWN_RELATIONS = ("contains", "sells", "located_at", "price_of", "is_a",
+                    "affords")
+CONF_UNKNOWN = 0.05
+# 衰减只作用于经验习得(OBSERVED/TOLD), 注入常识(INJECTED)不变
+_DECAYABLE_KINDS = ("OBSERVED", "TOLD")
+
+
+def _obj_key(obj: Any) -> tuple[str, Any]:
+    """事实合并键的 obj 部分: 字符串/数值按值, 其余按 repr。"""
+    if isinstance(obj, str):
+        return ("str", obj)
+    if isinstance(obj, (int, float)):
+        return ("num", float(obj))
+    return ("repr", repr(obj))
+
+
+def _arch_fact_id(subject: str, relation: str, n: int) -> str:
+    return f"a:{subject}|{relation}|{n}"
+
+
+def _ovl_fact_id(subject: str, relation: str, seq: int) -> str:
+    return f"o:{subject}|{relation}|{seq}"
+
+
+@dataclass(frozen=True, slots=True)
+class Source:
+    kind: SourceKind
+    ref: tuple[str, ...] = ()   # TOLD→(npc_id, f:origin_id); INFERRED→前提fact_ids
+
+
+@dataclass(frozen=True, slots=True)
+class Fact:
+    fact_id: str
+    subject: str
+    relation: str
+    obj: Any
+    confidence: float
+    source: Source
+    tick_learned: int = 0
+
+
+class ArchetypeKB:
+    """共享只读原型知识。"""
+
+    def __init__(self, facts: Iterable[Fact]) -> None:
+        self.facts: tuple[Fact, ...] = tuple(facts)
+
+    def query(self, subject: str | None = None,
+              relation: str | None = None) -> tuple[Fact, ...]:
+        out = []
+        for f in self.facts:
+            if subject is not None and f.subject != subject:
+                continue
+            if relation is not None and f.relation != relation:
+                continue
+            if f.confidence < CONF_UNKNOWN:
+                continue
+            out.append(f)
+        return tuple(out)
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"ArchetypeKB({len(self.facts)} facts)"
+
+
+class KnowledgeBase:
+    """每 NPC 的双层知识库。"""
+
+    def __init__(self, archetype: ArchetypeKB | None = None) -> None:
+        self.archetype: ArchetypeKB = archetype or ArchetypeKB([])
+        self.overlay: dict[str, Fact] = {}
+        self.tombstones: set[str] = set()
+        self._seq: dict[tuple[str, str], int] = {}
+        # 每 fact 的衰减基线(学习/上次衰减 tick); 随 decay 推进
+        self._decayed_at: dict[str, int] = {}
+
+    # --- 查询 ---------------------------------------------------------
+    def _merged(self, subject: str | None, relation: str | None
+                ) -> dict[tuple, Fact]:
+        """逐事实合并视图: 键=(subject, obj, relation)。overlay 覆盖同键原型。"""
+        merged: dict[tuple, Fact] = {}
+        for f in self.archetype.query(subject, relation):
+            if f.fact_id in self.tombstones:
+                continue
+            merged[(_obj_key(f.subject), _obj_key(f.obj), f.relation)] = f
+        for f in self.overlay.values():
+            if f.fact_id in self.tombstones:
+                continue
+            if f.confidence < CONF_UNKNOWN:
+                continue
+            if subject is not None and f.subject != subject:
+                continue
+            if relation is not None and f.relation != relation:
+                continue
+            merged[(_obj_key(f.subject), _obj_key(f.obj), f.relation)] = f
+        return merged
+
+    def query(self, subject: str | None = None,
+              relation: str | None = None) -> tuple[Fact, ...]:
+        """逐事实覆盖语义: 返回合并视图, 排序 (-confidence, fact_id) 稳定。"""
+        return tuple(sorted(self._merged(subject, relation).values(),
+                            key=lambda f: (-f.confidence, f.fact_id)))
+
+    def all_facts(self) -> tuple[Fact, ...]:
+        """当前"相信"的全部事实(viz 等单一语义源; 与 query 一致, 键去重)。"""
+        return self.query()
+
+    def fact(self, fact_id: str) -> Fact | None:
+        return (self.overlay.get(fact_id)
+                or next((f for f in self.archetype.facts
+                         if f.fact_id == fact_id), None))
+
+    def subjects(self, relation: str) -> frozenset[str]:
+        return frozenset(f.subject for f in self.query(relation=relation))
+
+    # --- 写入 ---------------------------------------------------------
+    def _replace_or_new(self, subject: str, relation: str, obj: Any,
+                        confidence: float, source: Source, tick: int) -> Fact:
+        """upsert: 同键活跃 overlay 存在 → 原位替换(取更高 conf, 刷新 tick)。"""
+        for f in self.overlay.values():
+            if (f.subject == subject and f.relation == relation
+                    and _obj_key(f.obj) == _obj_key(obj)
+                    and f.fact_id not in self.tombstones):
+                conf = max(f.confidence, float(confidence))
+                conf = max(0.0, min(1.0, conf))
+                up = Fact(fact_id=f.fact_id, subject=subject,
+                          relation=relation, obj=obj, confidence=conf,
+                          source=source, tick_learned=tick)
+                self.overlay[f.fact_id] = up
+                self._decayed_at[f.fact_id] = tick   # 新鲜观察重置衰减基线
+                return up
+        seq = self._seq.get((subject, relation), 0) + 1
+        self._seq[(subject, relation)] = seq
+        fid = _ovl_fact_id(subject, relation, seq)
+        conf = max(0.0, min(1.0, float(confidence)))
+        fact = Fact(fact_id=fid, subject=subject, relation=relation, obj=obj,
+                    confidence=conf, source=source, tick_learned=tick)
+        self.overlay[fid] = fact
+        self._decayed_at[fid] = tick
+        return fact
+
+    def learn(self, subject: str, relation: str, obj: Any,
+              confidence: float, source: Source, tick: int = 0) -> Fact:
+        if relation not in _KNOWN_RELATIONS:
+            raise ValueError(
+                f"未知关系 {relation!r} (已知: {_KNOWN_RELATIONS})")
+        return self._replace_or_new(subject, relation, obj, confidence,
+                                    source, tick)
+
+    def refute(self, fact_id: str) -> None:
+        """证伪(原型/已学事实) → 进 tombstones, 并从 overlay 删同名学习。"""
+        self.tombstones.add(fact_id)
+        self.overlay.pop(fact_id, None)
+        self._decayed_at.pop(fact_id, None)
+
+    def decay(self, now_tick: int, half_life_ticks: int) -> None:
+        """仅 OBSERVED/TOLD 衰减: 每 fact 从学习/上次衰减基线 c*=0.5**(Δt/hl)。
+
+        half_life_ticks 必传(运行时统一 config)。本方法不再兼任"学习时钟"。
+        """
+        for fid, f in list(self.overlay.items()):
+            if f.source.kind not in _DECAYABLE_KINDS:
+                continue
+            base = self._decayed_at.get(fid, f.tick_learned)
+            dt = max(0, now_tick - base)
+            if dt <= 0:
+                continue
+            factor = 0.5 ** (dt / half_life_ticks)
+            c = f.confidence * factor
+            if c < CONF_UNKNOWN:
+                del self.overlay[fid]
+                self._decayed_at.pop(fid, None)
+            else:
+                self.overlay[fid] = Fact(
+                    fact_id=f.fact_id, subject=f.subject,
+                    relation=f.relation, obj=f.obj,
+                    confidence=c, source=f.source,
+                    tick_learned=f.tick_learned)
+                self._decayed_at[fid] = now_tick
+
+    # --- 追溯 ---------------------------------------------------------
+    def trace(self, fact_id: str) -> tuple[Fact, ...]:
+        """沿 source.ref(fact_ids) 递归展开成一棵(前序)事实树。"""
+        seen: set[str] = set()
+        out: list[Fact] = []
+
+        def _walk(fid: str) -> None:
+            if fid in seen:
+                return
+            seen.add(fid)
+            f = self.fact(fid)
+            if f is None:
+                return
+            out.append(f)
+            for rid in f.source.ref:
+                if rid.startswith("f:"):
+                    _walk(rid[2:])
+
+        _walk(fact_id)
+        return tuple(out)
+
+    def top_overlay_fact(self) -> "Fact | None":
+        """传闻用: overlay 里 confidence 最高的一条(OBSERVED/TOLD/INFERRED)。"""
+        candidates = [f for f in self.overlay.values()
+                      if f.source.kind != "INJECTED"]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda f: f.confidence)
+
+    def knows(self, subject: str, relation: str, obj: Any,
+              min_conf: float = 0.3) -> bool:
+        return any(f.subject == subject and f.relation == relation
+                   and _obj_key(f.obj) == _obj_key(obj)
+                   and f.confidence >= min_conf
+                   for f in self.query(subject=subject, relation=relation))
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (f"KnowledgeBase(overlay={len(self.overlay)}, "
+                f"tomb={len(self.tombstones)})")
+
+
+# ----------------------------------------------------------------------
+# Archetype 加载(config/archetypes/*.json, 5.2)
+# ----------------------------------------------------------------------
+def _facts_from(data: dict) -> tuple[str, tuple[Fact, ...]]:
+    """单份 archetype json -> (archetype 名, facts)。id 命名空间 a:。"""
+    name = data["archetype"]
+    facts = tuple(
+        Fact(fact_id=_arch_fact_id(k["subject"], k["relation"], i + 1),
+             subject=k["subject"], relation=k["relation"], obj=k["obj"],
+             confidence=float(k.get("confidence", 1.0)),
+             source=Source(kind="INJECTED", ref=(name,)))
+        for i, k in enumerate(data.get("knowledge", [])))
+    return name, facts
+
+
+def load_archetype(path: str | Path) -> tuple[dict[str, float], ArchetypeKB]:
+    """读单个 archetype json -> (personality, ArchetypeKB)。"""
+    with Path(path).open("r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    _, facts = _facts_from(data)
+    return (dict(data.get("personality", {})),
+            ArchetypeKB(facts))
+
+
+def load_archetypes(directory: str | Path | None = None) -> dict[str, ArchetypeKB]:
+    """读目录全部 archetype json(与 load_archetype 同一解析)。"""
+    d = _ARCHETYPES_DIR if directory is None else Path(directory)
+    out: dict[str, ArchetypeKB] = {}
+    for p in sorted(d.glob("*.json")):
+        with p.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        name, facts = _facts_from(data)
+        out[name] = ArchetypeKB(facts)
+    return out
+
+
+========================================================================================
+### src\citysim\npc\memory.py
+========================================================================================
+"""memory —— 情景记忆环形缓冲占位。M6 实现。"""
+
+========================================================================================
+### src\citysim\npc\person.py
+========================================================================================
+"""纯数据 Person（M1: 信号单一真源）。
+
+0..1 float signals 是唯一存储; 不再有 Body(0..100 int) 双写、无第二份生理
+副本。Identity(身份, 几乎不变) / Life(人生轨迹, 缓慢变) 保留为独立小对象;
+状态层 = signals + 少量活动字段(position/activity/hour_f/bladder_pending)。
+
+本模块不得 import citysim.world(0.2 铁律, CI 检查)。
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import date
+from typing import TYPE_CHECKING, Any, Mapping
+
+from citysim.core.config import SIGNALS
+
+if TYPE_CHECKING:  # pragma: no cover
+    from citysim.core.types import Intent
+    from citysim.npc.knowledge import KnowledgeBase
+
+
+def _clamp(v: float) -> float:
+    return max(0.0, min(1.0, float(v)))
+
+
+# ----------------------------------------------------------------------
+# 不变层: 身份 (const, 几乎不变)
+# ----------------------------------------------------------------------
+@dataclass(frozen=True)
+class Identity:
+    person_id: str
+    name: str
+    gender: str = ""
+    birthday: str = ""                       # YYYY-MM-DD
+    traits: Mapping[str, Any] = field(default_factory=dict)
+
+    def birthday_date(self) -> date:
+        y, m, d = self.birthday.split("-")
+        return date(int(y), int(m), int(d))
+
+
+# ----------------------------------------------------------------------
+# 慢变层: 人生轨迹 (long term, 按天/年变)
+# ----------------------------------------------------------------------
+@dataclass(frozen=True)
+class Life:
+    age: int = 0
+    family_id: str = ""
+    home: str = ""
+    role: str = "retired"                    # worker | shopper | student | retired
+    skills: Mapping[str, int] = field(default_factory=dict)
+    kinship: Mapping[str, str] = field(default_factory=dict)
+
+
+# ----------------------------------------------------------------------
+# 视图: 0..1 float -> 0..100 int (仅展示/日志; 永不进入存储路径)
+# ----------------------------------------------------------------------
+def signals_as_percent(signals: Mapping[str, float]) -> dict[str, int]:
+    """显示视图。存储一律 0..1 float; 需要百分比展示时才调本函数。"""
+    return {k: round(_clamp(float(v)) * 100) for k, v in signals.items()}
+
+
+def full_signals(value: float = 1.0) -> dict[str, float]:
+    """构造含 SIGNALS 全集、初值为 value 的信号字典。"""
+    return {s: _clamp(value) for s in SIGNALS}
+
+
+# ----------------------------------------------------------------------
+# 基础消耗纯函数 (替代旧 BasalMetabolism 类, 为 M7 SoA 化铺路)
+# ----------------------------------------------------------------------
+def apply_metabolism(
+    signals: dict[str, float],
+    deltas: Mapping[str, float],
+    personality_mul: Mapping[str, float] | None = None,
+    activity_mul: Mapping[str, float] | None = None,
+) -> None:
+    """原位应用一 tick 基础消耗, clamp 0..1。deltas 来自 SimConfig.metabolism。
+
+    personality_mul / activity_mul: {信号: 倍率}(缺省 1)。
+    """
+    pers = personality_mul or {}
+    act = activity_mul or {}
+    for s, d in deltas.items():
+        if d == 0.0 or s not in signals:
+            continue
+        mul = float(pers.get(s, 1.0)) * float(act.get(s, 1.0))
+        signals[s] = _clamp(signals[s] + d * mul)
+
+
+# ----------------------------------------------------------------------
+# Person —— 纯数据(瘦身后); 决策/交互方法 M2/M3 在 brain/world 侧
+# ----------------------------------------------------------------------
+@dataclass
+class Person:
+    identity: Identity = field(
+        default_factory=lambda: Identity(person_id="anon", name="匿名"))
+    signals: dict[str, float] = field(default_factory=full_signals)
+    personality: dict[str, float] = field(default_factory=dict)   # {信号: 代谢倍率}
+    activity_mul: dict[str, float] = field(default_factory=dict)  # {信号: 活动倍率}
+
+    position: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    current_activity: str = "idle"
+    hour_f: float = 8.0                        # 当日时刻(供清醒度)
+    bladder_pending: float = 0.0               # 待转化排泄负荷
+    location_id: str = ""                     # 所在 location(M3 世界侧登记)
+    active_interaction_id: str | None = None  # 正在交互的实体 id(观测/仲裁)
+    last_intent: "Intent | None" = None       # 最近一次决策(观测)
+    kb: "KnowledgeBase | None" = None         # M5: 该 NPC 的知识库 | None
+
+    def __post_init__(self) -> None:
+        # 初始化必须含 SIGNALS 全集; 缺失补 1.0(充足)
+        for s in SIGNALS:
+            self.signals[s] = _clamp(self.signals.get(s, 1.0))
+
+    # --- 便捷代理 -----------------------------------------------------
+    @property
+    def person_id(self) -> str:
+        return self.identity.person_id
+
+    @property
+    def name(self) -> str:
+        return self.identity.name
+
+    def is_alive(self) -> bool:
+        return self.signals.get("hp", 1.0) > 0.0
+
+    def set_state(self, **kw: float) -> None:
+        """clamp 到 [0,1] 后直接写 signals(唯一真源, 无 body 同步)。"""
+        for k, v in kw.items():
+            if k in SIGNALS:
+                self.signals[k] = _clamp(float(v))
+
+
+========================================================================================
+### src\citysim\sim\__init__.py
+========================================================================================
+"""sim —— 主循环与规模化。"""
+
+========================================================================================
+### src\citysim\sim\lod.py
+========================================================================================
+"""LOD 管理占位。M7 实现。"""
+
+========================================================================================
+### src\citysim\sim\loop.py
+========================================================================================
+"""sim/loop —— 主循环(唯一 tick 入口)。推进顺序定死(design M3 3.5)。
+
+1 代谢 → 2 排泄转化 → 3 交互推进 → 4 睡眠唤醒(在 interaction 内以
+wake_condition 完成) → 5 到点重评(decide + submit + 排下次)。
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from citysim.core.config import SimConfig
+from citysim.npc.brain import arousal, decide, review_interval_ticks
+from citysim.npc.goap import default_actions
+from citysim.npc.knowledge import CONF_UNKNOWN, Source
+from citysim.npc.person import apply_metabolism
+from citysim.world.events import Event
+from citysim.world.interaction import InteractionSystem
+from citysim.world.perception import build_percept, consolidate_observations
+from citysim.world.scheduler import TimingWheel
+from citysim.world.world import World
+
+# M5: 跨 location 移动耗时已入 config [motion] move_ticks(m5-rectify 13)。
+
+
+def _clamp(v: float) -> float:
+    return max(0.0, min(1.0, float(v)))
+
+
+def _step_elimination(npc, cfg: SimConfig) -> None:
+    """pending → 膀胱压力(事件驱动, 非线性基线)。"""
+    if npc.bladder_pending <= 0:
+        return
+    step = min(cfg.bladder_convert, npc.bladder_pending)
+    npc.bladder_pending -= step
+    npc.signals["bladder"] = _clamp(npc.signals.get("bladder", 1.0) - step)
+
+
+@dataclass
+class Systems:
+    scheduler: TimingWheel
+    interaction: InteractionSystem
+    travel: dict[str, str] = field(default_factory=dict)  # npc_id -> 目的地
+    log_lines: list[str] | None = None   # 录制/回放(非 None 即开启)
+    tell_p: float = 0.0                  # 传闻概率(M5; 0=关闭)
+    actions: tuple | None = None         # GOAP 动作库(装配期注入, m5-rectify 14)
+
+
+def make_systems(*, log: bool = False, tell_p: float = 0.0,
+                 actions: tuple | None = None) -> Systems:
+    sch = TimingWheel()
+    if actions is None:
+        actions, _ = default_actions()   # 装配期加载一次(测试可注入临时动作库)
+    return Systems(scheduler=sch, interaction=InteractionSystem(scheduler=sch),
+                   log_lines=[] if log else None, tell_p=tell_p,
+                   actions=actions)
+
+
+def attach_replay(world: World, systems: Systems) -> None:
+    """挂事件日志订阅(与 decide 日志一起构成回放流)。"""
+    if systems.log_lines is None:
+        return
+
+    def _on_event(ev: Event) -> None:
+        payload = ";".join(f"{k}={v}" for k, v in ev.payload.items())
+        systems.log_lines.append(  # type: ignore[union-attr]
+            f"E\t{ev.tick}\t{ev.kind}\t{ev.subject_id}\t{payload}")
+
+    world.bus.subscribe_log(_on_event)
+
+
+def _sleeping(world: World, systems: Systems, pid: str) -> bool:
+    """当前是否在睡眠交互中(active 实体 tags 含 sleepable)。"""
+    act = systems.interaction.active.get(pid)
+    if act is None:
+        return False
+    ent = world.entities.get(act.entity_id)
+    return ent is not None and ent.is_sleepable
+
+
+def _pick_tell_fact(kb, rng):
+    """传闻选样: overlay 非注入事实按 confidence 加权随机(m5-rectify 05)。
+
+    避免恒取最高置信(陈旧 OBSERVED 1.0 永远压过新近 TOLD 0.8 → 假消息
+    无法二次传播)。
+    """
+    cands = [f for f in kb.overlay.values()
+             if f.source.kind != "INJECTED" and f.confidence >= CONF_UNKNOWN]
+    if not cands:
+        return None
+    if len(cands) == 1:
+        return cands[0]
+    weights = [c.confidence for c in cands]
+    return rng.choices(cands, weights=weights)[0]
+
+
+def _gossip_due(world: World, systems: Systems, rng_pool: dict[str, Any],
+                speaker_id: str, speaker_npc) -> None:
+    """讲话者本次重评(idle)时按 tell_p 向一位同地 idle 听众分享一条事实。
+
+    m5-rectify 05: 挂 due 重评(成本 O(due))而非每 tick 每对; 选样置信加权。
+    m5-rectify 06: 接收方 TOLD 来源携带起源 fact 引用 (speaker, f:origin)。
+    """
+    p = systems.tell_p
+    if p <= 0.0 or speaker_npc.kb is None:
+        return
+    rng = rng_pool[speaker_id]
+    if rng.random() >= p:
+        return
+    fact = _pick_tell_fact(speaker_npc.kb, rng)
+    if fact is None:
+        return
+    ids = [pid for pid, npc in world.npcs.items()
+           if pid != speaker_id and npc.kb is not None and npc.is_alive()
+           and npc.location_id == speaker_npc.location_id
+           and pid not in systems.interaction.active
+           and pid not in systems.travel
+           and not npc.kb.knows(fact.subject, fact.relation, fact.obj)]
+    if not ids:
+        return
+    receiver = rng.choice(ids)
+    r_kb = world.npcs[receiver].kb
+    f2 = r_kb.learn(subject=fact.subject, relation=fact.relation,
+                    obj=fact.obj, confidence=fact.confidence * 0.8,
+                    source=Source(kind="TOLD",
+                                  ref=(speaker_id, f"f:{fact.fact_id}")),
+                    tick=world.clock_tick)
+    world.bus.publish(world.bus.make(
+        world.clock_tick, "told", speaker_id,
+        {"audience": [receiver], "from": speaker_id,
+         "subject": fact.subject, "relation": fact.relation,
+         "obj": fact.obj, "conf": round(fact.confidence * 0.8, 3),
+         "origin": fact.fact_id, "fact_id": f2.fact_id}))
+
+
+def run_tick(world: World, systems: Systems, cfg: SimConfig,
+             rng_pool: dict[str, Any]) -> None:
+    """推进一个 tick(唯一入口)。"""
+    world.clock_tick += 1
+    hour = world.hour_f()
+
+    # 1. 代谢(全体活着的 NPC; 睡眠中冻结精力消耗, 否则永远睡不饱)
+    for pid, npc in world.npcs.items():
+        npc.hour_f = hour
+        if npc.is_alive():
+            amul = {"energy": 0.0} if _sleeping(world, systems, pid) else None
+            apply_metabolism(npc.signals, cfg.metabolism,
+                             personality_mul=npc.personality,
+                             activity_mul=amul)
+    # 2. 排泄转化
+    for npc in world.npcs.values():
+        _step_elimination(npc, cfg)
+    # 3. 交互推进(含睡眠唤醒提前完成 / plan 链)
+    systems.interaction.step(world, cfg)
+    # 5. 到点重评: 先对全部到点者算 Intent(同一世界快照, 反映 claim 竞争),
+    #    再统一仲裁提交(先手 claim 成功, 后手收到 intent_failed)
+    due = systems.scheduler.pop_due(world.clock_tick)
+    decisions: list[tuple[str, Any, Any]] = []
+    for npc_id in due:
+        npc = world.npcs.get(npc_id)
+        if npc is None or not npc.is_alive():
+            continue
+        # 抵达: 旅行到期 → 落到目标 location 再重评
+        if npc_id in systems.travel:
+            npc.location_id = systems.travel.pop(npc_id)
+        percept = build_percept(world, npc)
+        kb = getattr(npc, "kb", None)
+        if kb is not None:
+            consolidate_observations(npc, percept, kb,
+                                     tick=world.clock_tick)  # 感知 → 知识
+        intent = decide(percept, npc.signals, npc.personality, kb=kb,
+                        cfg=cfg, rng=rng_pool[npc_id], actions=systems.actions)
+        npc.last_intent = intent
+        # M5 传闻: 仅本次到点且算成 idle 者才可能开口(m5-rectify 05, O(due))
+        if intent.kind == "idle":
+            _gossip_due(world, systems, rng_pool, npc_id, npc)
+        if systems.log_lines is not None:
+            plan = ",".join(intent.trace.plan)
+            systems.log_lines.append(
+                f"D\t{world.clock_tick}\t{npc_id}\t{intent.kind}\t"
+                f"{intent.target_id or ''}\t{plan}")
+        decisions.append((npc_id, npc, intent))
+    for npc_id, npc, intent in decisions:
+        if intent.kind == "move_to":
+            # 旅行由主循环管理(不走 InteractionSystem); 出发前清残留 claim
+            systems.interaction.release_active(world, npc_id)
+            systems.travel[npc_id] = intent.target_id or npc.location_id
+            systems.scheduler.schedule(npc_id, cfg.move_ticks)
+            continue
+        ok = systems.interaction.submit(world, npc, intent)
+        if intent.kind == "interact" and ok:
+            ent = world.entities.get(intent.target_id)
+            delay = ent.duration_ticks if ent else cfg.review_max_ticks
+            systems.scheduler.schedule(npc_id, max(1, delay))
+        else:
+            # idle 或提交失败: 按清醒度节律排下次
+            a = arousal(npc.hour_f, npc.signals.get("energy", 0.5),
+                        npc.signals.get("hunger", 0.5))
+            systems.scheduler.schedule(npc_id, review_interval_ticks(a, cfg))
+    # 5.5 M5 遗忘: 每游戏日 0 点对带 KB 的 NPC 批量 decay(design 553;
+    #    kb=None 不触发 → M4 golden 平价保持)。
+    if world.clock_tick % cfg.ticks_per_day == 0:
+        for npc in world.npcs.values():
+            kb = getattr(npc, "kb", None)
+            if kb is not None:
+                kb.decay(now_tick=world.clock_tick,
+                         half_life_ticks=cfg.half_life_ticks)
+
+========================================================================================
+### src\citysim\sim\soa.py
+========================================================================================
+"""SoA 信号存储占位。M7 实现。"""
+
+========================================================================================
+### src\citysim\viz\__init__.py
+========================================================================================
+"""viz —— 可视化导出。"""
+
+========================================================================================
+### src\citysim\viz\kb_export.py
+========================================================================================
+"""知识图导出(M5 5.4): JSON + DOT。事实来源统一 kb.all_facts()。"""
+from __future__ import annotations
+
+_EDGE_COLOR = {"INJECTED": "gray", "OBSERVED": "green",
+               "TOLD": "blue", "INFERRED": "orange"}
+
+
+def _add_node(nodes: list[dict], seen: set[str], nid: str, label: str,
+              kind: str) -> None:
+    if nid not in seen:
+        seen.add(nid)
+        nodes.append({"id": nid, "label": label, "kind": kind})
+
+
+def export_kb_json(kb) -> dict:
+    nodes: list[dict] = []
+    edges: list[dict] = []
+    seen: set[str] = set()
+    for f in kb.all_facts():
+        _add_node(nodes, seen, f.subject, str(f.subject), "entity")
+        if isinstance(f.obj, str):
+            _add_node(nodes, seen, f.obj, f.obj, "concept")
+        else:  # 非 str obj(价格等字面量) → 字面量节点, 避免边悬空
+            oid = f"lit:{f.obj!r}"
+            _add_node(nodes, seen, oid, str(f.obj), "literal")
+        edges.append({
+            "src": f.subject, "dst": f.obj if isinstance(f.obj, str)
+            else f"lit:{f.obj!r}", "relation": f.relation,
+            "confidence": round(f.confidence, 3),
+            "source_kind": f.source.kind, "tick": f.tick_learned,
+        })
+    return {"nodes": nodes, "edges": edges}
+
+
+def export_kb_dot(kb) -> str:
+    lines = ["digraph kb {"]
+    for f in kb.all_facts():
+        color = _EDGE_COLOR.get(f.source.kind, "gray")
+        lines.append(
+            f'  "{f.subject}" -> "{f.obj}" '
+            f'[label="{f.relation} c={f.confidence:.2f}" '
+            f'color="{color}"];')
+    lines.append("}")
+    return "\n".join(lines)
+
+
+========================================================================================
+### src\citysim\viz\trace_export.py
+========================================================================================
+"""决策追溯链导出(M5 5.4)。"""
+from __future__ import annotations
+
+
+def export_trace_chain(kb, used_fact_ids) -> dict:
+    """used_fact_ids -> 各 fact -> source.ref 递归展开(fact 树前序)。"""
+    facts = []
+    seen: set[str] = set()
+    for fid in used_fact_ids:
+        for f in kb.trace(fid):
+            if f.fact_id in seen:
+                continue
+            seen.add(f.fact_id)
+            facts.append({
+                "id": f.fact_id, "subject": f.subject,
+                "relation": f.relation, "obj": f.obj,
+                "confidence": round(f.confidence, 3),
+                "source_kind": f.source.kind, "source_ref": list(f.source.ref),
+                "tick": f.tick_learned,
+            })
+    return {"facts": facts}
+
+========================================================================================
+### src\citysim\world\__init__.py
+========================================================================================
+"""world —— 世界侧(唯一事实源)。"""
+
+========================================================================================
+### src\citysim\world\effects.py
+========================================================================================
+"""效果操作解释器(M4 4.2) —— op 表 + apply_effects。
+
+首批 5 个 op(定死): set_signal / add_signal / clear_pending /
+spawn_item(按物品类型在世界生成) / consume_self。
+效果从 Entity.on_complete / on_start(数据化)驱动, 替换硬编码分支。
+"""
+from __future__ import annotations
+
+import logging
+from typing import Callable
+
+from citysim.npc.person import Person
+from citysim.world.itemdefs import load_item_defs
+from citysim.world.world import Entity, World
+
+log = logging.getLogger(__name__)
+
+OPS: dict[str, Callable[[World, Person, Entity, dict], None]] = {}
+
+
+def register(op_name: str):
+    def deco(fn: Callable[[World, Person, Entity, dict], None]):
+        OPS[op_name] = fn
+        return fn
+    return deco
+
+
+def _clamp(v: float) -> float:
+    return max(0.0, min(1.0, float(v)))
+
+
+@register("set_signal")
+def _set_signal(world, npc, entity, eff) -> None:
+    s, v = eff["signal"], _clamp(eff.get("value", 0.0))
+    if s in npc.signals:
+        npc.signals[s] = v
+
+
+@register("add_signal")
+def _add_signal(world, npc, entity, eff) -> None:
+    s = eff["signal"]
+    v = float(eff.get("delta", eff.get("value", 0.0)))
+    if s in npc.signals:
+        npc.signals[s] = _clamp(npc.signals[s] + v)
+
+
+_PENDING_WHITELIST = frozenset({"bladder_pending"})
+
+
+@register("clear_pending")
+def _clear_pending(world, npc, entity, eff) -> None:
+    f = eff.get("field", "")
+    if f not in _PENDING_WHITELIST:
+        log.warning("clear_pending 拒绝字段 %r(白名单: %s)",
+                    f, sorted(_PENDING_WHITELIST))
+        return
+    setattr(npc, f, 0.0)
+
+
+@register("add_pending")
+def _add_pending(world, npc, entity, eff) -> None:
+    """膀胱等 pending 字段累加(on_start 用, 替代 interaction 的 attrs 特判)。"""
+    f = eff.get("field", "")
+    if f not in _PENDING_WHITELIST:
+        log.warning("add_pending 拒绝字段 %r(白名单: %s)",
+                    f, sorted(_PENDING_WHITELIST))
+        return
+    setattr(npc, f, getattr(npc, f, 0.0) + float(eff.get("amount", 0.0)))
+
+
+@register("spawn_item")
+def _spawn_item(world, npc, entity, eff) -> None:
+    """在世界按 item_type 生成一件物品(默认 npc 所在 location)。"""
+    it = eff.get("item_type")
+    if not it:
+        return
+    defs = load_item_defs()
+    if it not in defs:
+        return
+    world.spawn_item_type(it, npc.location_id)
+
+
+@register("consume_self")
+def _consume_self(world, npc, entity, eff) -> None:
+    """消耗当前实体一份(stock-1)。回收不在此处 —— 统一由 _complete 第 5 步后
+    处理, 保证 interaction_done 事件先于实体移除(m3 时序契约)。"""
+    if entity.stock == -1:
+        return
+    if entity.stock > 0:
+        entity.stock -= 1
+
+
+def apply_effects(world: World, npc: Person, entity: Entity,
+                  effect_list: list[dict]) -> None:
+    """依序应用一列效果 op; 未知 op 记 warning 而非崩溃。"""
+    for eff in effect_list:
+        fn = OPS.get(eff.get("op", ""))
+        if fn is not None:
+            fn(world, npc, entity, eff)
+        else:
+            log.warning("未知 effect op=%s (entity=%s)",
+                        eff.get("op"), entity.entity_id)
+
+
+========================================================================================
+### src\citysim\world\events.py
+========================================================================================
+"""EventBus —— 事件发布与 NPC 信箱投递。
+
+路由规则(定死): publish 按 payload.get(\"audience\", [subject_id]) 投递到各
+NPC 信箱(deque, maxlen=64); 另可挂 subscribe_log 监听(调试/录制回放)。
+"""
+from __future__ import annotations
+
+from collections import deque
+from dataclasses import dataclass, field
+from typing import Any, Callable, Mapping
+
+from citysim.core.types import EventView
+
+
+@dataclass(frozen=True, slots=True)
+class Event:
+    event_id: str
+    tick: int
+    kind: str
+    subject_id: str                       # 主要相关方(npc_id 或 entity_id)
+    payload: Mapping[str, Any] = field(default_factory=dict)
+
+
+class EventBus:
+    def __init__(self) -> None:
+        self._mailboxes: dict[str, deque[Event]] = {}
+        self._listeners: list[Callable[[Event], None]] = []
+        self.seq: int = 0                 # 事件 id 序号(保证确定性)
+
+    # --- 发布 ---------------------------------------------------------
+    def make(self, tick: int, kind: str, subject_id: str,
+             payload: Mapping[str, Any] | None = None) -> Event:
+        self.seq += 1
+        return Event(event_id=f"ev{self.seq}", tick=tick, kind=kind,
+                     subject_id=subject_id, payload=dict(payload or {}))
+
+    def publish(self, ev: Event) -> None:
+        audience = ev.payload.get("audience", (ev.subject_id,))
+        if isinstance(audience, str):
+            audience = (audience,)
+        for npc_id in audience:
+            box = self._mailboxes.setdefault(str(npc_id), deque(maxlen=64))
+            box.append(ev)
+        for fn in self._listeners:
+            fn(ev)
+
+    def drain_for(self, npc_id: str) -> tuple[EventView, ...]:
+        """取走并清空该 NPC 信箱, 转成不可变 EventView。"""
+        box = self._mailboxes.pop(npc_id, None)
+        if not box:
+            return ()
+        out = tuple(
+            EventView(event_id=ev.event_id, tick=ev.tick, kind=ev.kind,
+                      payload=dict(ev.payload))
+            for ev in box
+        )
+        return out
+
+    def subscribe_log(self, fn: Callable[[Event], None]) -> None:
+        self._listeners.append(fn)
+
+========================================================================================
+### src\citysim\world\interaction.py
+========================================================================================
+"""InteractionSystem —— 执行 Intent + claim 仲裁 + 分 tick 效果推进。
+
+世界侧唯一执行器: 校验 → claim → 登记 ActiveInteraction; 每 tick 分摊
+affordances; 完成时处理 消耗品/如厕/plan_queue 链; 睡眠用 wake_condition
+数据驱动提前结束。事件经 EventBus 发布给 NPC 信箱。
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+from citysim.core.config import SIGNALS
+from citysim.npc.goap import action_by_name
+from citysim.npc.person import Person
+from citysim.world.effects import apply_effects
+from citysim.world.itemdefs import load_item_defs
+from citysim.world.world import Entity, World
+
+_WAKE_RE = re.compile(r"^(\w+)\s*>=\s*([0-9.]+)$")
+
+
+@dataclass
+class ActiveInteraction:
+    npc_id: str
+    entity_id: str
+    remaining_ticks: int
+    total_ticks: int
+    plan_queue: tuple[str, ...] = ()   # GOAP 后续步骤(如 ("eat",))
+
+
+def _clamp(v: float) -> float:
+    return max(0.0, min(1.0, float(v)))
+
+
+class InteractionSystem:
+    """一次持有多名 NPC 的进行中交互; 每 tick step 推进。"""
+
+    def __init__(self, scheduler: Any = None) -> None:
+        self.active: dict[str, ActiveInteraction] = {}   # key = npc_id
+        self._scheduler = scheduler                       # TimingWheel | None
+
+    # --- 提交 ---------------------------------------------------------
+    def submit(self, world: World, npc: Person, intent) -> bool:
+        """校验→claim→登记。失败发 intent_failed 事件。返回是否成功登记。"""
+        pid = npc.person_id
+        if intent.kind == "idle":
+            if pid in self.active:
+                self._release(world, pid, cancel=True)
+                self._resched(world, pid, 1)
+            return True
+
+        tid = intent.target_id
+        ent = world.entities.get(tid) if tid else None
+
+        # rule 2: 目标不存在 / 空 / 被他人占用 → 失败
+        if ent is None:
+            self._fail(world, pid, tid or "?", "目标不存在")
+            return False
+        if ent.stock == 0:
+            self._fail(world, pid, tid, "已空(stock=0)")
+            return False
+        if ent.claimed_by not in (None, pid):
+            self._fail(world, pid, tid, "已被他人占用")
+            return False
+
+        # rule 4: 旧 active 且 target 不同 → 先释放(除非旧交互不可打断)
+        old = self.active.get(pid)
+        if old is not None and old.entity_id != tid:
+            old_ent = world.entities.get(old.entity_id)
+            if old_ent is not None and not old_ent.interruptible:
+                # m5-rectify 16: 床等不可打断交互 → 拒绝被新意图顶掉
+                self._fail(world, pid, tid, "当前交互不可打断")
+                return False
+            self._release(world, pid, cancel=True)
+
+        # 登记(rule 3)
+        dur = max(1, ent.duration_ticks)
+        plan = tuple(intent.trace.plan or ())
+        self.active[pid] = ActiveInteraction(
+            npc_id=pid, entity_id=tid,
+            remaining_ticks=dur, total_ticks=dur,
+            plan_queue=plan[1:] if plan else (),
+        )
+        ent.claimed_by = pid
+        npc.active_interaction_id = tid
+        npc.current_activity = ent.name
+        # 数据化开始效果(M4): on_start(如 add_pending 膀胱负荷)在开始 tick 应用
+        if ent.on_start:
+            apply_effects(world, npc, ent, ent.on_start)
+        return True
+
+    # --- 每 tick 推进 --------------------------------------------------
+    def step(self, world: World, cfg) -> None:
+        for pid in list(self.active.keys()):
+            act = self.active[pid]
+            ent = world.entities.get(act.entity_id)
+            if ent is None:
+                self.active.pop(pid, None)
+                continue
+            npc = world.npcs.get(pid)
+            if npc is None or not npc.is_alive():
+                self._release(world, pid, cancel=True)
+                continue
+            # 1. 分摊 affordances(仅信号键; provides:* 标记不参与)
+            for s, delta in ent.affordances.items():
+                if s not in SIGNALS or delta == 0.0:
+                    continue
+                step = delta / act.total_ticks
+                if s in npc.signals:
+                    npc.signals[s] = _clamp(npc.signals[s] + step)
+            # 睡眠泛化: wake_condition 满足即提前完成
+            if ent.wake_condition and _wake_satisfied(ent.wake_condition, npc.signals):
+                self._complete(world, pid, ent, act, early=True)
+                continue
+            # 3. remaining - 1
+            act.remaining_ticks -= 1
+            if act.remaining_ticks <= 0:
+                self._complete(world, pid, ent, act, early=False)
+
+    # --- 完成 ---------------------------------------------------------
+    def _complete(self, world: World, pid: str, ent: Entity,
+                  act: ActiveInteraction, *, early: bool) -> None:
+        npc = world.npcs[pid]
+        self._release(world, pid, cancel=False)
+
+        def _self_consumes(ent) -> bool:
+            return any((eff or {}).get("op") == "consume_self"
+                       for eff in ent.on_complete)
+
+        # 2. 消耗品扣库存; 若 on_complete 自带 consume_self 则交 op 扣(防双扣)
+        #    回收统一在第 5 步之后(事件先于回收, 观察者可按 tags 分类)
+        if (ent.is_consumable and ent.stock > 0 and not _self_consumes(ent)):
+            ent.stock -= 1
+        # 3. 数据化完成效果(M4 4.1): on_complete(consume_self 只扣库存, 不 pop)
+        if ent.on_complete:
+            apply_effects(world, npc, ent, ent.on_complete)
+
+        # 4. plan_queue 非空 → 弹出下一步并直接续上(不等重评)
+        if act.plan_queue:
+            self._continue_plan(world, npc, act)
+        elif early:
+            self._resched(world, pid, 1)   # 提前结束(唤醒等)→ 尽快重评
+        else:
+            npc.current_activity = "idle"
+
+        # 5. 事件(先发布, 观察者可解析实体 tags) -> 6. 统一回收空消耗品
+        world.bus.publish(world.bus.make(
+            world.clock_tick, "interaction_done", pid,
+            {"entity": ent.entity_id}))
+        if ent.stock == 0 and (ent.is_consumable or _self_consumes(ent)):
+            world.entities.pop(ent.entity_id, None)
+
+    def _continue_plan(self, world: World, npc: Person, act: ActiveInteraction) -> None:
+        """plan 链: 上一步完成 → 按本步动作的 exec 分派(m5-rectify 09)。
+
+        不再硬编码动作名(JSON 改动作名/exec 即可换实现)。
+        """
+        if not act.plan_queue:
+            return
+        step = act.plan_queue[0]
+        a = action_by_name(step)         # 默认动作库与 Systems 装配同源
+        handler = PLAN_STEP_HANDLERS.get(a.exec if a else "")
+        if handler is None:
+            return
+        handler(self, world, npc, act, step)
+
+    # --- 内部 ---------------------------------------------------------
+    def release_active(self, world: World, pid: str) -> None:
+        """m5-rectify 10: 主动清掉某 NPC 的残留 claim(move_to 出发前调用)。"""
+        self._release(world, pid, cancel=True)
+
+    def _release(self, world: World, pid: str, *, cancel: bool) -> None:
+        act = self.active.pop(pid, None)
+        npc = world.npcs.get(pid)
+        if act is not None:
+            ent = world.entities.get(act.entity_id)
+            if ent is not None and ent.claimed_by == pid:
+                ent.claimed_by = None
+        if npc is not None:
+            npc.active_interaction_id = None
+            if cancel:
+                npc.current_activity = "idle"
+
+    def _fail(self, world: World, pid: str, tid: str, why: str) -> None:
+        world.bus.publish(world.bus.make(
+            world.clock_tick, "intent_failed", pid,
+            {"target": tid, "why": why}))
+
+    def _resched(self, world: World, pid: str, delay: int) -> None:
+        if self._scheduler is not None:
+            self._scheduler.schedule(pid, delay, now=world.clock_tick)
+
+
+def _wake_satisfied(cond: str, signals: dict[str, float]) -> bool:
+    """解析 "signal>=value"(正则, 禁 eval)。"""
+    m = _WAKE_RE.match(cond.strip())
+    if not m:
+        return False
+    signal, val = m.group(1), float(m.group(2))
+    return signals.get(signal, 0.0) >= val
+
+
+# ----------------------------------------------------------------------
+# plan 步执行器(m5-rectify 09): exec id -> 处理器。动作 JSON 的 exec 绑定这里。
+# ----------------------------------------------------------------------
+PLAN_STEP_HANDLERS: dict[str, Callable] = {}
+
+
+def _exec_handle(exec_id: str):
+    def deco(fn: Callable) -> Callable:
+        PLAN_STEP_HANDLERS[exec_id] = fn
+        return fn
+    return deco
+
+
+@_exec_handle("spawn_from_container")
+def _spawn_from_container(sys, world: World, npc: Person, act: ActiveInteraction,
+                          step: str) -> None:
+    """take 完成后从容器产一份餐并立即开吃。
+
+    先确认可产餐(provides 命中或回退 meal_simple)再扣容器库存, 配置错误不白扣;
+    新交互的 plan_queue 传余下步骤(支持 >2 步链)。
+    """
+    container = world.entities.get(act.entity_id)
+    if container is None:
+        return
+    defs = load_item_defs()
+    meal_type: str | None = None
+    if container.provides:
+        for p in container.provides:
+            if p in defs and "edible" in defs[p].tags:
+                meal_type = p
+                break
+    if meal_type is None and "meal_simple" in defs:
+        meal_type = "meal_simple"          # DEV(M4): 旧手工容器回退
+    if meal_type is None:
+        return                             # 没有可产餐定义 → 不扣库存
+    if container.stock != -1:
+        if container.stock <= 0:
+            return                         # 没货, 不再产餐
+        container.stock -= 1
+    meal = world.spawn_item_type(meal_type, npc.location_id)
+    if meal is None:
+        return
+    # 开启新交互(吃/后续链)
+    sys.active[npc.person_id] = ActiveInteraction(
+        npc_id=npc.person_id, entity_id=meal.entity_id,
+        remaining_ticks=meal.duration_ticks,
+        total_ticks=meal.duration_ticks, plan_queue=act.plan_queue[1:],
+    )
+    meal.claimed_by = npc.person_id
+    npc.active_interaction_id = meal.entity_id
+    npc.current_activity = meal.name
+    if meal.on_start:
+        apply_effects(world, npc, meal, meal.on_start)
+    sys._resched(world, npc.person_id, meal.duration_ticks)
+
+========================================================================================
+### src\citysim\world\itemdefs.py
+========================================================================================
+"""物品定义加载 —— config/items/*.json。
+
+仅标准库 + 数据类; 供 world 侧(交互/生成/感知)使用, 不反向依赖 world。
+字段对应 M4 4.1 定死的物品 schema。
+
+加载即校验(testm4 Step 1, fail-fast):
+  - affordances 的 key 必须 ∈ SIGNALS
+  - on_start/on_complete 里的 op 必须是已注册 op
+  - wake_condition 仅 "signal>=float"(正则)
+  - duration_ticks >= 1
+  - provides 引用的 item_type 必须存在(允许前向引用, 加载完统一校验)
+任何一条不过 → 抛 ConfigError 并指明文件+字段, 禁止静默跳过。
+"""
+from __future__ import annotations
+
+import functools
+import json
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Mapping
+
+from citysim.core.config import SIGNALS
+
+_ITEMS_DIR = Path(__file__).resolve().parents[3] / "config" / "items"
+_WAKE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\s*>=\s*-?\d+(?:\.\d+)?$")
+
+
+class ConfigError(Exception):
+    """物品/动作配置校验失败; message 含 文件 + 字段。"""
+
+
+def _registered_ops() -> set[str]:
+    """延迟导入避免模块级环(effects -> world -> itemdefs)。"""
+    from citysim.world.effects import OPS  # noqa: PLC0415
+    return set(OPS)
+
+
+@dataclass(frozen=True)
+class ItemDef:
+    item_type: str
+    name: str = ""
+    tags: frozenset[str] = frozenset()
+    affordances: Mapping[str, float] = field(default_factory=dict)
+    duration_ticks: int = 30
+    interruptible: bool = True
+    wake_condition: str | None = None
+    on_start: tuple[Mapping[str, Any], ...] = ()
+    on_complete: tuple[Mapping[str, Any], ...] = ()
+    provides: tuple[str, ...] = ()
+    attrs: Mapping[str, Any] = field(default_factory=dict)
+    stock: int = 1
+
+
+def _parse(data: dict) -> ItemDef:
+    return ItemDef(
+        item_type=data["item_type"],
+        name=data.get("name", data["item_type"]),
+        tags=frozenset(data.get("tags", [])),
+        affordances=dict(data.get("affordances", {})),
+        duration_ticks=int(data.get("duration_ticks", 30)),
+        interruptible=bool(data.get("interruptible", True)),
+        wake_condition=data.get("wake_condition"),
+        on_start=tuple(dict(x) for x in data.get("on_start", [])),
+        on_complete=tuple(dict(x) for x in data.get("on_complete", [])),
+        provides=tuple(data.get("provides", [])),
+        attrs=dict(data.get("attrs", {})),
+        stock=int(data.get("stock", 1)),
+    )
+
+
+def _validate(path: Path, d: ItemDef, known: set[str], ops: set[str]) -> None:
+    if d.duration_ticks < 1:
+        raise ConfigError(f"{path.name}: {d.item_type} duration_ticks<1")
+    if d.wake_condition is not None and not _WAKE_RE.match(d.wake_condition):
+        raise ConfigError(
+            f"{path.name}: {d.item_type} wake_condition 非法格式 "
+            f"{d.wake_condition!r}(需 signal>=float)")
+    for s in d.affordances:
+        if s not in SIGNALS:
+            raise ConfigError(
+                f"{path.name}: {d.item_type} affordance key {s!r} 不在 SIGNALS")
+    for group in ("on_start", "on_complete"):
+        for eff in getattr(d, group):
+            op = eff.get("op")
+            if op not in ops:
+                raise ConfigError(
+                    f"{path.name}: {d.item_type} {group} 未注册 op {op!r}")
+    for p in d.provides:
+        if p not in known:
+            raise ConfigError(
+                f"{path.name}: {d.item_type} provides 悬空引用 {p!r}")
+
+
+@functools.lru_cache(maxsize=4)
+def _read_dir(directory: str) -> dict[str, ItemDef]:
+    paths: dict[str, Path] = {}
+    parsed: dict[str, ItemDef] = {}
+    for p in sorted(Path(directory).glob("*.json")):
+        with p.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        if "item_type" not in data:
+            continue
+        d = _parse(data)
+        paths[d.item_type] = p
+        parsed[d.item_type] = d
+    ops = _registered_ops()
+    known = set(parsed)
+    for it, d in parsed.items():
+        _validate(paths[it], d, known, ops)
+    return parsed
+
+
+def load_item_defs(directory: str | Path | None = None) -> dict[str, ItemDef]:
+    """读 config/items/*.json -> {item_type: ItemDef}。缺省指向工程 config/items。"""
+    d = _ITEMS_DIR if directory is None else Path(directory)
+    return _read_dir(str(d))
+
+
+def clear_cache() -> None:
+    """测试动态增删 JSON 后清缓存。"""
+    _read_dir.cache_clear()
+
+========================================================================================
+### src\citysim\world\perception.py
+========================================================================================
+"""PerceptionSystem —— 为 NPC 构建 Percept(纯读取) + 感知落知识(M5)。"""
+from __future__ import annotations
+
+from citysim.core.types import EntityView, Percept
+from citysim.npc.knowledge import Source
+from citysim.world.itemdefs import load_item_defs
+
+
+def build_percept(world, npc) -> Percept:
+    """M3 版: 同 location 全可见。
+
+    EntityView.claimable = (无人占用 或 自己占用) 且 stock!=0。
+    food_source = 容器经 provides(defs)或 legacy provides:edible 标记供食。
+    events = 该 NPC 信箱里取走的全部事件。
+    """
+    defs = load_item_defs()
+
+    def _food(e) -> bool:
+        if e.provides:
+            return any(p in defs and "edible" in defs[p].tags
+                       for p in e.provides)
+        return e.affordances.get("provides:edible", 0.0) > 0  # legacy 手工容器
+
+    views = []
+    for e in world.entities_at(npc.location_id):
+        views.append(EntityView(
+            entity_id=e.entity_id,
+            name=e.name,
+            tags=frozenset(e.tags),
+            affordances=dict(e.affordances),
+            duration_ticks=e.duration_ticks,
+            distance=0.0,
+            claimable=e.claimable_by(npc.person_id),
+            stock_zero=e.stock == 0,
+            provides=frozenset(e.provides),
+            food_source=_food(e),
+            location_id=e.location_id,
+        ))
+    events = world.bus.drain_for(npc.person_id)
+    return Percept(
+        tick=world.clock_tick,
+        hour_f=world.hour_f(),
+        location_id=npc.location_id,
+        visible=tuple(views),
+        events=events,
+    )
+
+
+def consolidate_observations(npc, percept: Percept, kb, tick: int = 0) -> None:
+    """感知 → 知识(M5 5.3 接线 1; m5-rectify T2/T4/T5)。
+
+    - 每可见 container: 真空(stock==0)→证伪 edible 并 learn none;
+      被占用→不更新(非空证据); 可用有食→upsert OBSERVED contains=edible
+      + located_at(自住地)。
+    - 纠错: 自学的 located_at 声称"X 在此地"、此地却看不到 X → refute(被搬走/移除)。
+    - tick 显式传入(learn 真实时刻), upsert 由 KB 保证有界。
+    """
+    visible_ids = {v.entity_id for v in percept.visible}
+    # T5②: OBSERVED located_at 指向当前地但实体不可见 → 证伪(陈旧位置知识)
+    for f in kb.query(relation="located_at"):
+        if (f.obj == npc.location_id and f.source.kind == "OBSERVED"
+                and f.subject not in visible_ids):
+            kb.refute(f.fact_id)
+
+    for v in percept.visible:
+        if "container" not in v.tags:
+            continue
+        existing = kb.query(subject=v.entity_id, relation="contains")
+        # 真空(stock==0): 证伪既有"有食"并学 none(design 5.3)
+        if v.stock_zero:
+            # 覆盖层 + 原型层都要证伪, 否则原型 edible(0.9)会在 overlay 被
+            # refute 后"复活", NPC 反复扑空(P0-2 命名空间分离后的边界)
+            for f in list(existing) + list(
+                    kb.archetype.query(subject=v.entity_id,
+                                       relation="contains")):
+                if f.obj == "edible":
+                    kb.refute(f.fact_id)
+            kb.learn(subject=v.entity_id, relation="contains",
+                     obj="none", confidence=1.0,
+                     source=Source(kind="OBSERVED"), tick=tick)
+            continue
+        # 被他人占用(非空但 claimable=False): 不是"空"的证据, 不更新(避免误证伪)
+        if not v.claimable:
+            continue
+        # 可用且有食 → OBSERVED contains=edible + located_at(自住地); upsert 保界
+        if not v.food_source:
+            continue
+        kb.learn(subject=v.entity_id, relation="contains", obj="edible",
+                 confidence=1.0, source=Source(kind="OBSERVED"), tick=tick)
+        kb.learn(subject=v.entity_id, relation="located_at",
+                 obj=npc.location_id, confidence=1.0,
+                 source=Source(kind="OBSERVED"), tick=tick)
+
+
+========================================================================================
+### src\citysim\world\scheduler.py
+========================================================================================
+"""时间轮 TimingWheel —— 每 NPC 单一下次重评点调度。
+
+正确性语义: 每人只保留一个 next-due(新 schedule 覆盖旧档), 到期 pop 时按
+npc_id 排序保证确定性。overflow(delay 超长)无需二次入轮, 直接以绝对 due 留存;
+内部用 slot 桶近似设计 3.6 的轮式结构。与 plan 一致: delay 必 >= 1。
+"""
+from __future__ import annotations
+
+
+class TimingWheel:
+    def __init__(self, horizon: int = 4096) -> None:
+        self.horizon = horizon
+        self.current = 0
+        self._by_npc: dict[str, int] = {}          # npc_id -> 绝对 due tick
+        self._slots: list[list[str]] = [[] for _ in range(horizon)]
+
+    def schedule(self, npc_id: str, delay_ticks: int, now: int | None = None) -> None:
+        """排 npc 在 delay tick 后重评; 覆盖该 npc 已有的旧档。
+
+        now 缺省用 self.current(上次 pop 推进处); 交互链推进时调用方应显式传
+        当前 tick 以免基准过期。
+        """
+        delay = max(1, int(delay_ticks))
+        due = (self.current if now is None else now) + delay
+        old = self._by_npc.pop(npc_id, None)
+        if old is not None:
+            slot = old % self.horizon
+            bucket = self._slots[slot]
+            if npc_id in bucket:
+                bucket.remove(npc_id)
+        self._by_npc[npc_id] = due
+        self._slots[due % self.horizon].append(npc_id)
+
+    def pop_due(self, now_tick: int) -> list[str]:
+        """推进到 now_tick, 返回此刻到点的 npc_id(排序, 确定性)。"""
+        self.current = now_tick
+        # 轮槽到期
+        slot = now_tick % self.horizon
+        fired: list[str] = []
+        for npc_id in self._slots[slot]:
+            if self._by_npc.get(npc_id, -1) <= now_tick:
+                fired.append(npc_id)
+                del self._by_npc[npc_id]
+        self._slots[slot] = [n for n in self._slots[slot]
+                             if n not in fired]
+        # overflow: 绝对 due <= now 的兜底
+        for npc_id, due in list(self._by_npc.items()):
+            if due <= now_tick:
+                fired.append(npc_id)
+                del self._by_npc[npc_id]
+        fired.sort()
+        return fired
+
+    def has(self, npc_id: str) -> bool:
+        return npc_id in self._by_npc
+
+    def next_due(self, npc_id: str) -> int | None:
+        return self._by_npc.get(npc_id)
+
+========================================================================================
+### src\citysim\world\world.py
+========================================================================================
+"""World 容器 —— 地点/实体/NPC 注册表 + 事件总线。
+
+世界是唯一事实源; Entity 为可变真实体。NPC Person 来自 npc/person(纯数据)。
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from citysim.npc.person import Person
+from citysim.world.events import EventBus
+from citysim.world.itemdefs import ItemDef, load_item_defs
+
+
+@dataclass
+class Entity:
+    """世界侧真实体(可变)。"""
+    entity_id: str
+    name: str
+    tags: set[str] = field(default_factory=set)
+    affordances: dict[str, float] = field(default_factory=dict)  # 信号效果
+    duration_ticks: int = 30
+    location_id: str = ""
+    claimed_by: str | None = None         # 占用者 npc_id
+    stock: int = 1                        # 容器/消耗品库存; -1=无限
+    attrs: dict[str, Any] = field(default_factory=dict)  # 如 bladder_load
+    interruptible: bool = True            # M3 睡眠泛化: 床 False
+    wake_condition: str | None = None     # "signal>=value"(用正则解析, 禁 eval)
+    on_start: list[dict] = field(default_factory=list)       # M4 数据化效果
+    on_complete: list[dict] = field(default_factory=list)    # M4 数据化效果
+    provides: list[str] = field(default_factory=list)        # 容器可产物品类型
+
+    @property
+    def is_consumable(self) -> bool:
+        return "consumable" in self.tags
+
+    @property
+    def is_sleepable(self) -> bool:
+        return "sleepable" in self.tags
+
+    def provides_edible(self) -> bool:
+        """容器是否供食: 走 provides 列表(defs 判定); legacy 手工容器看假键。"""
+        if self.provides:
+            defs = load_item_defs()
+            return any(p in defs and "edible" in defs[p].tags
+                       for p in self.provides)
+        return self.affordances.get("provides:edible", 0.0) > 0
+
+    def claimable_by(self, npc_id: str | None) -> bool:
+        return (self.claimed_by is None or self.claimed_by == npc_id) \
+            and self.stock != 0
+
+
+# ----------------------------------------------------------------------
+# 物品定义 -> 真实体(M4: 从 config/items/*.json 生成, 零硬编码)
+# ----------------------------------------------------------------------
+def entity_from_def(d: ItemDef, location_id: str) -> Entity:
+    """由 ItemDef 建一个可变 Entity(m5-rectify 12: 不再往 affordances 塞假键,
+    供食语义由 provides(defs 判定)承载, 感知/决策读 EntityView.food_source)。"""
+    return Entity(
+        entity_id="", name=d.name, tags=set(d.tags),
+        affordances=dict(d.affordances), duration_ticks=d.duration_ticks,
+        location_id=location_id, stock=d.stock, attrs=dict(d.attrs),
+        interruptible=d.interruptible, wake_condition=d.wake_condition,
+        on_start=list(d.on_start), on_complete=list(d.on_complete),
+        provides=list(d.provides),
+    )
+
+
+@dataclass
+class World:
+    clock_tick: int = 0
+    entities: dict[str, Entity] = field(default_factory=dict)
+    npcs: dict[str, Person] = field(default_factory=dict)
+    bus: EventBus = field(default_factory=EventBus)
+    _entity_seq: int = 0                  # 自动实体 id 计数(确定性)
+
+    def hour_f(self) -> float:
+        # tick 0 起 = 0:00; 一天 1440 tick
+        return (self.clock_tick % 1440) / 60.0
+
+    def entities_at(self, location_id: str) -> list[Entity]:
+        return [e for e in self.entities.values()
+                if e.location_id == location_id]
+
+    def spawn_entity(self, e: Entity) -> Entity:
+        if not e.entity_id:
+            self._entity_seq += 1
+            e.entity_id = f"auto{self._entity_seq}"
+        self.entities[e.entity_id] = e
+        return e
+
+    def spawn_item_type(self, item_type: str,
+                        location_id: str | None = None) -> Entity | None:
+        """按 config/items 里的类型在世界生成一件实体(缺省 npc 的 home)。"""
+        d = load_item_defs().get(item_type)
+        if d is None:
+            return None
+        e = entity_from_def(d, location_id if location_id is not None else "home")
+        return self.spawn_entity(e)
+
+========================================================================================
+### tools\ablation.py
+========================================================================================
+"""ablation —— testm5 第四节消融矩阵。
+
+同场景(home + 两食源市场)同 seed 集(1-10, 带初始噪声), 跑三档 KB:
+  off            无 KB(找食全靠眼前)
+  archetype_only 原型: 认识两家店(sells+located_at) —— 人人相同
+  full           原型 + 个人 overlay(一半人亲历过 market_a、一半 market_b)
+
+指标: 平均首餐时刻(吃到的那些人) / 吃上人数 / stuck0(hunger≤0)总 tick /
+      intent_failed/空跑率 / 两两 overlay Jaccard 距离均值。
+预期 full≈archetype_only ≥ off(生存); full 是唯一有知识多样性的。若某项倒挂
+(full 比 off 差) → 记为发现(过时知识害人且纠错慢), 不是失败。
+输出 docs/ablation.json + 打印聚合表。
+"""
+from __future__ import annotations
+
+import json
+import random
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
+
+from citysim.core.config import load_config  # noqa: E402
+from citysim.npc.knowledge import (ArchetypeKB, Fact, KnowledgeBase,  # noqa: E402
+                                   Source)
+from citysim.npc.person import Identity, Person  # noqa: E402
+from citysim.sim.loop import attach_replay, make_systems, run_tick  # noqa: E402
+from citysim.world.world import World  # noqa: E402
+
+from tests.helpers import add_entity  # noqa: E402
+try:
+    from helpers import add_entity  # noqa: F811
+except ImportError:
+    from tests.helpers import add_entity  # noqa: F811
+
+ROOT = Path(__file__).resolve().parents[1]
+CFG = load_config(ROOT / "config" / "sim.toml")
+DOCS = ROOT / "docs"
+N_NPC = 4
+DAYS = 4
+SEEDS = range(1, 11)
+
+
+def _fact(seq, subj, rel, obj, conf=1.0):
+    return Fact(fact_id=f"k{seq}", subject=subj, relation=rel, obj=obj,
+                confidence=conf, source=Source(kind="INJECTED", ref=("a",)))
+
+
+def _fac(world, loc, n):
+    for i in range(n):
+        add_entity(world, f"bed_{loc}_{i}", location=loc, tags=("sleepable",),
+                   affordances={"energy": 0.7}, duration_ticks=480,
+                   wake_condition="energy>=0.99")
+        add_entity(world, f"water_{loc}_{i}", location=loc,
+                   tags=("drink", "consumable"), affordances={"thirst": 0.6},
+                   duration_ticks=10, stock=5000)
+    add_entity(world, f"toilet_{loc}", location=loc, tags=("toilet",),
+               affordances={"bladder": 0.6, "comfort": 0.05}, duration_ticks=5,
+               on_complete=[{"op": "set_signal", "signal": "bladder",
+                             "value": 1.0},
+                            {"op": "clear_pending", "field": "bladder_pending"}])
+
+
+def _food(world, eid, loc, stock):
+    add_entity(world, eid, location=loc, tags=("container",),
+               affordances={"provides:edible": 1.0}, duration_ticks=2,
+               stock=stock)
+
+
+def run_one(mode: str, seed: int) -> dict:
+    world = World()
+    systems = make_systems(log=True, tell_p=0.0)
+    attach_replay(world, systems)
+    rng_pool: dict[str, random.Random] = {}
+    _fac(world, "home", N_NPC)
+    for mk in ("market_a", "market_b"):
+        _fac(world, mk, N_NPC)
+        _food(world, mk, mk, 400)
+    for i in range(N_NPC):
+        pid = f"n{i}"
+        p = Person(identity=Identity(person_id=pid, name=pid),
+                   location_id="home")
+        r = random.Random(seed * 100 + i)
+        p.hour_f = r.uniform(0.0, 24.0)
+        noise = 0.1
+        p.set_state(
+            energy=r.uniform(0.4, 0.9), hunger=r.uniform(0.2, 0.9),
+            thirst=r.uniform(0.3, 0.9), bladder=1.0, health=1.0,
+            temperature=1.0, fun=r.uniform(0.3, 1.0),
+            social=r.uniform(0.3, 1.0), comfort=0.8, hp=1.0)
+        world.npcs[pid] = p
+        rng_pool[pid] = random.Random(seed * 10 + i)
+        systems.scheduler.schedule(pid, 1, now=0)
+    # KB 配置
+    arch_facts = ArchetypeKB([
+        _fact(1, "market_a", "sells", "meal_simple"),
+        _fact(2, "market_a", "located_at", "market_a"),
+        _fact(3, "market_b", "sells", "meal_simple"),
+        _fact(4, "market_b", "located_at", "market_b"),
+        _fact(5, "meal_simple", "is_a", "edible")])
+    for i in range(N_NPC):
+        if mode == "off":
+            continue
+        if mode == "archetype_only":
+            world.npcs[f"n{i}"].kb = KnowledgeBase(arch_facts)
+        else:  # full: 原型 + 个人 overlay(偶知 a、奇知 b 的 contains/located_at)
+            kb = KnowledgeBase(arch_facts)
+            mk = "market_a" if i % 2 == 0 else "market_b"
+            kb.learn(subject=mk, relation="contains", obj="edible",
+                     confidence=1.0, source=Source(kind="OBSERVED"))
+            kb.learn(subject=mk, relation="located_at", obj=mk,
+                     confidence=1.0, source=Source(kind="OBSERVED"))
+            world.npcs[f"n{i}"].kb = kb
+
+    eaten = {pid: False for pid in world.npcs}
+    eat_ticks: dict[str, list[int]] = {pid: [] for pid in world.npcs}
+    stuck_ticks = 0
+
+    def _on(ev):
+        nonlocal stuck_ticks
+        if ev.kind != "interaction_done":
+            return
+        ent = world.entities.get(ev.payload.get("entity", ""))
+        if ent is not None and "edible" in ent.tags:
+            eaten[ev.subject_id] = True
+            eat_ticks[ev.subject_id].append(ev.tick)
+    world.bus.subscribe_log(_on)
+
+    for t in range(DAYS * 1440):
+        run_tick(world, systems, CFG, rng_pool)
+        for npc in world.npcs.values():
+            if npc.signals.get("hunger", 1.0) <= 0.0:
+                stuck_ticks += 1
+    # 指标
+    firsts = [eat_ticks[pid][0] for pid in world.npcs if eat_ticks[pid]]
+    ate = sum(eaten.values())
+    d_lines = [l for l in (systems.log_lines or []) if l.startswith("D\t")]
+    moves = sum(1 for l in d_lines if l.split("\t")[3] == "move_to")
+    failed = sum(1 for l in (systems.log_lines or [])
+                 if l.startswith("E\t") and l.split("\t")[2] == "intent_failed")
+    empty_run = round(failed / moves, 4) if moves else None
+    # 多样性(两两 overlay Jaccard 距离)
+    sets = []
+    for i in range(N_NPC):
+        kb = world.npcs[f"n{i}"].kb
+        sets.append(frozenset(f.subject for f in kb.overlay.values())
+                    if kb is not None else frozenset())
+    jacc = []
+    for i in range(N_NPC):
+        for j in range(i + 1, N_NPC):
+            a, b = sets[i], sets[j]
+            u = len(a | b)
+            jacc.append(1.0 - len(a & b) / u if u else 0.0)
+    div = sum(jacc) / len(jacc) if jacc else 0.0
+    return dict(
+        mode=mode, seed=seed, ate=ate,
+        avg_first=round(sum(firsts) / len(firsts), 1) if firsts else None,
+        stuck_ticks=stuck_ticks,
+        empty_run=empty_run,
+        diversity=round(div, 3),
+    )
+
+
+def run_all() -> dict:
+    rows = []
+    for mode in ("off", "archetype_only", "full"):
+        for s in SEEDS:
+            rows.append(run_one(mode, s))
+    agg = {}
+    for mode in ("off", "archetype_only", "full"):
+        rs = [r for r in rows if r["mode"] == mode]
+        firsts = [r["avg_first"] for r in rs if r["avg_first"] is not None]
+        ers = [r["empty_run"] for r in rs if r["empty_run"] is not None]
+        agg[mode] = dict(
+            ate=sum(r["ate"] for r in rs),
+            avg_first=round(sum(firsts) / len(firsts), 1) if firsts else None,
+            stuck_ticks=sum(r["stuck_ticks"] for r in rs),
+            empty_run=(round(sum(ers) / len(ers), 4) if ers else None),
+            diversity=round(sum(r["diversity"] for r in rs) / len(rs), 3),
+        )
+    out = {"rows": rows, "agg": agg}
+    (DOCS / "ablation.json").write_text(
+        json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
+    return agg
+
+
+if __name__ == "__main__":
+    agg = run_all()
+    print("\n消融矩阵聚合(10 seed 求和/均值):")
+    hdr = ("mode", "吃上人数", "平均首餐tick", "stuck0总tick",
+           "空跑率", "Jaccard距离")
+    print(f"{hdr[0]:<14}{hdr[1]:>8}{hdr[2]:>12}{hdr[3]:>12}"
+          f"{hdr[4]:>10}{hdr[5]:>12}")
+    for mode in ("off", "archetype_only", "full"):
+        a = agg[mode]
+        er = "n/a" if a["empty_run"] is None else str(a["empty_run"])
+        print(f"{mode:<14}{a['ate']:>8}{str(a['avg_first']):>12}"
+              f"{a['stuck_ticks']:>12}{er:>10}"
+              f"{a['diversity']:>12}")
+
+========================================================================================
+### tools\check_imports.py
+========================================================================================
+"""CI 层隔离检查：src/citysim/npc/ 不得反向 import citysim.world。
+
+设计 0.2 硬性编码规范: npc/ 与 world/ 解耦。legacy/(M0~M3 临时迁移目录)
+除外——它暂存旧 person/brain, 不参与新架构。挂进 pytest; 命令行直接跑,
+命中任一违规即返回退出码 1。
+"""
+from __future__ import annotations
+
+import ast
+import pathlib
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+NPC = ROOT / "src" / "citysim" / "npc"
+
+
+def _forbidden(name: str) -> bool:
+    """是否命中 citysim.world 路径。"""
+    parts = name.split(".")
+    return len(parts) >= 2 and parts[0] == "citysim" and parts[1] == "world"
+
+
+def check() -> list[tuple[pathlib.Path, int]]:
+    """返回 [(文件, 行号), ...] —— npc/ 里反向 import world 的违规点。"""
+    bad: list[tuple[pathlib.Path, int]] = []
+    for p in sorted(NPC.rglob("*.py")):
+        if "legacy" in p.parts:
+            continue
+        tree = ast.parse(p.read_text(encoding="utf-8"), filename=str(p))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for a in node.names:
+                    if _forbidden(a.name):
+                        bad.append((p, node.lineno))
+            elif isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                if _forbidden(mod):
+                    bad.append((p, node.lineno))
+                elif mod == "citysim" and any(
+                    getattr(a, "name", "") == "world" for a in node.names
+                ):
+                    bad.append((p, node.lineno))
+    return bad
+
+
+def main() -> None:
+    bad = check()
+    if bad:
+        for p, ln in bad:
+            print(f"VIOLATION {p}:{ln}  npc/ 反向 import citysim.world")
+        print(f"FAIL: {len(bad)} 处违规")
+        sys.exit(1)
+    print("OK: npc/ 不依赖 world/")
+
+
+if __name__ == "__main__":
+    main()
+
+========================================================================================
+### tools\demo_scene.py
+========================================================================================
+"""demo_scene —— 供观察器与 soak 测试共用的可复现 demo 世界。
+
+一座房子(home): 冰箱(无限产餐, GOAP 取→吃链) + 床(睡眠) + 饮水机(补水) +
+马桶(清膀胱)。NPC 同 location, 靠 claim 仲裁竞争。
+"""
+from __future__ import annotations
+
+import random
+from pathlib import Path
+
+from citysim.core.config import load_config
+from citysim.npc.knowledge import KnowledgeBase, load_archetype
+from citysim.npc.person import Identity, Person, full_signals
+from citysim.sim.loop import attach_replay, make_systems
+from citysim.world.world import Entity, World
+
+ROOT = Path(__file__).resolve().parents[1]
+CFG = load_config(ROOT / "config" / "sim.toml")
+WORKER_ARCH = ROOT / "config" / "archetypes" / "worker.json"
+
+DEFAULT_NAMES = ["王二", "李四", "张三", "赵五", "钱六",
+                 "孙七", "周八", "吴九", "郑十", "陈一"]
+
+
+TOILET_ON_COMPLETE = [
+    {"op": "set_signal", "signal": "bladder", "value": 1.0},
+    {"op": "clear_pending", "field": "bladder_pending"},
+]
+
+
+def _entity(world: World, eid: str, name: str, tags, affordances,
+            duration_ticks: int, stock: int = 1,
+            wake_condition: str | None = None, attrs=None,
+            on_start: list | None = None,
+            on_complete: list | None = None) -> Entity:
+    e = Entity(
+        entity_id=eid, name=name, tags=set(tags),
+        affordances=dict(affordances), duration_ticks=duration_ticks,
+        location_id="home", stock=stock,
+        attrs=dict(attrs or {}), wake_condition=wake_condition,
+        on_start=list(on_start or []),
+        on_complete=list(on_complete or []),
+    )
+    world.entities[eid] = e
+    return e
+
+
+def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
+               names: list[str] | None = None, kb_mode: str = "off",
+               noise: float = 0.0):
+    """搭一座可复现的 demo 房子。返回 (world, systems, rng_pool, cfg)。
+
+    kb_mode: off=None(等价 M4 golden) | archetype_only | full(均附 worker 原型,
+    观察落知识由主循环负责)。noise: 初始信号扰动幅度(破同相位, 供传播测试)。
+    """
+    world = World()
+    systems = make_systems(log=log)
+    if log:
+        attach_replay(world, systems)
+    rng_pool: dict[str, random.Random] = {}
+
+    # ---- 家具/资源 ------------------------------------------------
+    _entity(world, "fridge_1", "冰箱", {"container"},
+            {"provides:edible": 1.0}, duration_ticks=2, stock=-1)
+    # 常备餐台(无限 loose edible): 少量多餐(~8h 一次), 保证任意 24h 吃 2~4 次
+    for i in range(max(2, n_npc // 2)):
+        _entity(world, f"plate_{i}", "餐台", {"edible", "consumable"},
+                {"hunger": 0.35}, duration_ticks=15, stock=10000,
+                on_start=[{"op": "add_pending",
+                           "field": "bladder_pending", "amount": 0.3}])
+    for i in range(max(2, n_npc)):
+        _entity(world, f"bed_{i}", "床", {"sleepable"},
+                {"energy": 0.7}, duration_ticks=480,
+                wake_condition="energy>=0.99")
+    for i in range(max(4, n_npc)):
+        _entity(world, f"water_{i}", "饮水机", {"drink", "consumable"},
+                {"thirst": 0.6}, duration_ticks=10, stock=5000,
+                on_start=[{"op": "add_pending",
+                           "field": "bladder_pending", "amount": 0.15}])
+    _entity(world, "toilet_1", "马桶", {"toilet"},
+            {"bladder": 0.6, "comfort": 0.05}, duration_ticks=5,
+            on_complete=TOILET_ON_COMPLETE)
+
+    # ---- NPC(初始状态由 seed 扰动, 避免同相位) ---------------------
+    names = names or DEFAULT_NAMES
+    arch = None
+    if kb_mode != "off":
+        _, arch = load_archetype(WORKER_ARCH)
+    for i in range(n_npc):
+        pid = f"npc_{i:02d}"
+        r = random.Random(seed * 100 + i)
+        p = Person(identity=Identity(person_id=pid,
+                                     name=names[i % len(names)]),
+                   location_id="home")
+        p.hour_f = r.uniform(0.0, 24.0)
+        base = {"energy": r.uniform(0.4, 0.9), "hunger": r.uniform(0.3, 0.9),
+                "thirst": r.uniform(0.3, 0.9), "bladder": 1.0,
+                "health": 1.0, "temperature": 1.0, "fun": 0.6,
+                "social": 0.6, "comfort": 0.8, "hp": 1.0}
+        if noise:
+            base = {s: max(0.0, min(1.0, v + r.uniform(-noise, noise)))
+                    for s, v in base.items()}
+        p.set_state(**base)
+        p.personality = {}
+        if arch is not None:
+            p.kb = KnowledgeBase(arch)
+        world.npcs[pid] = p
+        rng_pool[pid] = random.Random(seed + i)
+        systems.scheduler.schedule(pid, 1, now=0)
+
+    return world, systems, rng_pool, CFG
+
+
+def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
+                 names: list[str] | None = None):
+    """稀缺场景(testM0~M3 疑点 2): 4 NPC 抢 1 厕所 + 1 冰箱(stock=2, 有限)。
+
+    床/水按人数足额(避免无关卡点), 把竞争集中在 厕所/冰箱 —— 让 claim 冲突与
+    失败重选路径被真实压到。NPC 同初始状态 → 需求同步 → 高并发争抢。
+    """
+    world = World()
+    systems = make_systems(log=log)
+    if log:
+        attach_replay(world, systems)
+    rng_pool: dict[str, random.Random] = {}
+
+    _entity(world, "fridge_1", "冰箱", {"container"},
+            {"provides:edible": 1.0}, duration_ticks=2, stock=2)
+    _entity(world, "toilet_1", "马桶", {"toilet"},
+            {"bladder": 0.6, "comfort": 0.05}, duration_ticks=5,
+            on_complete=TOILET_ON_COMPLETE)
+    _entity(world, "water_0", "饮水机", {"drink", "consumable"},
+            {"thirst": 0.6}, duration_ticks=10, stock=1000,
+            on_start=[{"op": "add_pending",
+                       "field": "bladder_pending", "amount": 0.15}])
+    for i in range(n_npc):
+        _entity(world, f"bed_{i}", "床", {"sleepable"},
+                {"energy": 0.7}, duration_ticks=480,
+                wake_condition="energy>=0.99")
+
+    names = names or DEFAULT_NAMES
+    for i in range(n_npc):
+        pid = f"npc_{i:02d}"
+        p = Person(identity=Identity(person_id=pid,
+                                     name=names[i % len(names)]),
+                   location_id="home")
+        p.hour_f = 8.0                       # 同步相位 → 同步需求
+        p.set_state(energy=0.6, hunger=0.25, thirst=0.6, bladder=0.9,
+                    health=1.0, temperature=1.0, fun=0.5, social=0.5,
+                    comfort=0.8, hp=1.0)
+        world.npcs[pid] = p
+        rng_pool[pid] = random.Random(seed + i)
+        systems.scheduler.schedule(pid, 1, now=0)
+    return world, systems, rng_pool, CFG
+
+========================================================================================
+### tools\dump_codebase.py
+========================================================================================
+"""dump_codebase —— 把核心代码库(非测试)合并导出为一个带目录的文本文件。
+
+用于把实现代码一次性"喂"给分析/评审工具，开头带目录(每模块起始行)便于索引。
+
+默认只收核心包 src/citysim(**/*.py, 排除含 test 的文件)；可用 --root 追加目录
+(如 tools、tests 里想收的除外目录)、--include-data 把 config/*.toml|*.json 数据
+文件一并带上。
+
+用法:
+  python tools/dump_codebase.py                                  # -> docs/codebase_core.txt
+  python tools/dump_codebase.py --root src/citysim --out docs/kb.txt
+  python tools/dump_codebase.py --include-data --out docs/all.txt
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from datetime import datetime
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+BANNER_LEN = 88
+
+
+def _is_data(p: Path) -> bool:
+    return p.suffix.lower() in (".toml", ".json", ".csv", ".txt", ".md")
+
+
+def collect_files(roots: list[str], include_data: bool) -> list[Path]:
+    """收集待导出文件：--root 目录里的 *.py(排除含 test 的)；可选数据文件。"""
+    found: list[Path] = []
+    seen: set[Path] = set()
+    for r in roots:
+        base = Path(r)
+        if not base.is_absolute():
+            base = ROOT / base
+        if not base.exists():
+            print(f"[warn] 路径不存在, 跳过: {base}", file=sys.stderr)
+            continue
+        if base.is_file():
+            cands = [base]
+        else:
+            cands = [p for p in sorted(base.rglob("*"))
+                     if p.is_file() and (p.suffix.lower() == ".py" or
+                                         (include_data and _is_data(p)))]
+        for p in cands:
+            name = p.name.lower()
+            if p.suffix.lower() == ".py" and ("test" in name or
+                                              name == "conftest.py"):
+                continue
+            if p in seen:
+                continue
+            seen.add(p)
+            found.append(p)
+    return sorted(found)
+
+
+def render(files: list[Path], root_labels: dict[Path, str]) -> str:
+    """组装: 目录 + 各文件内容。目录行号 = 各文件 '###' 标注行在成品内的绝对行号。
+
+    两趟: 先拼 body(顺带记录每文件 '###' 行在 body 内的偏移), 再在前面加
+    header+目录 —— 前缀行数随目录行数增长, 故按 len(prefix) 推最终行号。
+    """
+    n_files = len(files)
+    texts = [(root_labels[p], p.read_text(encoding="utf-8")) for p in files]
+
+    # 1) 拼 body, 记录每文件 '###' 标注行在 body 中的 0-based 偏移
+    body: list[str] = []
+    label_at: list[int] = []
+    for label, t in texts:
+        body.append("=" * BANNER_LEN)
+        label_at.append(len(body))           # 下一条即 '### label' 行
+        body.append(f"### {label}")
+        body.append("=" * BANNER_LEN)
+        body.extend(t.splitlines())
+        body.append("")
+
+    # 2) header + 目录前缀: 固定 9 行 + 每文件一行
+    prefix: list[str] = [
+        "# 核心代码库合并导出 (core codebase dump)",
+        f"# 生成时间: {datetime.now().isoformat(timespec='seconds')}",
+        "# 文件数占位",
+        "# 用途: 一次性分析/评审输入; 目录行号 = 本文件内绝对行号(1-based)",
+        "",
+        "## 目录 (Table of Contents)",
+        "",
+        "| # | 模块/文件 | 起行 | LOC |",
+        "|---|---------|-----|-----|",
+    ]
+    for i, ((label, t), at) in enumerate(zip(texts, label_at), 1):
+        # 最终前缀 = 固定 9 行 + n_files 行目录; '###' 行 = 前缀尾 + body 偏移 +1
+        start_line = (9 + n_files) + at + 1  # 成品内 1-based 绝对行
+        loc = len(t.splitlines())
+        prefix.append(f"| {i} | `{label}` | {start_line} | {loc} |")
+    prefix[2] = f"# 文件数: {n_files} · 总行数: {len(prefix) + len(body)}"
+    return "\n".join(prefix + body)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--root", action="append", default=[],
+                    help="要收集的根/文件(可多次); 默认 src/citysim")
+    ap.add_argument("--out", default="docs/codebase_core.txt",
+                    help="输出文本路径(默认 docs/codebase_core.txt)")
+    ap.add_argument("--include-data", action="store_true",
+                    help="连同 config/ 下的 toml/json 数据一起导出")
+    a = ap.parse_args()
+
+    roots = a.root or ["src/citysim"]
+    if a.include_data:
+        roots.append("config")
+    files = collect_files(roots, a.include_data)
+    if not files:
+        print("没有收集到文件", file=sys.stderr)
+        sys.exit(1)
+    root_labels = {}
+    for p in files:
+        # 展示名: 相对工程根
+        try:
+            root_labels[p] = str(p.resolve().relative_to(ROOT.resolve()))
+        except ValueError:
+            root_labels[p] = str(p)
+    text = render(files, root_labels)
+    out_path = Path(a.out)
+    if not out_path.is_absolute():
+        out_path = ROOT / out_path
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(text, encoding="utf-8")
+    nloc = sum(1 for _ in text.splitlines())
+    print(f"已导出 {len(files)} 个文件 → {out_path} (含目录, 共 {nloc} 行)")
+
+
+if __name__ == "__main__":
+    main()
+
+========================================================================================
+### tools\gen_golden.py
+========================================================================================
+"""gen_golden —— 生成/刷新 M4 回放 golden 基线。
+
+用法: python tools/gen_golden.py [--seed 3] [--ticks 2000]
+输出: tests/golden/m4_seed3_2000t.jsonl
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
+
+from citysim.sim.loop import run_tick  # noqa: E402
+from demo_scene import build_demo  # noqa: E402
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--seed", type=int, default=3)
+    ap.add_argument("--ticks", type=int, default=2000)
+    a = ap.parse_args()
+    world, systems, rng_pool, cfg = build_demo(n_npc=3, seed=a.seed, log=True)
+    for _ in range(a.ticks):
+        run_tick(world, systems, cfg, rng_pool)
+    out = ROOT / "tests" / "golden" / f"m4_seed{a.seed}_{a.ticks}t.jsonl"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(systems.log_lines), encoding="utf-8")
+    print(f"written {out} ({len(systems.log_lines)} lines)")
+
+
+if __name__ == "__main__":
+    main()
+
+========================================================================================
+### tools\kb_metrics.py
+========================================================================================
+"""kb_metrics —— testm5 第三节宏观真实感指标(7 天 × 6 NPC 城镇, full KB)。
+
+城镇: home(生活设施) + 两个食源市场 market_a/market_b(各自独立 location,
+带生活设施)。每个 NPC 原型只"认识"其中一家(交替分 3/3) → 不同人知道不同店,
+个体化出现; 找食必须靠 KB move_to(跨 location)。
+
+指标(操作化定义, 见 docs/testM5result.md):
+  探索率      = move_to 决策 / 全部决策
+  空跑率      = intent_failed / move_to(当前空跑主要=扑空空仓)
+  知识多样性  = 两两 overlay 的 Jaccard 距离均值(≥0.3 目标)
+  追溯完整性  = 抽样决策 used_fact_ids 能 export_trace_chain 到根的比例
+  KB 增长     = 人均 overlay day3 vs day7(应有界; decay 起效)
+输出: docs/kb_metrics.json + docs/kb_metrics.txt + docs/narrate_logs/macro.log
+"""
+from __future__ import annotations
+
+import json
+import random
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from citysim.core.config import load_config
+from citysim.npc.knowledge import ArchetypeKB, Fact, KnowledgeBase, Source
+from citysim.npc.person import Identity, Person
+from citysim.sim.loop import attach_replay, make_systems, run_tick
+from citysim.viz.kb_export import export_kb_dot
+from citysim.viz.trace_export import export_trace_chain
+from citysim.world.world import World
+
+from tests.helpers import add_entity  # noqa: E402
+
+try:  # 直接运行 python tools/kb_metrics.py(tools 目录在 sys.path, tests 不一定)
+    from helpers import add_entity  # noqa: F811
+except ImportError:  # pytest 环境
+    from tests.helpers import add_entity  # noqa: F811
+
+ROOT = Path(__file__).resolve().parents[1]
+CFG = load_config(ROOT / "config" / "sim.toml")
+DOCS = ROOT / "docs"
+NARR = DOCS / "narrate_logs"
+NARR.mkdir(parents=True, exist_ok=True)
+N_NPC = 6
+DAYS = 7
+
+ROOT_KIND = ("INJECTED", "OBSERVED")
+
+
+def _fact(seq, subj, rel, obj, conf=1.0):
+    return Fact(fact_id=f"k{seq}", subject=subj, relation=rel, obj=obj,
+                confidence=conf, source=Source(kind="INJECTED", ref=("arch",)))
+
+
+def _fac(world, loc, n):
+    for i in range(n):
+        add_entity(world, f"bed_{loc}_{i}", location=loc, tags=("sleepable",),
+                   affordances={"energy": 0.7}, duration_ticks=480,
+                   wake_condition="energy>=0.99")
+        add_entity(world, f"water_{loc}_{i}", location=loc,
+                   tags=("drink", "consumable"), affordances={"thirst": 0.6},
+                   duration_ticks=10, stock=5000)
+    add_entity(world, f"toilet_{loc}", location=loc, tags=("toilet",),
+               affordances={"bladder": 0.6, "comfort": 0.05}, duration_ticks=5,
+               on_complete=[{"op": "set_signal", "signal": "bladder",
+                             "value": 1.0},
+                            {"op": "clear_pending", "field": "bladder_pending"}])
+
+
+def _food(world, eid, loc, stock):
+    add_entity(world, eid, location=loc, tags=("container",),
+               affordances={"provides:edible": 1.0}, duration_ticks=2,
+               stock=stock)
+
+
+def build_town(seed: int = 1):
+    world = World()
+    systems = make_systems(log=True, tell_p=0.1)
+    attach_replay(world, systems)
+    rng_pool: dict[str, random.Random] = {}
+    _fac(world, "home", N_NPC)
+    for m in ("market_a", "market_b"):
+        _fac(world, m, N_NPC)
+        _food(world, m, m, 400)
+    for i in range(N_NPC):
+        pid = f"n{i}"
+        p = Person(identity=Identity(person_id=pid, name=pid),
+                   location_id="home")
+        r = random.Random(seed * 100 + i)
+        p.hour_f = r.uniform(0.0, 24.0)
+        p.set_state(energy=r.uniform(0.5, 0.9), hunger=r.uniform(0.5, 0.9),
+                    thirst=r.uniform(0.4, 0.8), bladder=1.0, health=1.0,
+                    temperature=1.0, fun=0.6, social=0.6, comfort=0.8, hp=1.0)
+        world.npcs[pid] = p
+        rng_pool[pid] = random.Random(seed * 10 + i)
+        systems.scheduler.schedule(pid, 1, now=0)
+    # 原型: 一半认识 market_a, 一半认识 market_b(不同人知道不同店)
+    for i in range(N_NPC):
+        mk = "market_a" if i % 2 == 0 else "market_b"
+        arch = ArchetypeKB([
+            _fact(1, mk, "sells", "meal_simple", 1.0),
+            _fact(2, mk, "located_at", mk, 1.0),
+            _fact(3, "meal_simple", "is_a", "edible", 1.0)])
+        world.npcs[f"n{i}"].kb = KnowledgeBase(arch)
+    return world, systems, rng_pool
+
+
+def run_metrics() -> dict:
+    world, systems, rng_pool = build_town()
+    overlay_at_day3 = {f"n{i}": 0 for i in range(N_NPC)}
+    used_samples: list[tuple[str, str]] = []   # (npc, fact_id)
+    eaten = {pid: False for pid in world.npcs}
+
+    def _on(ev):
+        if ev.kind != "interaction_done":
+            return
+        ent = world.entities.get(ev.payload.get("entity", ""))
+        if ent is not None and "edible" in ent.tags:
+            eaten[ev.subject_id] = True
+    world.bus.subscribe_log(_on)
+
+    for t in range(DAYS * 1440):
+        run_tick(world, systems, CFG, rng_pool)
+        if t == 1440 * 3:
+            for pid, npc in world.npcs.items():
+                if npc.kb is not None:
+                    overlay_at_day3[pid] = len(npc.kb.overlay)
+        # 逐 tick 采 move_to 决策(数量本就少), 供追溯完整性
+        for pid, npc in world.npcs.items():
+            li = npc.last_intent
+            if (li is not None and li.kind == "move_to"
+                    and li.trace.used_fact_ids):
+                used_samples.append((pid, li.trace.used_fact_ids[0]))
+    overlay_day7 = {pid: len(npc.kb.overlay)
+                    for pid, npc in world.npcs.items() if npc.kb is not None}
+    d_lines = [l for l in (systems.log_lines or []) if l.startswith("D\t")]
+    moves = sum(1 for l in d_lines if l.split("\t")[3] == "move_to")
+    decisions = len(d_lines)
+    failed = sum(1 for l in (systems.log_lines or [])
+                 if l.startswith("E\t") and l.split("\t")[2] == "intent_failed")
+    exploration = moves / max(1, decisions)
+    empty_run = failed / max(1, moves)
+
+    # 知识多样性: 两两 overlay Jaccard 距离
+    def subj_set(pid):
+        kb = world.npcs[pid].kb
+        return frozenset(f.subject for f in kb.overlay.values())
+    sets = [subj_set(f"n{i}") for i in range(N_NPC)]
+    jacc = []
+    for i in range(N_NPC):
+        for j in range(i + 1, N_NPC):
+            a, b = sets[i], sets[j]
+            inter = len(a & b)
+            union = len(a | b) or 1
+            jacc.append(1.0 - inter / union)      # 距离
+    diversity = sum(jacc) / len(jacc) if jacc else 1.0
+
+    # 追溯完整性(去重: 同一 move_to 旅行期会被反复采到)
+    unique = sorted(set(used_samples))
+    ok = tot = 0
+    for pid, fid in unique[:50]:
+        tot += 1
+        ch = export_trace_chain(world.npcs[pid].kb, [fid])
+        if ch["facts"] and ch["facts"][0]["source_kind"] in ROOT_KIND:
+            ok += 1
+    trace_complete = ok / max(1, tot)
+
+    # 人均 overlay 增长(day3 vs day7)与有界
+    ov3 = sum(overlay_at_day3.values()) / N_NPC
+    ov7 = sum(overlay_day7.values()) / N_NPC
+    max_ov = max(overlay_day7.values())
+
+    # 吃东西确认 KB 被用上(每家 NPC 都靠 move_to 吃到了)
+    # 叙事/DOT 产物(第 1/4/7 天)供人工 review
+    (NARR / "macro.log").write_text("\n".join(systems.log_lines or []),
+                                    encoding="utf-8")
+    for day in (1, 4, 7):
+        for pid in ("n0", "n3"):
+            (DOCS / f"kb_{pid}_d{day}.dot").write_text(
+                export_kb_dot(world.npcs[pid].kb), encoding="utf-8")
+
+    all_eat = sum(eaten.values())
+    m = dict(
+        days=DAYS, n_npc=N_NPC,
+        decisions=decisions, moves=moves, failed=failed,
+        exploration=round(exploration, 4),
+        empty_run=round(empty_run, 4),
+        jaccard_distance=round(diversity, 3),
+        trace_complete=round(trace_complete, 4),
+        overlay_per_npc_day3=round(ov3, 2),
+        overlay_per_npc_day7=round(ov7, 2),
+        overlay_max= max_ov,
+        all_npc_ate=all_eat == N_NPC,
+        used_samples=tot,
+    )
+    (DOCS / "kb_metrics.json").write_text(
+        json.dumps(m, indent=2, ensure_ascii=False), encoding="utf-8")
+    return m
+
+
+if __name__ == "__main__":
+    m = run_metrics()
+    for k, v in m.items():
+        print(f"{k}: {v}")
+
+========================================================================================
+### tools\narrate.py
+========================================================================================
+"""narrate —— 把事件流翻译成人话(testm5 第五节, 供人工 review)。
+
+用法: python tools/narrate.py --days 3 [--npc 王二]
+输入: 一份回放日志(tools 场景 log=True 的 log_lines)
+输出: 逐条可读叙事。每次 move_to 都应能用一句话解释(因为看见/听说 X)。
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
+
+
+def _clock(tick: int) -> str:
+    day = tick // 1440 + 1
+    hh, mm = (tick % 1440) // 60, (tick % 1440) % 60
+    return f"[d{day} {hh:02d}:{mm:02d}]"
+
+
+def narrate(lines: list[str], npc_filter: str | None = None) -> list[str]:
+    out = []
+    for line in lines:
+        parts = line.split("\t")
+        kind = parts[0]
+        if kind == "D":
+            tick, pid, itype, target, plan = (int(parts[1]), parts[2],
+                                              parts[3], parts[4], parts[5])
+            name = pid
+            if npc_filter and npc_filter not in pid and npc_filter not in name:
+                continue
+            if itype == "move_to":
+                out.append(f"{_clock(tick)} {name} 前往 {target}")
+            elif itype == "interact":
+                where = f"使用 {target}"
+                if plan:
+                    where += f" (计划: {plan.replace(',', '→')})"
+                out.append(f"{_clock(tick)} {name} {where}")
+            elif itype == "idle":
+                out.append(f"{_clock(tick)} {name} 闲着")
+        elif kind == "E":
+            tick = int(parts[1])
+            ekind, subj, payload = parts[2], parts[3], parts[4]
+            if ekind == "intent_failed":
+                out.append(f"{_clock(tick)} {subj} 扑空/失败 {payload}")
+            elif ekind == "interaction_done":
+                ent = payload.split("entity=")[-1]
+                out.append(f"{_clock(tick)} {subj} 完成 {ent}")
+            elif ekind == "told":
+                kv = dict(p.split("=", 1) for p in payload.split(";")
+                          if "=" in p)
+                recv = kv.get("audience", "?")
+                out.append(
+                    f"{_clock(tick)} {subj} 遇 {recv} → 告知 "
+                    f"{kv.get('subject')} {kv.get('relation')} {kv.get('obj')}"
+                    f" (信度 {kv.get('conf')})")
+    return out
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--log", required=True, help="回放日志文件路径")
+    ap.add_argument("--npc", default=None)
+    ap.add_argument("--tail", type=int, default=200)
+    a = ap.parse_args()
+    lines = Path(a.log).read_text(encoding="utf-8").splitlines()
+    for l in narrate(lines, a.npc)[-a.tail:]:
+        print(l)
+
+========================================================================================
+### tools\scarcity_check.py
+========================================================================================
+"""scarcity_check —— 稀缺场景 4NPC×1厕所×1冰箱(stock=2) 指标扫描(校准用)。"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
+
+from citysim.sim.loop import run_tick  # noqa: E402
+from demo_scene import build_scarce  # noqa: E402
+from soak import SoakTracker  # noqa: E402
+
+
+def run(seed: int, days: int):
+    world, systems, rng_pool, cfg = build_scarce(n_npc=4, seed=seed, log=True)
+    tr = SoakTracker(world, systems)
+    ticks = days * 1440
+    for _ in range(ticks):
+        run_tick(world, systems, cfg, rng_pool)
+        tr.observe()
+    tr.load_decisions(systems.log_lines)
+    alive = all(n.is_alive() for n in world.npcs.values())
+    stuck = max((max(v.values(), default=0)
+                 for v in tr.max_stuck.values()), default=0)
+    interact = sum(len(v) for t in tr.claims.values() for v in t.values())
+    eat_total = sum(sum(d.values()) for d in tr.eat.values())
+    return (tr.failed, tr.decisions, tr.failure_ratio(), interact,
+            tr.failed / max(1, interact), alive,
+            len(tr.repeat_claim_violations()), stuck, eat_total)
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--from", dest="f", type=int, default=1)
+    ap.add_argument("--to", dest="t", type=int, default=6)
+    ap.add_argument("--days", type=int, default=2)
+    a = ap.parse_args()
+    print(f"4NPC x 1厕所 x 1冰箱(stock=2), {a.days} 天")
+    print(f"{'seed':>4} {'fails':>5} {'dec':>5} {'fail/dec':>8} "
+          f"{'interact':>8} {'fail/int':>9} alive jit stuck0 eats")
+    for s in range(a.f, a.t + 1):
+        (failed, dec, r1, interact, r2, alive, jit, stuck,
+         eats) = run(s, a.days)
+        print(f"{s:>4} {failed:>5} {dec:>5} {r1:>8.2%} {interact:>8} "
+              f"{r2:>9.2%} {alive} {jit} {stuck:>5} {eats}")
+
+========================================================================================
+### tools\soak.py
+========================================================================================
+"""soak —— 7 天日行为统计追踪器(供 soak_report 与 test_behavior_soak 共用)。
+
+按 testM0~M3.md 第二步断言口径统计:
+  - 每人每天 吃/喝/如厕 次数; 睡眠段(次数 + 时长)
+  - 信号卡 0 的最长连续 tick
+  - 连续 idle 且有信号<0.3 的最长 tick
+  - intent_failed 占比
+  - 60 tick 窗口内同一目标重复 claim(抖动)报警
+"""
+from __future__ import annotations
+
+THRESH_SIGNAL = 0.3      # "有需求却不行动"判据
+THRESH_STUCK = 300       # 卡 0 报警
+THRESH_IDLE_NEED = 120   # 2 小时(tick=1 分钟)
+THRESH_FAIL_RATIO = 0.15
+REPEAT_WINDOW = 60
+REPEAT_MAX = 5
+
+NEED_SIGNALS = ("energy", "hunger", "thirst", "bladder")
+
+
+def parse_decisions(log_lines: list[str]):
+    """从回放日志解析 decide 次数与 (pid->target->tick 列表)。"""
+    decisions = 0
+    claims: dict[str, dict[str, list[int]]] = {}
+    for line in log_lines:
+        if not line.startswith("D\t"):
+            continue
+        parts = line.split("\t")
+        tick, pid, kind, target = int(parts[1]), parts[2], parts[3], parts[4]
+        decisions += 1
+        if kind == "interact" and target:
+            claims.setdefault(pid, {}).setdefault(target, []).append(tick)
+    return decisions, claims
+
+
+class SoakTracker:
+    def __init__(self, world, systems) -> None:
+        self.world = world
+        self.systems = systems
+        self.day = 0
+        self.eat: dict[str, dict[int, int]] = {}
+        self.drink: dict[str, dict[int, int]] = {}
+        self.toilet: dict[str, dict[int, int]] = {}
+        self.sleep_segs: dict[str, list[tuple[int, int]]] = {}
+        self._sleep_on: dict[str, int] = {}
+        self.max_stuck: dict[str, dict[str, int]] = {}
+        self._stuck_run: dict[str, dict[str, int]] = {}
+        self.max_idle_need: dict[str, tuple[int, str]] = {}
+        self._idle_run: dict[str, tuple[int, str]] = {}
+        self.failed = 0
+        self.decisions = 0
+        self.claims: dict[str, dict[str, list[int]]] = {}
+        self._completed: list[tuple[int, str, str | None]] = []
+
+        def _on_ev(ev):
+            if ev.kind == "interaction_done":
+                # 此刻(事件发布, 先于回收)实体仍在 → 立即解析 tags 分类
+                ent = world.entities.get(ev.payload.get("entity", ""))
+                tags = ent.tags if ent is not None else set()
+                cat: str | None = None
+                if "edible" in tags:
+                    cat = "eat"
+                elif "drink" in tags:
+                    cat = "drink"
+                if "toilet" in tags:
+                    cat = "toilet"
+                self._completed.append((ev.tick, ev.subject_id, cat))
+            elif ev.kind == "intent_failed":
+                self.failed += 1
+
+        world.bus.subscribe_log(_on_ev)
+
+    # --- 每 tick 调用(run_tick 之后) --------------------------------
+    def observe(self) -> None:
+        day = self.world.clock_tick // 1440 + 1
+        for pid, npc in self.world.npcs.items():
+            for s in NEED_SIGNALS:
+                run = self._stuck_run.setdefault(pid, {}).get(s, 0)
+                run = run + 1 if npc.signals.get(s, 1.0) <= 0.0 else 0
+                self._stuck_run[pid][s] = run
+                best = self.max_stuck.setdefault(pid, {}).get(s, 0)
+                self.max_stuck[pid][s] = max(best, run)
+            asleep = self._asleep(pid)
+            active = pid in self.systems.interaction.active
+            need = min(npc.signals.get(s, 1.0) for s in NEED_SIGNALS)
+            if not asleep and not active and need < THRESH_SIGNAL:
+                r, who = self._idle_run.get(pid, (0, ""))
+                s_min = min(NEED_SIGNALS,
+                            key=lambda s: npc.signals.get(s, 1.0))
+                self._idle_run[pid] = (r + 1, s_min)
+                best, _ = self.max_idle_need.get(pid, (0, ""))
+                self.max_idle_need[pid] = (max(best, r + 1), s_min)
+            else:
+                self._idle_run[pid] = (0, "")
+            if asleep and pid not in self._sleep_on:
+                self._sleep_on[pid] = self.world.clock_tick
+            elif not asleep and pid in self._sleep_on:
+                start = self._sleep_on.pop(pid)
+                self.sleep_segs.setdefault(pid, []).append(
+                    (start, self.world.clock_tick))
+        done = self._completed
+        self._completed = []
+        for (tick, pid, cat) in done:
+            if cat is None:
+                continue
+            d = tick // 1440 + 1
+            if cat == "eat":
+                self.eat.setdefault(pid, {}).setdefault(d, 0)
+                self.eat[pid][d] += 1
+            elif cat == "drink":
+                self.drink.setdefault(pid, {}).setdefault(d, 0)
+                self.drink[pid][d] += 1
+            elif cat == "toilet":
+                self.toilet.setdefault(pid, {}).setdefault(d, 0)
+                self.toilet[pid][d] += 1
+        self.day = day
+
+    def load_decisions(self, log_lines: list[str]) -> None:
+        self.decisions, self.claims = parse_decisions(log_lines)
+
+    def _asleep(self, pid: str) -> bool:
+        act = self.systems.interaction.active.get(pid)
+        if act is None:
+            return False
+        ent = self.world.entities.get(act.entity_id)
+        return ent is not None and "sleepable" in ent.tags
+
+    def sleep_durations(self, pid: str) -> list[tuple[int, int]]:
+        return self.sleep_segs.get(pid, [])
+
+    def repeat_claim_violations(self) -> list[str]:
+        """60 tick 窗口内同一目标 claim >5 次 → 抖动报警。"""
+        out = []
+        for pid, targets in self.claims.items():
+            for tgt, ticks in targets.items():
+                ticks.sort()
+                for i in range(len(ticks)):
+                    j = i
+                    while (j < len(ticks)
+                           and ticks[j] - ticks[i] <= REPEAT_WINDOW):
+                        j += 1
+                    if j - i > REPEAT_MAX:
+                        out.append(f"{pid} 60t内重复claim {tgt} "
+                                   f"{j - i}次 @tick{ticks[i]}")
+                        break
+        return out
+
+    def failure_ratio(self) -> float:
+        return self.failed / max(1, self.decisions)
+
+========================================================================================
+### tools\soak_check.py
+========================================================================================
+"""soak_check —— 多 seed 快速校验日行为阈值(校准用, 非测试)。"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
+
+from citysim.sim.loop import run_tick  # noqa: E402
+from demo_scene import build_demo  # noqa: E402
+from soak import SoakTracker  # noqa: E402
+
+DAYS = 7
+TICKS = DAYS * 1440
+
+
+def check(seed: int) -> dict:
+    world, systems, rng_pool, cfg = build_demo(n_npc=3, seed=seed, log=True)
+    tr = SoakTracker(world, systems)
+    for _ in range(TICKS):
+        run_tick(world, systems, cfg, rng_pool)
+        tr.observe()
+    tr.load_decisions(systems.log_lines)
+    res = {"eat_ok": True, "sleep_ok": True, "stuck": 0,
+           "idle_need": 0, "ratio": tr.failure_ratio(),
+           "jitter": len(tr.repeat_claim_violations()), "dead": False}
+    for pid, npc in world.npcs.items():
+        eats = [tr.eat.get(pid, {}).get(d, 0) for d in range(1, DAYS + 1)]
+        if not all(2 <= e <= 4 for e in eats):
+            res["eat_ok"] = False
+            res.setdefault("eat_detail", {})[pid] = eats
+        segs = tr.sleep_segs.get(pid, [])
+        lens = [e - s for s, e in segs]
+        if not (5 <= len(segs) <= 8) or not all(300 <= x <= 600 for x in lens):
+            res["sleep_ok"] = False
+            res.setdefault("sleep_detail", {})[pid] = (len(segs), lens)
+        vals = tr.max_stuck.get(pid, {}).values()
+        res["stuck"] = max(res["stuck"], max(vals, default=0))
+        res["idle_need"] = max(res["idle_need"],
+                               tr.max_idle_need.get(pid, (0, ""))[0])
+        if not npc.is_alive():
+            res["dead"] = True
+    return res
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--from", dest="f", type=int, default=1)
+    ap.add_argument("--to", dest="t", type=int, default=10)
+    a = ap.parse_args()
+    for s in range(a.f, a.t + 1):
+        r = check(s)
+        ok = (r["eat_ok"] and r["sleep_ok"] and r["stuck"] == 0
+              and r["idle_need"] < 120 and r["ratio"] < 0.15
+              and r["jitter"] == 0 and not r["dead"])
+        print(f"seed {s:>2}: {'PASS' if ok else 'FAIL'} "
+              f"eat={r.get('eat_detail', 'ok')} sleep={r.get('sleep_detail', 'ok')} "
+              f"stuck={r['stuck']} idle_need={r['idle_need']} "
+              f"ratio={r['ratio']:.2%} jitter={r['jitter']}")
+
+========================================================================================
+### tools\soak_report.py
+========================================================================================
+"""soak_report —— 跑 3 NPC x 7 天, 打印日行为指标(供人肉校准/找 bug)。"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
+
+from citysim.sim.loop import run_tick  # noqa: E402
+from demo_scene import build_demo  # noqa: E402
+from soak import SoakTracker, parse_decisions  # noqa: E402
+
+DAYS = 7
+
+
+def main(n_npc: int = 3, seed: int = 7, days: int = 7) -> None:
+    ticks = days * 1440
+    world, systems, rng_pool, cfg = build_demo(n_npc=n_npc, seed=seed, log=True)
+    init_entities = len(world.entities)
+    tr = SoakTracker(world, systems)
+    for _ in range(ticks):
+        run_tick(world, systems, cfg, rng_pool)
+        tr.observe()
+    tr.decisions, tr.claims = parse_decisions(systems.log_lines)
+
+    print(f"=== {n_npc} NPC x {days} 天 指标 ===")
+    for pid in sorted(world.npcs):
+        eats = [tr.eat.get(pid, {}).get(d, 0) for d in range(1, days + 1)]
+        drinks = [tr.drink.get(pid, {}).get(d, 0) for d in range(1, days + 1)]
+        toilets = [tr.toilet.get(pid, {}).get(d, 0) for d in range(1, days + 1)]
+        segs = tr.sleep_durations(pid)
+        seg_len = [e - s for (s, e) in segs]
+        stuck = tr.max_stuck.get(pid, {})
+        idle = tr.max_idle_need.get(pid, (0, ""))
+        print(f"\n{pid} {world.npcs[pid].name}")
+        print(f"  吃/日: {eats}  喝/日: {drinks}  如厕/日: {toilets}")
+        print(f"  睡眠段数: {len(segs)}  时长: {seg_len}")
+        print(f"  卡0最长(t): {stuck}")
+        print(f"  idle+need最长: {idle}")
+    total = sum(len(tr.sleep_durations(p)) for p in world.npcs)
+    n = n_npc
+    print(f"\n总数: 睡眠段 {total} (人均{total / n:.1f}/{days}天 = "
+          f"{total / n / days:.2f}/天)")
+    print(f"intent_failed {tr.failed} / decisions {tr.decisions} "
+          f"= {tr.failed / max(1, tr.decisions):.1%}")
+    vio = tr.repeat_claim_violations()
+    print("抖动报警:", vio if vio else "无")
+    print(f"实体数: {init_entities} -> {len(world.entities)} "
+          f"(增长 {len(world.entities) - init_entities})")
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--npc", type=int, default=3)
+    ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--days", type=int, default=7)
+    a = ap.parse_args()
+    main(a.npc, a.seed, a.days)
+
+========================================================================================
+### tools\watch.py
+========================================================================================
+"""第一步 · 终端观察器 —— 跑内核, 每 N tick 打一张表。
+
+用法:
+  python tools/watch.py --npc 6 --ticks 2400 --period 240 [--seed 7]
+  --1x 以真实节拍跑(2 tick/s); 缺省 max 全速跑完再出表。
+
+人肉观察找行为 bug: ①单日节律 ②资源竞争 ③长跑漂移 ④max 不崩。
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
+
+from citysim.npc.person import signals_as_percent  # noqa: E402
+from citysim.sim.loop import run_tick  # noqa: E402
+from demo_scene import build_demo  # noqa: E402
+
+
+def _hms(tick: int) -> tuple[int, int, int]:
+    day = tick // 1440 + 1
+    m = tick % 1440
+    return day, m // 60, m % 60
+
+
+def _row(world, systems, pid: str) -> str:
+    npc = world.npcs[pid]
+    pct = signals_as_percent(npc.signals)
+    act = npc.current_activity or "idle"
+    ai = systems.interaction.active.get(pid)
+    if ai is not None:
+        rem = ai.remaining_ticks
+        ent = world.entities.get(ai.entity_id)
+        act = f"{act}[{ent.name if ent else ai.entity_id}剩{rem}t]"
+        plan = ai.plan_queue
+        if plan:
+            act += " plan:" + "→".join(plan)
+    it = npc.last_intent
+    li = f"{it.kind}" if it else "?"
+    if it and it.target_id:
+        li += f"({it.target_id})"
+    due = systems.scheduler.next_due(pid)
+    next_t = due if due is None else due - world.clock_tick
+    return (f"{npc.name:<4} E:{pct['energy']:>3} H:{pct['hunger']:>3} "
+            f"T:{pct['thirst']:>3} B:{pct['bladder']:>3} | {li:<6} {act:<22} "
+            f"重评@{next_t}")
+
+
+def _events_since(lines, from_idx: int):
+    evs = []
+    for l in lines[from_idx:]:
+        if l.startswith("E\t"):
+            parts = l.split("\t")
+            evs.append((int(parts[1]), parts[2], parts[3], parts[4]))
+    return evs
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--npc", type=int, default=6)
+    ap.add_argument("--ticks", type=int, default=2400)
+    ap.add_argument("--period", type=int, default=240)
+    ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--1x", action="store_true", help="真实节拍 2 tick/s")
+    a = ap.parse_args()
+
+    world, systems, rng_pool, cfg = build_demo(n_npc=a.npc, seed=a.seed,
+                                               log=True)
+    marker = 0
+    for t in range(1, a.ticks + 1):
+        run_tick(world, systems, cfg, rng_pool)
+        if getattr(a, "1x", False):
+            time.sleep(0.5)
+        if t % a.period == 0 or t == a.ticks:
+            day, hh, mm = _hms(t)
+            print(f"\n==== tick {t} | {hh:02d}:{mm:02d} day{day} ====")
+            for pid in world.npcs:
+                print(" ", _row(world, systems, pid))
+            evs = _events_since(systems.log_lines, marker)
+            marker = len(systems.log_lines)
+            for (tk, kind, subj, payload) in evs[-6:]:
+                print(f"   事件: [{tk}] {subj} {kind} {payload}")
+    print("\nentities:", len(world.entities),
+          "| events:", len(systems.log_lines))
+
+
+if __name__ == "__main__":
+    main()

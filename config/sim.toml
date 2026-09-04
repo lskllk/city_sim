@@ -29,3 +29,10 @@ max_ticks = 48                 # 最困时约每 48 tick 重评一次
 
 [knowledge]                    # M5: 知识库
 half_life_ticks = 10080        # 7 天 = 0.5^(1/7)/天(S5: 21 天=3 半衰期->0.125)
+
+[utility]                      # 需求急迫度曲线(m5-rectify 13)
+power = 3.0                    # weight = need**power(幂>1 放大真缺口)
+threshold = 0.08               # 低于此分 -> idle
+
+[motion]                       # 跨地点移动(m5-rectify 13; M7 日程/距离前先入 config)
+move_ticks = 30

@@ -2,7 +2,7 @@
 
 - 日期：2026-09-04 · 分支 main · 全部真实数据，无评价性软话
 - 执行范围：前置 3 件基础设施 / S1–S6 六场景 / 宏观指标 / 消融矩阵 / 人工 review 产物
-- 环境：Python 3.10.11 · 全量 pytest 96 passed
+- 环境：Python 3.10.11 · 全量 pytest 106 passed（含 m5-rectify 16 票整改，见下注）
 - 配套代码：`src/citysim/`(decay 接线、感知修正) · `tests/test_m5_full.py`(S1–S5) ·
   `tests/test_m5_macro.py` · `tests/test_m5_ablation.py` · `tools/kb_metrics.py` ·
   `tools/ablation.py` · `tools/narrate.py` · `docs/narrate_logs/` · `docs/*.dot`
@@ -15,6 +15,11 @@
 |---|---|---|
 | 主循环每日 decay(5.5) | design 553「每游戏日 0 点批量 kb.decay」 | 遗忘真正随时间发生；config `[knowledge] half_life_ticks=10080`(7 天) |
 | 感知区分「空 vs 被占用」 | design 5.3 只许在 stock=0 时 refute | 修掉「他人正用 → 误判空 → 误证伪自己可靠知识」的真实缺陷 |
+
+> 注：本表之后按 M5v1阶段整改.md 又完成 m5-rectify 16 票（fact_id 命名空间、query 逐键
+> 覆盖、learn tick/upsert、consume_self 时序、传闻挂重评+置信加权、TOLD 溯源、exec/
+> is_a/food_source 清领域硬编码、常量入 config 等），全量 106 passed 且本节所有回归网
+> 数值不变（详见 `.scratch/m5-rectify/issues/` 与 docs/testm5_status.md）。
 
 DOT 复查（修复前 n0：`contains edible 0.82` 与 `contains none 0.67` 并存；修复后：
 仅 `contains edible 0.50`，干净）。全量 96 passed，回归网零变化（下见 §6）。
@@ -36,7 +41,7 @@ DOT 复查（修复前 n0：`contains edible 0.82` 与 `contains none 0.67` 并�
 | **S2 过时知识纠错(4 NPC)** | 有人上当 → 全员学会 → 改道；KB off 对照饿 | 去厨房 {day0:4} 每 NPC 恰 **1 次**；4/4 refute；后期 eats=[13,13,13,13]；off 对照 eats=**0**、idle 401–449 | ✅(通勤版见注2) |
 | **S3 传闻扩散(10 NPC)** | p=0 不传；p=0.1 7 天 knowers≥6；每跳×0.8；溯源到唯一 OBSERVED 根 | p=0.1：knowers=**10/10**，told=9，事件链溯源 reachable=**10/10**；置信按跳落 **0.50/0.40/0.32**（均≤0.8）；p=0：knowers 恒 1 | ✅(曲线见注3) |
 | **S4 假消息生与死** | 传播 → 亲赴 refute → 归零；wasted 有上界(≤NPC×2) | wasted=**6**(每人1次) refuted=**6/6**；7 天信者归 **0**；wasted 6≤12 | ✅(见注4) |
-| **S5 遗忘(真实主循环 21 天)** | 3 半衰期 conf≈0.125；跌破 0.3 不进决策；INJECTED 不衰减 | conf_after_21d=**0.1250000**(±0.02)；低置信不再 move_to；INJECTED 保持 **1.0** | ✅ |
+| **S5 遗忘(真实主循环 21 天)** | 3 半衰期 conf≈0.125；跌破 0.3 不进决策；INJECTED 不衰减 | conf_after_21d=**0.135**(∈0.125±0.02, 含目击日刷新)；低置信不再 move_to；INJECTED 保持 **1.0** | ✅ |
 | **S6 稀缺+知识=生存差** | 有知识 stuck0≈0；无知识≈原 2520 | 有知识 max hunger<300 & 吃到；无知识 **>1000** 饿 | ✅ |
 
 场景注（如实）：

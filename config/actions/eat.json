@@ -3,5 +3,6 @@
   "pre": ["food_at_hand"],
   "add": ["fed"],
   "zh": "吃",
+  "exec": "spawn_from_container",
   "bind": {}
 }

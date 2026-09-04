@@ -21,6 +21,8 @@ class EntityView:
     distance: float = 0.0                 # 到 NPC 的距离(M2 先全 0.0)
     claimable: bool = True                # True=当前无人占用
     stock_zero: bool = False              # True=stock==0(真空), 区别于被占用
+    provides: frozenset[str] = frozenset()  # 容器可产物类型(m5-rectify 12)
+    food_source: bool = False             # True=容器能供食(defs 或 legacy 标记)
     location_id: str = ""
 
 

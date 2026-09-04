@@ -10,7 +10,8 @@ from typing import Any
 
 from citysim.core.config import SimConfig
 from citysim.npc.brain import arousal, decide, review_interval_ticks
-from citysim.npc.knowledge import Source
+from citysim.npc.goap import default_actions
+from citysim.npc.knowledge import CONF_UNKNOWN, Source
 from citysim.npc.person import apply_metabolism
 from citysim.world.events import Event
 from citysim.world.interaction import InteractionSystem
@@ -18,8 +19,7 @@ from citysim.world.perception import build_percept, consolidate_observations
 from citysim.world.scheduler import TimingWheel
 from citysim.world.world import World
 
-# M5: 跨 location 移动耗时(tick)。TODO(config): 入 sim.toml 由日程/距离驱动。
-MOVE_TICKS = 30
+# M5: 跨 location 移动耗时已入 config [motion] move_ticks(m5-rectify 13)。
 
 
 def _clamp(v: float) -> float:
@@ -35,19 +35,34 @@ def _step_elimination(npc, cfg: SimConfig) -> None:
     npc.signals["bladder"] = _clamp(npc.signals.get("bladder", 1.0) - step)
 
 
+@dataclass(frozen=True, slots=True)
+class Travel:
+    """跨地点移动(display_m5_ui G0): 记录出发/到达地点与 tick, 供前端插值。"""
+    from_loc: str
+    to_loc: str
+    depart_tick: int
+    arrive_tick: int
+
+
 @dataclass
 class Systems:
     scheduler: TimingWheel
     interaction: InteractionSystem
-    travel: dict[str, str] = field(default_factory=dict)  # npc_id -> 目的地
+    travel: dict[str, Travel] = field(default_factory=dict)  # npc_id -> Travel
     log_lines: list[str] | None = None   # 录制/回放(非 None 即开启)
     tell_p: float = 0.0                  # 传闻概率(M5; 0=关闭)
+    actions: tuple | None = None         # GOAP 动作库(装配期注入, m5-rectify 14)
 
 
-def make_systems(*, log: bool = False, tell_p: float = 0.0) -> Systems:
+def make_systems(*, log: bool = False, tell_p: float = 0.0,
+                 actions: tuple | None = None) -> Systems:
     sch = TimingWheel()
-    return Systems(scheduler=sch, interaction=InteractionSystem(scheduler=sch),
-                   log_lines=[] if log else None, tell_p=tell_p)
+    if actions is None:
+        actions, _ = default_actions()   # 装配期加载一次(测试可注入临时动作库)
+    return Systems(scheduler=sch,
+                   interaction=InteractionSystem(scheduler=sch, actions=actions),
+                   log_lines=[] if log else None, tell_p=tell_p,
+                   actions=actions)
 
 
 def attach_replay(world: World, systems: Systems) -> None:
@@ -72,40 +87,59 @@ def _sleeping(world: World, systems: Systems, pid: str) -> bool:
     return ent is not None and ent.is_sleepable
 
 
-def _rumor_pass(world: World, systems: Systems, rng_pool: dict[str, Any]) -> None:
-    """M5 传闻: 同地点、双方都 idle 且都有 KB, 以 tell_p 概率分享最高置信
-    overlay 事实; 接收方 learn(TOLD, conf*0.8)。p=0 即关闭(默认)。"""
+def _pick_tell_fact(kb, rng):
+    """传闻选样: overlay 非注入事实按 confidence 加权随机(m5-rectify 05)。
+
+    避免恒取最高置信(陈旧 OBSERVED 1.0 永远压过新近 TOLD 0.8 → 假消息
+    无法二次传播)。
+    """
+    cands = [f for f in kb.overlay.values()
+             if f.source.kind != "INJECTED" and f.confidence >= CONF_UNKNOWN]
+    if not cands:
+        return None
+    if len(cands) == 1:
+        return cands[0]
+    weights = [c.confidence for c in cands]
+    return rng.choices(cands, weights=weights)[0]
+
+
+def _gossip_due(world: World, systems: Systems, rng_pool: dict[str, Any],
+                speaker_id: str, speaker_npc) -> None:
+    """讲话者本次重评(idle)时按 tell_p 向一位同地 idle 听众分享一条事实。
+
+    m5-rectify 05: 挂 due 重评(成本 O(due))而非每 tick 每对; 选样置信加权。
+    m5-rectify 06: 接收方 TOLD 来源携带起源 fact 引用 (speaker, f:origin)。
+    """
     p = systems.tell_p
-    if p <= 0.0:
+    if p <= 0.0 or speaker_npc.kb is None:
         return
-    by_loc: dict[str, list[str]] = {}
-    for pid, npc in world.npcs.items():
-        if npc.kb is None or not npc.is_alive():
-            continue
-        if pid in systems.interaction.active or pid in systems.travel:
-            continue
-        by_loc.setdefault(npc.location_id, []).append(pid)
-    for loc, ids in by_loc.items():
-        for i in range(len(ids)):
-            for j in range(i + 1, len(ids)):
-                speaker, receiver = ids[i], ids[j]
-                if rng_pool[speaker].random() >= p:
-                    continue
-                fact = world.npcs[speaker].kb.top_overlay_fact()
-                if fact is None:
-                    continue
-                r_kb = world.npcs[receiver].kb
-                if r_kb.knows(fact.subject, fact.relation, fact.obj):
-                    continue
-                f2 = r_kb.learn(subject=fact.subject, relation=fact.relation,
-                                obj=fact.obj, confidence=fact.confidence * 0.8,
-                                source=Source(kind="TOLD", ref=(speaker,)))
-                world.bus.publish(world.bus.make(
-                    world.clock_tick, "told", speaker,
-                    {"audience": [receiver], "from": speaker,
-                     "subject": fact.subject, "relation": fact.relation,
-                     "obj": fact.obj, "conf": round(fact.confidence * 0.8, 3),
-                     "fact_id": f2.fact_id}))
+    rng = rng_pool[speaker_id]
+    if rng.random() >= p:
+        return
+    fact = _pick_tell_fact(speaker_npc.kb, rng)
+    if fact is None:
+        return
+    ids = [pid for pid, npc in world.npcs.items()
+           if pid != speaker_id and npc.kb is not None and npc.is_alive()
+           and npc.location_id == speaker_npc.location_id
+           and pid not in systems.interaction.active
+           and pid not in systems.travel
+           and not npc.kb.knows(fact.subject, fact.relation, fact.obj)]
+    if not ids:
+        return
+    receiver = rng.choice(ids)
+    r_kb = world.npcs[receiver].kb
+    f2 = r_kb.learn(subject=fact.subject, relation=fact.relation,
+                    obj=fact.obj, confidence=fact.confidence * 0.8,
+                    source=Source(kind="TOLD",
+                                  ref=(speaker_id, f"f:{fact.fact_id}")),
+                    tick=world.clock_tick)
+    world.bus.publish(world.bus.make(
+        world.clock_tick, "told", speaker_id,
+        {"audience": [receiver], "from": speaker_id,
+         "subject": fact.subject, "relation": fact.relation,
+         "obj": fact.obj, "conf": round(fact.confidence * 0.8, 3),
+         "origin": fact.fact_id, "fact_id": f2.fact_id}))
 
 
 def run_tick(world: World, systems: Systems, cfg: SimConfig,
@@ -127,8 +161,6 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
         _step_elimination(npc, cfg)
     # 3. 交互推进(含睡眠唤醒提前完成 / plan 链)
     systems.interaction.step(world, cfg)
-    # 3.5 传闻(M5; 同地 idle 分享)
-    _rumor_pass(world, systems, rng_pool)
     # 5. 到点重评: 先对全部到点者算 Intent(同一世界快照, 反映 claim 竞争),
     #    再统一仲裁提交(先手 claim 成功, 后手收到 intent_failed)
     due = systems.scheduler.pop_due(world.clock_tick)
@@ -139,14 +171,18 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
             continue
         # 抵达: 旅行到期 → 落到目标 location 再重评
         if npc_id in systems.travel:
-            npc.location_id = systems.travel.pop(npc_id)
+            npc.location_id = systems.travel.pop(npc_id).to_loc
         percept = build_percept(world, npc)
         kb = getattr(npc, "kb", None)
         if kb is not None:
-            consolidate_observations(npc, percept, kb)   # 感知 → 知识
+            consolidate_observations(npc, percept, kb,
+                                     tick=world.clock_tick)  # 感知 → 知识
         intent = decide(percept, npc.signals, npc.personality, kb=kb,
-                        cfg=cfg, rng=rng_pool[npc_id])
+                        cfg=cfg, rng=rng_pool[npc_id], actions=systems.actions)
         npc.last_intent = intent
+        # M5 传闻: 仅本次到点且算成 idle 者才可能开口(m5-rectify 05, O(due))
+        if intent.kind == "idle":
+            _gossip_due(world, systems, rng_pool, npc_id, npc)
         if systems.log_lines is not None:
             plan = ",".join(intent.trace.plan)
             systems.log_lines.append(
@@ -155,9 +191,14 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
         decisions.append((npc_id, npc, intent))
     for npc_id, npc, intent in decisions:
         if intent.kind == "move_to":
-            # 旅行由主循环管理(不走 InteractionSystem)
-            systems.travel[npc_id] = intent.target_id or npc.location_id
-            systems.scheduler.schedule(npc_id, MOVE_TICKS)
+            # 旅行由主循环管理(不走 InteractionSystem); 出发前清残留 claim
+            systems.interaction.release_active(world, npc_id)
+            dest = intent.target_id or npc.location_id
+            systems.travel[npc_id] = Travel(
+                from_loc=npc.location_id, to_loc=dest,
+                depart_tick=world.clock_tick,
+                arrive_tick=world.clock_tick + cfg.move_ticks)
+            systems.scheduler.schedule(npc_id, cfg.move_ticks)
             continue
         ok = systems.interaction.submit(world, npc, intent)
         if intent.kind == "interact" and ok:

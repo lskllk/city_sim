@@ -138,6 +138,8 @@ def test_knowledge_means_survival_in_scarcity() -> None:
                  confidence=1.0, source=Source(kind="INJECTED", ref=("seed",)))
         kb.learn(subject="market_1", relation="located_at", obj="market",
                  confidence=1.0, source=Source(kind="INJECTED", ref=("seed",)))
+        kb.learn(subject="meal_simple", relation="is_a", obj="edible",
+                 confidence=1.0, source=Source(kind="INJECTED", ref=("seed",)))
         world.npcs[pid].kb = kb
     systems = make_systems(log=True)
     for pid in world.npcs:
@@ -151,3 +153,79 @@ def test_knowledge_means_survival_in_scarcity() -> None:
     assert min(hk["p2"], hk["p3"]) > 1000, f"无知识理应挨饿 {hk}"
     # 有知识的吃到了(去了市场)
     assert all(world.npcs[p].signals["hunger"] > 0.4 for p in ("p0", "p1"))
+
+
+# --- m5-rectify 06: TOLD 携带起源引用, 跨 NPC 可追到 OBSERVED 根 ----------
+def test_told_carries_origin_fact_pointer() -> None:
+    n0_kb = KnowledgeBase()
+    origin = n0_kb.learn(subject="cafe_7", relation="affords", obj="fun",
+                         confidence=1.0, source=Source(kind="OBSERVED"),
+                         tick=100)
+    n1_kb = KnowledgeBase()
+    told = n1_kb.learn(subject="cafe_7", relation="affords", obj="fun",
+                       confidence=0.8,
+                       source=Source(kind="TOLD",
+                                     ref=("n0", f"f:{origin.fact_id}")),
+                       tick=200)
+    # 溯源: 出口携带 source_ref; 本地无法解析的跨 NPC 起源 id 以 f: 形式保留
+    chain = export_trace_chain(n1_kb, [told.fact_id])
+    refs = {r for f in chain["facts"] for r in f["source_ref"]}
+    assert f"f:{origin.fact_id}" in refs, refs
+    # 拼接: origin 在 n0 的 KB 里可解析回 OBSERVED 根
+    root = n0_kb.fact(origin.fact_id)
+    assert root is not None and root.source.kind == "OBSERVED"
+
+
+# --- m5-rectify 08: 同地源不 move_to; 此地不可见则 refute located_at -----
+def test_kb_source_at_current_location_does_not_move() -> None:
+    from citysim.npc.brain import decide
+    from citysim.core.types import Percept
+    kb = KnowledgeBase()
+    kb.learn(subject="market_a", relation="contains", obj="edible",
+             confidence=1.0, source=Source(kind="INJECTED", ref=("a",)))
+    kb.learn(subject="market_a", relation="located_at", obj="home",
+             confidence=1.0, source=Source(kind="INJECTED", ref=("a",)))
+    npc = _npc(World(), "p", "home")
+    npc.set_state(hunger=0.2)          # 饿
+    npc.kb = kb
+    # 视野里没有 market_a(不在/被搬走), KB 却说它在 home → 不应原地 move_to
+    intent = decide(Percept(tick=1, hour_f=8.0, location_id="home"),
+                    npc.signals, {}, kb, CFG, random.Random(1))
+    assert intent.kind != "move_to", intent
+
+
+def test_consolidate_refutes_obsolete_located_at() -> None:
+    from citysim.core.types import Percept
+    from citysim.world.perception import consolidate_observations
+    kb = KnowledgeBase()
+    kb.learn(subject="rest_b", relation="contains", obj="edible",
+             confidence=1.0, source=Source(kind="OBSERVED"), tick=10)
+    kb.learn(subject="rest_b", relation="located_at", obj="courtyard",
+             confidence=1.0, source=Source(kind="OBSERVED"), tick=10)
+    npc = _npc(World(), "p", "courtyard")
+    npc.kb = kb
+    # 在 courtyard 却看不到 rest_b(被搬走) → 感知应 refute 其 located_at
+    percept = Percept(tick=1440, hour_f=0.0, location_id="courtyard",
+                      visible=())
+    consolidate_observations(npc, percept, kb, tick=1440)
+    assert not kb.query(subject="rest_b", relation="located_at")
+    # contains 仍在(只纠位置, 不臆断空/满)
+    assert kb.query(subject="rest_b", relation="contains")
+
+
+def test_sells_product_via_is_a_triggers_move() -> None:
+    """N7: sells 具体品名(非字面类别) + is_a 归类 → 仍被识别为食物源。"""
+    from citysim.core.types import Percept
+    from citysim.npc.brain import decide
+    kb = KnowledgeBase()
+    for subj, rel, obj in (("market_b", "sells", "burger"),
+                           ("market_b", "located_at", "market"),
+                           ("burger", "is_a", "edible")):
+        kb.learn(subject=subj, relation=rel, obj=obj, confidence=1.0,
+                 source=Source(kind="INJECTED", ref=("t",)), tick=1)
+    npc = _npc(World(), "p", "home")
+    npc.set_state(hunger=0.2)
+    npc.kb = kb
+    intent = decide(Percept(tick=1, hour_f=8.0, location_id="home"),
+                    npc.signals, {}, kb, CFG, random.Random(1))
+    assert intent.kind == "move_to" and intent.target_id == "market"

@@ -1,5 +1,3 @@
-E	1	told	p0	audience=['p3'];from=p0;subject=cafe_7;relation=affords;obj=fun;conf=0.8;fact_id=cafe_7|affords|1
-E	1	told	p3	audience=['p9'];from=p3;subject=cafe_7;relation=affords;obj=fun;conf=0.64;fact_id=cafe_7|affords|1
 D	1	p0	idle		
 D	1	p1	idle		
 D	1	p2	idle		
@@ -10,13 +8,6 @@ D	1	p6	idle
 D	1	p7	idle		
 D	1	p8	idle		
 D	1	p9	idle		
-E	2	told	p0	audience=['p7'];from=p0;subject=cafe_7;relation=affords;obj=fun;conf=0.8;fact_id=cafe_7|affords|1
-E	3	told	p0	audience=['p5'];from=p0;subject=cafe_7;relation=affords;obj=fun;conf=0.8;fact_id=cafe_7|affords|1
-E	4	told	p0	audience=['p6'];from=p0;subject=cafe_7;relation=affords;obj=fun;conf=0.8;fact_id=cafe_7|affords|1
-E	4	told	p0	audience=['p8'];from=p0;subject=cafe_7;relation=affords;obj=fun;conf=0.8;fact_id=cafe_7|affords|1
-E	4	told	p3	audience=['p4'];from=p3;subject=cafe_7;relation=affords;obj=fun;conf=0.64;fact_id=cafe_7|affords|1
-E	11	told	p0	audience=['p1'];from=p0;subject=cafe_7;relation=affords;obj=fun;conf=0.8;fact_id=cafe_7|affords|1
-E	25	told	p1	audience=['p2'];from=p1;subject=cafe_7;relation=affords;obj=fun;conf=0.64;fact_id=cafe_7|affords|1
 D	37	p0	idle		
 D	37	p1	idle		
 D	37	p2	idle		
@@ -27,16 +18,19 @@ D	37	p6	idle
 D	37	p7	idle		
 D	37	p8	idle		
 D	37	p9	idle		
+E	75	told	p0	audience=['p6'];from=p0;subject=cafe_7;relation=affords;obj=fun;conf=0.8;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	75	p0	idle		
 D	75	p1	idle		
 D	75	p2	idle		
 D	75	p3	idle		
 D	75	p4	idle		
 D	75	p5	idle		
+E	75	told	p6	audience=['p7'];from=p6;subject=cafe_7;relation=affords;obj=fun;conf=0.64;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	75	p6	idle		
 D	75	p7	idle		
 D	75	p8	idle		
 D	75	p9	idle		
+E	115	told	p0	audience=['p2'];from=p0;subject=cafe_7;relation=affords;obj=fun;conf=0.8;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	115	p0	idle		
 D	115	p1	idle		
 D	115	p2	idle		
@@ -99,7 +93,9 @@ D	328	p8	idle
 D	328	p9	idle		
 D	368	p0	idle		
 D	368	p1	idle		
+E	368	told	p2	audience=['p3'];from=p2;subject=cafe_7;relation=affords;obj=fun;conf=0.64;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	368	p2	idle		
+E	368	told	p3	audience=['p5'];from=p3;subject=cafe_7;relation=affords;obj=fun;conf=0.512;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	368	p3	idle		
 D	368	p4	idle		
 D	368	p5	idle		
@@ -119,10 +115,12 @@ D	407	p8	idle
 D	407	p9	idle		
 D	444	p0	idle		
 D	444	p1	idle		
+E	444	told	p2	audience=['p1'];from=p2;subject=cafe_7;relation=affords;obj=fun;conf=0.64;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	444	p2	idle		
 D	444	p3	idle		
 D	444	p4	idle		
 D	444	p5	idle		
+E	444	told	p6	audience=['p4'];from=p6;subject=cafe_7;relation=affords;obj=fun;conf=0.64;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	444	p6	idle		
 D	444	p7	idle		
 D	444	p8	idle		
@@ -138,12 +136,14 @@ D	479	p7	idle
 D	479	p8	idle		
 D	479	p9	idle		
 D	512	p0	idle		
+E	512	told	p1	audience=['p9'];from=p1;subject=cafe_7;relation=affords;obj=fun;conf=0.512;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	512	p1	idle		
 D	512	p2	idle		
 D	512	p3	idle		
 D	512	p4	idle		
 D	512	p5	idle		
 D	512	p6	idle		
+E	512	told	p7	audience=['p8'];from=p7;subject=cafe_7;relation=affords;obj=fun;conf=0.512;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	512	p7	idle		
 D	512	p8	idle		
 D	512	p9	idle		
@@ -2139,6 +2139,7 @@ D	8595	p8	idle
 D	8595	p9	idle		
 D	8643	p0	idle		
 D	8643	p1	idle		
+E	8643	told	p2	audience=['p8'];from=p2;subject=cafe_7;relation=affords;obj=fun;conf=0.356;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	8643	p2	idle		
 D	8643	p3	idle		
 D	8643	p4	idle		
@@ -2157,7 +2158,9 @@ D	8691	p6	idle
 D	8691	p7	idle		
 D	8691	p8	idle		
 D	8691	p9	idle		
+E	8739	told	p0	audience=['p5'];from=p0;subject=cafe_7;relation=affords;obj=fun;conf=0.442;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	8739	p0	idle		
+E	8739	told	p1	audience=['p9'];from=p1;subject=cafe_7;relation=affords;obj=fun;conf=0.291;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	8739	p1	idle		
 D	8739	p2	idle		
 D	8739	p3	idle		
@@ -2169,6 +2172,7 @@ D	8739	p8	idle
 D	8739	p9	idle		
 D	8787	p0	idle		
 D	8787	p1	idle		
+E	8787	told	p2	audience=['p9'];from=p2;subject=cafe_7;relation=affords;obj=fun;conf=0.356;origin=o:cafe_7|affords|1;fact_id=o:cafe_7|affords|1
 D	8787	p2	idle		
 D	8787	p3	idle		
 D	8787	p4	idle		

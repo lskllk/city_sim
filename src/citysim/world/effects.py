@@ -6,11 +6,14 @@ spawn_item(按物品类型在世界生成) / consume_self。
 """
 from __future__ import annotations
 
+import logging
 from typing import Callable
 
 from citysim.npc.person import Person
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.world import Entity, World
+
+log = logging.getLogger(__name__)
 
 OPS: dict[str, Callable[[World, Person, Entity, dict], None]] = {}
 
@@ -48,9 +51,8 @@ _PENDING_WHITELIST = frozenset({"bladder_pending"})
 def _clear_pending(world, npc, entity, eff) -> None:
     f = eff.get("field", "")
     if f not in _PENDING_WHITELIST:
-        import logging
-        logging.getLogger(__name__).warning(
-            "clear_pending 拒绝字段 %r(白名单: %s)", f, sorted(_PENDING_WHITELIST))
+        log.warning("clear_pending 拒绝字段 %r(白名单: %s)",
+                    f, sorted(_PENDING_WHITELIST))
         return
     setattr(npc, f, 0.0)
 
@@ -60,9 +62,8 @@ def _add_pending(world, npc, entity, eff) -> None:
     """膀胱等 pending 字段累加(on_start 用, 替代 interaction 的 attrs 特判)。"""
     f = eff.get("field", "")
     if f not in _PENDING_WHITELIST:
-        import logging
-        logging.getLogger(__name__).warning(
-            "add_pending 拒绝字段 %r(白名单: %s)", f, sorted(_PENDING_WHITELIST))
+        log.warning("add_pending 拒绝字段 %r(白名单: %s)",
+                    f, sorted(_PENDING_WHITELIST))
         return
     setattr(npc, f, getattr(npc, f, 0.0) + float(eff.get("amount", 0.0)))
 
@@ -81,20 +82,17 @@ def _spawn_item(world, npc, entity, eff) -> None:
 
 @register("consume_self")
 def _consume_self(world, npc, entity, eff) -> None:
-    """消耗当前实体一份(stock-1); 归零即从世界移除。"""
+    """消耗当前实体一份(stock-1)。回收不在此处 —— 统一由 _complete 第 5 步后
+    处理, 保证 interaction_done 事件先于实体移除(m3 时序契约)。"""
     if entity.stock == -1:
         return
     if entity.stock > 0:
         entity.stock -= 1
-    if entity.stock <= 0:
-        world.entities.pop(entity.entity_id, None)
 
 
 def apply_effects(world: World, npc: Person, entity: Entity,
                   effect_list: list[dict]) -> None:
     """依序应用一列效果 op; 未知 op 记 warning 而非崩溃。"""
-    import logging
-    log = logging.getLogger(__name__)
     for eff in effect_list:
         fn = OPS.get(eff.get("op", ""))
         if fn is not None:

@@ -39,7 +39,11 @@ class Entity:
         return "sleepable" in self.tags
 
     def provides_edible(self) -> bool:
-        """M2~M4 过渡: container 经 affordances 声明 provides:edible。"""
+        """容器是否供食: 走 provides 列表(defs 判定); legacy 手工容器看假键。"""
+        if self.provides:
+            defs = load_item_defs()
+            return any(p in defs and "edible" in defs[p].tags
+                       for p in self.provides)
         return self.affordances.get("provides:edible", 0.0) > 0
 
     def claimable_by(self, npc_id: str | None) -> bool:
@@ -51,16 +55,11 @@ class Entity:
 # 物品定义 -> 真实体(M4: 从 config/items/*.json 生成, 零硬编码)
 # ----------------------------------------------------------------------
 def entity_from_def(d: ItemDef, location_id: str) -> Entity:
-    """由 ItemDef 建一个可变 Entity; 容器可食标记由 provides 推导填入。"""
-    afford = dict(d.affordances)
-    if d.provides:
-        defs = load_item_defs()
-        if any("edible" in defs[p].tags for p in d.provides if p in defs):
-            # DEV(M4): provides 折叠进旧仲裁面标记, decide 无需感知 provides
-            afford.setdefault("provides:edible", 1.0)
+    """由 ItemDef 建一个可变 Entity(m5-rectify 12: 不再往 affordances 塞假键,
+    供食语义由 provides(defs 判定)承载, 感知/决策读 EntityView.food_source)。"""
     return Entity(
         entity_id="", name=d.name, tags=set(d.tags),
-        affordances=afford, duration_ticks=d.duration_ticks,
+        affordances=dict(d.affordances), duration_ticks=d.duration_ticks,
         location_id=location_id, stock=d.stock, attrs=dict(d.attrs),
         interruptible=d.interruptible, wake_condition=d.wake_condition,
         on_start=list(d.on_start), on_complete=list(d.on_complete),

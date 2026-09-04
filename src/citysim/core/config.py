@@ -32,6 +32,9 @@ class SimConfig:
     review_min_ticks: int
     review_max_ticks: int
     half_life_ticks: int = 10080   # M5 知识半衰期(tick; 7 天)
+    utility_power: float = 3.0     # 需求急迫度幂次(m5-rectify 13)
+    utility_threshold: float = 0.08
+    move_ticks: int = 30           # 跨地点移动耗时
 
     @classmethod
     def from_toml(cls, data: dict[str, Any]) -> "SimConfig":
@@ -48,6 +51,9 @@ class SimConfig:
             review_min_ticks=int(data["review"]["min_ticks"]),
             review_max_ticks=int(data["review"]["max_ticks"]),
             half_life_ticks=int(data.get("knowledge", {}).get("half_life_ticks", 10080)),
+            utility_power=float(data.get("utility", {}).get("power", 3.0)),
+            utility_threshold=float(data.get("utility", {}).get("threshold", 0.08)),
+            move_ticks=int(data.get("motion", {}).get("move_ticks", 30)),
         )
 
 

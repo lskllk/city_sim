@@ -45,3 +45,31 @@ def test_consume_self_event_sequence() -> None:
         "事件回调时 entity 已被回收(时序破坏)"
     # 事件发布所在 tick 结束后, entity 已从 world 移除
     assert "food_1" not in world.entities
+
+
+def test_consume_self_not_double_deduct_and_recycles_at_zero() -> None:
+    """m5-rectify 03: consumable tag + on_complete consume_self 只扣一次;
+    归零回收只发生在 interaction_done 之后。"""
+    world, systems, rng_pool = make_runtime(CFG)
+    add_entity(world, "snack_1", tags=("edible", "consumable"),
+               affordances={"hunger": 0.2}, duration_ticks=3, stock=2,
+               on_complete=[{"op": "consume_self"}])
+    seen_at_event: list[int] = []
+    dones = []
+
+    def _on(ev):
+        if ev.kind == "interaction_done" \
+                and ev.payload.get("entity") == "snack_1":
+            dones.append(ev.tick)
+            ent = world.entities.get("snack_1")
+            seen_at_event.append(ent.stock if ent is not None else -1)
+
+    world.bus.subscribe_log(_on)
+    add_npc(world, systems, "n", rng_pool=rng_pool, seed=3, hunger=0.1)
+    seed_reviews(world, systems)
+    for _ in range(200):
+        run_tick(world, systems, CFG, rng_pool)
+    # 两次完成: 每次只扣 1(stock 2→1→0), 事件回调时实体仍在
+    assert len(dones) == 2, dones
+    assert seen_at_event == [1, 0], seen_at_event
+    assert "snack_1" not in world.entities      # 归零后统一回收

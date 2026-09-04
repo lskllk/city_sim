@@ -1,34 +1,31 @@
-"""知识图导出(M5 5.4): JSON + DOT。"""
+"""知识图导出(M5 5.4): JSON + DOT。事实来源统一 kb.all_facts()。"""
 from __future__ import annotations
-
-from citysim.npc.knowledge import CONF_UNKNOWN
 
 _EDGE_COLOR = {"INJECTED": "gray", "OBSERVED": "green",
                "TOLD": "blue", "INFERRED": "orange"}
 
 
-def _all_facts(kb):
-    out = list(kb.overlay.values())
-    out += [f for f in kb.archetype.facts if f.fact_id not in kb.tombstones]
-    return [f for f in out if f.confidence >= CONF_UNKNOWN]
+def _add_node(nodes: list[dict], seen: set[str], nid: str, label: str,
+              kind: str) -> None:
+    if nid not in seen:
+        seen.add(nid)
+        nodes.append({"id": nid, "label": label, "kind": kind})
 
 
 def export_kb_json(kb) -> dict:
     nodes: list[dict] = []
     edges: list[dict] = []
-    seen_nodes: set[str] = set()
-
-    def _add(kind: str, nid: str, label: str) -> None:
-        if nid not in seen_nodes:
-            seen_nodes.add(nid)
-            nodes.append({"id": nid, "label": label, "kind": kind})
-
-    for f in _all_facts(kb):
-        _add("entity", f.subject, f.subject)
-        if isinstance(f.obj, str) and f.obj:
-            _add("concept", f.obj, f.obj)
+    seen: set[str] = set()
+    for f in kb.all_facts():
+        _add_node(nodes, seen, f.subject, str(f.subject), "entity")
+        if isinstance(f.obj, str):
+            _add_node(nodes, seen, f.obj, f.obj, "concept")
+        else:  # 非 str obj(价格等字面量) → 字面量节点, 避免边悬空
+            oid = f"lit:{f.obj!r}"
+            _add_node(nodes, seen, oid, str(f.obj), "literal")
         edges.append({
-            "src": f.subject, "dst": f.obj, "relation": f.relation,
+            "src": f.subject, "dst": f.obj if isinstance(f.obj, str)
+            else f"lit:{f.obj!r}", "relation": f.relation,
             "confidence": round(f.confidence, 3),
             "source_kind": f.source.kind, "tick": f.tick_learned,
         })
@@ -37,7 +34,7 @@ def export_kb_json(kb) -> dict:
 
 def export_kb_dot(kb) -> str:
     lines = ["digraph kb {"]
-    for f in _all_facts(kb):
+    for f in kb.all_facts():
         color = _EDGE_COLOR.get(f.source.kind, "gray")
         lines.append(
             f'  "{f.subject}" -> "{f.obj}" '
@@ -45,3 +42,4 @@ def export_kb_dot(kb) -> str:
             f'color="{color}"];')
     lines.append("}")
     return "\n".join(lines)
+

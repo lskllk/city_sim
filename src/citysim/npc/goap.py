@@ -17,13 +17,15 @@ _ACTIONS_DIR = Path(__file__).resolve().parents[3] / "config" / "actions"
 
 @dataclass(frozen=True)
 class Action:
-    """一条规划动作(只增事实的单调动作)。"""
+    """一条规划动作(只增事实的单调动作)。exec=执行处理器 id(m5-rectify 09)。"""
     name: str
     pre: frozenset[str] = frozenset()
     add: frozenset[str] = frozenset()
+    exec: str = ""
 
     def __str__(self) -> str:  # pragma: no cover - debug
-        return f"Action({self.name}, pre={sorted(self.pre)}, add={sorted(self.add)})"
+        return (f"Action({self.name}, pre={sorted(self.pre)}, "
+                f"add={sorted(self.add)}, exec={self.exec})")
 
 
 def _solve(
@@ -82,7 +84,8 @@ def _read_dir(directory: str):
         name = data["action"]
         actions[name] = Action(name=name,
                                pre=frozenset(data.get("pre", [])),
-                               add=frozenset(data.get("add", [])))
+                               add=frozenset(data.get("add", [])),
+                               exec=data.get("exec", ""))
         zh[name] = data.get("zh", name)
     return actions, zh
 
@@ -93,17 +96,31 @@ def load_actions(directory: str | Path | None = None):
     return _read_dir(str(d))
 
 
-def hunger_plan() -> tuple[str, ...] | None:
+# 默认动作库: 首次需要时载入一次(供未注入的 decide 路径与测试)
+_DEFAULT_ACTIONS: tuple | None = None
+
+
+def default_actions():
+    """模块级默认动作库(读盘一次并缓存); 生产路径应经 Systems 装配注入。"""
+    global _DEFAULT_ACTIONS
+    if _DEFAULT_ACTIONS is None:
+        actions, zh = load_actions()
+        _DEFAULT_ACTIONS = (tuple(actions.values()), dict(zh))
+    return _DEFAULT_ACTIONS
+
+
+def hunger_plan(actions=None) -> tuple[str, ...] | None:
     """饿 + 容器里有食物 的 GOAP 计划(动作名来自 JSON)。不可达返回 None。
 
     初始事实: 已站在容器(at_container) 且 容器有可食(container_has_edible);
-    目标: 吃饱(fed)。
+    目标: 吃饱(fed)。actions 可在装配期注入(m5-rectify 14), None 用默认库。
     """
-    actions, _ = load_actions()
+    if actions is None:
+        actions, _ = default_actions()
     if not actions:
         return None
     plan = backward_plan(
-        list(actions.values()),
+        list(actions),
         {"at_container", "container_has_edible"},
         {"fed"},
     )

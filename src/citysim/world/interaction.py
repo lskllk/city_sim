@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from citysim.core.config import SIGNALS
+from citysim.npc.goap import default_actions
 from citysim.npc.person import Person
 from citysim.world.effects import apply_effects
 from citysim.world.itemdefs import load_item_defs
@@ -35,9 +36,16 @@ def _clamp(v: float) -> float:
 class InteractionSystem:
     """一次持有多名 NPC 的进行中交互; 每 tick step 推进。"""
 
-    def __init__(self, scheduler: Any = None) -> None:
+    def __init__(self, scheduler: Any = None, actions: tuple | None = None) -> None:
         self.active: dict[str, ActiveInteraction] = {}   # key = npc_id
         self._scheduler = scheduler                       # TimingWheel | None
+        self._actions = actions          # GOAP 动作库(m5-rectify N1: 与 decide 同源)
+
+    def _find_action(self, name: str):
+        """按名取本系统装配的动作(带 exec); 未注入时一次性兜底默认库。"""
+        if self._actions is None:
+            self._actions, _ = default_actions()
+        return next((a for a in self._actions if a.name == name), None)
 
     # --- 提交 ---------------------------------------------------------
     def submit(self, world: World, npc: Person, intent) -> bool:
@@ -63,9 +71,14 @@ class InteractionSystem:
             self._fail(world, pid, tid, "已被他人占用")
             return False
 
-        # rule 4: 旧 active 且 target 不同 → 先释放
+        # rule 4: 旧 active 且 target 不同 → 先释放(除非旧交互不可打断)
         old = self.active.get(pid)
         if old is not None and old.entity_id != tid:
+            old_ent = world.entities.get(old.entity_id)
+            if old_ent is not None and not old_ent.interruptible:
+                # m5-rectify 16: 床等不可打断交互 → 拒绝被新意图顶掉
+                self._fail(world, pid, tid, "当前交互不可打断")
+                return False
             self._release(world, pid, cancel=True)
 
         # 登记(rule 3)
@@ -117,14 +130,16 @@ class InteractionSystem:
                   act: ActiveInteraction, *, early: bool) -> None:
         npc = world.npcs[pid]
         self._release(world, pid, cancel=False)
-        consumed_empty = False
 
-        # 2. 消耗品 stock-1; 空则回收实体(防泄漏, 如吃完的餐/水不再滞留世界)
-        #    回收须在 interaction_done 事件发布之后, 否则观察者无法按实体分类
-        if ent.is_consumable and ent.stock > 0:
+        def _self_consumes(ent) -> bool:
+            return any((eff or {}).get("op") == "consume_self"
+                       for eff in ent.on_complete)
+
+        # 2. 消耗品扣库存; 若 on_complete 自带 consume_self 则交 op 扣(防双扣)
+        #    回收统一在第 5 步之后(事件先于回收, 观察者可按 tags 分类)
+        if (ent.is_consumable and ent.stock > 0 and not _self_consumes(ent)):
             ent.stock -= 1
-            consumed_empty = ent.stock <= 0
-        # 3. 数据化完成效果(M4 4.1): on_complete(替换硬编码)
+        # 3. 数据化完成效果(M4 4.1): on_complete(consume_self 只扣库存, 不 pop)
         if ent.on_complete:
             apply_effects(world, npc, ent, ent.on_complete)
 
@@ -136,58 +151,32 @@ class InteractionSystem:
         else:
             npc.current_activity = "idle"
 
-        # 5. 事件(先发布, 观察者可解析实体 tags) -> 再回收空消耗品
+        # 5. 事件(先发布, 观察者可解析实体 tags) -> 6. 统一回收空消耗品
         world.bus.publish(world.bus.make(
             world.clock_tick, "interaction_done", pid,
             {"entity": ent.entity_id}))
-        if consumed_empty:
+        if ent.stock == 0 and (ent.is_consumable or _self_consumes(ent)):
             world.entities.pop(ent.entity_id, None)
 
     def _continue_plan(self, world: World, npc: Person, act: ActiveInteraction) -> None:
-        """取食链: take 完成后生成一份餐并立即开吃。
+        """plan 链: 上一步完成 → 按本步动作的 exec 分派(m5-rectify 09)。
 
-        有限库存容器(stock != -1)每次供餐扣 1; 扣到 0 后不再可占用。
+        不再硬编码动作名(JSON 改动作名/exec 即可换实现)。
         """
-        container = world.entities.get(act.entity_id)
-        if container is None:
+        if not act.plan_queue:
             return
-        if container.stock != -1:
-            if container.stock <= 0:
-                return                     # 没货, 不再产餐
-            container.stock -= 1
-        # 弹出本步(取食成功)
-        if act.plan_queue[0] == "eat":
-            # M4: 优先按容器 provides 的物品类型生成餐(JSON 数据化)
-            meal: Entity | None = None
-            defs = load_item_defs()
-            if container.provides:
-                for p in container.provides:
-                    if p in defs and "edible" in defs[p].tags:
-                        meal = world.spawn_item_type(p, npc.location_id)
-                        break
-            if meal is None:
-                # DEV(M4): 旧手工容器(无 provides)退回 JSON meal_simple 产餐
-                if "meal_simple" in defs:
-                    meal = world.spawn_item_type("meal_simple",
-                                                 npc.location_id)
-            if meal is None:
-                return
-            # 直接开启新交互(吃)
-            self.active[npc.person_id] = ActiveInteraction(
-                npc_id=npc.person_id, entity_id=meal.entity_id,
-                remaining_ticks=meal.duration_ticks,
-                total_ticks=meal.duration_ticks, plan_queue=(),
-            )
-            meal.claimed_by = npc.person_id
-            npc.active_interaction_id = meal.entity_id
-            npc.current_activity = meal.name
-            # 数据化开始效果(如餐的膀胱负荷)
-            if meal.on_start:
-                apply_effects(world, npc, meal, meal.on_start)
-            # 重排下次重评到餐吃完(覆盖 take 的旧档)
-            self._resched(world, npc.person_id, meal.duration_ticks)
+        step = act.plan_queue[0]
+        a = self._find_action(step)      # 本系统装配的动作库, 与 decide 同源(N1)
+        handler = PLAN_STEP_HANDLERS.get(a.exec if a else "")
+        if handler is None:
+            return
+        handler(self, world, npc, act, step)
 
     # --- 内部 ---------------------------------------------------------
+    def release_active(self, world: World, pid: str) -> None:
+        """m5-rectify 10: 主动清掉某 NPC 的残留 claim(move_to 出发前调用)。"""
+        self._release(world, pid, cancel=True)
+
     def _release(self, world: World, pid: str, *, cancel: bool) -> None:
         act = self.active.pop(pid, None)
         npc = world.npcs.get(pid)
@@ -217,3 +206,59 @@ def _wake_satisfied(cond: str, signals: dict[str, float]) -> bool:
         return False
     signal, val = m.group(1), float(m.group(2))
     return signals.get(signal, 0.0) >= val
+
+
+# ----------------------------------------------------------------------
+# plan 步执行器(m5-rectify 09): exec id -> 处理器。动作 JSON 的 exec 绑定这里。
+# ----------------------------------------------------------------------
+PLAN_STEP_HANDLERS: dict[str, Callable] = {}
+
+
+def _exec_handle(exec_id: str):
+    def deco(fn: Callable) -> Callable:
+        PLAN_STEP_HANDLERS[exec_id] = fn
+        return fn
+    return deco
+
+
+@_exec_handle("spawn_from_container")
+def _spawn_from_container(sys, world: World, npc: Person, act: ActiveInteraction,
+                          step: str) -> None:
+    """take 完成后从容器产一份餐并立即开吃。
+
+    先确认可产餐(provides 命中或回退 meal_simple)再扣容器库存, 配置错误不白扣;
+    新交互的 plan_queue 传余下步骤(支持 >2 步链)。
+    """
+    container = world.entities.get(act.entity_id)
+    if container is None:
+        return
+    defs = load_item_defs()
+    meal_type: str | None = None
+    if container.provides:
+        for p in container.provides:
+            if p in defs and "edible" in defs[p].tags:
+                meal_type = p
+                break
+    if meal_type is None and "meal_simple" in defs:
+        meal_type = "meal_simple"          # DEV(M4): 旧手工容器回退
+    if meal_type is None:
+        return                             # 没有可产餐定义 → 不扣库存
+    if container.stock != -1:
+        if container.stock <= 0:
+            return                         # 没货, 不再产餐
+        container.stock -= 1
+    meal = world.spawn_item_type(meal_type, npc.location_id)
+    if meal is None:
+        return
+    # 开启新交互(吃/后续链)
+    sys.active[npc.person_id] = ActiveInteraction(
+        npc_id=npc.person_id, entity_id=meal.entity_id,
+        remaining_ticks=meal.duration_ticks,
+        total_ticks=meal.duration_ticks, plan_queue=act.plan_queue[1:],
+    )
+    meal.claimed_by = npc.person_id
+    npc.active_interaction_id = meal.entity_id
+    npc.current_activity = meal.name
+    if meal.on_start:
+        apply_effects(world, npc, meal, meal.on_start)
+    sys._resched(world, npc.person_id, meal.duration_ticks)

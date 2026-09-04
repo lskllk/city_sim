@@ -13,22 +13,20 @@ from citysim.core.types import DecisionTrace, EntityView, Intent, Percept
 from citysim.npc.goap import hunger_plan
 
 # 分数低于此 => 不值得做(→ idle)。沿用旧 Person.setup_brain 默认 threshold。
-UTILITY_THRESHOLD = 0.08
-# 需求急迫度幂次: weight = deficit**UTILITY_POWER。
-# 线性(幂=1)会让"精力差 12%"也去打盹/喝水, 节律不像人(soak 实测一天睡 3.6 次)。
-# 幂>1 放大真实缺口, 压住无谓微需求; M4 后由曲线库/JSON 覆盖。
-UTILITY_POWER = 3.0
+# 需求急迫度幂次: weight = deficit**power; 线性会让"精力差 12%"也去打盹/喝水。
+# 幂>1 放大真实缺口, 压住无谓微需求; 两值现由 sim.toml [utility] 承载(13)。
 
 
 def _utility(
     e: EntityView,
     signals: Mapping[str, float],
     personality: Mapping[str, float],
+    power: float,
 ) -> float:
     """候选实体效用分: u(e) = Σ_s affordance_delta_s * need_weight(s)。
 
     need_weight = 缺口 need(=1-level) 经急迫幂次映射 × 性格倍率(personality)。
-    非信号键(如 "provides:edible" 这类 M2 临时标记)不参与打分。
+    仅信号键参与打分; 供食/产物等语义经 EntityView.provides/food_source 承载。
     """
     total = 0.0
     for s, delta in e.affordances.items():
@@ -36,27 +34,34 @@ def _utility(
             continue
         level = float(signals.get(s, 0.5))
         need = 1.0 - level
-        weight = (need ** UTILITY_POWER) * float(personality.get(s, 1.0))
+        weight = (need ** power) * float(personality.get(s, 1.0))
         total += float(delta) * weight
     return total
 
 
 def _hungry_plan(candidates: tuple[EntityView, ...], cfg: SimConfig,
-                 signals: Mapping[str, float]) -> tuple[str, tuple[str, ...]] | None:
+                 signals: Mapping[str, float],
+                 actions=None) -> tuple[str, tuple[str, ...]] | None:
     """饿且无散落 edible 时, 找提供食物的 container → (target_id, plan)。"""
     if signals.get("hunger", 1.0) >= cfg.eat_hunger_threshold:
         return None
     if any("edible" in e.tags for e in candidates):
         return None
     for e in candidates:
-        if "container" in e.tags and e.affordances.get("provides:edible", 0.0) > 0:
-            plan = hunger_plan()
+        if "container" in e.tags and e.food_source:
+            plan = hunger_plan(actions)
             if plan:
                 return (e.entity_id, plan)
     return None
 
 
-_EDIBLE_OBJS = ("edible", "meal", "meal_simple")
+def _is_edible_obj(kb: Any, obj: Any) -> bool:
+    """判 obj 是否可食类别(m5-rectify 11): 直接类别 'edible', 或经 KB is_a
+    (meal_simple is_a edible) 归到类别。不再硬编码品名。"""
+    if obj == "edible":
+        return True
+    return any(f.subject == obj and f.obj == "edible"
+               for f in kb.query(relation="is_a"))
 
 
 def _kb_go_intent(kb: Any, percept: Percept, signals: Mapping[str, float],
@@ -77,7 +82,7 @@ def _kb_go_intent(kb: Any, percept: Percept, signals: Mapping[str, float],
         if f.obj == "edible" and f.confidence >= 0.3:
             sources.append((f.subject, f))
     for f in kb.query(relation="sells"):
-        if f.obj in _EDIBLE_OBJS and f.confidence >= 0.3:
+        if _is_edible_obj(kb, f.obj) and f.confidence >= 0.3:
             sources.append((f.subject, f))
     if not sources:
         return None
@@ -90,6 +95,9 @@ def _kb_go_intent(kb: Any, percept: Percept, signals: Mapping[str, float],
             continue
         loc = loc_facts[0].obj
         if not loc:
+            continue
+        # T5①: 目标就在当前地点则不该发起 move_to(避免 30t 原地打转)
+        if loc == percept.location_id:
             continue
         used = (fact.fact_id, loc_facts[0].fact_id)
         trace = DecisionTrace(
@@ -108,12 +116,15 @@ def decide(
     kb: Any,                      # KnowledgeBase | None; M5 前传 None
     cfg: SimConfig,
     rng: Any,                     # random.Random, 固定种子保回放确定性
+    actions: Any = None,          # GOAP 动作库(装配期注入); None 用默认
 ) -> Intent:
     """纯函数: 返回下一个 Intent。不修改任何入参、不访问全局状态。"""
     candidates = [e for e in percept.visible if e.claimable]
+    thresh = cfg.utility_threshold
+    power = cfg.utility_power
 
     # --- GOAP: 饿 → 从容器 取→吃 (优先于逐项打分) ---
-    goap = _hungry_plan(tuple(candidates), cfg, signals)
+    goap = _hungry_plan(tuple(candidates), cfg, signals, actions)
     if goap is not None:
         target_id, plan = goap
         trace = DecisionTrace(
@@ -130,10 +141,11 @@ def decide(
             return mv
 
     # --- utility 打分 + 排序 ---
-    scored = [(e.entity_id, _utility(e, signals, personality)) for e in candidates]
+    scored = [(e.entity_id, _utility(e, signals, personality, power))
+              for e in candidates]
     ranked = tuple(sorted(scored, key=lambda t: (-t[1], t[0])))
 
-    if not ranked or ranked[0][1] <= UTILITY_THRESHOLD:
+    if not ranked or ranked[0][1] <= thresh:
         return Intent(
             kind="idle",
             target_id=None,

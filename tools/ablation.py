@@ -98,7 +98,8 @@ def run_one(mode: str, seed: int) -> dict:
         _fact(1, "market_a", "sells", "meal_simple"),
         _fact(2, "market_a", "located_at", "market_a"),
         _fact(3, "market_b", "sells", "meal_simple"),
-        _fact(4, "market_b", "located_at", "market_b")])
+        _fact(4, "market_b", "located_at", "market_b"),
+        _fact(5, "meal_simple", "is_a", "edible")])
     for i in range(N_NPC):
         if mode == "off":
             continue

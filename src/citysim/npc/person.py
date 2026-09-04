@@ -16,6 +16,7 @@ from citysim.core.config import SIGNALS
 
 if TYPE_CHECKING:  # pragma: no cover
     from citysim.core.types import Intent
+    from citysim.npc.knowledge import KnowledgeBase
 
 
 def _clamp(v: float) -> float:
@@ -104,7 +105,7 @@ class Person:
     location_id: str = ""                     # 所在 location(M3 世界侧登记)
     active_interaction_id: str | None = None  # 正在交互的实体 id(观测/仲裁)
     last_intent: "Intent | None" = None       # 最近一次决策(观测)
-    kb: Any = None                            # M5: 该 NPC 的 KnowledgeBase | None
+    kb: "KnowledgeBase | None" = None         # M5: 该 NPC 的知识库 | None
 
     def __post_init__(self) -> None:
         # 初始化必须含 SIGNALS 全集; 缺失补 1.0(充足)

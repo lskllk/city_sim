@@ -128,7 +128,8 @@ def test_s1_newcomer_learns_from_old_resident() -> None:
     # A: full —— 原型知道 market 卖餐 + 在哪
     _set_kb(world, "p0", [
         _mk_fact(1, "market_1", "sells", "meal_simple", 1.0),
-        _mk_fact(2, "market_1", "located_at", "market", 1.0)])
+        _mk_fact(2, "market_1", "located_at", "market", 1.0),
+        _mk_fact(3, "meal_simple", "is_a", "edible", 1.0)])
     # B: archetype_only, 原型删掉食物来源(刚搬来, 不知市场有食/在哪)
     _set_kb(world, "p1", [])
     eats = _eat_ticks(world, systems)
@@ -184,7 +185,8 @@ def test_s2_stale_knowledge_correction_4npc() -> None:
         _mk_fact(1, "fridge_1", "contains", "edible", 0.9),
         _mk_fact(2, "fridge_1", "located_at", "kitchen", 1.0),
         _mk_fact(3, "market_1", "sells", "meal_simple", 1.0),
-        _mk_fact(4, "market_1", "located_at", "market", 1.0)]
+        _mk_fact(4, "market_1", "located_at", "market", 1.0),
+        _mk_fact(5, "meal_simple", "is_a", "edible", 1.0)]
     for i in range(4):
         _set_kb(world, f"p{i}", arch)
         world.npcs[f"p{i}"].set_state(hunger=1.0)   # 不立刻饿 → 首饿在冰箱空后
@@ -407,6 +409,12 @@ def test_s5_forgetting_in_loop_over_21_days() -> None:
     assert got, "事实应仍在(conf 未跌破 0.05)"
     print(f"\nS5: conf_after_21d={got[0].confidence}")
     assert abs(got[0].confidence - 0.125) <= 0.02
+    # m5-rectify 08 场景证明: 原地知识已被纠错、绝不对"当前地点"发起 move_to 打转
+    loc_at = kb.query(subject="rest_b", relation="located_at")
+    assert not loc_at, f"rest_b 移走后 located_at 应被 refute: {loc_at}"
+    moves = [l for l in (systems.log_lines or [])
+             if l.startswith("D\t") and l.split("\t")[3] == "move_to"]
+    assert not moves, f"单点滞留场景不应有任何 move_to(原地打转): {moves[:3]}"
     # INJECTED 不衰减
     kb.learn(subject="market_1", relation="sells", obj="meal_simple",
              confidence=1.0, source=Source(kind="INJECTED", ref=("x",)))

@@ -20,7 +20,8 @@ CFG = load_config(ROOT / "config" / "sim.toml")
 
 
 def _ev(entity_id: str, tags=(), affordances=None, claimable=True,
-        duration_ticks: int = 30, distance: float = 0.0) -> EntityView:
+        duration_ticks: int = 30, distance: float = 0.0,
+        food_source: bool = False) -> EntityView:
     return EntityView(
         entity_id=entity_id,
         name=entity_id,
@@ -29,6 +30,7 @@ def _ev(entity_id: str, tags=(), affordances=None, claimable=True,
         duration_ticks=duration_ticks,
         distance=distance,
         claimable=claimable,
+        food_source=food_source,
         location_id="loc",
     )
 
@@ -47,7 +49,8 @@ def _signals(**kw) -> dict[str, float]:
 def test_pure_same_input_same_output_no_mutation() -> None:
     sig = _signals(hunger=0.2)
     perc = _percept(_ev("fridge", tags=("container",),
-                        affordances={"provides:edible": 1.0}))
+                        affordances={"provides:edible": 1.0},
+                        food_source=True))
     sig_before = copy.deepcopy(sig)
     i1 = decide(perc, sig, {}, None, CFG, random.Random(3))
     i2 = decide(perc, sig, {}, None, CFG, random.Random(3))
@@ -73,9 +76,9 @@ def test_idle_when_satisfied() -> None:
 
 
 def test_goap_container() -> None:
-    """无散落 edible、有 container(affordances 声明 provides:edible) → 取→吃计划。"""
+    """无散落 edible、有供食容器(food_source) → 取→吃计划。"""
     fridge = _ev("fridge_1", tags=("container",),
-                 affordances={"provides:edible": 1.0})
+                 affordances={"provides:edible": 1.0}, food_source=True)
     intent = decide(_percept(fridge), _signals(hunger=0.2), {},
                     None, CFG, random.Random(0))
     assert intent.kind == "interact"
@@ -88,7 +91,7 @@ def test_loose_edible_beats_container_goap() -> None:
     """有散落 edible 时不再走容器取食计划(直接吃)。"""
     rice = _ev("rice_1", tags=("edible",), affordances={"hunger": 0.4})
     fridge = _ev("fridge_1", tags=("container",),
-                 affordances={"provides:edible": 1.0})
+                 affordances={"provides:edible": 1.0}, food_source=True)
     intent = decide(_percept(rice, fridge), _signals(hunger=0.2), {},
                     None, CFG, random.Random(0))
     assert intent.kind == "interact"

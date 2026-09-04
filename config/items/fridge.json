@@ -1,0 +1,12 @@
+{
+  "item_type": "fridge",
+  "name": "冰箱",
+  "tags": ["container"],
+  "affordances": {},
+  "provides": ["meal_simple"],
+  "duration_ticks": 2,
+  "on_start": [],
+  "on_complete": [],
+  "attrs": {},
+  "stock": -1
+}

@@ -12,6 +12,8 @@ from typing import Any
 
 from citysim.core.config import SIGNALS
 from citysim.npc.person import Person
+from citysim.world.effects import apply_effects
+from citysim.world.itemdefs import load_item_defs
 from citysim.world.world import Entity, World
 
 _WAKE_RE = re.compile(r"^(\w+)\s*>=\s*([0-9.]+)$")
@@ -36,7 +38,6 @@ class InteractionSystem:
     def __init__(self, scheduler: Any = None) -> None:
         self.active: dict[str, ActiveInteraction] = {}   # key = npc_id
         self._scheduler = scheduler                       # TimingWheel | None
-        self._meal_seq = 0
 
     # --- 提交 ---------------------------------------------------------
     def submit(self, world: World, npc: Person, intent) -> bool:
@@ -78,6 +79,9 @@ class InteractionSystem:
         ent.claimed_by = pid
         npc.active_interaction_id = tid
         npc.current_activity = ent.name
+        # 数据化开始效果(M4): on_start 在开始 tick 应用
+        if ent.on_start:
+            apply_effects(world, npc, ent, ent.on_start)
         # 开始 tick 一次性挂排泄负荷(不分摊; 如进食)
         if not ent.is_sleepable and ent.attrs.get("bladder_load", 0) > 0:
             npc.bladder_pending += float(ent.attrs["bladder_load"])
@@ -123,11 +127,9 @@ class InteractionSystem:
         if ent.is_consumable and ent.stock > 0:
             ent.stock -= 1
             consumed_empty = ent.stock <= 0
-        # 3. 马桶(清空膀胱) —— 硬编码, M4 搬进数据化 on_complete
-        if "toilet" in ent.tags:
-            npc.bladder_pending = 0.0
-            npc.signals["bladder"] = 1.0
-            npc.current_activity = "idle"
+        # 3. 数据化完成效果(M4 4.1): 马桶清膀胱等 on_complete(替换硬编码)
+        if ent.on_complete:
+            apply_effects(world, npc, ent, ent.on_complete)
 
         # 4. plan_queue 非空 → 弹出下一步并直接续上(不等重评)
         if act.plan_queue:
@@ -158,15 +160,24 @@ class InteractionSystem:
             container.stock -= 1
         # 弹出本步(取食成功)
         if act.plan_queue[0] == "eat":
-            self._meal_seq += 1
-            meal = Entity(
-                entity_id="", name="简餐",
-                tags={"edible", "consumable"},
-                affordances={"hunger": 0.5, "thirst": 0.1},
-                duration_ticks=20, location_id=npc.location_id,
-                stock=1, attrs={"bladder_load": 0.3},
-            )
-            world.spawn_entity(meal)
+            # M4: 优先按容器 provides 的物品类型生成餐(JSON 数据化)
+            meal: Entity | None = None
+            if container.provides:
+                defs = load_item_defs()
+                for p in container.provides:
+                    if p in defs and "edible" in defs[p].tags:
+                        meal = world.spawn_item_type(p, npc.location_id)
+                        break
+            if meal is None:
+                # DEV(M4): 无 provides 的旧手工容器退回内置餐, 待 M5 移除
+                meal = Entity(
+                    entity_id="", name="meal",
+                    tags={"edible", "consumable"},
+                    affordances={"hunger": 0.5, "thirst": 0.1},
+                    duration_ticks=20, location_id=npc.location_id,
+                    stock=1, attrs={"bladder_load": 0.3},
+                )
+                world.spawn_entity(meal)
             # 直接开启新交互(吃)
             self.active[npc.person_id] = ActiveInteraction(
                 npc_id=npc.person_id, entity_id=meal.entity_id,

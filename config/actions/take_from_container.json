@@ -1,0 +1,7 @@
+{
+  "action": "take_from_container",
+  "pre": ["at_container", "container_has_edible"],
+  "add": ["food_at_hand"],
+  "zh": "取食物",
+  "bind": {"container_tag": "container", "provides_tag": "edible"}
+}

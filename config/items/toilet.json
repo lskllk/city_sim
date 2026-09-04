@@ -1,0 +1,14 @@
+{
+  "item_type": "toilet",
+  "name": "马桶",
+  "tags": ["toilet"],
+  "affordances": {"bladder": 0.6, "comfort": 0.05},
+  "duration_ticks": 5,
+  "on_start": [],
+  "on_complete": [
+    {"op": "set_signal", "signal": "bladder", "value": 1.0},
+    {"op": "clear_pending", "field": "bladder_pending"}
+  ],
+  "attrs": {},
+  "stock": 1
+}

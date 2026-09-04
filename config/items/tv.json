@@ -1,0 +1,11 @@
+{
+  "item_type": "tv",
+  "name": "电视",
+  "tags": ["entertain"],
+  "affordances": {"fun": 0.4},
+  "duration_ticks": 40,
+  "on_start": [],
+  "on_complete": [],
+  "attrs": {},
+  "stock": 1
+}

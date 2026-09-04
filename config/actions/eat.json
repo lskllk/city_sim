@@ -1,0 +1,7 @@
+{
+  "action": "eat",
+  "pre": ["food_at_hand"],
+  "add": ["fed"],
+  "zh": "吃",
+  "bind": {}
+}

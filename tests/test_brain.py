@@ -80,7 +80,8 @@ def test_goap_container() -> None:
                     None, CFG, random.Random(0))
     assert intent.kind == "interact"
     assert intent.target_id == "fridge_1"
-    assert intent.trace.plan == ("take_food", "eat")
+    # M4: GOAP 动作库 JSON 化后动作名为 take_from_container/eat(原 take_food/eat)
+    assert intent.trace.plan == ("take_from_container", "eat")
 
 
 def test_loose_edible_beats_container_goap() -> None:

@@ -1,0 +1,11 @@
+{
+  "item_type": "meal_simple",
+  "name": "简餐",
+  "tags": ["edible", "consumable"],
+  "affordances": {"hunger": 0.5, "thirst": 0.1},
+  "duration_ticks": 20,
+  "on_start": [],
+  "on_complete": [],
+  "attrs": {"bladder_load": 0.3},
+  "stock": 1
+}

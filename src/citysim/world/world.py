@@ -9,6 +9,7 @@ from typing import Any
 
 from citysim.npc.person import Person
 from citysim.world.events import EventBus
+from citysim.world.itemdefs import ItemDef, load_item_defs
 
 
 @dataclass
@@ -25,6 +26,9 @@ class Entity:
     attrs: dict[str, Any] = field(default_factory=dict)  # 如 bladder_load
     interruptible: bool = True            # M3 睡眠泛化: 床 False
     wake_condition: str | None = None     # "signal>=value"(用正则解析, 禁 eval)
+    on_start: list[dict] = field(default_factory=list)       # M4 数据化效果
+    on_complete: list[dict] = field(default_factory=list)    # M4 数据化效果
+    provides: list[str] = field(default_factory=list)        # 容器可产物品类型
 
     @property
     def is_consumable(self) -> bool:
@@ -41,6 +45,27 @@ class Entity:
     def claimable_by(self, npc_id: str | None) -> bool:
         return (self.claimed_by is None or self.claimed_by == npc_id) \
             and self.stock != 0
+
+
+# ----------------------------------------------------------------------
+# 物品定义 -> 真实体(M4: 从 config/items/*.json 生成, 零硬编码)
+# ----------------------------------------------------------------------
+def entity_from_def(d: ItemDef, location_id: str) -> Entity:
+    """由 ItemDef 建一个可变 Entity; 容器可食标记由 provides 推导填入。"""
+    afford = dict(d.affordances)
+    if d.provides:
+        defs = load_item_defs()
+        if any("edible" in defs[p].tags for p in d.provides if p in defs):
+            # DEV(M4): provides 折叠进旧仲裁面标记, decide 无需感知 provides
+            afford.setdefault("provides:edible", 1.0)
+    return Entity(
+        entity_id="", name=d.name, tags=set(d.tags),
+        affordances=afford, duration_ticks=d.duration_ticks,
+        location_id=location_id, stock=d.stock, attrs=dict(d.attrs),
+        interruptible=d.interruptible, wake_condition=d.wake_condition,
+        on_start=list(d.on_start), on_complete=list(d.on_complete),
+        provides=list(d.provides),
+    )
 
 
 @dataclass
@@ -65,3 +90,12 @@ class World:
             e.entity_id = f"auto{self._entity_seq}"
         self.entities[e.entity_id] = e
         return e
+
+    def spawn_item_type(self, item_type: str,
+                        location_id: str | None = None) -> Entity | None:
+        """按 config/items 里的类型在世界生成一件实体(缺省 npc 的 home)。"""
+        d = load_item_defs().get(item_type)
+        if d is None:
+            return None
+        e = entity_from_def(d, location_id if location_id is not None else "home")
+        return self.spawn_entity(e)

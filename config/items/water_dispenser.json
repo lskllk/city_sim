@@ -1,0 +1,11 @@
+{
+  "item_type": "water_dispenser",
+  "name": "饮水机",
+  "tags": ["drink", "consumable"],
+  "affordances": {"thirst": 0.6},
+  "duration_ticks": 10,
+  "on_start": [],
+  "on_complete": [],
+  "attrs": {"bladder_load": 0.15},
+  "stock": -1
+}

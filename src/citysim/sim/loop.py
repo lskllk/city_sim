@@ -5,7 +5,7 @@ wake_condition 完成) → 5 到点重评(decide + submit + 排下次)。
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from citysim.core.config import SimConfig
@@ -13,9 +13,12 @@ from citysim.npc.brain import arousal, decide, review_interval_ticks
 from citysim.npc.person import apply_metabolism
 from citysim.world.events import Event
 from citysim.world.interaction import InteractionSystem
-from citysim.world.perception import build_percept
+from citysim.world.perception import build_percept, consolidate_observations
 from citysim.world.scheduler import TimingWheel
 from citysim.world.world import World
+
+# M5: 跨 location 移动耗时(tick)。TODO(config): 入 sim.toml 由日程/距离驱动。
+MOVE_TICKS = 30
 
 
 def _clamp(v: float) -> float:
@@ -35,6 +38,7 @@ def _step_elimination(npc, cfg: SimConfig) -> None:
 class Systems:
     scheduler: TimingWheel
     interaction: InteractionSystem
+    travel: dict[str, str] = field(default_factory=dict)  # npc_id -> 目的地
     log_lines: list[str] | None = None   # 录制/回放(非 None 即开启)
 
 
@@ -94,8 +98,14 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
         npc = world.npcs.get(npc_id)
         if npc is None or not npc.is_alive():
             continue
+        # 抵达: 旅行到期 → 落到目标 location 再重评
+        if npc_id in systems.travel:
+            npc.location_id = systems.travel.pop(npc_id)
         percept = build_percept(world, npc)
-        intent = decide(percept, npc.signals, npc.personality, kb=None,
+        kb = getattr(npc, "kb", None)
+        if kb is not None:
+            consolidate_observations(npc, percept, kb)   # 感知 → 知识
+        intent = decide(percept, npc.signals, npc.personality, kb=kb,
                         cfg=cfg, rng=rng_pool[npc_id])
         npc.last_intent = intent
         if systems.log_lines is not None:
@@ -105,6 +115,11 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
                 f"{intent.target_id or ''}\t{plan}")
         decisions.append((npc_id, npc, intent))
     for npc_id, npc, intent in decisions:
+        if intent.kind == "move_to":
+            # 旅行由主循环管理(不走 InteractionSystem)
+            systems.travel[npc_id] = intent.target_id or npc.location_id
+            systems.scheduler.schedule(npc_id, MOVE_TICKS)
+            continue
         ok = systems.interaction.submit(world, npc, intent)
         if intent.kind == "interact" and ok:
             ent = world.entities.get(intent.target_id)

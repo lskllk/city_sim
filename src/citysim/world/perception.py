@@ -1,7 +1,8 @@
-"""PerceptionSystem —— 为 NPC 构建 Percept(纯读取)。"""
+"""PerceptionSystem —— 为 NPC 构建 Percept(纯读取) + 感知落知识(M5)。"""
 from __future__ import annotations
 
 from citysim.core.types import EntityView, Percept
+from citysim.npc.knowledge import Source
 
 
 def build_percept(world, npc) -> Percept:
@@ -30,3 +31,33 @@ def build_percept(world, npc) -> Percept:
         visible=tuple(views),
         events=events,
     )
+
+
+def consolidate_observations(npc, percept: Percept, kb) -> None:
+    """感知 → 知识(M5 5.3 接线 1)。
+
+    每个可见 container: 有货(claimable 且可食标记) → learn OBSERVED
+    contains=edible; 空/不可用 → 与 KB 矛盾则 refute, 并 learn contains=none。
+    """
+    for v in percept.visible:
+        if "container" not in v.tags:
+            continue
+        has = bool(v.claimable and v.affordances.get("provides:edible", 0.0) > 0)
+        existing = kb.query(subject=v.entity_id, relation="contains")
+        if has:
+            learned = any(f.source.kind == "OBSERVED" and f.obj == "edible"
+                          for f in existing)
+            if not learned:
+                kb.learn(subject=v.entity_id, relation="contains",
+                         obj="edible", confidence=1.0,
+                         source=Source(kind="OBSERVED"))
+        else:
+            for f in existing:
+                if f.obj == "edible":
+                    kb.refute(f.fact_id)
+            if not any(f.obj == "none" and f.source.kind == "OBSERVED"
+                       for f in kb.query(subject=v.entity_id,
+                                         relation="contains")):
+                kb.learn(subject=v.entity_id, relation="contains",
+                         obj="none", confidence=1.0,
+                         source=Source(kind="OBSERVED"))

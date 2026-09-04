@@ -56,6 +56,51 @@ def _hungry_plan(candidates: tuple[EntityView, ...], cfg: SimConfig,
     return None
 
 
+_EDIBLE_OBJS = ("edible", "meal", "meal_simple")
+
+
+def _kb_go_intent(kb: Any, percept: Percept, signals: Mapping[str, float],
+                  cfg: SimConfig) -> Intent | None:
+    """M5: 饿了但视野无食物时, 按 KB 里"哪里有食物"发起 move_to。
+
+    谓词由 KB 派生: contains/sells 命中可食 obj 且 conf>=0.3 → 该地有食;
+    需要 located_at 才知道去哪。返回 move_to(loc)。kb=None 时永不走此分支。
+    """
+    if signals.get("hunger", 1.0) >= cfg.eat_hunger_threshold:
+        return None
+    # 视野里有可吃的就不该出走(看得到 -> 已由可见路径处理)
+    if any("edible" in e.tags and e.claimable for e in percept.visible):
+        return None
+    visible_ids = {e.entity_id for e in percept.visible}
+    sources: list[tuple[str, Any]] = []
+    for f in kb.query(relation="contains"):
+        if f.obj == "edible" and f.confidence >= 0.3:
+            sources.append((f.subject, f))
+    for f in kb.query(relation="sells"):
+        if f.obj in _EDIBLE_OBJS and f.confidence >= 0.3:
+            sources.append((f.subject, f))
+    if not sources:
+        return None
+    # 稳定: 按 (subject) 排序取第一个知识源
+    for subj, fact in sorted(sources, key=lambda t: t[0]):
+        if subj in visible_ids:
+            continue
+        loc_facts = kb.query(subject=subj, relation="located_at")
+        if not loc_facts:
+            continue
+        loc = loc_facts[0].obj
+        if not loc:
+            continue
+        used = (fact.fact_id, loc_facts[0].fact_id)
+        trace = DecisionTrace(
+            ranked=((subj, 0.0),),
+            reason=f"知识: {subj} 有食物 → 去 {loc}",
+            used_fact_ids=used,
+        )
+        return Intent(kind="move_to", target_id=loc, trace=trace)
+    return None
+
+
 def decide(
     percept: Percept,
     signals: Mapping[str, float],
@@ -77,6 +122,12 @@ def decide(
             plan=plan,
         )
         return Intent(kind="interact", target_id=target_id, trace=trace)
+
+    # --- M5 KB: 视野无食物但知识说别处有 → move_to(kb!=None 才走, 保平价) ---
+    if kb is not None:
+        mv = _kb_go_intent(kb, percept, signals, cfg)
+        if mv is not None:
+            return mv
 
     # --- utility 打分 + 排序 ---
     scored = [(e.entity_id, _utility(e, signals, personality)) for e in candidates]

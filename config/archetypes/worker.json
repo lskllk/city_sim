@@ -1,0 +1,8 @@
+{
+  "archetype": "worker",
+  "personality": {"hunger": 1.0, "fun": 1.2},
+  "knowledge": [
+    {"subject": "fridge", "relation": "contains", "obj": "edible", "confidence": 0.9},
+    {"subject": "supermarket_a", "relation": "sells", "obj": "meal_simple", "confidence": 1.0}
+  ]
+}

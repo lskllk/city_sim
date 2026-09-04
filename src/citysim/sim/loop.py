@@ -10,6 +10,7 @@ from typing import Any
 
 from citysim.core.config import SimConfig
 from citysim.npc.brain import arousal, decide, review_interval_ticks
+from citysim.npc.knowledge import Source
 from citysim.npc.person import apply_metabolism
 from citysim.world.events import Event
 from citysim.world.interaction import InteractionSystem
@@ -40,12 +41,13 @@ class Systems:
     interaction: InteractionSystem
     travel: dict[str, str] = field(default_factory=dict)  # npc_id -> 目的地
     log_lines: list[str] | None = None   # 录制/回放(非 None 即开启)
+    tell_p: float = 0.0                  # 传闻概率(M5; 0=关闭)
 
 
-def make_systems(*, log: bool = False) -> Systems:
+def make_systems(*, log: bool = False, tell_p: float = 0.0) -> Systems:
     sch = TimingWheel()
     return Systems(scheduler=sch, interaction=InteractionSystem(scheduler=sch),
-                   log_lines=[] if log else None)
+                   log_lines=[] if log else None, tell_p=tell_p)
 
 
 def attach_replay(world: World, systems: Systems) -> None:
@@ -70,6 +72,42 @@ def _sleeping(world: World, systems: Systems, pid: str) -> bool:
     return ent is not None and ent.is_sleepable
 
 
+def _rumor_pass(world: World, systems: Systems, rng_pool: dict[str, Any]) -> None:
+    """M5 传闻: 同地点、双方都 idle 且都有 KB, 以 tell_p 概率分享最高置信
+    overlay 事实; 接收方 learn(TOLD, conf*0.8)。p=0 即关闭(默认)。"""
+    p = systems.tell_p
+    if p <= 0.0:
+        return
+    by_loc: dict[str, list[str]] = {}
+    for pid, npc in world.npcs.items():
+        if npc.kb is None or not npc.is_alive():
+            continue
+        if pid in systems.interaction.active or pid in systems.travel:
+            continue
+        by_loc.setdefault(npc.location_id, []).append(pid)
+    for loc, ids in by_loc.items():
+        for i in range(len(ids)):
+            for j in range(i + 1, len(ids)):
+                speaker, receiver = ids[i], ids[j]
+                if rng_pool[speaker].random() >= p:
+                    continue
+                fact = world.npcs[speaker].kb.top_overlay_fact()
+                if fact is None:
+                    continue
+                r_kb = world.npcs[receiver].kb
+                if r_kb.knows(fact.subject, fact.relation, fact.obj):
+                    continue
+                f2 = r_kb.learn(subject=fact.subject, relation=fact.relation,
+                                obj=fact.obj, confidence=fact.confidence * 0.8,
+                                source=Source(kind="TOLD", ref=(speaker,)))
+                world.bus.publish(world.bus.make(
+                    world.clock_tick, "told", speaker,
+                    {"audience": [receiver], "from": speaker,
+                     "subject": fact.subject, "relation": fact.relation,
+                     "obj": fact.obj, "conf": round(fact.confidence * 0.8, 3),
+                     "fact_id": f2.fact_id}))
+
+
 def run_tick(world: World, systems: Systems, cfg: SimConfig,
              rng_pool: dict[str, Any]) -> None:
     """推进一个 tick(唯一入口)。"""
@@ -89,6 +127,8 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
         _step_elimination(npc, cfg)
     # 3. 交互推进(含睡眠唤醒提前完成 / plan 链)
     systems.interaction.step(world, cfg)
+    # 3.5 传闻(M5; 同地 idle 分享)
+    _rumor_pass(world, systems, rng_pool)
     # 5. 到点重评
     # 5. 到点重评: 先对全部到点者算 Intent(同一世界快照, 反映 claim 竞争),
     #    再统一仲裁提交(先手 claim 成功, 后手收到 intent_failed)

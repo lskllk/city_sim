@@ -9,12 +9,14 @@ import random
 from pathlib import Path
 
 from citysim.core.config import load_config
+from citysim.npc.knowledge import KnowledgeBase, load_archetype
 from citysim.npc.person import Identity, Person, full_signals
 from citysim.sim.loop import attach_replay, make_systems
 from citysim.world.world import Entity, World
 
 ROOT = Path(__file__).resolve().parents[1]
 CFG = load_config(ROOT / "config" / "sim.toml")
+WORKER_ARCH = ROOT / "config" / "archetypes" / "worker.json"
 
 DEFAULT_NAMES = ["王二", "李四", "张三", "赵五", "钱六",
                  "孙七", "周八", "吴九", "郑十", "陈一"]
@@ -44,8 +46,13 @@ def _entity(world: World, eid: str, name: str, tags, affordances,
 
 
 def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
-               names: list[str] | None = None):
-    """搭一座可复现的 demo 房子。返回 (world, systems, rng_pool, cfg)。"""
+               names: list[str] | None = None, kb_mode: str = "off",
+               noise: float = 0.0):
+    """搭一座可复现的 demo 房子。返回 (world, systems, rng_pool, cfg)。
+
+    kb_mode: off=None(等价 M4 golden) | archetype_only | full(均附 worker 原型,
+    观察落知识由主循环负责)。noise: 初始信号扰动幅度(破同相位, 供传播测试)。
+    """
     world = World()
     systems = make_systems(log=log)
     if log:
@@ -76,6 +83,9 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
 
     # ---- NPC(初始状态由 seed 扰动, 避免同相位) ---------------------
     names = names or DEFAULT_NAMES
+    arch = None
+    if kb_mode != "off":
+        _, arch = load_archetype(WORKER_ARCH)
     for i in range(n_npc):
         pid = f"npc_{i:02d}"
         r = random.Random(seed * 100 + i)
@@ -83,13 +93,17 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
                                      name=names[i % len(names)]),
                    location_id="home")
         p.hour_f = r.uniform(0.0, 24.0)
-        p.set_state(
-            energy=r.uniform(0.4, 0.9), hunger=r.uniform(0.3, 0.9),
-            thirst=r.uniform(0.3, 0.9), bladder=1.0,
-            health=1.0, temperature=1.0, fun=0.6, social=0.6,
-            comfort=0.8, hp=1.0,
-        )
-        p.personality = {}   # 中性性格; 可后续注入差异
+        base = {"energy": r.uniform(0.4, 0.9), "hunger": r.uniform(0.3, 0.9),
+                "thirst": r.uniform(0.3, 0.9), "bladder": 1.0,
+                "health": 1.0, "temperature": 1.0, "fun": 0.6,
+                "social": 0.6, "comfort": 0.8, "hp": 1.0}
+        if noise:
+            base = {s: max(0.0, min(1.0, v + r.uniform(-noise, noise)))
+                    for s, v in base.items()}
+        p.set_state(**base)
+        p.personality = {}
+        if arch is not None:
+            p.kb = KnowledgeBase(arch)
         world.npcs[pid] = p
         rng_pool[pid] = random.Random(seed + i)
         systems.scheduler.schedule(pid, 1, now=0)

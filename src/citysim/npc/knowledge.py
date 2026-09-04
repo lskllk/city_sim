@@ -15,7 +15,8 @@ from citysim.core.types import SourceKind
 
 _ARCHETYPES_DIR = Path(__file__).resolve().parents[3] / "config" / "archetypes"
 
-_KNOWN_RELATIONS = ("contains", "sells", "located_at", "price_of", "is_a")
+_KNOWN_RELATIONS = ("contains", "sells", "located_at", "price_of", "is_a",
+                    "affords")
 CONF_UNKNOWN = 0.05
 
 
@@ -162,6 +163,20 @@ class KnowledgeBase:
 
         _walk(fact_id)
         return tuple(out)
+
+    def top_overlay_fact(self) -> "Fact | None":
+        """传闻用: overlay 里 confidence 最高的一条(OBSERVED/TOLD/INFERRED)。"""
+        candidates = [f for f in self.overlay.values()
+                      if f.source.kind != "INJECTED"]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda f: f.confidence)
+
+    def knows(self, subject: str, relation: str, obj: Any,
+              min_conf: float = 0.3) -> bool:
+        return any(f.subject == subject and f.relation == relation
+                   and f.obj == obj and f.confidence >= min_conf
+                   for f in self.query(subject=subject, relation=relation))
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"KnowledgeBase(overlay={len(self.overlay)}, tomb={len(self.tombstones)})"

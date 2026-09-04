@@ -35,16 +35,36 @@ def _set_signal(world, npc, entity, eff) -> None:
 
 @register("add_signal")
 def _add_signal(world, npc, entity, eff) -> None:
-    s, v = eff["signal"], float(eff.get("value", 0.0))
+    s = eff["signal"]
+    v = float(eff.get("delta", eff.get("value", 0.0)))
     if s in npc.signals:
         npc.signals[s] = _clamp(npc.signals[s] + v)
+
+
+_PENDING_WHITELIST = frozenset({"bladder_pending"})
 
 
 @register("clear_pending")
 def _clear_pending(world, npc, entity, eff) -> None:
     f = eff.get("field", "")
-    if hasattr(npc, f):
-        setattr(npc, f, 0.0)
+    if f not in _PENDING_WHITELIST:
+        import logging
+        logging.getLogger(__name__).warning(
+            "clear_pending 拒绝字段 %r(白名单: %s)", f, sorted(_PENDING_WHITELIST))
+        return
+    setattr(npc, f, 0.0)
+
+
+@register("add_pending")
+def _add_pending(world, npc, entity, eff) -> None:
+    """膀胱等 pending 字段累加(on_start 用, 替代 interaction 的 attrs 特判)。"""
+    f = eff.get("field", "")
+    if f not in _PENDING_WHITELIST:
+        import logging
+        logging.getLogger(__name__).warning(
+            "add_pending 拒绝字段 %r(白名单: %s)", f, sorted(_PENDING_WHITELIST))
+        return
+    setattr(npc, f, getattr(npc, f, 0.0) + float(eff.get("amount", 0.0)))
 
 
 @register("spawn_item")

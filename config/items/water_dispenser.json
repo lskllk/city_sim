@@ -4,8 +4,8 @@
   "tags": ["drink", "consumable"],
   "affordances": {"thirst": 0.6},
   "duration_ticks": 10,
-  "on_start": [],
+  "on_start": [{"op": "add_pending", "field": "bladder_pending", "amount": 0.15}],
   "on_complete": [],
-  "attrs": {"bladder_load": 0.15},
+  "attrs": {},
   "stock": -1
 }

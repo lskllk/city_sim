@@ -7,7 +7,8 @@ const Painter = (() => {
   const ACT_COLOR = { sleep: "#3b5bdb", eat: "#e8890c", toilet: "#12b0c9",
                       fun: "#9c6ade", drink: "#4ab5e8", idle: "#9aa0ad",
                       move: "#5ad35a" };
-  const NEED_ICON = { hunger: "🍚", thirst: "💧", energy: "😴", bladder: "🚽" };
+  const NEED_ICON = { hunger: "🍚", thirst: "💧", energy: "😴", bladder: "🚽",
+                      fun: "🎮", hp: "❤️" };
   const BG = "#0f1117";
   let canvas = null, ctx = null, staticLayer = null;
   let dpr = 1;

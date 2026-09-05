@@ -1,13 +1,12 @@
 {
   "scene": "elm_lane",
-  "display_name": "榆树巷 · 极简（3 人）",
+  "display_name": "榆树巷 · 两户（2 人）",
   "canvas": {"w": 1280, "h": 800},
   "tell_p": 0.15,
 
   "locations": {
     "apt_101": {"name": "王二家", "x":  40, "y":  40, "w": 260, "h": 200, "kind": "home"},
     "apt_102": {"name": "李四家", "x":  40, "y": 300, "w": 260, "h": 200, "kind": "home"},
-    "apt_103": {"name": "张三家", "x":  40, "y": 560, "w": 260, "h": 200, "kind": "home"},
     "plaza":   {"name": "街心广场", "x": 360, "y": 300, "w": 320, "h": 260, "kind": "public"},
     "market":  {"name": "大超市",   "x": 760, "y":  40, "w": 280, "h": 260, "kind": "shop"},
     "site":    {"name": "工地",     "x": 760, "y": 380, "w": 280, "h": 260, "kind": "work"}
@@ -16,47 +15,33 @@
   "travel": {
     "default": 20,
     "pairs": {
-      "apt_101|plaza": 4, "apt_102|plaza": 4, "apt_103|plaza": 5,
-      "plaza|market": 8,  "apt_101|market": 12, "apt_102|market": 12,
-      "apt_103|market": 14, "market|site": 6, "plaza|site": 10,
-      "apt_101|apt_102": 3, "apt_102|apt_103": 3
+      "apt_101|plaza": 4, "apt_102|plaza": 4,
+      "plaza|market": 8, "apt_101|market": 12, "apt_102|market": 12,
+      "market|site": 6, "plaza|site": 10,
+      "apt_101|apt_102": 3
     }
   },
 
   "entities": [
-    {"type": "bed_basic",       "at": "apt_101", "id": "bed_wang"},
-    {"type": "toilet",          "at": "apt_101", "id": "wc_101"},
-    {"type": "meal_simple",     "at": "apt_101", "id": "food_wang", "stock": 3},
+    {"type": "bed_basic",   "at": "apt_101", "id": "bed_wang"},
+    {"type": "meal_simple", "at": "apt_101", "id": "food_wang", "stock": 1},
+    {"type": "toilet",      "at": "apt_101", "id": "wc_101"},
     {"type": "water_dispenser", "at": "apt_101", "id": "water_101"},
-    {"type": "tv",              "at": "apt_101", "id": "tv_wang"},
 
-    {"type": "bed_basic",       "at": "apt_102", "id": "bed_li"},
-    {"type": "toilet",          "at": "apt_102", "id": "wc_102"},
-    {"type": "meal_simple",     "at": "apt_102", "id": "food_li", "stock": 0},
+    {"type": "bed_basic", "at": "apt_102", "id": "bed_li"},
+    {"type": "toilet",    "at": "apt_102", "id": "wc_102"},
     {"type": "water_dispenser", "at": "apt_102", "id": "water_102"},
 
-    {"type": "bed_basic",       "at": "apt_103", "id": "bed_zhang"},
-    {"type": "toilet",          "at": "apt_103", "id": "wc_103"},
-    {"type": "meal_simple",     "at": "apt_103", "id": "food_zhang", "stock": 2},
-    {"type": "water_dispenser", "at": "apt_103", "id": "water_103"},
+    {"type": "bench", "at": "plaza", "id": "bench_1"},
 
-    {"type": "bench",           "at": "plaza", "id": "bench_1"},
-    {"type": "bench",           "at": "plaza", "id": "bench_2"},
-    {"type": "water_dispenser", "at": "plaza", "id": "water_plaza"},
-
-    {"type": "meal_simple", "at": "market", "id": "market_1", "stock": 200,
-     "price": 4},
-    {"type": "apple",        "at": "market", "id": "apple_1", "stock": 8},
-    {"type": "pear",         "at": "market", "id": "pear_1", "stock": 8},
+    {"type": "meal_simple", "at": "market", "id": "market_1", "stock": 50},
+    {"type": "tv", "at": "market", "id": "tv_1"},
+    {"type": "tv", "at": "market", "id": "tv_2"},
 
     {"type": "work_bench", "at": "site", "id": "site_1"}
   ],
 
-  "pulses": [
-    {"at": "daily 06:00", "op": "set_stock", "target": "market_1", "value": 200, "note": "超市每日补货"},
-    {"at": "daily 06:00", "op": "set_stock", "target": "apple_1", "value": 8, "note": "苹果补货"},
-    {"at": "daily 06:00", "op": "set_stock", "target": "pear_1", "value": 8, "note": "梨子补货"}
-  ],
+  "pulses": [],
 
   "npcs": [
     {"id": "npc_wang", "name": "王二", "home": "apt_101", "archetype": "old_resident",
@@ -69,10 +54,6 @@
 
     {"id": "npc_li", "name": "李四", "home": "apt_102", "archetype": "newcomer",
      "personality": {"hunger": 1.1, "energy": 1.0},
-     "init": {"energy": 0.6, "hunger": 0.35, "thirst": 0.5, "bladder": 0.8, "fun": 0.6}},
-
-    {"id": "npc_zhang", "name": "张三", "home": "apt_103", "archetype": "old_resident",
-     "personality": {"energy": 0.65, "fun": 1.6, "hunger": 1.0},
-     "init": {"energy": 0.85, "hunger": 0.5, "fun": 0.25}}
+     "init": {"energy": 0.6, "hunger": 0.35, "thirst": 0.5, "bladder": 0.8, "fun": 0.6}}
   ]
 }

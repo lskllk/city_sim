@@ -108,6 +108,24 @@ def _sleeping(world: World, systems: Systems, pid: str) -> bool:
     return ent is not None and ent.is_sleepable
 
 
+def _busy(world: World, systems: Systems, pid: str) -> bool:
+    """当前是否忙碌(有进行中交互或正在跨地点移动)。"""
+    return (systems.interaction.active.get(pid) is not None
+            or pid in systems.travel)
+
+
+def _apply_hp(npc, cfg: SimConfig) -> None:
+    """生命: 饥饿/饥渴任一为 0 → hp 下降; 两者都满足 → 越大越快回升。"""
+    hunger = npc.signals.get("hunger", 1.0)
+    thirst = npc.signals.get("thirst", 1.0)
+    hp = npc.signals.get("hp", 1.0)
+    if hunger <= 0.0 or thirst <= 0.0:
+        npc.signals["hp"] = max(0.0, hp - cfg.hp_decay)
+    else:
+        rate = (hunger + thirst) / 2.0          # 两者越大回升越快
+        npc.signals["hp"] = min(1.0, hp + cfg.hp_regen * rate)
+
+
 def _pick_tell_fact(kb, rng, interesting=None):
     """传闻选样: overlay 非注入事实按 confidence 加权随机(m5-rectify 05)。
 
@@ -192,14 +210,19 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
         apply_pulses(world, systems.pulses, world.clock_tick,
                      cfg.ticks_per_day)
 
-    # 1. 代谢(全体活着的 NPC; 睡眠中冻结精力消耗, 否则永远睡不饱)
+    # 1. 代谢(全体活着的 NPC; 睡眠冻结精力, 忙碌冻结娱乐——无聊才降 fun)
     for pid, npc in world.npcs.items():
         npc.hour_f = hour
         if npc.is_alive():
-            amul = {"energy": 0.0} if _sleeping(world, systems, pid) else None
+            amul: dict[str, float] = {}
+            if _sleeping(world, systems, pid):
+                amul["energy"] = 0.0
+            if _busy(world, systems, pid):
+                amul["fun"] = 0.0
             apply_metabolism(npc.signals, cfg.metabolism,
                              personality_mul=npc.personality,
-                             activity_mul=amul)
+                             activity_mul=amul or None)
+            _apply_hp(npc, cfg)
     # 2. 排泄转化
     for npc in world.npcs.values():
         _step_elimination(npc, cfg)

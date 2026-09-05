@@ -18,19 +18,14 @@ from citysim.gateway.scenarios import build_scenario
 from citysim.gateway.snapshot import build_snapshot, do_query, hello_payload
 from citysim.sim.loop import attach_replay, run_tick
 
-SPEED_TPS = {"pause": 0, "1x": 2, "3x": 6, "10x": 20, "60x": 120, "max": -1}
-PUSH_HZ = 10
+SPEED_TPS = {"pause": 0, "1x": 1, "10x": 10, "100x": 100, "1000x": 1000}
+PUSH_HZ = 60
 STATIC = Path(__file__).parent / "static"
 
 
 def _real_tps(speed: str) -> int:
-    """当前档位真实 ticks/秒(canvasrecode 9: 顶层 tps 必须是真实推进率,
-    供前端 tick 外推; 低档因 100ms 取整 batch 会合并到 10/s)。"""
-    t = SPEED_TPS[speed]
-    if t == 0:
-        return 0
-    batch = 200 if t < 0 else max(1, round(t / PUSH_HZ))
-    return batch * PUSH_HZ
+    """当前档位真实 ticks/秒(1x=1 tick/秒, 供前端 tick 外推)。"""
+    return SPEED_TPS[speed]
 
 
 class SimRunner:
@@ -61,17 +56,19 @@ class SimRunner:
 
     async def loop(self) -> None:
         interval = 1.0 / PUSH_HZ
+        acc = 0.0                      # 分数 tick 累加器, 精确实现 1x=1tick/s
         while True:
             tps = SPEED_TPS[self.speed]
             if tps == 0:
+                acc = 0.0
                 await asyncio.sleep(interval)
             else:
-                batch = 200 if tps < 0 else max(1, round(tps * interval))
-                self.advance(batch)
-                if tps > 0:
-                    await asyncio.sleep(interval)
-                else:
-                    await asyncio.sleep(0)
+                acc += tps * interval
+                n = int(acc)
+                if n > 0:
+                    self.advance(n)
+                    acc -= n
+                await asyncio.sleep(interval)
             await self.push()
 
     async def push(self) -> None:

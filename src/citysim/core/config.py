@@ -35,6 +35,8 @@ class SimConfig:
     utility_power: float = 3.0     # 需求急迫度幂次(m5-rectify 13)
     utility_threshold: float = 0.08
     move_ticks: int = 30           # 跨地点移动耗时
+    hp_decay: float = 0.0005       # 饥饿/饥渴为 0 时 hp 每 tick 下降
+    hp_regen: float = 0.0005       # 两者满足时 hp 回升最大速率(×均值)
 
     @classmethod
     def from_toml(cls, data: dict[str, Any]) -> "SimConfig":
@@ -54,6 +56,8 @@ class SimConfig:
             utility_power=float(data.get("utility", {}).get("power", 3.0)),
             utility_threshold=float(data.get("utility", {}).get("threshold", 0.08)),
             move_ticks=int(data.get("motion", {}).get("move_ticks", 30)),
+            hp_decay=float(data.get("health", {}).get("decay", 0.0005)),
+            hp_regen=float(data.get("health", {}).get("regen", 0.0005)),
         )
 
 

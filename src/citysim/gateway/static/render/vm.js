@@ -14,7 +14,7 @@ const VM = (() => {
   let tick = 0, tps = 0;
   let roomsDirty = false;
   let fallbackN = 0;
-  const ROOM_SPEED = 150;        // 房内移动速度(世界单位/秒, 恒速)
+  const ROOM_SPEED = 150;        // 房内移动速度(世界单位/tick, 跟游戏时间走)
 
   function _dirty() { roomsDirty = true; }
   function loadRooms(locJson) {
@@ -116,7 +116,8 @@ const VM = (() => {
   }
 
   function update(dt) {
-    tick += dt * tps;
+    const dtick = dt * tps;                 // 本帧推进的游戏 tick 数
+    tick += dtick;
     for (const a of agents.values()) {
       if (a.state === "TRAVEL" && a.travel) {
         const tv = a.travel;
@@ -130,7 +131,7 @@ const VM = (() => {
           a.pos = { ...a.dest };
           if (a.targetEntity) a.state = "ENGAGED";
         } else {
-          const step = Math.min(d, ROOM_SPEED * dt);
+          const step = Math.min(d, ROOM_SPEED * dtick);   // 跟 tick, 不跟真实时间
           a.pos = { x: a.pos.x + dx / d * step, y: a.pos.y + dy / d * step };
         }
       }
@@ -143,7 +144,7 @@ const VM = (() => {
   }
   function signalAt(a, key) {
     if (!a.signals || !(key in a.signals.next)) return 1;
-    const span = Math.max(1, (tps || 0) * 0.1);
+    const span = Math.max(1, (tps || 0) / 60);   // 两次快照间隔(60Hz)的 tick 数
     const f = Math.max(0, Math.min(1, (tick - a.signals.at) / span));
     const pv = key in a.signals.prev ? a.signals.prev[key] : a.signals.next[key];
     return pv + (a.signals.next[key] - pv) * f;

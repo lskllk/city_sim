@@ -48,7 +48,7 @@ const Panels = (() => {
     if (!d) { panelEl.innerHTML = "<p class='dim'>（暂无状态）</p>"; return; }
     const s = d.signals || {};
     const ord = [["hunger", "饥饿"], ["thirst", "口渴"], ["energy", "精力"],
-                 ["bladder", "膀胱"]];
+                 ["bladder", "膀胱"], ["fun", "娱乐"], ["hp", "生命"]];
     const rows = ord.filter(([k]) => s[k] !== undefined)
       .map(([k, l]) => bar(l, s[k], sigColor(s[k]))).join("");
     const it = d.intent;

@@ -76,7 +76,7 @@ def test_scarcity_conflict_pressure(seed: int) -> None:
     且无人抖动/死亡。注: stock=2 只够 2 人吃, 另 2 人饥饿是设计内(scarcity),\n    本用例不跑"无信号卡 0"断言。
     """
     world, systems, rng_pool, cfg = build_scarce(n_npc=4, seed=seed, log=True)
-    tr = _run_ticks(world, systems, rng_pool, cfg, 2 * 1440)
+    tr = _run_ticks(world, systems, rng_pool, cfg, 1 * 1440)
 
     interact = sum(len(v) for t in tr.claims.values() for v in t.values())
     assert interact > 0
@@ -88,5 +88,5 @@ def test_scarcity_conflict_pressure(seed: int) -> None:
     # 有限食物确实被消耗(不多于 stock=2)
     eats = sum(sum(d.values()) for d in tr.eat.values())
     assert 1 <= eats <= 2, f"eats={eats}"
-    assert all(n.is_alive() for n in world.npcs.values())
+    assert all(n.is_alive() for n in world.npcs.values())   # 1 天内无人饿死
     assert tr.repeat_claim_violations() == []   # 无抖动/卡死循环

@@ -13,8 +13,8 @@
     selected: null, tab: "status",
     ui: { selected: null, highlight: new Set() },
     names: {}, ents: {}, rooms: {},
-    detail: null, detailFor: null, detailAt: 0,
-    stateAt: 0, evRows: [],
+    detail: null, detailFor: null,
+    evRows: [],
     querySeq: 0, pending: new Map(),
   };
   const ACT_TXT = { sleep: "睡眠", eat: "进食", toilet: "如厕", fun: "娱乐",
@@ -100,11 +100,10 @@
       if (state.evRows.length > 120) state.evRows = state.evRows.slice(-120);
       Panels.feed(state.evRows);
     }
+    if (m.speed) speedGlow(m.speed);          // 倍率选中高亮
     if (state.selected) {
-      const now = performance.now();
-      if (state.tab === "status" && now - state.stateAt > 900) fetchState();
-      else if (state.tab !== "status" && (now - state.detailAt > 2000
-             || state.detailFor !== state.selected)) fetchDetail();
+      const n = m.npcs.find(x => x.id === state.selected);
+      if (n) { state.detail = n; state.detailFor = state.selected; routeDetail(); }
     }
   }
 
@@ -115,7 +114,6 @@
       const p = e.payload || {};
       if (e.kind === "decision") {
         if (e.intent && e.intent !== "idle") FX.push("think", e.subject);
-        if (e.subject === state.selected && state.tab === "why") state.detailAt = 0;
       } else if (e.kind === "told") {
         FX.push("talk", e.subject);
         for (const r of (p.audience || [])) {
@@ -125,7 +123,6 @@
       } else if (e.kind === "intent_failed") {
         FX.push("fail", e.subject);
       }
-      if (e.subject === state.selected && state.tab !== "status") state.detailAt = 0;
     }
   }
 
@@ -172,22 +169,12 @@
     const n = state.snap && state.snap.npcs.find(x => x.id === id);
     Panels.title(`<b>${nameOf(id)}</b>${n ? " · " + (ACT_TXT[n.act_class] || n.act_class) : ""}`);
     Panels.showTab("status"); state.tab = "status";
-    fetchState(); fetchDetail();
-  }
-  async function fetchState() {
-    const d = await query({ what: "npc_state", npc_id: state.selected });
-    state.stateAt = performance.now();
-    if (d) Panels.status(d);
-  }
-  async function fetchDetail() {
-    const d = await query({ what: "npc_detail", npc_id: state.selected });
-    if (!d || state.selected !== d.id) return;
-    state.detail = d; state.detailFor = d.id; state.detailAt = performance.now();
-    routeDetail();
+    if (n) { state.detail = n; state.detailFor = id; routeDetail(); }
   }
   function routeDetail() {
-    if (!state.selected) return;
-    if (state.tab === "why") Panels.why(state.detail, nameOf);
+    if (!state.selected || !state.detail) return;
+    if (state.tab === "status") Panels.status(state.detail);
+    else if (state.tab === "why") Panels.why(state.detail, nameOf);
     else if (state.tab === "kb") Panels.kb(state.detail, nameOf);
     else if (state.tab === "events") Panels.events((state.detail.events || []).slice().reverse().map(evRow).map(r => r.html));
   }
@@ -283,9 +270,7 @@
   // ---------- 输入 ----------
   function bindUI() {
     Panels.bindHandlers({
-      onTab: t => { state.tab = t; if (state.selected) {
-        if (t === "status") { fetchState(); if (state.detail) Panels.status(state.detail); }
-        else { fetchDetail(); if (state.detailFor === state.selected) routeDetail(); } } },
+      onTab: t => { state.tab = t; if (state.selected && state.detail) routeDetail(); },
       onFilter: () => Panels.feed(state.evRows),
     });
     Panels.setWhoHandler(async (s, r, o) => {
@@ -297,7 +282,10 @@
       Panels.title(`<b>${s} ${r} ${o}</b> · ${many} 人知晓（Esc 清除）`);
     });
     document.querySelectorAll("#speedbar [data-speed]").forEach(b =>
-      b.addEventListener("click", () => send({ name: "set_speed", args: { speed: b.dataset.speed } })));
+      b.addEventListener("click", () => {
+        speedGlow(b.dataset.speed);
+        send({ name: "set_speed", args: { speed: b.dataset.speed } });
+      }));
     const rb = $("#resetBtn");
     if (rb) rb.addEventListener("click", () => {
       send({ name: "reset", args: { seed: parseInt($("#seed").value, 10) || 3,

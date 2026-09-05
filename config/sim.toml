@@ -36,3 +36,7 @@ threshold = 0.08               # 低于此分 -> idle
 
 [motion]                       # 跨地点移动(m5-rectify 13; M7 日程/距离前先入 config)
 move_ticks = 30
+
+[health]                       # 生命: 饥饿/饥渴为 0 时下降, 两者满足时回升
+hp_decay = 0.0005              # 任一为 0 时 hp 每 tick 下降
+hp_regen = 0.0005              # 两者满足时 hp 回升最大速率(×均值)

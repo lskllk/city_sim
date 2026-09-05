@@ -36,9 +36,12 @@ def test_snapshot_json_serializable_with_required_fields() -> None:
     assert isinstance(snap["npcs"], list) and snap["npcs"]
     n0 = snap["npcs"][0]
     assert {"id", "name", "loc", "activity", "signals", "active",
-            "travel", "intent", "kb"} <= set(n0)
+            "travel", "intent", "kb", "kb_counts", "events"} <= set(n0)
     assert set(SIGNALS) <= set(n0["signals"])
-    assert n0["kb"]["overlay"] >= 0 and n0["kb"]["archetype"] >= 0
+    assert isinstance(n0["kb"]["nodes"], list)
+    assert isinstance(n0["kb"]["edges"], list)
+    assert n0["kb_counts"]["overlay"] >= 0 and n0["kb_counts"]["archetype"] >= 0
+    assert isinstance(n0["events"], list)
     e0 = snap["entities"][0]
     assert {"id", "name", "loc", "tags", "stock", "icon"} <= set(e0)
 

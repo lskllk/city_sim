@@ -99,6 +99,16 @@ def build_snapshot(world, systems, cfg, speed: str,
         act = systems.interaction.active.get(pid)
         tv = systems.travel.get(pid)
         it = p.last_intent
+        used = []
+        if it is not None and it.trace.used_fact_ids and p.kb is not None:
+            used = export_trace_chain(p.kb, it.trace.used_fact_ids).get(
+                "facts", [])
+        recent = []
+        for ev in (systems.ui_events or [])[-500:]:
+            if ev.get("subject") == pid:
+                recent.append(dict(ev))
+                if len(recent) >= 50:
+                    break
         npcs.append({
             "id": pid, "name": p.name, "loc": p.location_id,
             "activity": p.current_activity,
@@ -112,8 +122,14 @@ def build_snapshot(world, systems, cfg, speed: str,
                 "depart": tv.depart_tick, "arrive": tv.arrive_tick},
             "intent": None if it is None else {
                 "kind": it.kind, "target": it.target_id,
-                "reason": it.trace.reason},
-            "kb": kb_counts(p.kb),
+                "reason": it.trace.reason,
+                "ranked": [{"id": i, "score": round(s, 4)}
+                           for i, s in it.trace.ranked],
+                "used_facts": used},
+            "kb": export_kb_json(p.kb) if p.kb is not None else
+                 {"nodes": [], "edges": []},
+            "kb_counts": kb_counts(p.kb),
+            "events": recent,
         })
     ents = [{"id": e.entity_id, "name": e.name, "loc": e.location_id,
              "tags": sorted(e.tags), "stock": e.stock,

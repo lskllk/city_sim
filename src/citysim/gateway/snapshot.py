@@ -13,10 +13,10 @@ from citysim.viz.kb_export import export_kb_json
 from citysim.viz.trace_export import export_trace_chain
 
 # 实体 tag -> emoji(不许按中文名匹配, M4 纪律)
-_ICONS = {"sleepable": "🛏", "toilet": "🚽", "container": "🧊",
+_ICONS = {"sleepable": "🛏", "toilet": "🚽",
           "edible": "🍱", "entertain": "📺", "drink": "🚰",
           "consumable": "🍽"}
-_TAG_PRIORITY = ("sleepable", "toilet", "container", "edible",
+_TAG_PRIORITY = ("sleepable", "toilet", "edible",
                  "entertain", "drink", "consumable")
 _EVENT_KINDS = ("told", "interaction_done", "intent_failed", "decision")
 
@@ -46,12 +46,12 @@ def parse_log_line(line: str) -> dict | None:
         return None
     kind = parts[0]
     if kind == "D":
-        # D tick pid intent target plan
+        # D tick pid intent target
         if len(parts) < 5:
             return None
         return {"tick": int(parts[1]), "kind": "decision",
                 "subject": parts[2], "target": parts[4],
-                "intent": parts[3], "plan": parts[5] if len(parts) > 5 else "",
+                "intent": parts[3],
                 "payload": {}}
     if kind == "E":
         # E tick ekind subject payload(k=v;k=v)
@@ -63,7 +63,7 @@ def parse_log_line(line: str) -> dict | None:
                     payload[k.strip()] = v.strip()
         return {"tick": int(parts[1]), "kind": parts[2],
                 "subject": parts[3], "target": payload.get("target", ""),
-                "intent": "", "plan": "", "payload": payload}
+                "intent": "", "payload": payload}
     return None
 
 
@@ -86,7 +86,7 @@ def act_class_of(world, systems, pid: str) -> str:
         return "drink"
     if "entertain" in t:
         return "fun"
-    if "edible" in t or "container" in t:
+    if "edible" in t:
         return "eat"
     return "idle"
 
@@ -189,7 +189,6 @@ def build_npc_detail(world, systems, pid: str) -> dict | None:
             "kind": it.kind, "target": it.target_id, "reason": it.trace.reason,
             "ranked": [{"id": i, "score": round(s, 4)}
                        for i, s in it.trace.ranked],
-            "plan": list(it.trace.plan),
             "used_facts": used},
         "kb": export_kb_json(npc.kb) if npc.kb is not None else
              {"nodes": [], "edges": []},

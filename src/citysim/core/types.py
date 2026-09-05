@@ -15,14 +15,12 @@ class EntityView:
     """NPC 视野里的一个可交互实体(世界侧不可变快照)。"""
     entity_id: str
     name: str
-    tags: frozenset[str]                  # {"edible","sleepable","toilet","container",...}
+    tags: frozenset[str]                  # {"edible","sleepable","toilet",...}
     affordances: Mapping[str, float]      # 完成后信号效果 {"hunger": +0.4}
     duration_ticks: int
     distance: float = 0.0                 # 到 NPC 的距离(M2 先全 0.0)
     claimable: bool = True                # True=当前无人占用
     stock_zero: bool = False              # True=stock==0(真空), 区别于被占用
-    provides: frozenset[str] = frozenset()  # 容器可产物类型(m5-rectify 12)
-    food_source: bool = False             # True=容器能供食(defs 或 legacy 标记)
     location_id: str = ""
 
 
@@ -48,7 +46,6 @@ class DecisionTrace:
     ranked: tuple[tuple[str, float], ...] = ()   # (entity_id, utility分) 降序
     reason: str = ""
     used_fact_ids: tuple[str, ...] = ()          # M5 前恒为 ()
-    plan: tuple[str, ...] = ()                   # GOAP 动作名序列, 无计划=()
     features: Mapping[str, float] = field(default_factory=dict)  # M8 前为 {}
 
 

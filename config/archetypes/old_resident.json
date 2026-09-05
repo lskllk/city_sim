@@ -1,5 +1,8 @@
 {
   "archetype": "old_resident",
   "personality": {"hunger": 1.0, "energy": 1.0, "fun": 0.8, "social": 1.0},
-  "knowledge": []
+  "knowledge": [
+    {"subject": "bench_1", "relation": "affords", "obj": "social", "value": 0.3, "confidence": 0.9},
+    {"subject": "bench_1", "relation": "located_at", "obj": "plaza", "confidence": 1.0}
+  ]
 }

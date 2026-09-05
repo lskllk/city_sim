@@ -13,10 +13,10 @@ from datetime import date
 from typing import TYPE_CHECKING, Any, Mapping
 
 from citysim.core.config import SIGNALS
+from citysim.npc.knowledge import KnowledgeBase
 
 if TYPE_CHECKING:  # pragma: no cover
     from citysim.core.types import Intent
-    from citysim.npc.knowledge import KnowledgeBase
 
 
 def _clamp(v: float) -> float:
@@ -105,7 +105,7 @@ class Person:
     location_id: str = ""                     # 所在 location(M3 世界侧登记)
     active_interaction_id: str | None = None  # 正在交互的实体 id(观测/仲裁)
     last_intent: "Intent | None" = None       # 最近一次决策(观测)
-    kb: "KnowledgeBase | None" = None         # M5: 该 NPC 的知识库 | None
+    kb: "KnowledgeBase" = field(default_factory=KnowledgeBase)  # M5: 每 NPC 知识库
     tell_bias: float = 1.0                     # 传闻讲话概率倍率(elm_lane 人设)
     money: float = 30.0                        # 资金(采购食品用, 经济地基)
 

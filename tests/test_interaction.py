@@ -1,10 +1,14 @@
-"""M3 DoD: claim 仲裁 / 消耗品 / 睡眠唤醒 / plan_queue(走主循环集成)。"""
+"""M3 DoD: claim 仲裁 / 消耗品 / 睡眠唤醒 / 不可打断交互(走主循环集成)。"""
 from __future__ import annotations
 
 from pathlib import Path
 
 from citysim.core.config import load_config
+from citysim.core.types import Intent
+from citysim.npc.person import Identity, Person
 from citysim.sim.loop import run_tick
+from citysim.world.interaction import ActiveInteraction, InteractionSystem
+from citysim.world.world import World
 
 from helpers import (add_entity, add_npc, is_asleep, make_runtime,
                      seed_reviews)
@@ -67,22 +71,29 @@ def test_sleep_wake() -> None:
     assert systems.interaction.active.get("npc") is None
 
 
-def test_plan_queue() -> None:
-    """GOAP 取→吃两步在世界侧连续执行, 中间不经过重评。"""
-    world, systems, rng_pool = make_runtime(CFG, log=True)
-    add_entity(world, "fridge_1", tags=("container",),
-               affordances={"provides:edible": 1.0}, duration_ticks=2,
-               stock=-1)
-    npc = add_npc(world, systems, "npc", rng_pool=rng_pool, seed=9, hunger=0.2)
-    seed_reviews(world, systems)
-    _run(world, systems, rng_pool, 90)
+def test_interruptible_false_refuses_override() -> None:
+    """interruptible=False(床) 进行中 → 拒绝被新意图顶掉, claim 不悬挂。"""
+    world = World()
+    bed = world.spawn_item_type("bed_basic", "home")
+    toilet = world.spawn_item_type("toilet", "home")
+    npc = Person(identity=Identity(person_id="p", name="p"),
+                 location_id="home")
+    world.npcs["p"] = npc
+    bed.claimed_by = "p"
+    npc.active_interaction_id = bed.entity_id
+    isys = InteractionSystem()
+    isys.active["p"] = ActiveInteraction(npc_id="p", entity_id=bed.entity_id,
+                                         remaining_ticks=480, total_ticks=480)
+    failed: list[str] = []
 
-    d_lines = [l for l in systems.log_lines if l.startswith("D\t")
-               and "\tnpc\t" in l]
-    ticks = [int(l.split("\t")[1]) for l in d_lines]
-    # 初始一次取食决策(fridge)
-    assert "fridge_1" in d_lines[0]
-    # 取(2 tick) + 吃(20 tick) 之间无任何重评; 第二次决策在吃完之后
-    assert len(ticks) >= 2
-    assert all(t >= 20 for t in ticks[1:])
-    assert npc.signals["hunger"] > 0.5           # 吃了 → 饱了
+    def _on(ev):
+        if ev.kind == "intent_failed":
+            failed.append(ev.kind)
+
+    world.bus.subscribe_log(_on)
+    ok = isys.submit(world, npc,
+                     Intent(kind="interact", target_id=toilet.entity_id))
+    assert ok is False                     # 不可打断 → 拒绝
+    assert failed == ["intent_failed"]
+    assert bed.claimed_by == "p"           # 未被顶替
+    assert isys.active["p"].entity_id == bed.entity_id

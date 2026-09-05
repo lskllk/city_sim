@@ -76,22 +76,3 @@ def test_new_item_zero_python(coffee_json) -> None:
     assert used, "咖啡机从未被使用"
     assert npc.signals["energy"] > 0.16          # energy 从 0.15 回升
     assert pend_ever                              # bladder_pending 曾 >0(膀胱负荷生效)
-
-
-def test_tv_from_json_fun_npc_watches() -> None:
-    world, systems, npc = _scene()
-    tv = world.spawn_item_type("tv", "home")
-    used: list[bool] = []
-
-    def _on(ev):
-        if ev.kind == "interaction_done" \
-                and ev.payload.get("entity") == tv.entity_id:
-            used.append(True)
-
-    world.bus.subscribe_log(_on)
-    npc.set_state(fun=0.05)
-    rng_pool = {"p": random.Random(5)}
-    for _ in range(200):
-        run_tick(world, systems, CFG, rng_pool)
-    assert used, "fun 低的 NPC 没去看电视"
-    assert npc.signals["fun"] > 0.3

@@ -37,9 +37,6 @@ def _row(world, systems, pid: str) -> str:
         rem = ai.remaining_ticks
         ent = world.entities.get(ai.entity_id)
         act = f"{act}[{ent.name if ent else ai.entity_id}剩{rem}t]"
-        plan = ai.plan_queue
-        if plan:
-            act += " plan:" + "→".join(plan)
     it = npc.last_intent
     li = f"{it.kind}" if it else "?"
     if it and it.target_id:

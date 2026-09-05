@@ -24,8 +24,7 @@ from citysim.core.types import SourceKind
 
 _ARCHETYPES_DIR = Path(__file__).resolve().parents[3] / "config" / "archetypes"
 
-_KNOWN_RELATIONS = ("contains", "sells", "located_at", "price_of", "is_a",
-                    "affords")
+_KNOWN_RELATIONS = ("located_at", "affords")
 CONF_UNKNOWN = 0.05
 # 衰减只作用于经验习得(OBSERVED/TOLD), 注入常识(INJECTED)不变
 _DECAYABLE_KINDS = ("OBSERVED", "TOLD")
@@ -63,6 +62,7 @@ class Fact:
     confidence: float
     source: Source
     tick_learned: int = 0
+    value: float = 0.0                       # affords 的数值(提供多少)
 
 
 class ArchetypeKB:
@@ -140,7 +140,8 @@ class KnowledgeBase:
 
     # --- 写入 ---------------------------------------------------------
     def _replace_or_new(self, subject: str, relation: str, obj: Any,
-                        confidence: float, source: Source, tick: int) -> Fact:
+                        confidence: float, source: Source, tick: int,
+                        value: float = 0.0) -> Fact:
         """upsert: 同键活跃 overlay 存在 → 原位替换(m5-rectify N2)。
 
         规则(来源不降级、时间才刷新):
@@ -149,6 +150,7 @@ class KnowledgeBase:
                        仅刷新 tick(再次见到/同强度强化);
           new <  old → 低置信弱消息不覆盖、不刷新(防止 TOLD 0.8 把亲眼 1.0
                        的 conf 拉低或把衰减基线延长)。
+        value 随事实一起更新(物品固有属性, 新观察到的即当前值)。
         """
         for f in self.overlay.values():
             if (f.subject == subject and f.relation == relation
@@ -158,13 +160,13 @@ class KnowledgeBase:
                 if newc > f.confidence:
                     up = Fact(fact_id=f.fact_id, subject=subject,
                               relation=relation, obj=obj, confidence=newc,
-                              source=source, tick_learned=tick)
+                              source=source, tick_learned=tick, value=value)
                     base = tick
                 elif newc == f.confidence:
                     up = Fact(fact_id=f.fact_id, subject=subject,
                               relation=relation, obj=obj,
                               confidence=f.confidence, source=f.source,
-                              tick_learned=tick)
+                              tick_learned=tick, value=value)
                     base = tick
                 else:
                     up = f                              # 弱消息: 完全不改
@@ -177,18 +179,20 @@ class KnowledgeBase:
         fid = _ovl_fact_id(subject, relation, seq)
         conf = max(0.0, min(1.0, float(confidence)))
         fact = Fact(fact_id=fid, subject=subject, relation=relation, obj=obj,
-                    confidence=conf, source=source, tick_learned=tick)
+                    confidence=conf, source=source, tick_learned=tick,
+                    value=value)
         self.overlay[fid] = fact
         self._decayed_at[fid] = tick
         return fact
 
     def learn(self, subject: str, relation: str, obj: Any,
-              confidence: float, source: Source, tick: int = 0) -> Fact:
+              confidence: float, source: Source, tick: int = 0,
+              value: float = 0.0) -> Fact:
         if relation not in _KNOWN_RELATIONS:
             raise ValueError(
                 f"未知关系 {relation!r} (已知: {_KNOWN_RELATIONS})")
         return self._replace_or_new(subject, relation, obj, confidence,
-                                    source, tick)
+                                    source, tick, value)
 
     def refute(self, fact_id: str) -> None:
         """证伪(原型/已学事实) → 进 tombstones, 并从 overlay 删同名学习。"""
@@ -218,7 +222,7 @@ class KnowledgeBase:
                     fact_id=f.fact_id, subject=f.subject,
                     relation=f.relation, obj=f.obj,
                     confidence=c, source=f.source,
-                    tick_learned=f.tick_learned)
+                    tick_learned=f.tick_learned, value=f.value)
                 self._decayed_at[fid] = now_tick
 
     # --- 追溯 ---------------------------------------------------------
@@ -272,7 +276,8 @@ def _facts_from(data: dict) -> tuple[str, tuple[Fact, ...]]:
         Fact(fact_id=_arch_fact_id(k["subject"], k["relation"], i + 1),
              subject=k["subject"], relation=k["relation"], obj=k["obj"],
              confidence=float(k.get("confidence", 1.0)),
-             source=Source(kind="INJECTED", ref=(name,)))
+             source=Source(kind="INJECTED", ref=(name,)),
+             value=float(k.get("value", 0.0)))
         for i, k in enumerate(data.get("knowledge", [])))
     return name, facts
 

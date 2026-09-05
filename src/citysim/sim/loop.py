@@ -10,7 +10,6 @@ from typing import Any
 
 from citysim.core.config import SimConfig
 from citysim.npc.brain import arousal, decide, review_interval_ticks
-from citysim.npc.goap import default_actions
 from citysim.npc.knowledge import CONF_UNKNOWN, Source
 from citysim.npc.person import apply_metabolism
 from citysim.sim.pulses import apply as apply_pulses
@@ -53,7 +52,6 @@ class Systems:
     log_lines: list[str] | None = None   # 录制/回放(非 None 即开启)
     ui_events: list = field(default_factory=list)  # 结构化事件(UI/网关消费)
     tell_p: float = 0.0                  # 传闻概率(M5; 0=关闭)
-    actions: tuple | None = None         # GOAP 动作库(装配期注入, m5-rectify 14)
     log_attached: bool = False           # attach_replay 幂等标记
     # elm_lane: 距离矩阵(key "a|b"->ticks) 与 归一化场景脉冲(见 sim/pulses)
     travel_costs: dict[str, int] | None = None
@@ -70,15 +68,11 @@ def _travel_cost(systems: "Systems", cfg: SimConfig, a: str, b: str) -> int:
     return cfg.move_ticks
 
 
-def make_systems(*, log: bool = False, tell_p: float = 0.0,
-                 actions: tuple | None = None) -> Systems:
+def make_systems(*, log: bool = False, tell_p: float = 0.0) -> Systems:
     sch = TimingWheel()
-    if actions is None:
-        actions, _ = default_actions()   # 装配期加载一次(测试可注入临时动作库)
     return Systems(scheduler=sch,
-                   interaction=InteractionSystem(scheduler=sch, actions=actions),
-                   log_lines=[] if log else None, tell_p=tell_p,
-                   actions=actions)
+                   interaction=InteractionSystem(scheduler=sch),
+                   log_lines=[] if log else None, tell_p=tell_p)
 
 
 def attach_replay(world: World, systems: Systems) -> None:
@@ -141,14 +135,14 @@ def _gossip_due(world: World, systems: Systems, rng_pool: dict[str, Any],
     m5-rectify 06: 接收方 TOLD 来源携带起源 fact 引用 (speaker, f:origin)。
     """
     p = systems.tell_p * getattr(speaker_npc, "tell_bias", 1.0)
-    if p <= 0.0 or speaker_npc.kb is None:
+    if p <= 0.0:
         return
     rng = rng_pool[speaker_id]
     if rng.random() >= p:
         return
     # 先找同地可接收的听众(是否"已知"交给选样判定)
     ids = [pid for pid, npc in world.npcs.items()
-           if pid != speaker_id and npc.kb is not None and npc.is_alive()
+           if pid != speaker_id and npc.is_alive()
            and npc.location_id == speaker_npc.location_id
            and pid not in systems.interaction.active
            and pid not in systems.travel]
@@ -172,8 +166,7 @@ def _gossip_due(world: World, systems: Systems, rng_pool: dict[str, Any],
                     source=Source(kind="TOLD",
                                   ref=(speaker_id, f"f:{fact.fact_id}")),
                     tick=world.clock_tick)
-    _REL_ZH = {"contains": "里有", "sells": "在卖", "located_at": "在",
-               "price_of": "定价为", "is_a": "是", "affords": "可提供"}
+    _REL_ZH = {"located_at": "在", "affords": "可提供"}
 
     def _term(x: str) -> str:      # 服务端生成人话(canvasrecode 9: short)
         e = world.entities.get(x)
@@ -224,25 +217,22 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
         if npc_id in systems.travel:
             npc.location_id = systems.travel.pop(npc_id).to_loc
         percept = build_percept(world, npc)
-        kb = getattr(npc, "kb", None)
-        if kb is not None:
-            consolidate_observations(npc, percept, kb,
-                                     tick=world.clock_tick)  # 感知 → 知识
-        intent = decide(percept, npc.signals, npc.personality, kb=kb,
-                        cfg=cfg, rng=rng_pool[npc_id], actions=systems.actions)
+        consolidate_observations(npc, percept, npc.kb,
+                                 tick=world.clock_tick)  # 感知 → 知识
+        intent = decide(percept, npc.signals, npc.personality, kb=npc.kb,
+                        cfg=cfg, rng=rng_pool[npc_id])
         npc.last_intent = intent
         # M5 传闻: 仅本次到点且算成 idle 者才可能开口(m5-rectify 05, O(due))
         if intent.kind == "idle":
             _gossip_due(world, systems, rng_pool, npc_id, npc)
         if systems.log_lines is not None:
-            plan = ",".join(intent.trace.plan)
             systems.log_lines.append(
                 f"D\t{world.clock_tick}\t{npc_id}\t{intent.kind}\t"
-                f"{intent.target_id or ''}\t{plan}")
+                f"{intent.target_id or ''}")
             systems.ui_events.append({
                 "tick": world.clock_tick, "kind": "decision",
                 "subject": npc_id, "intent": intent.kind,
-                "target": intent.target_id or "", "plan": plan,
+                "target": intent.target_id or "",
                 "payload": {},
             })
         decisions.append((npc_id, npc, intent))
@@ -268,11 +258,8 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
             a = arousal(npc.hour_f, npc.signals.get("energy", 0.5),
                         npc.signals.get("hunger", 0.5))
             systems.scheduler.schedule(npc_id, review_interval_ticks(a, cfg))
-    # 5.5 M5 遗忘: 每游戏日 0 点对带 KB 的 NPC 批量 decay(design 553;
-    #    kb=None 不触发 → M4 golden 平价保持)。
+    # 5.5 M5 遗忘: 每游戏日 0 点对全部 NPC 批量 decay。
     if world.clock_tick % cfg.ticks_per_day == 0:
         for npc in world.npcs.values():
-            kb = getattr(npc, "kb", None)
-            if kb is not None:
-                kb.decay(now_tick=world.clock_tick,
+            npc.kb.decay(now_tick=world.clock_tick,
                          half_life_ticks=cfg.half_life_ticks)

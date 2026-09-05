@@ -26,25 +26,25 @@
   "entities": [
     {"type": "bed_basic",       "at": "apt_101", "id": "bed_wang"},
     {"type": "toilet",          "at": "apt_101", "id": "wc_101"},
-    {"type": "fridge",          "at": "apt_101", "id": "fridge_wang", "stock": 3},
+    {"type": "meal_simple",     "at": "apt_101", "id": "food_wang", "stock": 3},
     {"type": "water_dispenser", "at": "apt_101", "id": "water_101"},
     {"type": "tv",              "at": "apt_101", "id": "tv_wang"},
 
     {"type": "bed_basic",       "at": "apt_102", "id": "bed_li"},
     {"type": "toilet",          "at": "apt_102", "id": "wc_102"},
-    {"type": "fridge",          "at": "apt_102", "id": "fridge_li", "stock": 0},
+    {"type": "meal_simple",     "at": "apt_102", "id": "food_li", "stock": 0},
     {"type": "water_dispenser", "at": "apt_102", "id": "water_102"},
 
     {"type": "bed_basic",       "at": "apt_103", "id": "bed_zhang"},
     {"type": "toilet",          "at": "apt_103", "id": "wc_103"},
-    {"type": "fridge",          "at": "apt_103", "id": "fridge_zhang", "stock": 2},
+    {"type": "meal_simple",     "at": "apt_103", "id": "food_zhang", "stock": 2},
     {"type": "water_dispenser", "at": "apt_103", "id": "water_103"},
 
     {"type": "bench",           "at": "plaza", "id": "bench_1"},
     {"type": "bench",           "at": "plaza", "id": "bench_2"},
     {"type": "water_dispenser", "at": "plaza", "id": "water_plaza"},
 
-    {"type": "market_shelf", "at": "market", "id": "market_1", "stock": 200,
+    {"type": "meal_simple", "at": "market", "id": "market_1", "stock": 200,
      "price": 4},
     {"type": "apple",        "at": "market", "id": "apple_1", "stock": 8},
     {"type": "pear",         "at": "market", "id": "pear_1", "stock": 8},
@@ -63,7 +63,7 @@
      "personality": {"hunger": 1.0, "energy": 1.0, "fun": 0.8},
      "init": {"energy": 0.55, "hunger": 0.45, "thirst": 0.6, "bladder": 0.85, "fun": 0.5},
      "kb_extra": [
-       {"subject": "market_1", "relation": "contains", "obj": "edible", "confidence": 1.0},
+       {"subject": "market_1", "relation": "affords", "obj": "hunger", "value": 0.5, "confidence": 1.0},
        {"subject": "market_1", "relation": "located_at", "obj": "market", "confidence": 1.0}
      ]},
 
@@ -71,7 +71,7 @@
      "personality": {"hunger": 1.1, "energy": 1.0},
      "init": {"energy": 0.6, "hunger": 0.35, "thirst": 0.5, "bladder": 0.8, "fun": 0.6}},
 
-    {"id": "npc_zhang", "name": "张三", "home": "apt_103", "archetype": "night_owl",
+    {"id": "npc_zhang", "name": "张三", "home": "apt_103", "archetype": "old_resident",
      "personality": {"energy": 0.65, "fun": 1.6, "hunger": 1.0},
      "init": {"energy": 0.85, "hunger": 0.5, "fun": 0.25}}
   ]

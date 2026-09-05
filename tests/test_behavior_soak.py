@@ -7,7 +7,7 @@
   - intent_failed 占比 < 15%
   - 无"同一目标 60t 内重复 claim >5 次"抖动循环
   - 实体数不泄漏: 运行后 <= 初始 + K(疑点 1)
-  - 稀缺场景 4NPC x 1厕所 x 1冰箱(stock=2): claim 冲突被压到 5%~40%(疑点 2)
+  - 稀缺场景 4NPC x 1厕所 x 1餐盘(stock=2): claim 冲突被压到 5%~40%(疑点 2)
 """
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def test_daily_rhythm_soak(seed: int) -> None:
 
 @pytest.mark.parametrize("seed", [1, 3, 5])
 def test_scarcity_conflict_pressure(seed: int) -> None:
-    """疑点 2: 4 NPC 抢 1 厕所 + 1 冰箱(stock=2), 跑 2 天。
+    """疑点 2: 4 NPC 抢 1 厕所 + 1 餐盘(stock=2), 跑 2 天。
 
     claim 冲突/失败重选链路必须被真实压到: 失败占"交互尝试"的 5%~40%;
     且无人抖动/死亡。注: stock=2 只够 2 人吃, 另 2 人饥饿是设计内(scarcity),\n    本用例不跑"无信号卡 0"断言。

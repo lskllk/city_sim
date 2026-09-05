@@ -1,6 +1,7 @@
-"""M2 DoD: 契约层 + decide() 纯函数。
+"""M2 DoD: 契约层 + decide() 纯函数(KB 打分)。
 
-覆盖: 纯函数性 / 饿挑 edible / 满足即 idle / GOAP 容器取食 / 平局确定性。
+覆盖: 纯函数性 / 饿挑 edible / 满足即 idle / 同地点优先 / move_to 异地 /
+平局确定性 / 不可 claim 忽略。决策只来自 KB(affords + located_at)。
 """
 from __future__ import annotations
 
@@ -8,11 +9,10 @@ import copy
 import random
 from pathlib import Path
 
-import pytest
-
 from citysim.core.config import load_config
-from citysim.core.types import EntityView, Intent, Percept
+from citysim.core.types import EntityView, Percept
 from citysim.npc.brain import decide
+from citysim.npc.knowledge import KnowledgeBase, Source
 from citysim.npc.person import full_signals
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,8 +20,7 @@ CFG = load_config(ROOT / "config" / "sim.toml")
 
 
 def _ev(entity_id: str, tags=(), affordances=None, claimable=True,
-        duration_ticks: int = 30, distance: float = 0.0,
-        food_source: bool = False) -> EntityView:
+        duration_ticks: int = 30, distance: float = 0.0) -> EntityView:
     return EntityView(
         entity_id=entity_id,
         name=entity_id,
@@ -30,13 +29,13 @@ def _ev(entity_id: str, tags=(), affordances=None, claimable=True,
         duration_ticks=duration_ticks,
         distance=distance,
         claimable=claimable,
-        food_source=food_source,
         location_id="loc",
     )
 
 
-def _percept(*visible) -> Percept:
-    return Percept(tick=0, hour_f=12.0, location_id="loc", visible=tuple(visible))
+def _percept(*visible, location: str = "loc") -> Percept:
+    return Percept(tick=0, hour_f=12.0, location_id=location,
+                   visible=tuple(visible))
 
 
 def _signals(**kw) -> dict[str, float]:
@@ -45,77 +44,98 @@ def _signals(**kw) -> dict[str, float]:
     return s
 
 
+def _kb(facts: list[tuple]) -> KnowledgeBase:
+    """facts: [(subject, relation, obj, value), ...] 全部 INJECTED conf=1.0。"""
+    kb = KnowledgeBase()
+    for subj, rel, obj, val in facts:
+        kb.learn(subject=subj, relation=rel, obj=obj, value=val,
+                 confidence=1.0, source=Source(kind="INJECTED"), tick=0)
+    return kb
+
+
 # --- 纯函数性 ---------------------------------------------------------
 def test_pure_same_input_same_output_no_mutation() -> None:
     sig = _signals(hunger=0.2)
-    perc = _percept(_ev("fridge", tags=("container",),
-                        affordances={"provides:edible": 1.0},
-                        food_source=True))
+    kb = _kb([("rice_1", "affords", "hunger", 0.4),
+              ("rice_1", "located_at", "loc", 0.0)])
+    perc = _percept(_ev("rice_1", tags=("edible",),
+                        affordances={"hunger": 0.4}))
     sig_before = copy.deepcopy(sig)
-    i1 = decide(perc, sig, {}, None, CFG, random.Random(3))
-    i2 = decide(perc, sig, {}, None, CFG, random.Random(3))
+    i1 = decide(perc, sig, {}, kb, CFG, random.Random(3))
+    i2 = decide(perc, sig, {}, kb, CFG, random.Random(3))
     assert i1 == i2
     assert sig == sig_before  # 入参未被修改
 
 
 # --- 行为 -------------------------------------------------------------
 def test_hungry_picks_edible() -> None:
+    kb = _kb([("rice_1", "affords", "hunger", 0.4),
+              ("rice_1", "located_at", "loc", 0.0)])
     edible = _ev("rice_1", tags=("edible", "consumable"),
                  affordances={"hunger": 0.4, "thirst": 0.1})
     intent = decide(_percept(edible), _signals(hunger=0.2), {},
-                    None, CFG, random.Random(0))
+                    kb, CFG, random.Random(0))
     assert intent.kind == "interact"
     assert intent.target_id == "rice_1"
 
 
 def test_idle_when_satisfied() -> None:
-    edible = _ev("tv_1", tags=("fun",), affordances={"fun": 0.3})
-    intent = decide(_percept(edible), _signals(), {}, None, CFG, random.Random(0))
+    kb = _kb([("tv_1", "affords", "fun", 0.3),
+              ("tv_1", "located_at", "loc", 0.0)])
+    tv = _ev("tv_1", tags=("entertain",), affordances={"fun": 0.3})
+    intent = decide(_percept(tv), _signals(), {}, kb, CFG, random.Random(0))
     assert intent.kind == "idle"
     assert intent.target_id is None
 
 
-def test_goap_container() -> None:
-    """无散落 edible、有供食容器(food_source) → 取→吃计划。"""
-    fridge = _ev("fridge_1", tags=("container",),
-                 affordances={"provides:edible": 1.0}, food_source=True)
-    intent = decide(_percept(fridge), _signals(hunger=0.2), {},
-                    None, CFG, random.Random(0))
-    assert intent.kind == "interact"
-    assert intent.target_id == "fridge_1"
-    # M4: GOAP 动作库 JSON 化后动作名为 take_from_container/eat(原 take_food/eat)
-    assert intent.trace.plan == ("take_from_container", "eat")
+def test_move_to_remote_location() -> None:
+    """视野无食物, KB 说 market 有食物 → move_to。"""
+    kb = _kb([("market_1", "affords", "hunger", 0.5),
+              ("market_1", "located_at", "market", 0.0)])
+    intent = decide(_percept(), _signals(hunger=0.2), {},
+                    kb, CFG, random.Random(0))
+    assert intent.kind == "move_to"
+    assert intent.target_id == "market"
 
 
-def test_loose_edible_beats_container_goap() -> None:
-    """有散落 edible 时不再走容器取食计划(直接吃)。"""
+def test_local_beats_remote() -> None:
+    """同地点的候选优先于分数更高的异地候选。"""
+    kb = _kb([
+        ("market_1", "affords", "hunger", 0.5),
+        ("market_1", "located_at", "market", 0.0),
+        ("rice_1", "affords", "hunger", 0.4),
+        ("rice_1", "located_at", "loc", 0.0),
+    ])
     rice = _ev("rice_1", tags=("edible",), affordances={"hunger": 0.4})
-    fridge = _ev("fridge_1", tags=("container",),
-                 affordances={"provides:edible": 1.0}, food_source=True)
-    intent = decide(_percept(rice, fridge), _signals(hunger=0.2), {},
-                    None, CFG, random.Random(0))
+    intent = decide(_percept(rice), _signals(hunger=0.2), {},
+                    kb, CFG, random.Random(0))
     assert intent.kind == "interact"
     assert intent.target_id == "rice_1"
-    assert intent.trace.plan == ()
 
 
 # --- 确定性 -----------------------------------------------------------
 def test_tie_break_deterministic() -> None:
-    a = _ev("a_1", tags=("x",), affordances={"hunger": 0.4})
-    b = _ev("b_1", tags=("x",), affordances={"hunger": 0.4})
+    kb = _kb([
+        ("a_1", "affords", "hunger", 0.4), ("a_1", "located_at", "loc", 0.0),
+        ("b_1", "affords", "hunger", 0.4), ("b_1", "located_at", "loc", 0.0),
+    ])
+    a = _ev("a_1", affordances={"hunger": 0.4})
+    b = _ev("b_1", affordances={"hunger": 0.4})
     picks = []
     for _ in range(2):
         rng = random.Random(42)
         intent = decide(_percept(a, b), _signals(hunger=0.2), {},
-                        None, CFG, rng)
+                        kb, CFG, rng)
         picks.append(intent.target_id)
     assert picks[0] == picks[1]
     assert picks[0] in ("a_1", "b_1")
 
 
 def test_not_claimable_is_ignored() -> None:
+    kb = _kb([("bed_1", "affords", "energy", 0.7),
+              ("bed_1", "located_at", "loc", 0.0)])
     occupied = _ev("bed_1", tags=("sleepable",), claimable=False,
                    affordances={"energy": 0.7})
     intent = decide(_percept(occupied), _signals(energy=0.1), {},
-                    None, CFG, random.Random(0))
+                    kb, CFG, random.Random(0))
     assert intent.kind == "idle"

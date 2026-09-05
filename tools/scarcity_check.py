@@ -1,4 +1,4 @@
-"""scarcity_check —— 稀缺场景 4NPC×1厕所×1冰箱(stock=2) 指标扫描(校准用)。"""
+"""scarcity_check —— 稀缺场景 4NPC×1厕所×1餐盘(stock=2) 指标扫描(校准用)。"""
 from __future__ import annotations
 
 import sys
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     ap.add_argument("--to", dest="t", type=int, default=6)
     ap.add_argument("--days", type=int, default=2)
     a = ap.parse_args()
-    print(f"4NPC x 1厕所 x 1冰箱(stock=2), {a.days} 天")
+    print(f"4NPC x 1厕所 x 1餐盘(stock=2), {a.days} 天")
     print(f"{'seed':>4} {'fails':>5} {'dec':>5} {'fail/dec':>8} "
           f"{'interact':>8} {'fail/int':>9} alive jit stuck0 eats")
     for s in range(a.f, a.t + 1):

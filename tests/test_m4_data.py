@@ -9,14 +9,17 @@
 """
 from __future__ import annotations
 
+import json
 import random
 from pathlib import Path
+
+import pytest
 
 from citysim.core.config import load_config
 from citysim.npc.person import Identity, Person
 from citysim.sim.loop import attach_replay, make_systems, run_tick
 from citysim.world.effects import OPS, apply_effects
-from citysim.world.itemdefs import load_item_defs
+from citysim.world.itemdefs import ConfigError, load_item_defs
 from citysim.world.world import World, entity_from_def
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,17 +27,16 @@ CFG = load_config(ROOT / "config" / "sim.toml")
 ITEMS_DIR = ROOT / "config" / "items"
 SRC = ROOT / "src" / "citysim"
 
-CHINESE_ITEM_NAMES = ["马桶", "简餐", "电视", "饮水机", "冰箱", "床"]
+CHINESE_ITEM_NAMES = ["马桶", "简餐", "电视", "饮水机", "床"]
 
 
 # --- 物品定义加载 -----------------------------------------------------
 def test_loads_all_item_defs() -> None:
     defs = load_item_defs(ITEMS_DIR)
     assert {"tv", "water_dispenser", "bed_basic", "toilet",
-            "fridge", "meal_simple"} <= set(defs)
+            "meal_simple"} <= set(defs)
     assert "edible" in defs["meal_simple"].tags
     assert defs["toilet"].on_complete[0]["op"] == "set_signal"
-    assert defs["fridge"].provides == ("meal_simple",)
     assert defs["water_dispenser"].stock == -1     # 无限饮水机
     assert defs["tv"].affordances["fun"] == 0.4
     assert defs["water_dispenser"].affordances["thirst"] == 0.6
@@ -44,10 +46,8 @@ def test_entity_from_def_sets_on_complete_and_marker() -> None:
     defs = load_item_defs(ITEMS_DIR)
     toilet = entity_from_def(defs["toilet"], "home")
     assert toilet.on_complete and "toilet" in toilet.tags
-    fridge = entity_from_def(defs["fridge"], "home")
-    assert fridge.provides == ["meal_simple"]
-    # m5-rectify 12: def 实体不再往 affordances 塞 provides:edible 假键
-    assert "provides:edible" not in fridge.affordances
+    meal = entity_from_def(defs["meal_simple"], "home")
+    assert "edible" in meal.tags
 
 
 # --- effects op 表 ----------------------------------------------------
@@ -138,14 +138,49 @@ def test_npc_drinks_water_from_json() -> None:
     assert npc.signals["thirst"] > 0.6            # 喝饱
 
 
-def test_fridge_chain_produces_meal_from_json() -> None:
-    """JSON 冰箱(provides: meal_simple): 取→吃链产出的餐来自物品定义而非代码。"""
-    world, systems, rng_pool, npc = _npc_scene("fridge", hunger=0.2)
-    for _ in range(90):
-        run_tick(world, systems, CFG, rng_pool)
-    assert npc.signals["hunger"] > 0.5            # 吃到 JSON 简餐 → 饱了
-    assert not any("edible" in e.tags and e.stock == 0
-                   for e in world.entities.values())  # 无吃完残留(无泄漏)
+# --- 物品定义校验(testm4 A 组, 原 test_item_defs) ---------------------
+EXPECTED_ITEMS = {"bed_basic", "toilet", "meal_simple",
+                  "water_dispenser", "tv"}
+
+
+def test_load_all_item_defs_from_dir() -> None:
+    defs = load_item_defs(ITEMS_DIR)
+    assert EXPECTED_ITEMS <= set(defs)
+
+
+def test_bad_signal_key_rejected(tmp_path: Path) -> None:
+    (tmp_path / "bad.json").write_text(
+        json.dumps({"item_type": "bad", "duration_ticks": 5,
+                    "affordances": {"mana": 0.5}}),
+        encoding="utf-8")
+    with pytest.raises(ConfigError, match="bad.json"):
+        load_item_defs(tmp_path)
+
+
+def test_bad_op_rejected(tmp_path: Path) -> None:
+    (tmp_path / "bad.json").write_text(
+        json.dumps({"item_type": "bad", "duration_ticks": 5,
+                    "on_complete": [{"op": "nope", "signal": "hunger"}]}),
+        encoding="utf-8")
+    with pytest.raises(ConfigError, match="bad.json"):
+        load_item_defs(tmp_path)
+
+
+def test_bad_wake_condition_rejected(tmp_path: Path) -> None:
+    (tmp_path / "bad.json").write_text(
+        json.dumps({"item_type": "bad", "duration_ticks": 5,
+                    "wake_condition": "energy>0.99"}),
+        encoding="utf-8")
+    with pytest.raises(ConfigError, match="bad.json"):
+        load_item_defs(tmp_path)
+
+
+def test_bad_duration_rejected(tmp_path: Path) -> None:
+    (tmp_path / "bad.json").write_text(
+        json.dumps({"item_type": "bad", "duration_ticks": 0}),
+        encoding="utf-8")
+    with pytest.raises(ConfigError, match="bad.json"):
+        load_item_defs(tmp_path)
 
 
 # --- grep 硬编码检查 --------------------------------------------------

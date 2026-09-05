@@ -77,7 +77,8 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
             p.kb.learn(subject=f["subject"], relation=f["relation"],
                        obj=f["obj"], confidence=float(f.get("confidence", 1.0)),
                        source=Source(kind=f.get("kind", "INJECTED"),
-                                     ref=("scn",)), tick=0)
+                                     ref=("scn",)), tick=0,
+                       value=float(f.get("value", 0.0)))
         world.npcs[pid] = p
         rng_pool[pid] = random.Random(seed * 100 + idx)
         systems.scheduler.schedule(pid, 1, now=0)

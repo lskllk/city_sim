@@ -28,7 +28,6 @@ class Entity:
     wake_condition: str | None = None     # "signal>=value"(用正则解析, 禁 eval)
     on_start: list[dict] = field(default_factory=list)       # M4 数据化效果
     on_complete: list[dict] = field(default_factory=list)    # M4 数据化效果
-    provides: list[str] = field(default_factory=list)        # 容器可产物品类型
     # elm_lane 开放时段: None=全天; []=永久关闭; [[start,end],...]分钟-of-day
     open_hours: list | None = None
 
@@ -70,14 +69,6 @@ class Entity:
     def is_sleepable(self) -> bool:
         return "sleepable" in self.tags
 
-    def provides_edible(self) -> bool:
-        """容器是否供食: 走 provides 列表(defs 判定); legacy 手工容器看假键。"""
-        if self.provides:
-            defs = load_item_defs()
-            return any(p in defs and "edible" in defs[p].tags
-                       for p in self.provides)
-        return self.affordances.get("provides:edible", 0.0) > 0
-
     def claimable_by(self, npc_id: str | None) -> bool:
         return (self.claimed_by is None or self.claimed_by == npc_id) \
             and self.stock != 0
@@ -87,15 +78,13 @@ class Entity:
 # 物品定义 -> 真实体(M4: 从 config/items/*.json 生成, 零硬编码)
 # ----------------------------------------------------------------------
 def entity_from_def(d: ItemDef, location_id: str) -> Entity:
-    """由 ItemDef 建一个可变 Entity(m5-rectify 12: 不再往 affordances 塞假键,
-    供食语义由 provides(defs 判定)承载, 感知/决策读 EntityView.food_source)。"""
+    """由 ItemDef 建一个可变 Entity。"""
     return Entity(
         entity_id="", name=d.name, tags=set(d.tags),
         affordances=dict(d.affordances), duration_ticks=d.duration_ticks,
         location_id=location_id, stock=d.stock, attrs=dict(d.attrs),
         interruptible=d.interruptible, wake_condition=d.wake_condition,
         on_start=list(d.on_start), on_complete=list(d.on_complete),
-        provides=list(d.provides),
     )
 
 

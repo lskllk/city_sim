@@ -1,6 +1,6 @@
 """demo_scene —— 供观察器与 soak 测试共用的可复现 demo 世界。
 
-一座房子(home): 冰箱(无限产餐, GOAP 取→吃链) + 床(睡眠) + 饮水机(补水) +
+一座房子(home): 餐台/散落食物(直接吃) + 床(睡眠) + 饮水机(补水) +
 马桶(清膀胱)。NPC 同 location, 靠 claim 仲裁竞争。
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ from citysim.world.world import Entity, World
 
 ROOT = Path(__file__).resolve().parents[1]
 CFG = load_config(ROOT / "config" / "sim.toml")
-WORKER_ARCH = ROOT / "config" / "archetypes" / "worker.json"
+RESIDENT_ARCH = ROOT / "config" / "archetypes" / "old_resident.json"
 
 DEFAULT_NAMES = ["王二", "李四", "张三", "赵五", "钱六",
                  "孙七", "周八", "吴九", "郑十", "陈一"]
@@ -50,7 +50,7 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
                noise: float = 0.0):
     """搭一座可复现的 demo 房子。返回 (world, systems, rng_pool, cfg)。
 
-    kb_mode: off=None(等价 M4 golden) | archetype_only | full(均附 worker 原型,
+    kb_mode: off=None(等价 M4 golden) | archetype_only | full(均附 old_resident 原型,
     观察落知识由主循环负责)。noise: 初始信号扰动幅度(破同相位, 供传播测试)。
     """
     world = World()
@@ -60,8 +60,6 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
     rng_pool: dict[str, random.Random] = {}
 
     # ---- 家具/资源 ------------------------------------------------
-    _entity(world, "fridge_1", "冰箱", {"container"},
-            {"provides:edible": 1.0}, duration_ticks=2, stock=-1)
     # 常备餐台(无限 loose edible): 少量多餐(~8h 一次), 保证任意 24h 吃 2~4 次
     for i in range(max(2, n_npc // 2)):
         _entity(world, f"plate_{i}", "餐台", {"edible", "consumable"},
@@ -85,7 +83,7 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
     names = names or DEFAULT_NAMES
     arch = None
     if kb_mode != "off":
-        _, arch = load_archetype(WORKER_ARCH)
+        _, arch = load_archetype(RESIDENT_ARCH)
     for i in range(n_npc):
         pid = f"npc_{i:02d}"
         r = random.Random(seed * 100 + i)
@@ -113,9 +111,9 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
 
 def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
                  names: list[str] | None = None):
-    """稀缺场景(testM0~M3 疑点 2): 4 NPC 抢 1 厕所 + 1 冰箱(stock=2, 有限)。
+    """稀缺场景(testM0~M3 疑点 2): 4 NPC 抢 1 厕所 + 1 餐盘(stock=2, 有限)。
 
-    床/水按人数足额(避免无关卡点), 把竞争集中在 厕所/冰箱 —— 让 claim 冲突与
+    床/水按人数足额(避免无关卡点), 把竞争集中在 厕所/餐盘 —— 让 claim 冲突与
     失败重选路径被真实压到。NPC 同初始状态 → 需求同步 → 高并发争抢。
     """
     world = World()
@@ -124,8 +122,11 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
         attach_replay(world, systems)
     rng_pool: dict[str, random.Random] = {}
 
-    _entity(world, "fridge_1", "冰箱", {"container"},
-            {"provides:edible": 1.0}, duration_ticks=2, stock=2)
+    # 稀缺食物: 散落餐盘(stock=2, 有限) —— 直接吃, 竞争焦点之一
+    _entity(world, "food_1", "餐盘", {"edible", "consumable"},
+            {"hunger": 0.35}, duration_ticks=15, stock=2,
+            on_start=[{"op": "add_pending",
+                       "field": "bladder_pending", "amount": 0.3}])
     _entity(world, "toilet_1", "马桶", {"toilet"},
             {"bladder": 0.6, "comfort": 0.05}, duration_ticks=5,
             on_complete=TOILET_ON_COMPLETE)

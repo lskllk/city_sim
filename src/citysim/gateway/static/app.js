@@ -152,6 +152,8 @@
       }
       case "interaction_done":
         return { kind: "interaction_done", html: `${base} ✓ <b>${nameOf(e.subject)}</b> 完成 ${objOf(e.target || p.entity)}` };
+      case "npc_died":
+        return { kind: "npc_died", html: `${base} 💀 <b>${nameOf(e.subject)}</b> 死亡` };
       default:
         return { kind: e.kind, html: `${base} ${e.kind} ${nameOf(e.subject)}` };
     }

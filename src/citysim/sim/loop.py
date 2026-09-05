@@ -126,6 +126,19 @@ def _apply_hp(npc, cfg: SimConfig) -> None:
         npc.signals["hp"] = min(1.0, hp + cfg.hp_regen * rate)
 
 
+def _kill(world: World, systems: Systems, pid: str) -> None:
+    """NPC 死亡: 清残留 → 从世界销毁 → 发布死亡事件(日志记录)。"""
+    npc = world.npcs.get(pid)
+    if npc is None:
+        return
+    systems.interaction.release_active(world, pid)   # 清 claim
+    systems.travel.pop(pid, None)                    # 清旅行
+    world.npcs.pop(pid, None)                        # 从世界销毁
+    world.bus.publish(world.bus.make(
+        world.clock_tick, "npc_died", pid,
+        {"name": npc.name, "loc": npc.location_id}))
+
+
 def _pick_tell_fact(kb, rng, interesting=None):
     """传闻选样: overlay 非注入事实按 confidence 加权随机(m5-rectify 05)。
 
@@ -211,6 +224,7 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
                      cfg.ticks_per_day)
 
     # 1. 代谢(全体活着的 NPC; 睡眠冻结精力, 忙碌冻结娱乐——无聊才降 fun)
+    died: list[str] = []
     for pid, npc in world.npcs.items():
         npc.hour_f = hour
         if npc.is_alive():
@@ -223,6 +237,10 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
                              personality_mul=npc.personality,
                              activity_mul=amul or None)
             _apply_hp(npc, cfg)
+            if not npc.is_alive():
+                died.append(pid)
+    for pid in died:
+        _kill(world, systems, pid)             # 死亡销毁 + 日志
     # 2. 排泄转化
     for npc in world.npcs.values():
         _step_elimination(npc, cfg)

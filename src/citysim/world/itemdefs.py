@@ -48,6 +48,7 @@ class ItemDef:
     on_complete: tuple[Mapping[str, Any], ...] = ()
     attrs: Mapping[str, Any] = field(default_factory=dict)
     stock: int = 1
+    price: float = 0.0
 
 
 def _parse(data: dict) -> ItemDef:
@@ -63,6 +64,7 @@ def _parse(data: dict) -> ItemDef:
         on_complete=tuple(dict(x) for x in data.get("on_complete", [])),
         attrs=dict(data.get("attrs", {})),
         stock=int(data.get("stock", 1)),
+        price=float(data.get("price", 0.0)),
     )
 
 

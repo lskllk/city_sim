@@ -7,5 +7,6 @@
   "on_start": [],
   "on_complete": [],
   "attrs": {},
-  "stock": 1
+  "stock": 1,
+  "price": 60
 }

@@ -24,7 +24,7 @@ from citysim.core.types import SourceKind
 
 _ARCHETYPES_DIR = Path(__file__).resolve().parents[3] / "config" / "archetypes"
 
-_KNOWN_RELATIONS = ("located_at", "affords")
+_KNOWN_RELATIONS = ("located_at", "affords", "price_of")
 CONF_UNKNOWN = 0.05
 # 衰减只作用于经验习得(OBSERVED/TOLD), 注入常识(INJECTED)不变
 _DECAYABLE_KINDS = ("OBSERVED", "TOLD")

@@ -9,6 +9,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from citysim.core.config import SimConfig
+from citysim.core.types import (
+    Buy,
+    Idle,
+    Interact,
+    MoveTo,
+    intent_kind,
+    intent_target,
+)
 from citysim.npc.brain import arousal, decide, review_interval_ticks
 from citysim.npc.knowledge import CONF_UNKNOWN, Source
 from citysim.npc.person import apply_metabolism
@@ -212,6 +220,40 @@ def _gossip_due(world: World, systems: Systems, rng_pool: dict[str, Any],
          "origin": fact.fact_id, "fact_id": f2.fact_id, "short": short}))
 
 
+def _execute_buy(world: World, systems: Systems, cfg: SimConfig,
+                 pid: str, npc, intent: Buy) -> None:
+    """成交购买: 扣钱(资金只减不增) + 归自己 + 移到家 + KB 刷新商品位置。
+
+    买入后实体从商店搬到 npc.home, 并把 KB 里该商品的 located_at 改到新家、
+    证伪旧位置。"""
+    ent = world.entities.get(intent.item_id)
+    if (ent is None or ent.price <= 0 or ent.owner != ""
+            or npc.money < ent.price or ent.stock == 0):
+        world.bus.publish(world.bus.make(
+            world.clock_tick, "intent_failed", pid,
+            {"target": intent.item_id,
+             "why": "购买失败(无货/已售/钱不够)"}))
+    else:
+        npc.money = max(0.0, npc.money - ent.price)
+        ent.owner = pid
+        ent.location_id = npc.home or npc.location_id
+        # KB 刷新商品位置: 学新家位置 + 证伪其余旧位置
+        npc.kb.learn(subject=ent.entity_id, relation="located_at",
+                     obj=ent.location_id, confidence=1.0,
+                     source=Source(kind="OBSERVED"), tick=world.clock_tick)
+        for f in npc.kb.query(subject=ent.entity_id, relation="located_at"):
+            if f.obj != ent.location_id:
+                npc.kb.refute(f.fact_id)
+        world.bus.publish(world.bus.make(
+            world.clock_tick, "bought", pid,
+            {"item": ent.entity_id, "price": ent.price,
+             "home": ent.location_id, "money": round(npc.money, 2)}))
+    # 买完/失败都尽快重评(回家/换目标)
+    a = arousal(npc.hour_f, npc.signals.get("energy", 0.5),
+                npc.signals.get("hunger", 0.5))
+    systems.scheduler.schedule(pid, review_interval_ticks(a, cfg))
+
+
 def run_tick(world: World, systems: Systems, cfg: SimConfig,
              rng_pool: dict[str, Any]) -> None:
     """推进一个 tick(唯一入口)。"""
@@ -261,27 +303,28 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
         consolidate_observations(npc, percept, npc.kb,
                                  tick=world.clock_tick)  # 感知 → 知识
         intent = decide(percept, npc.signals, npc.personality, kb=npc.kb,
-                        cfg=cfg, rng=rng_pool[npc_id])
+                        cfg=cfg, rng=rng_pool[npc_id], money=npc.money)
         npc.last_intent = intent
+        kind = intent_kind(intent)
+        target = intent_target(intent)
         # M5 传闻: 仅本次到点且算成 idle 者才可能开口(m5-rectify 05, O(due))
-        if intent.kind == "idle":
+        if isinstance(intent, Idle):
             _gossip_due(world, systems, rng_pool, npc_id, npc)
         if systems.log_lines is not None:
             systems.log_lines.append(
-                f"D\t{world.clock_tick}\t{npc_id}\t{intent.kind}\t"
-                f"{intent.target_id or ''}")
+                f"D\t{world.clock_tick}\t{npc_id}\t{kind}\t{target or ''}")
             systems.ui_events.append({
                 "tick": world.clock_tick, "kind": "decision",
-                "subject": npc_id, "intent": intent.kind,
-                "target": intent.target_id or "",
+                "subject": npc_id, "intent": kind,
+                "target": target or "",
                 "payload": {},
             })
         decisions.append((npc_id, npc, intent))
     for npc_id, npc, intent in decisions:
-        if intent.kind == "move_to":
+        if isinstance(intent, MoveTo):
             # 旅行由主循环管理(不走 InteractionSystem); 出发前清残留 claim
             systems.interaction.release_active(world, npc_id)
-            dest = intent.target_id or npc.location_id
+            dest = intent.dest or npc.location_id
             cost = _travel_cost(systems, cfg, npc.location_id, dest)
             systems.travel[npc_id] = Travel(
                 from_loc=npc.location_id, to_loc=dest,
@@ -289,8 +332,11 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
                 arrive_tick=world.clock_tick + cost)
             systems.scheduler.schedule(npc_id, cost)
             continue
+        if isinstance(intent, Buy):
+            _execute_buy(world, systems, cfg, npc_id, npc, intent)
+            continue
         ok = systems.interaction.submit(world, npc, intent)
-        if intent.kind == "interact" and ok:
+        if isinstance(intent, Interact) and ok:
             ent = world.entities.get(intent.target_id)
             delay = ent.duration_ticks if ent else cfg.review_max_ticks
             systems.scheduler.schedule(npc_id, max(1, delay))

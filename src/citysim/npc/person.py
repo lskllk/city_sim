@@ -103,11 +103,12 @@ class Person:
     hour_f: float = 8.0                        # 当日时刻(供清醒度)
     bladder_pending: float = 0.0               # 待转化排泄负荷
     location_id: str = ""                     # 所在 location(M3 世界侧登记)
+    home: str = ""                            # 家(购买的商品送到这里)
     active_interaction_id: str | None = None  # 正在交互的实体 id(观测/仲裁)
     last_intent: "Intent | None" = None       # 最近一次决策(观测)
     kb: "KnowledgeBase" = field(default_factory=KnowledgeBase)  # M5: 每 NPC 知识库
     tell_bias: float = 1.0                     # 传闻讲话概率倍率(elm_lane 人设)
-    money: float = 30.0                        # 资金(采购食品用, 经济地基)
+    money: float = 100.0                       # 资金(采购商品用, 经济地基)
 
     def __post_init__(self) -> None:
         # 初始化必须含 SIGNALS 全集; 缺失补 1.0(充足)

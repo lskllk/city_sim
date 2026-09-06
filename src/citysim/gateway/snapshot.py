@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from citysim.core.types import intent_kind, intent_target
 from citysim.viz.kb_export import export_kb_json
 from citysim.viz.trace_export import export_trace_chain
 
@@ -121,7 +122,7 @@ def build_snapshot(world, systems, cfg, speed: str,
                 "from": tv.from_loc, "to": tv.to_loc,
                 "depart": tv.depart_tick, "arrive": tv.arrive_tick},
             "intent": None if it is None else {
-                "kind": it.kind, "target": it.target_id,
+                "kind": intent_kind(it), "target": intent_target(it),
                 "reason": it.trace.reason,
                 "ranked": [{"id": i, "score": round(s, 4)}
                            for i, s in it.trace.ranked],
@@ -174,7 +175,7 @@ def build_npc_state(world, systems, pid: str) -> dict | None:
             "from": tv.from_loc, "to": tv.to_loc,
             "depart": tv.depart_tick, "arrive": tv.arrive_tick},
         "intent": None if it is None else {
-            "kind": it.kind, "target": it.target_id,
+            "kind": intent_kind(it), "target": intent_target(it),
             "reason": it.trace.reason},
         "kb_counts": kb_counts(npc.kb),
     }
@@ -202,7 +203,7 @@ def build_npc_detail(world, systems, pid: str) -> dict | None:
         "activity": npc.current_activity,
         "signals": {k: round(v, 4) for k, v in npc.signals.items()},
         "intent": None if it is None else {
-            "kind": it.kind, "target": it.target_id, "reason": it.trace.reason,
+            "kind": intent_kind(it), "target": intent_target(it), "reason": it.trace.reason,
             "ranked": [{"id": i, "score": round(s, 4)}
                        for i, s in it.trace.ranked],
             "used_facts": used},

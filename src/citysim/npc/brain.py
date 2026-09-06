@@ -9,7 +9,15 @@ from math import cos, pi
 from typing import Any, Mapping
 
 from citysim.core.config import SIGNALS, SimConfig
-from citysim.core.types import DecisionTrace, Intent, Percept
+from citysim.core.types import (
+    Buy,
+    DecisionTrace,
+    Idle,
+    Intent,
+    Interact,
+    MoveTo,
+    Percept,
+)
 
 # 分数低于此 => 不值得做(→ idle)。沿用旧 Person.setup_brain 默认 threshold。
 # 需求急迫度幂次: weight = deficit**power; 线性会让"精力差 12%"也去打盹/喝水。
@@ -23,11 +31,16 @@ def decide(
     kb: Any,
     cfg: SimConfig,
     rng: Any,                     # random.Random, 固定种子保回放确定性
+    money: float = 0.0,           # 资金(只减不增; 决定能否 Buy)
 ) -> Intent:
-    """纯函数: 从 KB 打分, 同地点优先, interact/move_to 分流。
+    """纯函数: 从 KB 打分, 同地点优先, interact/buy/move_to 分流。
 
     打分 = need^power × afford值 × 性格倍率 × 置信度。
-    同地点且视野可 claim → interact; 不同地点且有 located_at → move_to。
+    同地点且视野可 claim:
+      - 若实体是"在售商品"(price>0 且 owner="")且钱够 → buy(买回家);
+        买不起则跳过该候选;
+      - 否则 → interact。
+    不同地点且有 located_at → move_to。
     """
     visible = {e.entity_id: e for e in percept.visible if e.claimable}
     power = cfg.utility_power
@@ -58,34 +71,41 @@ def decide(
     for subject, sig, score, loc, local, fact in scored:
         if score <= thresh:
             continue
+        loc_facts = kb.query(subject=subject, relation="located_at")
+        used = (fact.fact_id,) + tuple(lf.fact_id for lf in loc_facts[:1])
         if local:
             e = visible.get(subject)
             if e is None:
                 continue
-            loc_facts = kb.query(subject=subject, relation="located_at")
-            used = (fact.fact_id,) + tuple(
-                lf.fact_id for lf in loc_facts[:1])
-            return Intent(
-                kind="interact", target_id=subject,
+            if e.price > 0 and e.owner == "":
+                # 在售商品只能买, 不能就地用; 买不起则跳过看下一个候选
+                if money >= e.price:
+                    return Buy(
+                        item_id=subject,
+                        trace=DecisionTrace(
+                            ranked=ranked,
+                            reason=(f"购买 {subject} 解 {sig} "
+                                    f"(score={score:.3f}, 价格={e.price:.1f})"),
+                            used_fact_ids=used))
+                continue
+            return Interact(
+                target_id=subject,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"目标 {subject} (score={score:.3f})",
                     used_fact_ids=used))
-        elif loc:
-            loc_facts = kb.query(subject=subject, relation="located_at")
-            used = (fact.fact_id,) + tuple(
-                lf.fact_id for lf in loc_facts[:1])
-            return Intent(
-                kind="move_to", target_id=loc,
+        if loc:
+            return MoveTo(
+                dest=loc,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"知识: {subject} 能解 {sig} → 去 {loc}",
                     used_fact_ids=used))
 
-    return Intent(
-        kind="idle", target_id=None,
-        trace=DecisionTrace(ranked=ranked,
-                            reason="信号充足或没有值得做的目标"))
+    return Idle(
+        trace=DecisionTrace(
+            ranked=ranked,
+            reason="信号充足或没有值得做的目标"))
 
 
 # ----------------------------------------------------------------------

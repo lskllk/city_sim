@@ -24,6 +24,8 @@ def build_percept(world, npc) -> Percept:
             claimable=e.claimable_by(npc.person_id) and not closed,
             stock_zero=(e.stock == 0) or closed,
             location_id=e.location_id,
+            price=e.price,
+            owner=e.owner,
         ))
     events = world.bus.drain_for(npc.person_id)
     return Percept(
@@ -50,7 +52,7 @@ def consolidate_observations(npc, percept: Percept, kb, tick: int = 0) -> None:
             kb.refute(f.fact_id)
 
     for v in percept.visible:
-        # 静态可交互设施(含散落食物): 学 affords(带数值) + located_at
+        # 静态可交互设施(含散落食物): 学 affords(带数值) + located_at + price_of
         if v.affordances:
             for signal, delta in v.affordances.items():
                 if delta > 0:
@@ -61,3 +63,8 @@ def consolidate_observations(npc, percept: Percept, kb, tick: int = 0) -> None:
             kb.learn(subject=v.entity_id, relation="located_at",
                      obj=npc.location_id, confidence=1.0,
                      source=Source(kind="OBSERVED"), tick=tick)
+        if v.price > 0:
+            kb.learn(subject=v.entity_id, relation="price_of",
+                     obj=v.price, confidence=1.0,
+                     source=Source(kind="OBSERVED"), tick=tick,
+                     value=v.price)

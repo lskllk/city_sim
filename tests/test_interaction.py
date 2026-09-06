@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from citysim.core.config import load_config
-from citysim.core.types import Intent
+from citysim.core.types import Interact
 from citysim.npc.person import Identity, Person
 from citysim.sim.loop import run_tick
 from citysim.world.interaction import ActiveInteraction, InteractionSystem
@@ -92,7 +92,7 @@ def test_interruptible_false_refuses_override() -> None:
 
     world.bus.subscribe_log(_on)
     ok = isys.submit(world, npc,
-                     Intent(kind="interact", target_id=toilet.entity_id))
+                     Interact(target_id=toilet.entity_id))
     assert ok is False                     # 不可打断 → 拒绝
     assert failed == ["intent_failed"]
     assert bed.claimed_by == "p"           # 未被顶替

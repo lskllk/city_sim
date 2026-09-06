@@ -22,6 +22,8 @@ class EntityView:
     claimable: bool = True                # True=当前无人占用
     stock_zero: bool = False              # True=stock==0(真空), 区别于被占用
     location_id: str = ""
+    price: float = 0.0                    # 价格(0=免费)
+    owner: str = ""                       # 归属(""=无主/商店)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,8 +51,52 @@ class DecisionTrace:
     features: Mapping[str, float] = field(default_factory=dict)  # M8 前为 {}
 
 
+# --- 意图(多态): 每种意图自持字段, 取代单一 kind+target_id ---
 @dataclass(frozen=True, slots=True)
-class Intent:
-    kind: Literal["interact", "move_to", "idle"]
-    target_id: str | None = None
+class Idle:
     trace: DecisionTrace = field(default_factory=DecisionTrace)
+
+
+@dataclass(frozen=True, slots=True)
+class MoveTo:
+    dest: str
+    trace: DecisionTrace = field(default_factory=DecisionTrace)
+
+
+@dataclass(frozen=True, slots=True)
+class Interact:
+    target_id: str
+    trace: DecisionTrace = field(default_factory=DecisionTrace)
+
+
+@dataclass(frozen=True, slots=True)
+class Buy:
+    item_id: str
+    trace: DecisionTrace = field(default_factory=DecisionTrace)
+
+
+Intent = Idle | MoveTo | Interact | Buy
+
+
+def intent_kind(intent: Intent) -> str:
+    """意图 → 旧式 kind 字符串(日志/快照/前端兼容)。"""
+    if isinstance(intent, Idle):
+        return "idle"
+    if isinstance(intent, MoveTo):
+        return "move_to"
+    if isinstance(intent, Interact):
+        return "interact"
+    if isinstance(intent, Buy):
+        return "buy"
+    raise TypeError(f"unknown intent {intent!r}")
+
+
+def intent_target(intent: Intent) -> str | None:
+    """意图 → 目标 id(旧式 target_id; idle 为 None)。"""
+    if isinstance(intent, MoveTo):
+        return intent.dest
+    if isinstance(intent, Interact):
+        return intent.target_id
+    if isinstance(intent, Buy):
+        return intent.item_id
+    return None

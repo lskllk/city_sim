@@ -28,6 +28,8 @@ class Entity:
     wake_condition: str | None = None     # "signal>=value"(用正则解析, 禁 eval)
     on_start: list[dict] = field(default_factory=list)       # M4 数据化效果
     on_complete: list[dict] = field(default_factory=list)    # M4 数据化效果
+    price: float = 0.0                      # 价格(0=免费)
+    owner: str = ""                         # 归属(""=无主/商店; npc_id=某人拥有)
     # elm_lane 开放时段: None=全天; []=永久关闭; [[start,end],...]分钟-of-day
     open_hours: list | None = None
 
@@ -85,6 +87,7 @@ def entity_from_def(d: ItemDef, location_id: str) -> Entity:
         location_id=location_id, stock=d.stock, attrs=dict(d.attrs),
         interruptible=d.interruptible, wake_condition=d.wake_condition,
         on_start=list(d.on_start), on_complete=list(d.on_complete),
+        price=d.price,
     )
 
 

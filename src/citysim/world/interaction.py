@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from citysim.core.config import SIGNALS
+from citysim.core.types import Idle, Interact
 from citysim.npc.person import Person
 from citysim.world.effects import apply_effects
 from citysim.world.world import Entity, World
@@ -41,11 +42,13 @@ class InteractionSystem:
     def submit(self, world: World, npc: Person, intent) -> bool:
         """校验→claim→登记。失败发 intent_failed 事件。返回是否成功登记。"""
         pid = npc.person_id
-        if intent.kind == "idle":
+        if isinstance(intent, Idle):
             if pid in self.active:
                 self._release(world, pid, cancel=True)
                 self._resched(world, pid, 1)
             return True
+        if not isinstance(intent, Interact):
+            return False
 
         tid = intent.target_id
         ent = world.entities.get(tid) if tid else None

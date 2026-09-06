@@ -49,7 +49,9 @@
      "init": {"energy": 0.55, "hunger": 0.45, "thirst": 0.6, "bladder": 0.85, "fun": 0.5},
      "kb_extra": [
        {"subject": "market_1", "relation": "affords", "obj": "hunger", "value": 0.5, "confidence": 1.0},
-       {"subject": "market_1", "relation": "located_at", "obj": "market", "confidence": 1.0}
+       {"subject": "market_1", "relation": "located_at", "obj": "market", "confidence": 1.0},
+       {"subject": "tv_1", "relation": "affords", "obj": "fun", "value": 0.4, "confidence": 1.0},
+       {"subject": "tv_1", "relation": "located_at", "obj": "market", "confidence": 1.0}
      ]},
 
     {"id": "npc_li", "name": "李四", "home": "apt_102", "archetype": "newcomer",

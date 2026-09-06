@@ -1,7 +1,8 @@
 """M2 DoD: 契约层 + decide() 纯函数(KB 打分)。
 
 覆盖: 纯函数性 / 饿挑 edible / 满足即 idle / 同地点优先 / move_to 异地 /
-平局确定性 / 不可 claim 忽略。决策只来自 KB(affords + located_at)。
+平局确定性 / 不可 claim 忽略 / 在售商品 buy(多态意图)。
+决策只来自 KB(affords + located_at) + 视野里的 price/owner。
 """
 from __future__ import annotations
 
@@ -10,7 +11,14 @@ import random
 from pathlib import Path
 
 from citysim.core.config import load_config
-from citysim.core.types import EntityView, Percept
+from citysim.core.types import (
+    Buy,
+    EntityView,
+    Idle,
+    Interact,
+    MoveTo,
+    Percept,
+)
 from citysim.npc.brain import decide
 from citysim.npc.knowledge import KnowledgeBase, Source
 from citysim.npc.person import full_signals
@@ -20,7 +28,8 @@ CFG = load_config(ROOT / "config" / "sim.toml")
 
 
 def _ev(entity_id: str, tags=(), affordances=None, claimable=True,
-        duration_ticks: int = 30, distance: float = 0.0) -> EntityView:
+        duration_ticks: int = 30, distance: float = 0.0,
+        price: float = 0.0, owner: str = "") -> EntityView:
     return EntityView(
         entity_id=entity_id,
         name=entity_id,
@@ -30,6 +39,8 @@ def _ev(entity_id: str, tags=(), affordances=None, claimable=True,
         distance=distance,
         claimable=claimable,
         location_id="loc",
+        price=price,
+        owner=owner,
     )
 
 
@@ -75,7 +86,7 @@ def test_hungry_picks_edible() -> None:
                  affordances={"hunger": 0.4, "thirst": 0.1})
     intent = decide(_percept(edible), _signals(hunger=0.2), {},
                     kb, CFG, random.Random(0))
-    assert intent.kind == "interact"
+    assert isinstance(intent, Interact)
     assert intent.target_id == "rice_1"
 
 
@@ -84,8 +95,7 @@ def test_idle_when_satisfied() -> None:
               ("tv_1", "located_at", "loc", 0.0)])
     tv = _ev("tv_1", tags=("entertain",), affordances={"fun": 0.3})
     intent = decide(_percept(tv), _signals(), {}, kb, CFG, random.Random(0))
-    assert intent.kind == "idle"
-    assert intent.target_id is None
+    assert isinstance(intent, Idle)
 
 
 def test_move_to_remote_location() -> None:
@@ -94,8 +104,8 @@ def test_move_to_remote_location() -> None:
               ("market_1", "located_at", "market", 0.0)])
     intent = decide(_percept(), _signals(hunger=0.2), {},
                     kb, CFG, random.Random(0))
-    assert intent.kind == "move_to"
-    assert intent.target_id == "market"
+    assert isinstance(intent, MoveTo)
+    assert intent.dest == "market"
 
 
 def test_local_beats_remote() -> None:
@@ -109,7 +119,7 @@ def test_local_beats_remote() -> None:
     rice = _ev("rice_1", tags=("edible",), affordances={"hunger": 0.4})
     intent = decide(_percept(rice), _signals(hunger=0.2), {},
                     kb, CFG, random.Random(0))
-    assert intent.kind == "interact"
+    assert isinstance(intent, Interact)
     assert intent.target_id == "rice_1"
 
 
@@ -126,6 +136,7 @@ def test_tie_break_deterministic() -> None:
         rng = random.Random(42)
         intent = decide(_percept(a, b), _signals(hunger=0.2), {},
                         kb, CFG, rng)
+        assert isinstance(intent, Interact)
         picks.append(intent.target_id)
     assert picks[0] == picks[1]
     assert picks[0] in ("a_1", "b_1")
@@ -138,4 +149,40 @@ def test_not_claimable_is_ignored() -> None:
                    affordances={"energy": 0.7})
     intent = decide(_percept(occupied), _signals(energy=0.1), {},
                     kb, CFG, random.Random(0))
-    assert intent.kind == "idle"
+    assert isinstance(intent, Idle)
+
+
+# --- 购买(Buy 多态意图) -----------------------------------------------
+def test_buy_when_for_sale_and_money_enough() -> None:
+    """在售商品(price>0, owner="")且钱够 → Buy, 不是 Interact。"""
+    kb = _kb([("tv_1", "affords", "fun", 0.4),
+              ("tv_1", "located_at", "loc", 0.0)])
+    tv = _ev("tv_1", tags=("entertain",), affordances={"fun": 0.4},
+             price=60.0, owner="")
+    intent = decide(_percept(tv), _signals(fun=0.2), {}, kb, CFG,
+                    random.Random(0), money=100.0)
+    assert isinstance(intent, Buy)
+    assert intent.item_id == "tv_1"
+
+
+def test_cant_buy_unaffordable_for_sale_item() -> None:
+    """钱不够 → 不能就地用(跳过在售商品), 没有其它候选 → idle。"""
+    kb = _kb([("tv_1", "affords", "fun", 0.4),
+              ("tv_1", "located_at", "loc", 0.0)])
+    tv = _ev("tv_1", tags=("entertain",), affordances={"fun": 0.4},
+             price=60.0, owner="")
+    intent = decide(_percept(tv), _signals(fun=0.2), {}, kb, CFG,
+                    random.Random(0), money=10.0)
+    assert isinstance(intent, Idle)
+
+
+def test_owned_item_is_interact_not_buy() -> None:
+    """已归自己的商品(owner!="") → 直接 Interact, 不再 Buy。"""
+    kb = _kb([("tv_1", "affords", "fun", 0.4),
+              ("tv_1", "located_at", "loc", 0.0)])
+    tv = _ev("tv_1", tags=("entertain",), affordances={"fun": 0.4},
+             price=60.0, owner="me")
+    intent = decide(_percept(tv), _signals(fun=0.2), {}, kb, CFG,
+                    random.Random(0), money=100.0)
+    assert isinstance(intent, Interact)
+    assert intent.target_id == "tv_1"

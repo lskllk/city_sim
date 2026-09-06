@@ -66,6 +66,8 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
         pid = spec["id"]
         p = Person(identity=Identity(person_id=pid, name=spec["name"]),
                    location_id=spec.get("home", ""))
+        p.home = spec.get("home", "")
+        p.money = float(spec.get("money", 100.0))
         p.hour_f = float(spec.get("hour", idx % 24.0))
         init = spec.get("init", {})
         p.set_state(**{k: float(v) for k, v in init.items() if k in _ARGS_ORDER})

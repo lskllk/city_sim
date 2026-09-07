@@ -3,15 +3,45 @@
 铁律(design 第三节, 逐字遵守):
   - 禁止 build_percept()(会清空 NPC 信箱) / 禁止碰 rng_pool / 禁止写内核字段。
   - 事件只从 systems.log_lines 尾读; 本模块不挂 subscribe_log。
+
+TASK002 —— Observation Contract:
+  - PROTOCOL_VERSION + envelope(): 统一 WS 消息外壳(kind/protocol_version/payload)。
+  - encode_event(): 把 ui_events 条目 canonical 化为稳定 Event 结构。
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from citysim.core.types import intent_kind, intent_target
 from citysim.viz.kb_export import export_kb_json
 from citysim.viz.trace_export import export_trace_chain
+
+# TASK002: WS 消息协议版本(协议变化时递增)
+PROTOCOL_VERSION = 1
+
+
+def envelope(kind: str, payload: dict) -> dict:
+    """统一消息外壳: 消息类型 + 协议版本 + 内容分离。"""
+    return {"kind": kind, "protocol_version": PROTOCOL_VERSION,
+            "payload": payload}
+
+
+def encode_event(ev: dict) -> dict:
+    """ui_events 条目 → canonical Event 结构(保留原字段以兼容旧观察器)。
+
+    canonical: event_id / tick / type / source / target / payload。
+    只加不删; 无 event_id 时按 kind:tick:subject 生成稳定回退 id。
+    """
+    d = dict(ev)
+    kind = str(d.get("kind", d.get("type", "?")))
+    d.setdefault("type", kind)
+    d.setdefault("event_id", f"{kind}:{d.get('tick')}:{d.get('subject', '')}")
+    d.setdefault("source", d.get("subject"))
+    if d.get("target") is None and isinstance(d.get("payload"), dict):
+        d["target"] = d["payload"].get("target")
+    return d
 
 # 实体 tag -> emoji(不许按中文名匹配, M4 纪律)
 _ICONS = {"sleepable": "🛏", "toilet": "🚽",
@@ -112,6 +142,8 @@ def build_snapshot(world, systems, cfg, speed: str,
                     break
         npcs.append({
             "id": pid, "name": p.name, "loc": p.location_id,
+            "position": [float(x) for x in p.position],
+            "archetype": p.archetype_id,
             "activity": p.current_activity,
             "act_class": act_class_of(world, systems, pid),
             "signals": {k: round(v, 4) for k, v in p.signals.items()},
@@ -126,7 +158,14 @@ def build_snapshot(world, systems, cfg, speed: str,
                 "reason": it.trace.reason,
                 "ranked": [{"id": i, "score": round(s, 4)}
                            for i, s in it.trace.ranked],
+                "relevant_signals": [[k, round(v, 4)] for k, v
+                                      in it.trace.relevant_signals],
                 "used_facts": used},
+            "last_percept": None if p.last_percept is None else {
+                "tick": p.last_percept.tick,
+                "loc": p.last_percept.location_id,
+                "position": [float(x) for x in p.last_percept.position],
+                "observed": list(p.last_percept.observed_entity_ids)},
             "kb": export_kb_json(p.kb) if p.kb is not None else
                  {"nodes": [], "edges": []},
             "kb_counts": kb_counts(p.kb),
@@ -134,7 +173,15 @@ def build_snapshot(world, systems, cfg, speed: str,
         })
     ents = [{"id": e.entity_id, "name": e.name, "loc": e.location_id,
              "tags": sorted(e.tags), "stock": e.stock,
-             "claimed_by": e.claimed_by, "icon": icon_of(e)}
+             "claimed_by": e.claimed_by, "icon": icon_of(e),
+             "position": None if e.position is None else
+                          [float(e.position[0]), float(e.position[1])],
+             # TASK004-ext: 只读静态属性/效果(itemdef/scene 已存在, 无语义改动)
+             "affordances": dict(e.affordances), "price": e.price,
+             "owner": e.owner, "duration_ticks": e.duration_ticks,
+             "attrs": dict(e.attrs),
+             "on_start": [dict(x) for x in (e.on_start or [])],
+             "on_complete": [dict(x) for x in (e.on_complete or [])]}
             for _, e in sorted(world.entities.items())]
     # 实体房间内槽位(按 id 定序, g5-life 04)
     slot_of: dict[str, int] = {}
@@ -200,13 +247,22 @@ def build_npc_detail(world, systems, pid: str) -> dict | None:
     st = build_npc_state(world, systems, pid) or {}
     return {
         "id": pid, "name": npc.name, "loc": npc.location_id,
+        "position": [float(x) for x in npc.position],
+        "archetype": npc.archetype_id,
         "activity": npc.current_activity,
         "signals": {k: round(v, 4) for k, v in npc.signals.items()},
         "intent": None if it is None else {
             "kind": intent_kind(it), "target": intent_target(it), "reason": it.trace.reason,
             "ranked": [{"id": i, "score": round(s, 4)}
                        for i, s in it.trace.ranked],
+            "relevant_signals": [[k, round(v, 4)] for k, v
+                                  in it.trace.relevant_signals],
             "used_facts": used},
+        "last_percept": None if npc.last_percept is None else {
+            "tick": npc.last_percept.tick,
+            "loc": npc.last_percept.location_id,
+            "position": [float(x) for x in npc.last_percept.position],
+            "observed": list(npc.last_percept.observed_entity_ids)},
         "kb": export_kb_json(npc.kb) if npc.kb is not None else
              {"nodes": [], "edges": []},
         "kb_counts": kb_counts(npc.kb),

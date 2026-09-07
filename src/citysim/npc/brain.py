@@ -47,6 +47,7 @@ def decide(
     thresh = cfg.utility_threshold
 
     scored = []
+    needs: dict[str, float] = {}           # TASK001 结构化 trace: 相关信号缺口
     for f in kb.query(relation="affords"):
         sig = f.obj
         if sig not in SIGNALS or f.value <= 0 or f.confidence < 0.3:
@@ -54,6 +55,7 @@ def decide(
         need = 1.0 - float(signals.get(sig, 0.5))
         if need <= 0:
             continue
+        needs[sig] = need
         score = (need ** power) * f.value \
             * float(personality.get(sig, 1.0)) * f.confidence
 
@@ -63,6 +65,11 @@ def decide(
             loc = str(loc_facts[0].obj)
         scored.append((f.subject, sig, score, loc,
                        loc == percept.location_id, f))
+
+    # 同地点优先, 组内分数高优先, subject 稳定
+    scored.sort(key=lambda x: (-int(x[4]), -x[2], x[0]))
+    ranked = tuple((s[0], s[2]) for s in scored)
+    relevant = tuple(sorted(needs.items(), key=lambda kv: (-kv[1], kv[0])))
 
     # 同地点优先, 组内分数高优先, subject 稳定
     scored.sort(key=lambda x: (-int(x[4]), -x[2], x[0]))
@@ -86,26 +93,30 @@ def decide(
                             ranked=ranked,
                             reason=(f"购买 {subject} 解 {sig} "
                                     f"(score={score:.3f}, 价格={e.price:.1f})"),
-                            used_fact_ids=used))
+                            used_fact_ids=used,
+                            relevant_signals=relevant))
                 continue
             return Interact(
                 target_id=subject,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"目标 {subject} (score={score:.3f})",
-                    used_fact_ids=used))
+                    used_fact_ids=used,
+                    relevant_signals=relevant))
         if loc:
             return MoveTo(
                 dest=loc,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"知识: {subject} 能解 {sig} → 去 {loc}",
-                    used_fact_ids=used))
+                    used_fact_ids=used,
+                    relevant_signals=relevant))
 
     return Idle(
         trace=DecisionTrace(
             ranked=ranked,
-            reason="信号充足或没有值得做的目标"))
+            reason="信号充足或没有值得做的目标",
+            relevant_signals=relevant))
 
 
 # ----------------------------------------------------------------------

@@ -49,6 +49,21 @@ class DecisionTrace:
     reason: str = ""
     used_fact_ids: tuple[str, ...] = ()          # M5 前恒为 ()
     features: Mapping[str, float] = field(default_factory=dict)  # M8 前为 {}
+    # TASK001: 结构化 trace —— 相关信号及其缺口(need=1-signal, 降序)
+    relevant_signals: tuple[tuple[str, float], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class PerceptionRecord:
+    """一次可观察的感知记录(重评构建 percept 时落一份到 Person.last_percept)。
+
+    只读观察用; 不参与决策。observed = 同 region 全部 + 跨 region 距离内可见。
+    """
+    tick: int
+    npc_id: str
+    location_id: str
+    position: tuple[float, float] = (0.0, 0.0)
+    observed_entity_ids: tuple[str, ...] = ()
 
 
 # --- 意图(多态): 每种意图自持字段, 取代单一 kind+target_id ---

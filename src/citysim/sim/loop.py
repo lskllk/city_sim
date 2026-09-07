@@ -25,7 +25,7 @@ from citysim.world.events import Event
 from citysim.world.interaction import InteractionSystem
 from citysim.world.perception import build_percept, consolidate_observations
 from citysim.world.scheduler import TimingWheel
-from citysim.world.world import World
+from citysim.world.world import World, lerp
 
 # M5: 跨 location 移动耗时已入 config [motion] move_ticks(m5-rectify 13)。
 
@@ -45,11 +45,17 @@ def _step_elimination(npc, cfg: SimConfig) -> None:
 
 @dataclass(frozen=True, slots=True)
 class Travel:
-    """跨地点移动(display_m5_ui G0): 记录出发/到达地点与 tick, 供前端插值。"""
+    """跨地点移动(display_m5_ui G0): 记录出发/到达地点与 tick, 供前端插值。
+
+    TASK001: start/target_position 让 NPC 在 travel 期间拥有连续 2D position
+    (每 tick 由主循环线性推进)。
+    """
     from_loc: str
     to_loc: str
     depart_tick: int
     arrive_tick: int
+    start_position: tuple[float, float] | None = None
+    target_position: tuple[float, float] | None = None
 
 
 @dataclass
@@ -61,7 +67,6 @@ class Systems:
     ui_events: list = field(default_factory=list)  # 结构化事件(UI/网关消费)
     tell_p: float = 0.0                  # 传闻概率(M5; 0=关闭)
     log_attached: bool = False           # attach_replay 幂等标记
-    # elm_lane: 距离矩阵(key "a|b"->ticks) 与 归一化场景脉冲(见 sim/pulses)
     travel_costs: dict[str, int] | None = None
     pulses: list = field(default_factory=list)
 
@@ -74,6 +79,24 @@ def _travel_cost(systems: "Systems", cfg: SimConfig, a: str, b: str) -> int:
         if c is not None:
             return c
     return cfg.move_ticks
+
+
+def _advance_travel_positions(world: World, systems: Systems) -> None:
+    """每 tick 把旅行中 NPC 的连续 position 沿 start→target 线性推进。
+
+    t=depart → start; t=arrive → target(与到达时 location 落点一致)。
+    无几何/无坐标的世界不移动(position 保持), 不改变旧行为。
+    """
+    for pid, trv in list(systems.travel.items()):
+        npc = world.npcs.get(pid)
+        if npc is None or trv.start_position is None \
+                or trv.target_position is None:
+            continue
+        span = trv.arrive_tick - trv.depart_tick
+        if span <= 0:
+            continue
+        t = (world.clock_tick - trv.depart_tick) / span
+        npc.position = lerp(trv.start_position, trv.target_position, t)
 
 
 def make_systems(*, log: bool = False, tell_p: float = 0.0) -> Systems:
@@ -100,7 +123,8 @@ def attach_replay(world: World, systems: Systems) -> None:
         systems.log_lines.append(  # type: ignore[union-attr]
             f"E\t{ev.tick}\t{ev.kind}\t{ev.subject_id}\t{payload}")
         systems.ui_events.append({
-            "tick": ev.tick, "kind": ev.kind, "subject": ev.subject_id,
+            "event_id": ev.event_id, "tick": ev.tick,
+            "kind": ev.kind, "subject": ev.subject_id,
             "payload": dict(ev.payload),
         })
 
@@ -237,6 +261,9 @@ def _execute_buy(world: World, systems: Systems, cfg: SimConfig,
         npc.money = max(0.0, npc.money - ent.price)
         ent.owner = pid
         ent.location_id = npc.home or npc.location_id
+        # TASK001 空间: 归家后实体锚点随 region 重排(旧几何不再适用)
+        ent.position = None
+        world.layout_location(ent.location_id)
         # KB 刷新商品位置: 学新家位置 + 证伪其余旧位置
         npc.kb.learn(subject=ent.entity_id, relation="located_at",
                      obj=ent.location_id, confidence=1.0,
@@ -264,6 +291,9 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
     if systems.pulses:
         apply_pulses(world, systems.pulses, world.clock_tick,
                      cfg.ticks_per_day)
+
+    # 0.5 旅行 NPC 连续 position 推进(每 tick; 到达由 to-location 重评落定)
+    _advance_travel_positions(world, systems)
 
     # 1. 代谢(全体活着的 NPC; 睡眠冻结精力, 忙碌冻结娱乐——无聊才降 fun)
     died: list[str] = []
@@ -298,10 +328,34 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
             continue
         # 抵达: 旅行到期 → 落到目标 location 再重评
         if npc_id in systems.travel:
-            npc.location_id = systems.travel.pop(npc_id).to_loc
-        percept = build_percept(world, npc)
+            trv = systems.travel.pop(npc_id)
+            npc.location_id = trv.to_loc
+            if trv.target_position is not None:
+                npc.position = trv.target_position   # 位置与 region 落点一致
+        prev_ids = npc.kb.overlay_fact_ids()
+        percept = build_percept(world, npc, radius=cfg.perception_radius)
+        # TASK002: perceived 事件(观察用; audience=[] 只进日志/UI 流)
+        world.bus.publish(world.bus.make(
+            world.clock_tick, "perceived", npc_id,
+            {"audience": [],
+             "observed_entity_ids": sorted(
+                 v.entity_id for v in percept.visible),
+             "location_id": npc.location_id,
+             "position": [npc.position[0], npc.position[1]]}))
         consolidate_observations(npc, percept, npc.kb,
                                  tick=world.clock_tick)  # 感知 → 知识
+        # TASK001/002 观察: 本 tick 新学到的 overlay 事实 → learned 事件(调用侧发,
+        # audience=[] 只进日志/UI 流, 不塞回 NPC 信箱)
+        for fid in sorted(npc.kb.overlay_fact_ids() - prev_ids):
+            f = npc.kb.overlay.get(fid)
+            if f is None:
+                continue
+            world.bus.publish(world.bus.make(
+                world.clock_tick, "learned", npc_id,
+                {"audience": [], "fact_id": fid, "subject": f.subject,
+                 "relation": f.relation, "obj": f.obj,
+                 "source_kind": f.source.kind,
+                 "confidence": round(f.confidence, 3)}))
         intent = decide(percept, npc.signals, npc.personality, kb=npc.kb,
                         cfg=cfg, rng=rng_pool[npc_id], money=npc.money)
         npc.last_intent = intent
@@ -314,6 +368,7 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
             systems.log_lines.append(
                 f"D\t{world.clock_tick}\t{npc_id}\t{kind}\t{target or ''}")
             systems.ui_events.append({
+                "event_id": f"dec:{world.clock_tick}:{npc_id}",
                 "tick": world.clock_tick, "kind": "decision",
                 "subject": npc_id, "intent": kind,
                 "target": target or "",
@@ -326,16 +381,20 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
             systems.interaction.release_active(world, npc_id)
             dest = intent.dest or npc.location_id
             cost = _travel_cost(systems, cfg, npc.location_id, dest)
+            target_pos = world.region_center(dest) or npc.position
             systems.travel[npc_id] = Travel(
                 from_loc=npc.location_id, to_loc=dest,
                 depart_tick=world.clock_tick,
-                arrive_tick=world.clock_tick + cost)
+                arrive_tick=world.clock_tick + cost,
+                start_position=npc.position,
+                target_position=target_pos)
             systems.scheduler.schedule(npc_id, cost)
             continue
         if isinstance(intent, Buy):
             _execute_buy(world, systems, cfg, npc_id, npc, intent)
             continue
-        ok = systems.interaction.submit(world, npc, intent)
+        ok = systems.interaction.submit(
+            world, npc, intent, radius=cfg.interaction_radius)
         if isinstance(intent, Interact) and ok:
             ent = world.entities.get(intent.target_id)
             delay = ent.duration_ticks if ent else cfg.review_max_ticks

@@ -37,6 +37,11 @@ class SimConfig:
     move_ticks: int = 30           # 跨地点移动耗时
     hp_decay: float = 0.0005       # 饥饿/饥渴为 0 时 hp 每 tick 下降
     hp_regen: float = 0.0005       # 两者满足时 hp 回升最大速率(×均值)
+    # TASK001 空间感知: 世界坐标=scene 画布坐标(无米制)。同 region 恒可见;
+    # 跨 region 需 distance<=perception_radius。数值按 elm_lane 尺度(房间矩形
+    # 约 200+ 单位)选: 100 远小于邻区中心距(>300), 只覆盖邻近/街距实体。
+    perception_radius: float = 100.0
+    interaction_radius: float = 30.0
 
     @classmethod
     def from_toml(cls, data: dict[str, Any]) -> "SimConfig":
@@ -58,6 +63,8 @@ class SimConfig:
             move_ticks=int(data.get("motion", {}).get("move_ticks", 30)),
             hp_decay=float(data.get("health", {}).get("decay", 0.0005)),
             hp_regen=float(data.get("health", {}).get("regen", 0.0005)),
+            perception_radius=float(data.get("spatial", {}).get("perception_radius", 100.0)),
+            interaction_radius=float(data.get("spatial", {}).get("interaction_radius", 30.0)),
         )
 
 

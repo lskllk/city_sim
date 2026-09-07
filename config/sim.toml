@@ -40,3 +40,8 @@ move_ticks = 30
 [health]                       # 生命: 饥饿/饥渴为 0 时下降, 两者满足时回升
 hp_decay = 0.0005              # 任一为 0 时 hp 每 tick 下降
 hp_regen = 0.0005              # 两者满足时 hp 回升最大速率(×均值)
+
+[spatial]                      # TASK001: 空间感知。坐标=scene 画布单位, 无米制。
+                               # 同 region 恒可见/可交互; 跨 region 看 distance。
+perception_radius = 100.0      # 小于 elm_lane 邻区中心距(>300)→ 不影响稳态行为
+interaction_radius = 30.0      # 跨 region 交互所需邻近度(同 region 不受限)

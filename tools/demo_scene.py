@@ -102,6 +102,7 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
         p.personality = {}
         if arch is not None:
             p.kb = KnowledgeBase(arch)
+            p.archetype_id = "old_resident"      # TASK001: 显式原型 id
         world.npcs[pid] = p
         rng_pool[pid] = random.Random(seed + i)
         systems.scheduler.schedule(pid, 1, now=0)

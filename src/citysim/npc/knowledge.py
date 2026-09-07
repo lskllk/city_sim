@@ -138,6 +138,10 @@ class KnowledgeBase:
     def subjects(self, relation: str) -> frozenset[str]:
         return frozenset(f.subject for f in self.query(relation=relation))
 
+    def overlay_fact_ids(self) -> frozenset[str]:
+        """当前 overlay 全部 fact_id(含低置信待衰亡)。供观察方 diff 新知识。"""
+        return frozenset(self.overlay)
+
     # --- 写入 ---------------------------------------------------------
     def _replace_or_new(self, subject: str, relation: str, obj: Any,
                         confidence: float, source: Source, tick: int,

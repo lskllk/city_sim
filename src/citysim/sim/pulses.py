@@ -34,11 +34,12 @@ def normalize(raw: list[dict], ticks_per_day: int) -> list[dict]:
     return out
 
 
-def _apply_op(world, p: dict) -> None:
+def _apply_op(world, p: dict, tick: int) -> None:
     e = world.entities.get(p["target"])
     if e is None:
         return
     op = p["op"]
+    before = e.stock
     if op == "set_stock":
         if p["value"] is not None:
             e.stock = int(p["value"])
@@ -46,13 +47,18 @@ def _apply_op(world, p: dict) -> None:
         e.open_hours = []                 # 永久停业 → 感知为空 → refute
         if p["value"] is not None:
             e.stock = int(p["value"])
+    # TASK001 可观察世界变化: audience=[] 只进日志/UI, 不塞信箱
+    world.bus.publish(world.bus.make(
+        tick, "stock_changed", e.entity_id,
+        {"audience": [], "op": op, "stock_before": before,
+         "stock_after": e.stock}))
 
 
 def apply(world, scheduled: list[dict], tick: int, ticks_per_day: int) -> None:
     for p in scheduled:
         if p["mode"] == "daily":
             if tick % ticks_per_day == p["minute"]:
-                _apply_op(world, p)
+                _apply_op(world, p, tick)
         else:  # once
             if tick == p["day"] * ticks_per_day + p["minute"]:
-                _apply_op(world, p)
+                _apply_op(world, p, tick)

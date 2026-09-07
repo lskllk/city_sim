@@ -8,19 +8,25 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles
 
 from citysim.core.config import load_config
 from citysim.gateway.scenarios import build_scenario
-from citysim.gateway.snapshot import build_snapshot, do_query, hello_payload
+from citysim.gateway.snapshot import (
+    build_snapshot,
+    do_query,
+    encode_event,
+    envelope,
+    hello_payload,
+)
 from citysim.sim.loop import attach_replay, run_tick
 
 SPEED_TPS = {"pause": 0, "1x": 1, "10x": 10, "100x": 100, "1000x": 1000}
 PUSH_HZ = 60
-STATIC = Path(__file__).parent / "static"
+
+# TASK004-ext: legacy gateway/static 观察器已删除; server 只作 WS 推流端点。
+# UI 由独立 frontend/ 提供(vite dev/preview)。
 
 
 def _real_tps(speed: str) -> int:
@@ -36,6 +42,7 @@ class SimRunner:
         self.clients: set[WebSocket] = set()
         self.speed = "pause"          # 启动即暂停, 方便观察初态
         self.log_cursor = 0
+        self.event_seq = 0            # drain 兜底 event_id 序号
         self.params = dict(scenario="elm_lane", seed=3, n_npc=6,
                            kb_mode="full", tell_p=0.1)
         self._build()
@@ -52,7 +59,13 @@ class SimRunner:
     def drain_log(self) -> list[dict]:
         evs = (self.systems.ui_events or [])[self.log_cursor:]
         self.log_cursor = len(self.systems.ui_events or [])
-        return [dict(e) for e in evs]
+        out = []
+        for i, e in enumerate(evs, self.event_seq):
+            d = dict(e)
+            d.setdefault("event_id", f"g{i}")   # 兜底 id(生产端缺失时)
+            out.append(d)
+        self.event_seq += len(evs)
+        return out
 
     async def loop(self) -> None:
         interval = 1.0 / PUSH_HZ
@@ -75,14 +88,20 @@ class SimRunner:
         if not self.clients:
             self.drain_log()          # 无人观看也要推进游标, 防积压
             return
-        msg = json.dumps(build_snapshot(self.world, self.systems, self.cfg,
-                                        self.speed, self.drain_log(),
-                                        tps=_real_tps(self.speed)),
-                         ensure_ascii=False)
+        evs = self.drain_log()
+        # TASK002: Snapshot 与 Event 走独立消息; snapshot 不再内嵌事件流
+        msgs = [json.dumps(envelope(
+            "snapshot",
+            build_snapshot(self.world, self.systems, self.cfg,
+                           self.speed, [], tps=_real_tps(self.speed))),
+            ensure_ascii=False)]
+        msgs += [json.dumps(envelope("event", encode_event(ev)),
+                            ensure_ascii=False) for ev in evs]
         dead = []
         for ws in self.clients:
             try:
-                await ws.send_text(msg)
+                for m in msgs:
+                    await ws.send_text(m)
             except Exception:  # noqa: BLE001
                 dead.append(ws)
         for ws in dead:
@@ -102,13 +121,19 @@ async def _start() -> None:
 async def ws_endpoint(ws: WebSocket) -> None:
     await ws.accept()
     runner.clients.add(ws)
-    await ws.send_text(json.dumps(hello_payload(runner), ensure_ascii=False))
+    await _send(ws, {"kind": "hello", **hello_payload(runner)})
     try:
         while True:
             cmd = json.loads(await ws.receive_text())
             await handle_cmd(runner, ws, cmd)
     except WebSocketDisconnect:
         runner.clients.discard(ws)
+
+
+async def _send(ws: WebSocket, payload: dict) -> None:
+    """统一出口: 全部 WS 消息都走 envelope(kind/protocol_version/payload)。"""
+    await ws.send_text(json.dumps(envelope(payload.pop("kind", "message"),
+                                           payload), ensure_ascii=False))
 
 
 async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
@@ -122,17 +147,22 @@ async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
         r.params.update({k: v for k, v in args.items() if k in r.params})
         r.speed = "pause"
         r._build()
-        await ws.send_text(json.dumps(hello_payload(r), ensure_ascii=False))
+        await _send(ws, {"kind": "hello", **hello_payload(r)})
         await r.push()
     elif name == "query":
         data = do_query(r, args)
-        await ws.send_text(json.dumps(
-            {"type": "reply", "req_id": rid, "ok": data is not None,
-             "data": data, "why": None if data is not None else "not found"},
-            ensure_ascii=False))
+        await _send(ws, {"kind": "reply",
+                         "type": "reply", "req_id": rid,
+                         "ok": data is not None,
+                         "data": data,
+                         "why": None if data is not None else "not found"})
     elif name == "ping":
-        await ws.send_text(json.dumps({"type": "pong", "req_id": rid}))
+        await _send(ws, {"kind": "pong", "type": "pong", "req_id": rid})
     # 未知指令静默忽略
 
 
-app.mount("/", StaticFiles(directory=STATIC, html=True), name="static")
+@app.get("/")
+async def _root() -> dict:
+    """健康探针; 观察器 UI 由独立 frontend 提供(vite dev/preview, 连接 /ws)。"""
+    return {"service": "citysim", "status": "ok",
+            "ws": "/ws", "observer": "run frontend/ (npm run dev)"}

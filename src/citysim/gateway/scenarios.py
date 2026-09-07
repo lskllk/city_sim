@@ -33,6 +33,10 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
     """读 scene json → (world, systems, rng_pool)。唯一场景入口。"""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     world = World()
+    # TASK001 region 几何: scene 的 x/y/w/h 即世界坐标(无第二套地图)
+    world.locations = {loc_id: dict(geom) for loc_id, geom in
+                       data.get("locations", {}).items()}
+
     systems = make_systems(log=True,
                            tell_p=float(data.get("tell_p", 0.0)))
     rng_pool: dict[str, random.Random] = {}
@@ -58,7 +62,12 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
         if "stock" in spec:
             e.stock = int(spec["stock"])
         e.open_hours = Entity.parse_open_hours(spec.get("open_hours"))
+        if "position" in spec:          # 显式锚点优先(可选)
+            e.position = (float(spec["position"][0]), float(spec["position"][1]))
         world.spawn_entity(e)
+    # TASK001 默认锚点: 每个 region 内按实体 id 稳定生成(显式 position 不覆盖)
+    for loc_id in world.locations:
+        world.layout_location(loc_id)
 
     # ---- NPC: archetype 知识库 + 人设 ----------------------------------
     archs = load_archetypes()               # config/archetypes/*.json
@@ -69,6 +78,13 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
         p.home = spec.get("home", "")
         p.money = float(spec.get("money", 100.0))
         p.hour_f = float(spec.get("hour", idx % 24.0))
+        p.archetype_id = spec.get("archetype", "")     # 不得从 KB 猜
+        if "spawn" in spec:                              # 显式出生点优先
+            p.position = (float(spec["spawn"][0]), float(spec["spawn"][1]))
+        else:
+            home_center = world.region_center(p.home)
+            if home_center is not None:                  # fallback: region 中心
+                p.position = home_center
         init = spec.get("init", {})
         p.set_state(**{k: float(v) for k, v in init.items() if k in _ARGS_ORDER})
         p.personality = dict(spec.get("personality", {}))

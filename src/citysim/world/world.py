@@ -1,6 +1,8 @@
 """World 容器 —— 地点/实体/NPC 注册表 + 事件总线。
 
 世界是唯一事实源; Entity 为可变真实体。NPC Person 来自 npc/person(纯数据)。
+TASK001: 世界坐标 = scene 画布坐标(x/y/w/h 即 geometry, 无米制、无第二套地图);
+World.locations 存 region 矩形, NPC.position/Entity.position 为连续 2D 坐标。
 """
 from __future__ import annotations
 
@@ -10,6 +12,39 @@ from typing import Any
 from citysim.npc.person import Person
 from citysim.world.events import EventBus
 from citysim.world.itemdefs import ItemDef, load_item_defs
+
+
+def _region_center(rect: dict) -> tuple[float, float]:
+    return (rect["x"] + rect["w"] / 2.0, rect["y"] + rect["h"] / 2.0)
+
+
+def _stable_unit(s: str, salt: int) -> float:
+    """确定性伪随机 0..1(同一实体永得同一相对位, 与数量/顺序无关)。"""
+    h = 2166136261 ^ salt
+    for ch in s:
+        h = (h ^ ord(ch)) * 16777619 & 0xFFFFFFFF
+    return ((h >> 8) % 10000) / 10000.0
+
+
+def _default_anchor(rect: dict, entity_id: str) -> tuple[float, float]:
+    """region 内稳定默认锚点: 用实体 id 的确定性哈希, 落在矩形边距内。"""
+    margin_x = min(30.0, rect["w"] / 4.0)
+    margin_y = min(30.0, rect["h"] / 4.0)
+    ix = margin_x + _stable_unit(entity_id, 11) * max(0.0, rect["w"] - 2 * margin_x)
+    iy = margin_y + _stable_unit(entity_id, 29) * max(0.0, rect["h"] - 2 * margin_y)
+    return (round(rect["x"] + ix, 3), round(rect["y"] + iy, 3))
+
+
+def distance(a: tuple[float, float], b: tuple[float, float]) -> float:
+    return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+
+
+def lerp(a: tuple[float, float], b: tuple[float, float],
+         t: float) -> tuple[float, float]:
+    """线性插值(t 应已 clamp 0..1; travel 连续位置用)。"""
+    t = max(0.0, min(1.0, float(t)))
+    return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+
 
 
 @dataclass
@@ -32,6 +67,7 @@ class Entity:
     owner: str = ""                         # 归属(""=无主/商店; npc_id=某人拥有)
     # elm_lane 开放时段: None=全天; []=永久关闭; [[start,end],...]分钟-of-day
     open_hours: list | None = None
+    position: tuple[float, float] | None = None  # TASK001 空间锚点(scene 单位; None=未布置)
 
     def is_open_now(self, hour_f: float) -> bool:
         """当前是否营业。hour_f: 0..24 (含跨天则 mod 1440)。"""
@@ -98,6 +134,9 @@ class World:
     npcs: dict[str, Person] = field(default_factory=dict)
     bus: EventBus = field(default_factory=EventBus)
     _entity_seq: int = 0                  # 自动实体 id 计数(确定性)
+    locations: dict[str, dict] = field(default_factory=dict)
+    # TASK001 region 几何: {loc: {"x":..,"y":..,"w":..,"h":..,"name":..,"kind":..}}
+    # 来自 scene json 的 x/y/w/h, 直接作为世界坐标; 未注册 region = 无空间语义
 
     def hour_f(self) -> float:
         # tick 0 起 = 0:00; 一天 1440 tick
@@ -106,6 +145,38 @@ class World:
     def entities_at(self, location_id: str) -> list[Entity]:
         return [e for e in self.entities.values()
                 if e.location_id == location_id]
+
+    # --- TASK001 空间 helper ------------------------------------------
+    def region_rect(self, location_id: str) -> dict | None:
+        return self.locations.get(location_id)
+
+    def region_center(self, location_id: str) -> tuple[float, float] | None:
+        r = self.locations.get(location_id)
+        return None if r is None else _region_center(r)
+
+    def has_spatial(self, location_id: str) -> bool:
+        return location_id in self.locations
+
+    def anchor_of(self, e: "Entity") -> tuple[float, float] | None:
+        """实体的空间位置: 显式 position 优先; 否则 region 内稳定默认锚点。"""
+        if e.position is not None:
+            return e.position
+        r = self.locations.get(e.location_id)
+        if r is None:
+            return None
+        return _default_anchor(r, e.entity_id or e.name or "?")
+
+    def layout_location(self, location_id: str) -> None:
+        """给某 region 内全部实体写入稳定默认锚点(显式 position 不覆盖)。
+
+        幂等、确定性: 锚点由实体 id 哈希决定, 与数量/顺序无关。
+        """
+        r = self.locations.get(location_id)
+        if r is None:
+            return
+        for e in self.entities_at(location_id):
+            if e.position is None:
+                e.position = _default_anchor(r, e.entity_id or e.name or "?")
 
     def spawn_entity(self, e: Entity) -> Entity:
         if not e.entity_id:

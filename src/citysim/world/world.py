@@ -35,10 +35,6 @@ def _default_anchor(rect: dict, entity_id: str) -> tuple[float, float]:
     return (round(rect["x"] + ix, 3), round(rect["y"] + iy, 3))
 
 
-def distance(a: tuple[float, float], b: tuple[float, float]) -> float:
-    return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
-
-
 def lerp(a: tuple[float, float], b: tuple[float, float],
          t: float) -> tuple[float, float]:
     """线性插值(t 应已 clamp 0..1; travel 连续位置用)。"""
@@ -153,18 +149,6 @@ class World:
     def region_center(self, location_id: str) -> tuple[float, float] | None:
         r = self.locations.get(location_id)
         return None if r is None else _region_center(r)
-
-    def has_spatial(self, location_id: str) -> bool:
-        return location_id in self.locations
-
-    def anchor_of(self, e: "Entity") -> tuple[float, float] | None:
-        """实体的空间位置: 显式 position 优先; 否则 region 内稳定默认锚点。"""
-        if e.position is not None:
-            return e.position
-        r = self.locations.get(e.location_id)
-        if r is None:
-            return None
-        return _default_anchor(r, e.entity_id or e.name or "?")
 
     def layout_location(self, location_id: str) -> None:
         """给某 region 内全部实体写入稳定默认锚点(显式 position 不覆盖)。

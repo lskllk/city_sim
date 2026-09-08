@@ -81,7 +81,7 @@ class InteractionSystem:
             remaining_ticks=dur, total_ticks=dur,
         )
         ent.claimed_by = pid
-        npc.current_activity = ent.name
+        npc.set_activity(ent.name)
         # 数据化开始效果(M4): on_start(如 add_pending 膀胱负荷)在开始 tick 应用
         if ent.on_start:
             apply_effects(world, npc, ent, ent.on_start)
@@ -104,8 +104,8 @@ class InteractionSystem:
                 if s not in SIGNALS or delta == 0.0:
                     continue
                 step = delta / act.total_ticks
-                if s in npc.signals:
-                    npc.signals[s] = _clamp(npc.signals[s] + step)
+                if step:
+                    npc.add_signal(s, step)
             # 睡眠泛化: wake_condition 满足即提前完成
             if ent.wake_condition and _wake_satisfied(ent.wake_condition, npc.signals):
                 self._complete(world, pid, ent, act, early=True)
@@ -137,7 +137,7 @@ class InteractionSystem:
         if early:
             self._resched(world, pid, 1)   # 提前结束(唤醒等)→ 尽快重评
         else:
-            npc.current_activity = "idle"
+            npc.set_activity("idle")
 
         # 5. 事件(先发布, 观察者可解析实体 tags) -> 6. 统一回收空消耗品
         world.bus.publish(world.bus.make(
@@ -160,7 +160,7 @@ class InteractionSystem:
                 ent.claimed_by = None
         if npc is not None:
             if cancel:
-                npc.current_activity = "idle"
+                npc.set_activity("idle")
 
     def _fail(self, world: World, pid: str, tid: str, why: str) -> None:
         world.bus.publish(world.bus.make(

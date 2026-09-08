@@ -1,7 +1,7 @@
-"""sim/pulses —— 场景脉冲(世界侧确定性脚本, elm_lane B 地基)。
+"""world/pulses —— 场景脉冲(世界侧确定性脚本)。归 World(世界进程)。
 
-每 tick 由 run_tick 开头调用 apply(): 把匹配当天/时刻的脉冲应用到实体
-(改库存/永久停业), 从而驱动"知识自己变旧 → refute/改道/谣言"。
+每 tick 由世界执行时调用 apply(): 把匹配当天/时刻的脉冲应用到实体
+(改库存/永久停业), 从而驱动"知识自己变旧 → 记忆被 obs/反证更新/改道"。
 
 normalize(raw, ticks_per_day):
   raw 形如 {"at":"daily HH:MM"|"day N HH:MM", "op":..., "target":..., "value":n}
@@ -44,10 +44,10 @@ def _apply_op(world, p: dict, tick: int) -> None:
         if p["value"] is not None:
             e.stock = int(p["value"])
     elif op == "close_forever":
-        e.open_hours = []                 # 永久停业 → 感知为空 → refute
+        e.open_hours = []                 # 永久停业 → 感知为空 → 记忆被 obs 修正
         if p["value"] is not None:
             e.stock = int(p["value"])
-    # TASK001 可观察世界变化: audience=[] 只进日志/UI, 不塞信箱
+    # 可观察世界变化: audience=[] 只进日志/UI, 不塞信箱
     world.bus.publish(world.bus.make(
         tick, "stock_changed", e.entity_id,
         {"audience": [], "op": op, "stock_before": before,

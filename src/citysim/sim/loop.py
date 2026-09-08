@@ -17,46 +17,19 @@ from citysim.core.types import (
     intent_kind,
     intent_target,
 )
-from citysim.npc.brain import arousal, decide, review_interval_ticks
-from citysim.npc.knowledge import CONF_UNKNOWN, Source
-from citysim.npc.person import apply_metabolism
-from citysim.sim.pulses import apply as apply_pulses
+from citysim.npc.brain import arousal, review_interval_ticks
+from citysim.world.pulses import apply as apply_pulses
 from citysim.world.events import Event
 from citysim.world.interaction import InteractionSystem
-from citysim.world.perception import build_percept, consolidate_observations
+from citysim.world.perception import build_percept
 from citysim.world.scheduler import TimingWheel
-from citysim.world.world import World, lerp
+from citysim.world.travel import Travel, advance as advance_travel
+from citysim.world.world import World
 
 # M5: 跨 location 移动耗时已入 config [motion] move_ticks(m5-rectify 13)。
 
-
 def _clamp(v: float) -> float:
     return max(0.0, min(1.0, float(v)))
-
-
-def _step_elimination(npc, cfg: SimConfig) -> None:
-    """pending → 膀胱压力(事件驱动, 非线性基线)。"""
-    if npc.bladder_pending <= 0:
-        return
-    step = min(cfg.bladder_convert, npc.bladder_pending)
-    npc.bladder_pending -= step
-    npc.signals["bladder"] = _clamp(npc.signals.get("bladder", 1.0) - step)
-
-
-@dataclass(frozen=True, slots=True)
-class Travel:
-    """跨地点移动(display_m5_ui G0): 记录出发/到达地点与 tick, 供前端插值。
-
-    TASK001: start/target_position 让 NPC 在 travel 期间拥有连续 2D position
-    (每 tick 由主循环线性推进)。
-    """
-    from_loc: str
-    to_loc: str
-    depart_tick: int
-    arrive_tick: int
-    start_position: tuple[float, float] | None = None
-    target_position: tuple[float, float] | None = None
-
 
 @dataclass
 class Systems:
@@ -70,7 +43,6 @@ class Systems:
     travel_costs: dict[str, int] | None = None
     pulses: list = field(default_factory=list)
 
-
 def _travel_cost(systems: "Systems", cfg: SimConfig, a: str, b: str) -> int:
     """跨地点移动耗时: 优先 travel_costs 矩阵, 缺省回落到 cfg.move_ticks。"""
     if systems.travel_costs:
@@ -80,31 +52,11 @@ def _travel_cost(systems: "Systems", cfg: SimConfig, a: str, b: str) -> int:
             return c
     return cfg.move_ticks
 
-
-def _advance_travel_positions(world: World, systems: Systems) -> None:
-    """每 tick 把旅行中 NPC 的连续 position 沿 start→target 线性推进。
-
-    t=depart → start; t=arrive → target(与到达时 location 落点一致)。
-    无几何/无坐标的世界不移动(position 保持), 不改变旧行为。
-    """
-    for pid, trv in list(systems.travel.items()):
-        npc = world.npcs.get(pid)
-        if npc is None or trv.start_position is None \
-                or trv.target_position is None:
-            continue
-        span = trv.arrive_tick - trv.depart_tick
-        if span <= 0:
-            continue
-        t = (world.clock_tick - trv.depart_tick) / span
-        npc.position = lerp(trv.start_position, trv.target_position, t)
-
-
 def make_systems(*, log: bool = False, tell_p: float = 0.0) -> Systems:
     sch = TimingWheel()
     return Systems(scheduler=sch,
                    interaction=InteractionSystem(scheduler=sch),
                    log_lines=[] if log else None, tell_p=tell_p)
-
 
 def attach_replay(world: World, systems: Systems) -> None:
     """挂事件日志订阅 + 结构化事件流(g5-life 01: 幂等, 单一事件源)。
@@ -130,7 +82,6 @@ def attach_replay(world: World, systems: Systems) -> None:
 
     world.bus.subscribe_log(_on_event)
 
-
 def _sleeping(world: World, systems: Systems, pid: str) -> bool:
     """当前是否在睡眠交互中(active 实体 tags 含 sleepable)。"""
     act = systems.interaction.active.get(pid)
@@ -139,24 +90,10 @@ def _sleeping(world: World, systems: Systems, pid: str) -> bool:
     ent = world.entities.get(act.entity_id)
     return ent is not None and ent.is_sleepable
 
-
 def _busy(world: World, systems: Systems, pid: str) -> bool:
     """当前是否忙碌(有进行中交互或正在跨地点移动)。"""
     return (systems.interaction.active.get(pid) is not None
             or pid in systems.travel)
-
-
-def _apply_hp(npc, cfg: SimConfig) -> None:
-    """生命: 饥饿/饥渴任一为 0 → hp 下降; 两者都满足 → 越大越快回升。"""
-    hunger = npc.signals.get("hunger", 1.0)
-    thirst = npc.signals.get("thirst", 1.0)
-    hp = npc.signals.get("hp", 1.0)
-    if hunger <= 0.0 or thirst <= 0.0:
-        npc.signals["hp"] = max(0.0, hp - cfg.hp_decay)
-    else:
-        rate = (hunger + thirst) / 2.0          # 两者越大回升越快
-        npc.signals["hp"] = min(1.0, hp + cfg.hp_regen * rate)
-
 
 def _kill(world: World, systems: Systems, pid: str) -> None:
     """NPC 死亡: 清残留 → 从世界销毁 → 发布死亡事件(日志记录)。"""
@@ -170,80 +107,14 @@ def _kill(world: World, systems: Systems, pid: str) -> None:
         world.clock_tick, "npc_died", pid,
         {"name": npc.name, "loc": npc.location_id}))
 
+def _notify_due(world: World, systems: Systems, npc) -> None:
+    """通用事件/社交通知骨架 —— 原 gossip(传闻)已删, 暂不实现。
 
-def _pick_tell_fact(kb, rng, interesting=None):
-    """传闻选样: overlay 非注入事实按 confidence 加权随机(m5-rectify 05)。
-
-    避免恒取最高置信(陈旧 OBSERVED 1.0 永远压过新近 TOLD 0.8 → 假消息
-    无法二次传播)。interesting(f)->bool 可选: 只从"对听众有信息量"的事实选,
-    排除人人可见的设施常识(如"床能睡"), 否则会稀释真消息。
+    未来这里做"NPC 想把自己知道/看到的某条信息, 主动通知他人"。
+    TODO(notify): 通用事件通知 —— 谁在 idle 时可广播一条信息给同地他人; 具体
+    (选样 / 置信(TOLD) / 受众判"是否已知" / 溯源)等 mem 模型语义定稳后再实现。
     """
-    cands = [f for f in kb.overlay.values()
-             if f.confidence >= CONF_UNKNOWN]
-    if interesting is not None:
-        cands = [f for f in cands if interesting(f)]
-    if not cands:
-        return None
-    if len(cands) == 1:
-        return cands[0]
-    weights = [c.confidence for c in cands]
-    return rng.choices(cands, weights=weights)[0]
-
-
-def _gossip_due(world: World, systems: Systems, rng_pool: dict[str, Any],
-                speaker_id: str, speaker_npc) -> None:
-    """讲话者本次重评(idle)时按 tell_p 向一位同地 idle 听众分享一条事实。
-
-    m5-rectify 05: 挂 due 重评(成本 O(due))而非每 tick 每对; 选样置信加权。
-    m5-rectify 06: 接收方 TOLD 来源携带起源 fact 引用 (speaker, f:origin)。
-    """
-    p = systems.tell_p * getattr(speaker_npc, "tell_bias", 1.0)
-    if p <= 0.0:
-        return
-    rng = rng_pool[speaker_id]
-    if rng.random() >= p:
-        return
-    # 先找同地可接收的听众(是否"已知"交给选样判定)
-    ids = [pid for pid, npc in world.npcs.items()
-           if pid != speaker_id and npc.is_alive()
-           and npc.location_id == speaker_npc.location_id
-           and pid not in systems.interaction.active
-           and pid not in systems.travel]
-    if not ids:
-        return
-    # 只传播"至少有听众不知道"的事实(排除人人可见的设施常识)
-    fact = _pick_tell_fact(
-        speaker_npc.kb, rng,
-        interesting=lambda f: any(
-            not world.npcs[pid].kb.knows(f.subject, f.relation, f.obj)
-            for pid in ids))
-    if fact is None:
-        return
-    receivers = [pid for pid in ids
-                 if not world.npcs[pid].kb.knows(
-                     fact.subject, fact.relation, fact.obj)]
-    receiver = rng.choice(receivers)
-    r_kb = world.npcs[receiver].kb
-    f2 = r_kb.learn(subject=fact.subject, relation=fact.relation,
-                    obj=fact.obj, confidence=fact.confidence * 0.8,
-                    source=Source(kind="TOLD",
-                                  ref=(speaker_id, f"f:{fact.fact_id}")),
-                    tick=world.clock_tick)
-    _REL_ZH = {"located_at": "在", "affords": "可提供"}
-
-    def _term(x: str) -> str:      # 服务端生成人话(canvasrecode 9: short)
-        e = world.entities.get(x)
-        return e.name if (e is not None and e.name) else str(x)
-    short = f"{_term(fact.subject)} {_REL_ZH.get(fact.relation, fact.relation)} " \
-            f"{_term(fact.obj)}"
-    world.bus.publish(world.bus.make(
-        world.clock_tick, "told", speaker_id,
-        {"audience": [receiver], "from": speaker_id,
-         "subject": fact.subject, "relation": fact.relation,
-         "obj": fact.obj, "conf": round(fact.confidence * 0.8, 3),
-         "origin": fact.fact_id, "fact_id": f2.fact_id, "short": short}))
-
-
+    pass  # TODO(notify): 待实现, 见上
 def _execute_buy(world: World, systems: Systems, cfg: SimConfig,
                  pid: str, npc, intent: Buy) -> None:
     """成交购买: 扣钱(资金只减不增) + 归自己 + 移到家 + KB 刷新商品位置。
@@ -251,35 +122,28 @@ def _execute_buy(world: World, systems: Systems, cfg: SimConfig,
     买入后实体从商店搬到 npc.home, 并把 KB 里该商品的 located_at 改到新家、
     证伪旧位置。"""
     ent = world.entities.get(intent.item_id)
-    if (ent is None or ent.price <= 0 or ent.owner != ""
-            or npc.money < ent.price or ent.stock == 0):
+    home = npc.home or npc.location_id
+    if (ent is None or ent.price <= 0 or ent.owner != "" or ent.stock == 0
+            or not npc.pay(ent.price)):
         world.bus.publish(world.bus.make(
             world.clock_tick, "intent_failed", pid,
             {"target": intent.item_id,
              "why": "购买失败(无货/已售/钱不够)"}))
     else:
-        npc.money = max(0.0, npc.money - ent.price)
         ent.owner = pid
-        ent.location_id = npc.home or npc.location_id
-        # TASK001 空间: 归家后实体锚点随 region 重排(旧几何不再适用)
-        ent.position = None
-        world.layout_location(ent.location_id)
-        # KB 刷新商品位置: 学新家位置 + 证伪其余旧位置
-        npc.kb.learn(subject=ent.entity_id, relation="located_at",
-                     obj=ent.location_id, confidence=1.0,
-                     source=Source(kind="OBSERVED"), tick=world.clock_tick)
-        for f in npc.kb.query(subject=ent.entity_id, relation="located_at"):
-            if f.obj != ent.location_id:
-                npc.kb.refute(f.fact_id)
+        ent.location_id = home
+        ent.position = None                     # 归家后锚点重排
+        world.layout_location(home)
+        npc.note(ent.entity_id, tick=world.clock_tick,
+                 located=home, owner="me", price=ent.price)   # 记忆: 在家归我
         world.bus.publish(world.bus.make(
             world.clock_tick, "bought", pid,
             {"item": ent.entity_id, "price": ent.price,
-             "home": ent.location_id, "money": round(npc.money, 2)}))
+             "home": home, "money": round(npc.money, 2)}))
     # 买完/失败都尽快重评(回家/换目标)
     a = arousal(world.hour_f(), npc.signals.get("energy", 0.5),
-                npc.signals.get("hunger", 0.5))
+                npc.signals.get("hunger", 0.5), cfg)
     systems.scheduler.schedule(pid, review_interval_ticks(a, cfg))
-
 
 def run_tick(world: World, systems: Systems, cfg: SimConfig,
              rng_pool: dict[str, Any]) -> None:
@@ -293,28 +157,19 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
                      cfg.ticks_per_day)
 
     # 0.5 旅行 NPC 连续 position 推进(每 tick; 到达由 to-location 重评落定)
-    _advance_travel_positions(world, systems)
+    advance_travel(world, systems.travel)
 
-    # 1. 代谢(全体活着的 NPC; 睡眠冻结精力, 忙碌冻结娱乐——无聊才降 fun)
+    # 1. 心跳(身体演化收进 Person; 世界只广播, 不改 signals): 代谢+hp+排泄
     died: list[str] = []
     for pid, npc in world.npcs.items():
         if npc.is_alive():
-            amul: dict[str, float] = {}
-            if _sleeping(world, systems, pid):
-                amul["energy"] = 0.0
-            if _busy(world, systems, pid):
-                amul["fun"] = 0.0
-            apply_metabolism(npc.signals, cfg.metabolism,
-                             personality_mul=npc.personality,
-                             activity_mul=amul or None)
-            _apply_hp(npc, cfg)
+            npc.heartbeat(world.clock_tick, cfg,
+                          sleep=_sleeping(world, systems, pid),
+                          busy=_busy(world, systems, pid))
             if not npc.is_alive():
                 died.append(pid)
     for pid in died:
         _kill(world, systems, pid)             # 死亡销毁 + 日志
-    # 2. 排泄转化
-    for npc in world.npcs.values():
-        _step_elimination(npc, cfg)
     # 3. 交互推进(含睡眠唤醒提前完成 / plan 链)
     systems.interaction.step(world, cfg)
     # 5. 到点重评: 先对全部到点者算 Intent(同一世界快照, 反映 claim 竞争),
@@ -328,10 +183,7 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
         # 抵达: 旅行到期 → 落到目标 location 再重评
         if npc_id in systems.travel:
             trv = systems.travel.pop(npc_id)
-            npc.location_id = trv.to_loc
-            if trv.target_position is not None:
-                npc.position = trv.target_position   # 位置与 region 落点一致
-        prev_ids = npc.kb.overlay_fact_ids()
+            npc.arrive(trv.to_loc, trv.target_position)
         percept = build_percept(world, npc)
         # TASK002: perceived 事件(观察用; audience=[] 只进日志/UI 流)
         world.bus.publish(world.bus.make(
@@ -340,29 +192,14 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
              "observed_entity_ids": sorted(
                  v.entity_id for v in percept.visible),
              "location_id": npc.location_id,
-             "position": [npc.position[0], npc.position[1]]}))
-        consolidate_observations(npc, percept, npc.kb,
-                                 tick=world.clock_tick)  # 感知 → 知识
-        # TASK001/002 观察: 本 tick 新学到的 overlay 事实 → learned 事件(调用侧发,
-        # audience=[] 只进日志/UI 流, 不塞回 NPC 信箱)
-        for fid in sorted(npc.kb.overlay_fact_ids() - prev_ids):
-            f = npc.kb.overlay.get(fid)
-            if f is None:
-                continue
-            world.bus.publish(world.bus.make(
-                world.clock_tick, "learned", npc_id,
-                {"audience": [], "fact_id": fid, "subject": f.subject,
-                 "relation": f.relation, "obj": f.obj,
-                 "source_kind": f.source.kind,
-                 "confidence": round(f.confidence, 3)}))
-        intent = decide(percept, npc.signals, npc.personality, kb=npc.kb,
-                        cfg=cfg, money=npc.money)
-        npc.last_intent = intent
+             "position": list(npc.position)}))
+        npc.perceive(percept, world.clock_tick)   # 感知 → 记忆(写 mem)
+        intent = npc.decide(cfg)                  # 决策(只看记忆+自身)
         kind = intent_kind(intent)
         target = intent_target(intent)
-        # M5 传闻: 仅本次到点且算成 idle 者才可能开口(m5-rectify 05, O(due))
+        # TODO(notify): 通用事件通知骨架 —— 原 gossip(传闻)已删, 待 mem 传播语义定稳后实现
         if isinstance(intent, Idle):
-            _gossip_due(world, systems, rng_pool, npc_id, npc)
+            _notify_due(world, systems, npc)
         if systems.log_lines is not None:
             systems.log_lines.append(
                 f"D\t{world.clock_tick}\t{npc_id}\t{kind}\t{target or ''}")
@@ -400,10 +237,9 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
         else:
             # idle 或提交失败: 按清醒度节律排下次
             a = arousal(hour, npc.signals.get("energy", 0.5),
-                        npc.signals.get("hunger", 0.5))
+                        npc.signals.get("hunger", 0.5), cfg)
             systems.scheduler.schedule(npc_id, review_interval_ticks(a, cfg))
     # 5.5 M5 遗忘: 每游戏日 0 点对全部 NPC 批量 decay。
     if world.clock_tick % cfg.ticks_per_day == 0:
         for npc in world.npcs.values():
-            npc.kb.decay(now_tick=world.clock_tick,
-                         half_life_ticks=cfg.half_life_ticks)
+            npc.decay_memory(cfg, world.clock_tick)

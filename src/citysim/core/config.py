@@ -34,6 +34,13 @@ class SimConfig:
     hp_regen: float = 0.0005       # 两者满足时 hp 回升最大速率(×均值)
     move_penalty: float = 0.6      # 异地(MoveTo)候选效用折扣(移动耗时/精力成本)
     buy_margin: float = 1.0        # 愿买度缓冲: willing=clamp01((money-price)/(price*margin))
+    # —— 生物钟 / 清醒度(简化: 单余弦 + 系数, 见 brain.circadian/arousal) ——
+    peak_hour: float = 15.0        # 最清醒时刻(h); 谷=峰±12h
+    circadian_min: float = 0.15    # 生物钟谷值
+    circadian_amp: float = 0.85    # 生物钟振幅(峰=min+amp)
+    energy_floor: float = 0.4      # 清醒度里 energy 的基准系数
+    energy_gain: float = 0.6       # 清醒度里 energy 的增益
+    hunger_penalty: float = 0.2    # 饥饿对清醒度的拖累
 
     @classmethod
     def from_toml(cls, data: dict[str, Any]) -> "SimConfig":
@@ -53,6 +60,12 @@ class SimConfig:
             hp_regen=float(data.get("health", {}).get("regen", 0.0005)),
             move_penalty=float(data.get("utility", {}).get("move_penalty", 0.6)),
             buy_margin=float(data.get("utility", {}).get("buy_margin", 1.0)),
+            peak_hour=float(data.get("wake", {}).get("peak_hour", 15.0)),
+            circadian_min=float(data.get("wake", {}).get("circadian_min", 0.15)),
+            circadian_amp=float(data.get("wake", {}).get("circadian_amp", 0.85)),
+            energy_floor=float(data.get("wake", {}).get("energy_floor", 0.4)),
+            energy_gain=float(data.get("wake", {}).get("energy_gain", 0.6)),
+            hunger_penalty=float(data.get("wake", {}).get("hunger_penalty", 0.2)),
         )
 
 

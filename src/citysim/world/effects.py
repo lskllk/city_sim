@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
+from citysim.core.config import SIGNALS
 from citysim.npc.person import Person
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.world import Entity, World
@@ -31,17 +32,17 @@ def _clamp(v: float) -> float:
 
 @register("set_signal")
 def _set_signal(world, npc, entity, eff) -> None:
-    s, v = eff["signal"], _clamp(eff.get("value", 0.0))
-    if s in npc.signals:
-        npc.signals[s] = v
+    s, v = eff["signal"], eff.get("value", 0.0)
+    if s in SIGNALS:
+        npc.set_signal(s, v)
 
 
 @register("add_signal")
 def _add_signal(world, npc, entity, eff) -> None:
     s = eff["signal"]
     v = float(eff.get("delta", eff.get("value", 0.0)))
-    if s in npc.signals:
-        npc.signals[s] = _clamp(npc.signals[s] + v)
+    if s in SIGNALS:
+        npc.add_signal(s, v)
 
 
 _PENDING_WHITELIST = frozenset({"bladder_pending"})
@@ -54,18 +55,18 @@ def _clear_pending(world, npc, entity, eff) -> None:
         log.warning("clear_pending 拒绝字段 %r(白名单: %s)",
                     f, sorted(_PENDING_WHITELIST))
         return
-    setattr(npc, f, 0.0)
+    npc.set_bladder_pending(0.0)
 
 
 @register("add_pending")
 def _add_pending(world, npc, entity, eff) -> None:
-    """膀胱等 pending 字段累加(on_start 用, 替代 interaction 的 attrs 特判)。"""
+    """膀胱等 pending 字段累加(on_start 用)。"""
     f = eff.get("field", "")
     if f not in _PENDING_WHITELIST:
         log.warning("add_pending 拒绝字段 %r(白名单: %s)",
                     f, sorted(_PENDING_WHITELIST))
         return
-    setattr(npc, f, getattr(npc, f, 0.0) + float(eff.get("amount", 0.0)))
+    npc.add_bladder_pending(float(eff.get("amount", 0.0)))
 
 
 @register("spawn_item")

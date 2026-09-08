@@ -17,6 +17,14 @@ convert_per_tick = 0.02        # pending -> 膀胱 的每 tick 转化速率
 min_ticks = 1                  # 最清醒时每 tick 想一次
 max_ticks = 48                 # 最困时约每 48 tick 重评一次
 
+[wake]                         # 生物钟 / 清醒度(brain.circadian/arousal)
+peak_hour = 15.0               # 最清醒时刻(h); 谷=峰±12h
+circadian_min = 0.15           # 生物钟谷值
+circadian_amp = 0.85           # 振幅(峰=min+amp)
+energy_floor = 0.4             # 清醒度里 energy 基准系数
+energy_gain = 0.6              # 清醒度里 energy 增益
+hunger_penalty = 0.2           # 饥饿拖累
+
 [knowledge]                    # M5: 知识库
 half_life_ticks = 2880        # 2 天(知识半衰期)
 

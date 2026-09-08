@@ -14,10 +14,9 @@ import random
 from pathlib import Path
 
 from citysim.core.config import load_config
-from citysim.npc.knowledge import KnowledgeBase, Source
 from citysim.npc.person import Identity, Person
 from citysim.sim.loop import make_systems
-from citysim.sim.pulses import normalize as _norm_pulses
+from citysim.world.pulses import normalize as _norm_pulses
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.world import Entity, World, entity_from_def
 
@@ -68,29 +67,39 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
     for loc_id in world.locations:
         world.layout_location(loc_id)
 
-    # ---- NPC: 人设 + 初始知识(kb_extra) -------------------------------
+    # ---- NPC: 人设 + 初始记忆(出生空白, kb_extra 合成 item 行) --------
     for idx, spec in enumerate(data.get("npcs", [])):
         pid = spec["id"]
-        p = Person(identity=Identity(person_id=pid, name=spec["name"]),
-                   location_id=spec.get("home", ""))
-        p.home = spec.get("home", "")
-        p.money = float(spec.get("money", 100.0))
+        pos: tuple | None = None
         if "spawn" in spec:                              # 显式出生点优先
-            p.position = (float(spec["spawn"][0]), float(spec["spawn"][1]))
+            pos = (float(spec["spawn"][0]), float(spec["spawn"][1]))
         else:
-            home_center = world.region_center(p.home)
-            if home_center is not None:                  # fallback: region 中心
-                p.position = home_center
+            hc = world.region_center(spec.get("home", ""))
+            if hc is not None:                           # fallback: region 中心
+                pos = hc
+        p = Person(identity=Identity(person_id=pid, name=spec["name"]),
+                   location_id=spec.get("home", ""),
+                   home=spec.get("home", ""),
+                   money=float(spec.get("money", 100.0)),
+                   personality=spec.get("personality", {}),
+                   tell_bias=float(spec.get("tell_bias", 1.0)),
+                   position=pos or (0.0, 0.0))
         init = spec.get("init", {})
-        p.set_state(**{k: float(v) for k, v in init.items() if k in _ARGS_ORDER})
-        p.personality = dict(spec.get("personality", {}))
-        p.tell_bias = float(spec.get("tell_bias", 1.0))
-        p.kb = KnowledgeBase()
+        p.set_signals(**{k: float(v) for k, v in init.items() if k in _ARGS_ORDER})
+        # kb_extra(affords/located_at/price_of) 合成进每个 item 记忆行
+        mem0: dict[str, dict] = {}
         for f in spec.get("kb_extra", []):
-            p.kb.learn(subject=f["subject"], relation=f["relation"],
-                       obj=f["obj"], confidence=float(f.get("confidence", 1.0)),
-                       source=Source(kind="OBSERVED", ref=("scn",)), tick=0,
-                       value=float(f.get("value", 0.0)))
+            rec = mem0.setdefault(f["subject"], {})
+            rel = f["relation"]
+            if rel == "affords":
+                rec["afford"] = f["obj"]
+                rec["value"] = float(f.get("value", 0.0))
+            elif rel == "located_at":
+                rec["located"] = f["obj"]
+            elif rel == "price_of":
+                rec["price"] = float(f.get("value", f.get("obj", 0)))
+        for item_id, rec in mem0.items():
+            p.note(item_id, tick=0, believe=1.0, **rec)
         world.npcs[pid] = p
         rng_pool[pid] = random.Random(seed * 100 + idx)
         systems.scheduler.schedule(pid, 1, now=0)

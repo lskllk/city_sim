@@ -128,11 +128,19 @@ class World:
     clock_tick: int = 0
     entities: dict[str, Entity] = field(default_factory=dict)
     npcs: dict[str, Person] = field(default_factory=dict)
+    _npc_region: dict[str, str] = field(default_factory=dict)  # npc_id -> 逻辑 region(真实位置归 World)
     bus: EventBus = field(default_factory=EventBus)
     _entity_seq: int = 0                  # 自动实体 id 计数(确定性)
     locations: dict[str, dict] = field(default_factory=dict)
     # TASK001 region 几何: {loc: {"x":..,"y":..,"w":..,"h":..,"name":..,"kind":..}}
     # 来自 scene json 的 x/y/w/h, 直接作为世界坐标; 未注册 region = 无空间语义
+
+    # --- NPC 逻辑位置(真实位置归 World; Person 不背坐标)------------
+    def place_npc(self, npc_id: str, region: str) -> None:
+        self._npc_region[npc_id] = region
+
+    def loc_of(self, npc_id: str) -> str:
+        return self._npc_region.get(npc_id, "")
 
     def hour_f(self) -> float:
         # tick 0 起 = 0:00; 一天 1440 tick

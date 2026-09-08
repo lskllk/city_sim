@@ -130,9 +130,11 @@ def _recent_events(systems, pid: str) -> list:
 def _npc_base(world, systems, pid: str, p) -> dict:
     act = systems.interaction.active.get(pid)
     tv = systems.travel.get(pid)
+    loc = world.loc_of(pid)
+    center = world.region_center(loc) or (0.0, 0.0)
     return {
-        "id": pid, "name": p.name, "loc": p.location_id,
-        "home": p.home, "position": [float(x) for x in p.position],
+        "id": pid, "name": p.name, "loc": loc,
+        "home": p.home, "position": [float(x) for x in center],
         "activity": p.current_activity,
         "act_class": act_class_of(world, systems, pid),
         "money": round(p.money, 2),

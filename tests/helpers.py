@@ -21,11 +21,11 @@ def make_runtime(cfg: SimConfig, *, log: bool = False):
 
 def add_npc(world: World, systems, person_id: str, *, location: str = "loc",
             rng_pool: dict | None = None, seed: int = 1, **kw) -> Person:
-    p = Person(identity=Identity(person_id=person_id, name=person_id),
-               location_id=location)
+    p = Person(identity=Identity(person_id=person_id, name=person_id))
     if kw:
         p.set_signals(**kw)
     world.npcs[person_id] = p
+    world.place_npc(person_id, location)
     if rng_pool is not None:
         rng_pool[person_id] = random.Random(seed)
     return p

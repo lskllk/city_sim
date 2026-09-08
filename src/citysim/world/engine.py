@@ -20,7 +20,7 @@ from citysim.core.types import (
 from citysim.npc.brain import arousal, review_interval_ticks
 from citysim.world.pulses import apply as apply_pulses
 from citysim.world.perception import build_percept
-from citysim.world.travel import Travel, advance as advance_travel
+from citysim.world.travel import Travel
 
 
 def _travel_cost(systems, cfg: SimConfig, a: str, b: str) -> int:
@@ -57,7 +57,7 @@ def _kill(world, systems, pid: str) -> None:
     world.npcs.pop(pid, None)                        # 从世界销毁
     world.bus.publish(world.bus.make(
         world.clock_tick, "npc_died", pid,
-        {"name": npc.name, "loc": npc.location_id}))
+        {"name": npc.name, "loc": world.loc_of(pid)}))
 
 
 def _notify_due(world, systems, npc) -> None:
@@ -73,7 +73,7 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
                  intent: Buy) -> None:
     """成交购买: 扣钱(只减不增) + 归自己 + 移到家 + 记忆刷新商品位置。"""
     ent = world.entities.get(intent.item_id)
-    home = npc.home or npc.location_id
+    home = npc.home or world.loc_of(pid)
     if (ent is None or ent.price <= 0 or ent.owner != "" or ent.stock == 0
             or not npc.pay(ent.price)):
         world.bus.publish(world.bus.make(
@@ -105,8 +105,6 @@ def tick(world, systems, cfg: SimConfig) -> None:
     if systems.pulses:
         apply_pulses(world, systems.pulses, world.clock_tick, cfg.ticks_per_day)
 
-    # 0.5 旅行 NPC 连续 position 推进
-    advance_travel(world, systems.travel)
 
     # 1. 心跳(身体演化收进 Person; 世界只广播, 不改 signals): 代谢+hp+排泄
     died: list[str] = []
@@ -133,15 +131,14 @@ def tick(world, systems, cfg: SimConfig) -> None:
         # 抵达: 旅行到期 → 落到目标 location 再重评
         if npc_id in systems.travel:
             trv = systems.travel.pop(npc_id)
-            npc.arrive(trv.to_loc, trv.target_position)
+            world.place_npc(npc_id, trv.to_loc)
         percept = build_percept(world, npc)
         world.bus.publish(world.bus.make(
             world.clock_tick, "perceived", npc_id,
             {"audience": [],
              "observed_entity_ids": sorted(
                  v.entity_id for v in percept.visible),
-             "location_id": npc.location_id,
-             "position": list(npc.position)}))
+             "location_id": world.loc_of(npc_id)}))
         npc.perceive(percept, world.clock_tick)   # 感知 → 记忆(写 mem)
         intent = npc.decide(cfg)                  # 决策(只看记忆+自身)
         kind = intent_kind(intent)
@@ -163,15 +160,13 @@ def tick(world, systems, cfg: SimConfig) -> None:
     for npc_id, npc, intent in decisions:
         if isinstance(intent, MoveTo):
             systems.interaction.release_active(world, npc_id)   # 出发前清残留
-            dest = intent.dest or npc.location_id
-            cost = _travel_cost(systems, cfg, npc.location_id, dest)
-            target_pos = world.region_center(dest) or npc.position
+            here = world.loc_of(npc_id)
+            dest = intent.dest or here
+            cost = _travel_cost(systems, cfg, here, dest)
             systems.travel[npc_id] = Travel(
-                from_loc=npc.location_id, to_loc=dest,
+                from_loc=here, to_loc=dest,
                 depart_tick=world.clock_tick,
-                arrive_tick=world.clock_tick + cost,
-                start_position=npc.position,
-                target_position=target_pos)
+                arrive_tick=world.clock_tick + cost)
             systems.scheduler.schedule(npc_id, cost)
             continue
         if isinstance(intent, Buy):

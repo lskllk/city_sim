@@ -70,20 +70,13 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
     # ---- NPC: 人设 + 初始记忆(出生空白, kb_extra 合成 item 行) --------
     for idx, spec in enumerate(data.get("npcs", [])):
         pid = spec["id"]
-        pos: tuple | None = None
-        if "spawn" in spec:                              # 显式出生点优先
-            pos = (float(spec["spawn"][0]), float(spec["spawn"][1]))
-        else:
-            hc = world.region_center(spec.get("home", ""))
-            if hc is not None:                           # fallback: region 中心
-                pos = hc
+        home_region = spec.get("home", "")
         p = Person(identity=Identity(person_id=pid, name=spec["name"]),
-                   location_id=spec.get("home", ""),
-                   home=spec.get("home", ""),
+                   home=home_region,
                    money=float(spec.get("money", 100.0)),
                    personality=spec.get("personality", {}),
-                   tell_bias=float(spec.get("tell_bias", 1.0)),
-                   position=pos or (0.0, 0.0))
+                   tell_bias=float(spec.get("tell_bias", 1.0)))
+        world.place_npc(pid, home_region)
         init = spec.get("init", {})
         p.set_signals(**{k: float(v) for k, v in init.items() if k in _ARGS_ORDER})
         # kb_extra(affords/located_at/price_of) 合成进每个 item 记忆行

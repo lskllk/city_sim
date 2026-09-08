@@ -33,15 +33,16 @@ def build_percept(world, npc) -> Percept:
     events = 该 NPC 信箱里取走的全部事件。
     结果要不要记进记忆, 由 Person.perceive 决定(此处不管)。
     """
+    loc = world.loc_of(npc.person_id)
     views = []
-    for e in world.entities_at(npc.location_id):
+    for e in world.entities_at(loc):
         closed = not e.is_open_now(world.hour_f())   # 停业=空且不可claim
         views.append(_view_for(world, npc, e, closed))
     events = world.bus.drain_for(npc.person_id)
     return Percept(
         tick=world.clock_tick,
         hour_f=world.hour_f(),
-        location_id=npc.location_id,
+        location_id=loc,
         visible=tuple(views),
         events=events,
     )

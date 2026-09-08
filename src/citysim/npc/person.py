@@ -87,9 +87,7 @@ class Person:
         *,
         signals: Mapping[str, float] | None = None,
         personality: Mapping[str, float] | None = None,
-        position: tuple[float, float] = (0.0, 0.0),
         current_activity: str = "idle",
-        location_id: str = "",
         home: str = "",
         tell_bias: float = 1.0,
         money: float = 100.0,
@@ -97,9 +95,7 @@ class Person:
         self._identity: Identity = identity or Identity(person_id="anon", name="匿名")
         self._signals: dict[str, float] = full_signals()
         self._personality: dict[str, float] = dict(personality or {})
-        self._position: tuple[float, float] = tuple(position)
         self._current_activity: str = current_activity
-        self._location_id: str = location_id
         self._home: str = home
         self._tell_bias: float = tell_bias
         self._money: float = money
@@ -107,6 +103,7 @@ class Person:
         self._last_intent: "Intent | None" = None
         self._last_percept: "PerceptionRecord | None" = None
         self._mem = MemBase()
+        self._perceived_loc: str = ""   # 最近一次感知到自己在哪(自身认知, 不长期维护坐标)
         if signals:
             self.set_signals(**dict(signals))
 
@@ -126,10 +123,6 @@ class Person:
         return self._identity
 
     @property
-    def location_id(self) -> str:
-        return self._location_id
-
-    @property
     def home(self) -> str:
         return self._home
 
@@ -138,8 +131,9 @@ class Person:
         return self._money
 
     @property
-    def position(self) -> tuple[float, float]:
-        return self._position
+    def perceived_loc(self) -> str:
+        """最近一次感知到自己在哪(决策用; 真实位置归 World, 本层不长期维护坐标)。"""
+        return self._perceived_loc
 
     @property
     def current_activity(self) -> str:
@@ -233,16 +227,6 @@ class Person:
     # ------------------------------------------------------------------
     # 状态写 —— 位置 / 活动 / 膀胱 / 钱
     # ------------------------------------------------------------------
-    def move_to(self, position: tuple[float, float]) -> None:
-        self._position = tuple(position)
-
-    def arrive(self, location_id: str,
-               position: tuple[float, float] | None = None) -> None:
-        """到达: 落 region(可带精确落点)。"""
-        self._location_id = location_id
-        if position is not None:
-            self._position = tuple(position)
-
     def set_activity(self, activity: str) -> None:
         self._current_activity = activity
 
@@ -304,11 +288,12 @@ class Person:
         return self._mem.to_dicts()
 
     def perceive(self, percept: "Percept", tick: int) -> None:
-        """现场 → 记忆(写入)。非纯函数。"""
+        """现场 → 记忆(写入)。非纯函数。感知即知道自己当前在哪。"""
+        self._perceived_loc = percept.location_id
         brain.perceive_into(self._mem, percept, tick)
         self._last_percept = PerceptionRecord(
             tick=tick, npc_id=self.person_id,
-            location_id=percept.location_id, position=self._position,
+            location_id=percept.location_id,
             observed_entity_ids=tuple(sorted(v.entity_id
                                              for v in percept.visible)))
 
@@ -316,7 +301,7 @@ class Person:
         """决策: 只读 记忆+自身状态 → Intent。铁律: 不看环境。"""
         intent = brain.decide(
             self._signals, self._personality, self._mem,
-            self._location_id, cfg, self._money)
+            self._perceived_loc, cfg, self._money)
         self._last_intent = intent
         return intent
 
@@ -330,8 +315,7 @@ class Person:
     def snapshot(self) -> dict:
         return {
             "id": self.person_id, "name": self.name,
-            "loc": self._location_id, "home": self._home,
-            "position": list(self._position),
+            "home": self._home,
             "activity": self._current_activity,
             "money": round(self._money, 2),
             "signals": {k: round(v, 4) for k, v in self._signals.items()},

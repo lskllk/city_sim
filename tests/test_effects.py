@@ -86,7 +86,7 @@ def test_add_pending_ok_and_whitelist() -> None:
 
 def test_spawn_item_creates_at_npc_loc() -> None:
     w, npc, ent = _ctx()
-    npc.arrive("home")
+    w.place_npc(npc.person_id, "home")
     n0 = len(w.entities)
     apply_effects(w, npc, ent, [{"op": "spawn_item", "item_type": "meal_simple"}])
     assert len(w.entities) == n0 + 1

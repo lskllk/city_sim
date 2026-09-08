@@ -78,7 +78,7 @@ def _spawn_item(world, npc, entity, eff) -> None:
     defs = load_item_defs()
     if it not in defs:
         return
-    world.spawn_item_type(it, npc.location_id)
+    world.spawn_item_type(it, world.loc_of(npc.person_id))
 
 
 @register("consume_self")

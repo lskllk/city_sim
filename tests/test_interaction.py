@@ -76,8 +76,7 @@ def test_interruptible_false_refuses_override() -> None:
     world = World()
     bed = world.spawn_item_type("bed_basic", "home")
     toilet = world.spawn_item_type("toilet", "home")
-    npc = Person(identity=Identity(person_id="p", name="p"),
-                 location_id="home")
+    npc = Person(identity=Identity(person_id="p", name="p"))
     world.npcs["p"] = npc
     bed.claimed_by = "p"
     isys = InteractionSystem()

@@ -82,7 +82,7 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
         r = random.Random(seed * 100 + i)
         p = Person(identity=Identity(person_id=pid,
                                      name=names[i % len(names)]),
-                   location_id="home")
+                   home="home")
         base = {"energy": r.uniform(0.4, 0.9), "hunger": r.uniform(0.3, 0.9),
                 "thirst": r.uniform(0.3, 0.9), "bladder": 1.0,
                 "fun": 0.6, "hp": 1.0}
@@ -91,6 +91,7 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
                     for s, v in base.items()}
         p.set_signals(**base)
         world.npcs[pid] = p
+        world.place_npc(pid, "home")
         rng_pool[pid] = random.Random(seed + i)
         systems.scheduler.schedule(pid, 1, now=0)
 
@@ -132,10 +133,11 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
         pid = f"npc_{i:02d}"
         p = Person(identity=Identity(person_id=pid,
                                      name=names[i % len(names)]),
-                   location_id="home")
+                   home="home")
         p.set_signals(energy=0.6, hunger=0.25, thirst=0.6, bladder=0.9,
                     fun=0.5, hp=1.0)
         world.npcs[pid] = p
+        world.place_npc(pid, "home")
         rng_pool[pid] = random.Random(seed + i)
         systems.scheduler.schedule(pid, 1, now=0)
     return world, systems, rng_pool, CFG

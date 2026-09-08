@@ -9,7 +9,7 @@ import random
 from pathlib import Path
 
 from citysim.core.config import load_config
-from citysim.npc.person import Identity, Person, full_signals
+from citysim.npc.person import Identity, Person
 from citysim.sim.loop import attach_replay, make_systems
 from citysim.world.world import Entity, World
 
@@ -89,8 +89,7 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
         if noise:
             base = {s: max(0.0, min(1.0, v + r.uniform(-noise, noise)))
                     for s, v in base.items()}
-        p.set_state(**base)
-        p.personality = {}
+        p.set_signals(**base)
         world.npcs[pid] = p
         rng_pool[pid] = random.Random(seed + i)
         systems.scheduler.schedule(pid, 1, now=0)
@@ -134,7 +133,7 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
         p = Person(identity=Identity(person_id=pid,
                                      name=names[i % len(names)]),
                    location_id="home")
-        p.set_state(energy=0.6, hunger=0.25, thirst=0.6, bladder=0.9,
+        p.set_signals(energy=0.6, hunger=0.25, thirst=0.6, bladder=0.9,
                     fun=0.5, hp=1.0)
         world.npcs[pid] = p
         rng_pool[pid] = random.Random(seed + i)

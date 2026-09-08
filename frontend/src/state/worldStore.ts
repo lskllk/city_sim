@@ -34,7 +34,7 @@ export const useWorldStore = create<WorldState>()((set) => ({
   scenario: '',
   seed: 0,
   n_npc: 0,
-  signals: [],,
+  signals: [],
 
   initHello: (hello) => {
     const locs = hello.locations?.locations ?? {};

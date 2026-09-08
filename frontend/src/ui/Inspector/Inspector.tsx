@@ -6,16 +6,16 @@
 import type { ReactNode } from 'react';
 import { useWorldStore } from '../../state/worldStore';
 import { useSelectionStore } from '../../state/selectionStore';
-import type { KbEdge, NPCSnapshot } from '../../protocol/schemas';
+import type { MemItemRow, NPCSnapshot } from '../../protocol/schemas';
 
 const SIG_ZH: Record<string, string> = {
   energy: '精力', hunger: '饥饿', thirst: '口渴', bladder: '如厕',
   fun: '娱乐', hp: '生命',
 };
 const EVENT_ZH: Record<string, string> = {
-  decision: '决策', perceived: '感知', learned: '学习', told: '传闻',
-  bought: '购买', interaction_done: '完成', intent_failed: '失败',
-  npc_died: '死亡', stock_changed: '补货',
+  decision: '决策', perceived: '感知', interaction_done: '完成',
+  intent_failed: '失败', bought: '购买', stock_changed: '补货',
+  npc_died: '死亡',
 };
 
 export function Inspector() {
@@ -50,7 +50,7 @@ function NpcInspector({ npc }: { npc: NPCSnapshot }) {
   const keys = order.filter((k) => k in signals)
     .concat(Object.keys(signals).filter((k) => !order.includes(k)));
   const ranked = uniqueByMax(npc.intent?.ranked ?? []);
-  const kb: KbEdge[] = npc.kb?.edges ?? [];
+  const memory: MemItemRow[] = npc.memory ?? [];
   const events = [...(npc.events ?? [])].reverse().slice(0, 15);
 
   return (
@@ -95,14 +95,20 @@ function NpcInspector({ npc }: { npc: NPCSnapshot }) {
         )}
       </InspSection>
 
-      <InspSection title="Cognitive Memory">
-        {kb.length === 0 ? <div className="muted">空</div> : (
+      <InspSection title={`记忆 ${npc.memory_counts ?? memory.length}`}>
+        {memory.length === 0 ? <div className="muted">空</div> : (
           <ul className="kb-list">
-            {kb.slice(0, 40).map((e, i) => (
-              <li key={`${e.src}${e.relation}${e.dst}${i}`} className="mem-row">
-                <span className={`src-chip k-${e.source_kind}`}>{e.source_kind}</span>
-                <span className="mono">{resolveName(e.src)} {e.relation} {String(e.dst)}</span>
-                <span className="mono dim">c={e.confidence.toFixed(2)}</span>
+            {memory.map((m) => (
+              <li key={m.item_id} className="mem-row">
+                <div className="mem-item">
+                  <span className="mem-name">{resolveName(m.item_id)}</span>
+                  <span className="mono dim">@ {resolveName(m.located)}</span>
+                </div>
+                <div className="mem-cols mono dim">
+                  {m.afford && <span>补:{m.afford}({m.value})</span>}
+                  <span>信:{Math.round((m.believe ?? 0) * 100)}%</span>
+                  <span>记:{Math.round((m.remember ?? 0) * 100)}%</span>
+                </div>
               </li>
             ))}
           </ul>
@@ -189,11 +195,9 @@ function oneLine(ev: { kind?: string; type?: string; intent?: string; target?: s
       const n = Array.isArray(p.observed_entity_ids) ? (p.observed_entity_ids as unknown[]).length : 0;
       return `感知 ${n} 物件`;
     }
-    case 'learned': return `学到 ${String(p.subject ?? '')} ${String(p.relation ?? '')} ${String(p.obj ?? '')}`;
     case 'interaction_done': return `完成 ${String(p.entity ?? '')}`;
     case 'intent_failed': return `未遂：${String(p.why ?? '')}`;
     case 'bought': return `购买 ${String(p.item ?? '')}`;
-    case 'told': return `传闻：${typeof p.short === 'string' ? p.short : ''}`;
     default: return '';
   }
 }

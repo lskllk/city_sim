@@ -97,29 +97,18 @@ export interface LastPercept {
   observed: string[];
 }
 
-export interface KbEdge {
-  src: string;
-  dst: string;
-  relation: string;
-  confidence: number;
-  source_kind: SourceKind;
-  tick: number;
-}
-
-export interface KbNode {
-  id: string;
-  label: string;
-  kind: string;
-}
-
-export interface KnowledgeData {
-  nodes: KbNode[];
-  edges: KbEdge[];
-}
-
-export interface KbCounts {
-  overlay: number;
-  tombstones: number;
+export interface MemItemRow {
+  item_id: string;
+  located: string;
+  owner: string;
+  claimed: boolean;
+  afford: string;
+  value: number;
+  price: number;
+  stock: number;
+  believe: number;
+  remember: number;
+  last_seen: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -144,16 +133,17 @@ export interface NPCSnapshot {
   id: string;
   name: string;
   loc: string;
+  home: string;
   position: [number, number];
   activity: string;
   act_class: string;
+  money: number;
   signals: Record<string, number>;
   active: ActiveInteraction | null;
   travel: TravelSnapshot | null;
   intent: IntentSnapshot | null;
-  last_percept: LastPercept | null;
-  kb: KnowledgeData;
-  kb_counts: KbCounts;
+  memory: MemItemRow[];        // 记忆 = item 行全属性(替代旧 kb 知识图)
+  memory_counts: number;
   events: EventData[];
 }
 
@@ -208,7 +198,7 @@ export interface ReplyPayload {
 
 // 事件类型全集(contract 明确支持)
 export const EVENT_TYPES = [
-  'decision', 'perceived', 'learned', 'told', 'bought',
+  'decision', 'perceived', 'bought',
   'interaction_done', 'intent_failed', 'stock_changed', 'npc_died',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];

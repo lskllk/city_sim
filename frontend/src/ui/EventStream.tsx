@@ -8,7 +8,7 @@ import { useWorldStore } from '../state/worldStore';
 import { useSelectionStore } from '../state/selectionStore';
 
 const TYPE_ZH: Record<string, string> = {
-  decision: '决策', perceived: '感知', learned: '学习', told: '传闻',
+  decision: '决策', perceived: '感知',
   bought: '购买', interaction_done: '完成', intent_failed: '失败',
   stock_changed: '补货', npc_died: '死亡',
 };
@@ -69,8 +69,6 @@ const FILTERS: Array<[string, string]> = [
   ['all', '全部'],
   ['decision', '决策'],
   ['perceived', '感知'],
-  ['learned', '学习'],
-  ['told', '传闻'],
   ['intent_failed', '失败'],
   ['bought', '购买'],
 ];

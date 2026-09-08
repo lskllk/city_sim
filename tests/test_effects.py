@@ -33,33 +33,33 @@ def test_exactly_ops_registered() -> None:
 
 def test_set_signal() -> None:
     w, npc, ent = _ctx()
-    npc.set_state(energy=0.1)
+    npc.set_signals(energy=0.1)
     apply_effects(w, npc, ent,
                   [{"op": "set_signal", "signal": "energy", "value": 0.6}])
-    assert npc.signals["energy"] == pytest.approx(0.6)
+    assert npc.signal("energy") == pytest.approx(0.6)
 
 
 def test_set_signal_clamped() -> None:
     w, npc, ent = _ctx()
     apply_effects(w, npc, ent,
                   [{"op": "set_signal", "signal": "energy", "value": 5.0}])
-    assert npc.signals["energy"] == 1.0
+    assert npc.signal("energy") == 1.0
 
 
 def test_add_signal_clamp_edges() -> None:
     w, npc, ent = _ctx()
-    npc.set_state(fun=0.95)
+    npc.set_signals(fun=0.95)
     apply_effects(w, npc, ent,
                   [{"op": "add_signal", "signal": "fun", "delta": 0.5}])
-    assert npc.signals["fun"] == 1.0
+    assert npc.signal("fun") == 1.0
     apply_effects(w, npc, ent,
                   [{"op": "add_signal", "signal": "fun", "delta": -3.0}])
-    assert npc.signals["fun"] == 0.0
+    assert npc.signal("fun") == 0.0
 
 
 def test_clear_pending_whitelist_ok() -> None:
     w, npc, ent = _ctx()
-    npc.bladder_pending = 0.7
+    npc.set_bladder_pending(0.7)
     apply_effects(w, npc, ent,
                   [{"op": "clear_pending", "field": "bladder_pending"}])
     assert npc.bladder_pending == 0.0
@@ -67,15 +67,15 @@ def test_clear_pending_whitelist_ok() -> None:
 
 def test_clear_pending_whitelist_rejects() -> None:
     w, npc, ent = _ctx()
-    npc.signals["hunger"] = 0.4
+    npc.set_signal("hunger", 0.4)
     apply_effects(w, npc, ent,
                   [{"op": "clear_pending", "field": "signals"}])  # 拒绝
-    assert npc.signals["hunger"] == pytest.approx(0.4)   # 未被清
+    assert npc.signal("hunger") == pytest.approx(0.4)   # 未被清
 
 
 def test_add_pending_ok_and_whitelist() -> None:
     w, npc, ent = _ctx()
-    npc.bladder_pending = 0.1
+    npc.set_bladder_pending(0.1)
     apply_effects(w, npc, ent, [{"op": "add_pending", "field": "bladder_pending",
                                  "amount": 0.3}])
     assert npc.bladder_pending == pytest.approx(0.4)
@@ -86,7 +86,7 @@ def test_add_pending_ok_and_whitelist() -> None:
 
 def test_spawn_item_creates_at_npc_loc() -> None:
     w, npc, ent = _ctx()
-    npc.location_id = "home"
+    npc.arrive("home")
     n0 = len(w.entities)
     apply_effects(w, npc, ent, [{"op": "spawn_item", "item_type": "meal_simple"}])
     assert len(w.entities) == n0 + 1

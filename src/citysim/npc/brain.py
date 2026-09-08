@@ -44,6 +44,12 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
                 claimed=claimed, afford=afford or row.afford,
                 value=float(value) if value else row.value,
                 price=v.price, believe=1.0, remember=1.0, last_seen=tick)
+    # 反证(现场为准): 我以为某物在当前位置, 但此刻并不可见(已被消费/搬走/消失)
+    # → 从记忆清除, 免得 decide 空转在已不存在的本地目标上。
+    seen = {v.entity_id for v in percept.visible}
+    for r in list(mem.items()):
+        if r.located == percept.location_id and r.item_id not in seen:
+            mem.delete(r.item_id)
 
 
 BELIEF_MIN = 0.3   # 记忆行 believe 低于此 → 不作为决策候选

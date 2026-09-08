@@ -24,7 +24,7 @@ def add_npc(world: World, systems, person_id: str, *, location: str = "loc",
     p = Person(identity=Identity(person_id=person_id, name=person_id),
                location_id=location)
     if kw:
-        p.set_state(**kw)
+        p.set_signals(**kw)
     world.npcs[person_id] = p
     if rng_pool is not None:
         rng_pool[person_id] = random.Random(seed)

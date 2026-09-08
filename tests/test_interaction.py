@@ -51,7 +51,7 @@ def test_consumable_stock() -> None:
     _run(world, systems, rng_pool, 40)
     assert food.stock == 0
     assert "food_1" not in world.entities       # 空消耗品已回收
-    assert npc.signals["hunger"] > 0.5           # 吃了 → 饱了
+    assert npc.signal("hunger") > 0.5           # 吃了 → 饱了
     # 再多跑一段, 不会再吃同一个已空/已回收食物
     _run(world, systems, rng_pool, 30)
     assert food.stock == 0
@@ -66,7 +66,7 @@ def test_sleep_wake() -> None:
     npc = add_npc(world, systems, "npc", rng_pool=rng_pool, seed=8, energy=0.3)
     seed_reviews(world, systems)
     _run(world, systems, rng_pool, 520)
-    assert npc.signals["energy"] > 0.9           # 睡饱
+    assert npc.signal("energy") > 0.9           # 睡饱
     assert not is_asleep(world, systems, "npc")  # 已醒(不在睡眠交互中)
     assert systems.interaction.active.get("npc") is None
 

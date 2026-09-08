@@ -235,7 +235,7 @@ def hello_payload(runner) -> dict:
     except OSError:
         all_scene = {"canvas": {"w": 1280, "h": 760}, "locations": {}}
     used = {e.location_id for e in runner.world.entities.values()}
-    used |= {n.location_id for n in runner.world.npcs.values()}
+    used |= {runner.world.loc_of(n.person_id) for n in runner.world.npcs.values()}
     loc_map = all_scene.get("locations", {})
     if used:
         loc_map = {k: v for k, v in loc_map.items() if k in used}

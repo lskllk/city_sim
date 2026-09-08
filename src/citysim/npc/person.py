@@ -108,7 +108,6 @@ class Person:
     kb: "KnowledgeBase" = field(default_factory=KnowledgeBase)  # M5: 每 NPC 知识库
     tell_bias: float = 1.0                     # 传闻讲话概率倍率(elm_lane 人设)
     money: float = 100.0                       # 资金(采购商品用, 经济地基)
-    archetype_id: str = ""                     # TASK001: 原型 id(不得从 KB 猜)
     last_percept: "PerceptionRecord | None" = None  # TASK001: 最近一次可观察感知
 
     def __post_init__(self) -> None:

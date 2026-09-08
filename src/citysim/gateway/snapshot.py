@@ -66,9 +66,8 @@ def icon_of(entity) -> str:
 
 def kb_counts(kb) -> dict:
     if kb is None:
-        return {"overlay": 0, "tombstones": 0, "archetype": 0}
-    return {"overlay": len(kb.overlay), "tombstones": len(kb.tombstones),
-            "archetype": len(kb.archetype.facts)}
+        return {"overlay": 0, "tombstones": 0}
+    return {"overlay": len(kb.overlay), "tombstones": len(kb.tombstones)}
 
 
 def parse_log_line(line: str) -> dict | None:
@@ -143,7 +142,6 @@ def build_snapshot(world, systems, cfg, speed: str,
         npcs.append({
             "id": pid, "name": p.name, "loc": p.location_id,
             "position": [float(x) for x in p.position],
-            "archetype": p.archetype_id,
             "activity": p.current_activity,
             "act_class": act_class_of(world, systems, pid),
             "signals": {k: round(v, 4) for k, v in p.signals.items()},
@@ -248,7 +246,6 @@ def build_npc_detail(world, systems, pid: str) -> dict | None:
     return {
         "id": pid, "name": npc.name, "loc": npc.location_id,
         "position": [float(x) for x in npc.position],
-        "archetype": npc.archetype_id,
         "activity": npc.current_activity,
         "signals": {k: round(v, 4) for k, v in npc.signals.items()},
         "intent": None if it is None else {
@@ -328,7 +325,6 @@ def hello_payload(runner) -> dict:
             "scenario": runner.params["scenario"],
             "seed": runner.params["seed"],
             "n_npc": runner.params["n_npc"],
-            "kb_mode": runner.params["kb_mode"],
             "tell_p": runner.params["tell_p"],
             "signals": list(SIGNALS),
             "locations": locs}

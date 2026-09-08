@@ -179,7 +179,7 @@ def _pick_tell_fact(kb, rng, interesting=None):
     排除人人可见的设施常识(如"床能睡"), 否则会稀释真消息。
     """
     cands = [f for f in kb.overlay.values()
-             if f.source.kind != "INJECTED" and f.confidence >= CONF_UNKNOWN]
+             if f.confidence >= CONF_UNKNOWN]
     if interesting is not None:
         cands = [f for f in cands if interesting(f)]
     if not cands:
@@ -356,7 +356,7 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
                  "source_kind": f.source.kind,
                  "confidence": round(f.confidence, 3)}))
         intent = decide(percept, npc.signals, npc.personality, kb=npc.kb,
-                        cfg=cfg, rng=rng_pool[npc_id], money=npc.money)
+                        cfg=cfg, money=npc.money)
         npc.last_intent = intent
         kind = intent_kind(intent)
         target = intent_target(intent)

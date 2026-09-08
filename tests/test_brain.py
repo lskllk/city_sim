@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import copy
-import random
 from pathlib import Path
 
 from citysim.core.config import load_config
@@ -56,11 +55,11 @@ def _signals(**kw) -> dict[str, float]:
 
 
 def _kb(facts: list[tuple]) -> KnowledgeBase:
-    """facts: [(subject, relation, obj, value), ...] 全部 INJECTED conf=1.0。"""
+    """facts: [(subject, relation, obj, value), ...] 全部 OBSERVED conf=1.0。"""
     kb = KnowledgeBase()
     for subj, rel, obj, val in facts:
         kb.learn(subject=subj, relation=rel, obj=obj, value=val,
-                 confidence=1.0, source=Source(kind="INJECTED"), tick=0)
+                 confidence=1.0, source=Source(kind="OBSERVED"), tick=0)
     return kb
 
 
@@ -72,8 +71,8 @@ def test_pure_same_input_same_output_no_mutation() -> None:
     perc = _percept(_ev("rice_1", tags=("edible",),
                         affordances={"hunger": 0.4}))
     sig_before = copy.deepcopy(sig)
-    i1 = decide(perc, sig, {}, kb, CFG, random.Random(3))
-    i2 = decide(perc, sig, {}, kb, CFG, random.Random(3))
+    i1 = decide(perc, sig, {}, kb, CFG)
+    i2 = decide(perc, sig, {}, kb, CFG)
     assert i1 == i2
     assert sig == sig_before  # 入参未被修改
 
@@ -85,7 +84,7 @@ def test_hungry_picks_edible() -> None:
     edible = _ev("rice_1", tags=("edible", "consumable"),
                  affordances={"hunger": 0.4, "thirst": 0.1})
     intent = decide(_percept(edible), _signals(hunger=0.2), {},
-                    kb, CFG, random.Random(0))
+                    kb, CFG)
     assert isinstance(intent, Interact)
     assert intent.target_id == "rice_1"
 
@@ -94,7 +93,7 @@ def test_idle_when_satisfied() -> None:
     kb = _kb([("tv_1", "affords", "fun", 0.3),
               ("tv_1", "located_at", "loc", 0.0)])
     tv = _ev("tv_1", tags=("entertain",), affordances={"fun": 0.3})
-    intent = decide(_percept(tv), _signals(), {}, kb, CFG, random.Random(0))
+    intent = decide(_percept(tv), _signals(), {}, kb, CFG)
     assert isinstance(intent, Idle)
 
 
@@ -103,7 +102,7 @@ def test_move_to_remote_location() -> None:
     kb = _kb([("market_1", "affords", "hunger", 0.5),
               ("market_1", "located_at", "market", 0.0)])
     intent = decide(_percept(), _signals(hunger=0.2), {},
-                    kb, CFG, random.Random(0))
+                    kb, CFG)
     assert isinstance(intent, MoveTo)
     assert intent.dest == "market"
 
@@ -118,7 +117,7 @@ def test_local_beats_remote() -> None:
     ])
     rice = _ev("rice_1", tags=("edible",), affordances={"hunger": 0.4})
     intent = decide(_percept(rice), _signals(hunger=0.2), {},
-                    kb, CFG, random.Random(0))
+                    kb, CFG)
     assert isinstance(intent, Interact)
     assert intent.target_id == "rice_1"
 
@@ -133,9 +132,8 @@ def test_tie_break_deterministic() -> None:
     b = _ev("b_1", affordances={"hunger": 0.4})
     picks = []
     for _ in range(2):
-        rng = random.Random(42)
         intent = decide(_percept(a, b), _signals(hunger=0.2), {},
-                        kb, CFG, rng)
+                        kb, CFG)
         assert isinstance(intent, Interact)
         picks.append(intent.target_id)
     assert picks[0] == picks[1]
@@ -148,7 +146,7 @@ def test_not_claimable_is_ignored() -> None:
     occupied = _ev("bed_1", tags=("sleepable",), claimable=False,
                    affordances={"energy": 0.7})
     intent = decide(_percept(occupied), _signals(energy=0.1), {},
-                    kb, CFG, random.Random(0))
+                    kb, CFG)
     assert isinstance(intent, Idle)
 
 
@@ -160,7 +158,7 @@ def test_buy_when_for_sale_and_money_enough() -> None:
     tv = _ev("tv_1", tags=("entertain",), affordances={"fun": 0.4},
              price=60.0, owner="")
     intent = decide(_percept(tv), _signals(fun=0.2), {}, kb, CFG,
-                    random.Random(0), money=100.0)
+                    money=100.0)
     assert isinstance(intent, Buy)
     assert intent.item_id == "tv_1"
 
@@ -172,7 +170,7 @@ def test_cant_buy_unaffordable_for_sale_item() -> None:
     tv = _ev("tv_1", tags=("entertain",), affordances={"fun": 0.4},
              price=60.0, owner="")
     intent = decide(_percept(tv), _signals(fun=0.2), {}, kb, CFG,
-                    random.Random(0), money=10.0)
+                    money=10.0)
     assert isinstance(intent, Idle)
 
 
@@ -183,6 +181,46 @@ def test_owned_item_is_interact_not_buy() -> None:
     tv = _ev("tv_1", tags=("entertain",), affordances={"fun": 0.4},
              price=60.0, owner="me")
     intent = decide(_percept(tv), _signals(fun=0.2), {}, kb, CFG,
-                    random.Random(0), money=100.0)
+                    money=100.0)
     assert isinstance(intent, Interact)
     assert intent.target_id == "tv_1"
+
+
+def test_low_money_cushion_skips_buy() -> None:
+    """钱刚够价但无富余(愿买度≈0) → 不买(宁可不花), 富余才买。"""
+    kb = _kb([("tv_1", "affords", "fun", 0.4),
+              ("tv_1", "located_at", "loc", 0.0)])
+    tv = _ev("tv_1", tags=("entertain",), affordances={"fun": 0.4},
+             price=60.0, owner="")
+    # money=61 刚够价: 愿买度 (61-60)/(60*1)=0.017 → 不足 → Idle
+    tight = decide(_percept(tv), _signals(fun=0.2), {}, kb, CFG, money=61.0)
+    assert isinstance(tight, Idle)
+    # money=150 富余: 愿买度 →1 → Buy
+    rich = decide(_percept(tv), _signals(fun=0.2), {}, kb, CFG, money=150.0)
+    assert isinstance(rich, Buy) and rich.item_id == "tv_1"
+
+
+def test_move_penalty_gates_marginal_travel() -> None:
+    """异地候选带移动成本折扣: 效用电刚好够、折完不够 → 不跑, 宁可 idle。"""
+    kb = _kb([("market_1", "affords", "hunger", 0.3),
+              ("market_1", "located_at", "market", 0.0)])
+    sig = _signals(hunger=0.3)                # need=0.7, base 分略高于 threshold
+    intent = decide(_percept(), sig, {}, kb, CFG)
+    assert isinstance(intent, Idle)           # 折掉移动成本后不够格
+    # 对照组: 大缺口即使打折也值得跑
+    strong_kb = _kb([("market_1", "affords", "hunger", 0.5),
+                     ("market_1", "located_at", "market", 0.0)])
+    strong = decide(_percept(), _signals(hunger=0.2), {}, strong_kb, CFG)
+    assert isinstance(strong, MoveTo) and strong.dest == "market"
+
+
+def test_remote_can_beat_weaker_local_after_move_cost() -> None:
+    """不再本地绝对优先: 异地收益够好(折移动成本后仍远高于本地弱替代)→ 值得跑。"""
+    kb = _kb([
+        ("rice_1", "affords", "hunger", 0.25), ("rice_1", "located_at", "loc", 0.0),
+        ("market_1", "affords", "hunger", 0.9), ("market_1", "located_at", "market", 0.0),
+    ])
+    rice = _ev("rice_1", tags=("edible",), affordances={"hunger": 0.25})
+    # need=0.8: 本地 rice 分 0.128; 异地 market 折 0.6 后 0.276 > 0.128 → 去 market
+    intent = decide(_percept(rice), _signals(hunger=0.2), {}, kb, CFG)
+    assert isinstance(intent, MoveTo) and intent.dest == "market"

@@ -1,7 +1,6 @@
 """TASK001 —— spatial observability: 连续位置 / 距离感知 / 交互门 / 事件化。"""
 from __future__ import annotations
 
-import random
 from pathlib import Path
 
 from citysim.core.config import load_config
@@ -32,11 +31,10 @@ def _spatial_world(regions=DUO) -> World:
 
 
 def test_scene_loads_spatial_state() -> None:
-    """elm_lane 场景: NPC 在 region 中心出生、实体锚点落在 region 内、archetype_id 就位。"""
+    """elm_lane 场景: NPC 在 region 中心出生、实体锚点落在 region 内。"""
     from citysim.gateway.scenarios import load_scene
     w, _s, _r = load_scene(ROOT / "config" / "scenes" / "elm_lane.json", seed=3)
     wang = w.npcs["npc_wang"]
-    assert wang.archetype_id == "old_resident"
     assert wang.position == (170.0, 140.0)          # apt_101 中心
     for _eid, e in w.entities.items():
         r = w.locations[e.location_id]
@@ -169,24 +167,23 @@ def test_decision_trace_structured_relevant_signals() -> None:
     from citysim.npc.brain import decide
     kb = KnowledgeBase()
     kb.learn(subject="rice_1", relation="affords", obj="hunger", value=0.4,
-             confidence=1.0, source=Source(kind="INJECTED"), tick=0)
+             confidence=1.0, source=Source(kind="OBSERVED"), tick=0)
     kb.learn(subject="rice_1", relation="located_at", obj="loc", value=0.0,
-             confidence=1.0, source=Source(kind="INJECTED"), tick=0)
+             confidence=1.0, source=Source(kind="OBSERVED"), tick=0)
     view = EntityView(entity_id="rice_1", name="rice_1", tags=frozenset(),
                       affordances={"hunger": 0.4}, duration_ticks=10,
                       location_id="loc")
     sig = full_signals(1.0)
     sig["hunger"] = 0.2
     intent = decide(Percept(tick=0, hour_f=12.0, location_id="loc",
-                            visible=(view,)), sig, {}, kb, CFG,
-                    random.Random(0))
+                            visible=(view,)), sig, {}, kb, CFG)
     assert isinstance(intent, Interact) and intent.target_id == "rice_1"
     assert intent.trace.relevant_signals[0][0] == "hunger"
     assert abs(intent.trace.relevant_signals[0][1] - 0.8) < 1e-6
 
 
 def test_snapshot_exports_spatial_fields() -> None:
-    """snapshot 导出 position/archetype/relevant_signals/实体锚点(可 JSON)。"""
+    """snapshot 导出 position/relevant_signals/实体锚点(可 JSON)。"""
     import json
     from citysim.gateway.scenarios import build_scenario
     from citysim.gateway.snapshot import build_snapshot
@@ -197,7 +194,6 @@ def test_snapshot_exports_spatial_fields() -> None:
     json.dumps(snap, ensure_ascii=False)
     n0 = snap["npcs"][0]
     assert len(n0["position"]) == 2
-    assert "archetype" in n0
     if n0["intent"]:
         assert "relevant_signals" in n0["intent"]
     e0 = snap["entities"][0]

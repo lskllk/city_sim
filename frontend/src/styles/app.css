@@ -162,10 +162,8 @@ body {
 
 /* knowledge source colors */
 .src-chip { font-size: 10px; padding: 0 5px; border-radius: 3px; margin-right: 4px; border: 1px solid transparent; }
-.k-INJECTED, .src-chip.k-INJECTED { color: #8b95a5; border-color: #454f5f; }
 .k-OBSERVED, .src-chip.k-OBSERVED { color: #7fe0a8; border-color: #2e7d50; }
 .k-TOLD, .src-chip.k-TOLD { color: #8fc7ff; border-color: #2f6ea8; }
-.kb-row.k-INJECTED { opacity: 0.55; }
 .kb-legend { margin-bottom: 4px; }
 .kb-row { display: flex; gap: 6px; align-items: baseline; font-size: 12px; }
 .kb-src { color: #cfd6e2; }
@@ -259,7 +257,7 @@ body {
 .npc-name { display: flex; align-items: baseline; gap: 8px; font-size: 16px; }
 .npc-id { color: var(--muted); font-size: 11px; }
 .npc-meta { display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; align-items: center; }
-.tag-archetype, .tag-loc { font-size: 11px; border: 1px solid var(--border); border-radius: 9px; padding: 0 8px; color: #b9c3d2; }
+.tag-loc { font-size: 11px; border: 1px solid var(--border); border-radius: 9px; padding: 0 8px; color: #b9c3d2; }
 .state-pill { font-size: 11px; border-radius: 9px; padding: 0 9px; color: #0b1018; }
 .st-sleep { background: #8fb7e8; }
 .st-move { background: #79e0e0; }

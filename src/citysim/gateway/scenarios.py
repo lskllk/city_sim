@@ -2,7 +2,7 @@
 
 把 config/scenes/elm_lane.json 建成 (world, systems, rng_pool):
   - 实体: 走 config/items defs(entity_from_def) + scene 覆盖 stock/open_hours, 零手搓;
-  - NPC: config/archetypes/* 知识库 + scene 的 personality/init/kb_extra/tell_bias;
+  - NPC: scene 的 personality/init/kb_extra/tell_bias(出生空白知识, 单层靠 obs 学);
   - Systems: travel 距离矩阵 + 归一化 pulses(世界侧定时脚本)。
 
 铁律: npc 不 import world; 加载器只组装, 不做决策。
@@ -14,7 +14,7 @@ import random
 from pathlib import Path
 
 from citysim.core.config import load_config
-from citysim.npc.knowledge import KnowledgeBase, Source, load_archetypes
+from citysim.npc.knowledge import KnowledgeBase, Source
 from citysim.npc.person import Identity, Person
 from citysim.sim.loop import make_systems
 from citysim.sim.pulses import normalize as _norm_pulses
@@ -68,15 +68,13 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
     for loc_id in world.locations:
         world.layout_location(loc_id)
 
-    # ---- NPC: archetype 知识库 + 人设 ----------------------------------
-    archs = load_archetypes()               # config/archetypes/*.json
+    # ---- NPC: 人设 + 初始知识(kb_extra) -------------------------------
     for idx, spec in enumerate(data.get("npcs", [])):
         pid = spec["id"]
         p = Person(identity=Identity(person_id=pid, name=spec["name"]),
                    location_id=spec.get("home", ""))
         p.home = spec.get("home", "")
         p.money = float(spec.get("money", 100.0))
-        p.archetype_id = spec.get("archetype", "")     # 不得从 KB 猜
         if "spawn" in spec:                              # 显式出生点优先
             p.position = (float(spec["spawn"][0]), float(spec["spawn"][1]))
         else:
@@ -87,13 +85,11 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
         p.set_state(**{k: float(v) for k, v in init.items() if k in _ARGS_ORDER})
         p.personality = dict(spec.get("personality", {}))
         p.tell_bias = float(spec.get("tell_bias", 1.0))
-        arch = archs.get(spec["archetype"])
-        p.kb = KnowledgeBase(arch) if arch is not None else KnowledgeBase()
+        p.kb = KnowledgeBase()
         for f in spec.get("kb_extra", []):
             p.kb.learn(subject=f["subject"], relation=f["relation"],
                        obj=f["obj"], confidence=float(f.get("confidence", 1.0)),
-                       source=Source(kind=f.get("kind", "INJECTED"),
-                                     ref=("scn",)), tick=0,
+                       source=Source(kind="OBSERVED", ref=("scn",)), tick=0,
                        value=float(f.get("value", 0.0)))
         world.npcs[pid] = p
         rng_pool[pid] = random.Random(seed * 100 + idx)
@@ -103,7 +99,7 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
 
 # 兼容入口: 现在只有单一场景, scenario 名忽略(保留给旧测试/调用方)
 def build_scenario(scenario: str | None = None, seed: int = 3,
-                   n_npc: int | None = None, kb_mode: str = "full",
+                   n_npc: int | None = None,
                    tell_p: float | None = None):
     w, s, r = load_scene(DEFAULT_SCENE, seed=seed)
     if tell_p is not None:

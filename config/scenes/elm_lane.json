@@ -44,7 +44,7 @@
   "pulses": [],
 
   "npcs": [
-    {"id": "npc_wang", "name": "王二", "home": "apt_101", "archetype": "old_resident",
+    {"id": "npc_wang", "name": "王二", "home": "apt_101",
      "personality": {"hunger": 1.0, "energy": 1.0, "fun": 0.8},
      "init": {"energy": 0.55, "hunger": 0.45, "thirst": 0.6, "bladder": 0.85, "fun": 0.5},
      "kb_extra": [
@@ -54,7 +54,7 @@
        {"subject": "tv_1", "relation": "located_at", "obj": "market", "confidence": 1.0}
      ]},
 
-    {"id": "npc_li", "name": "李四", "home": "apt_102", "archetype": "newcomer",
+    {"id": "npc_li", "name": "李四", "home": "apt_102",
      "personality": {"hunger": 1.1, "energy": 1.0},
      "init": {"energy": 0.6, "hunger": 0.35, "thirst": 0.5, "bladder": 0.8, "fun": 0.6}}
   ]

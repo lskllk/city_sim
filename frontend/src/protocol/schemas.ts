@@ -8,7 +8,7 @@ export const PROTOCOL_VERSION = 1;
 // ---------------------------------------------------------------------------
 // 基础
 // ---------------------------------------------------------------------------
-export type SourceKind = 'INJECTED' | 'OBSERVED' | 'TOLD' | 'INFERRED';
+export type SourceKind = 'OBSERVED' | 'TOLD' | 'INFERRED';
 
 export interface Rect {
   x: number;
@@ -120,7 +120,6 @@ export interface KnowledgeData {
 export interface KbCounts {
   overlay: number;
   tombstones: number;
-  archetype: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +145,6 @@ export interface NPCSnapshot {
   name: string;
   loc: string;
   position: [number, number];
-  archetype: string;
   activity: string;
   act_class: string;
   signals: Record<string, number>;
@@ -179,7 +177,6 @@ export interface HelloMessage {
   scenario: string;
   seed: number;
   n_npc: number;
-  kb_mode: string;
   tell_p: number;
   signals: string[];
   locations: HelloLocations;

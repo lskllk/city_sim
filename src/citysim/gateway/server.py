@@ -44,7 +44,7 @@ class SimRunner:
         self.log_cursor = 0
         self.event_seq = 0            # drain 兜底 event_id 序号
         self.params = dict(scenario="elm_lane", seed=3, n_npc=6,
-                           kb_mode="full", tell_p=0.1)
+                           tell_p=0.1)
         self._build()
 
     def _build(self) -> None:

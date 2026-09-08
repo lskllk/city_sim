@@ -14,7 +14,6 @@ interface WorldState {
   scenario: string;
   seed: number;
   n_npc: number;
-  kb_mode: string;
   signals: string[];
   applySnapshot: (snap: Snapshot) => void;
   initHello: (hello: HelloMessage) => void;
@@ -35,8 +34,7 @@ export const useWorldStore = create<WorldState>()((set) => ({
   scenario: '',
   seed: 0,
   n_npc: 0,
-  kb_mode: '',
-  signals: [],
+  signals: [],,
 
   initHello: (hello) => {
     const locs = hello.locations?.locations ?? {};
@@ -44,7 +42,6 @@ export const useWorldStore = create<WorldState>()((set) => ({
       scenario: hello.scenario,
       seed: hello.seed,
       n_npc: hello.n_npc,
-      kb_mode: hello.kb_mode,
       signals: Array.isArray(hello.signals) ? hello.signals : [],
       rooms: locs,
       canvas: hello.locations?.canvas ?? { w: 1280, h: 800 },
@@ -65,7 +62,6 @@ export const useWorldStore = create<WorldState>()((set) => ({
     scenario: '',
     seed: 0,
     n_npc: 0,
-    kb_mode: '',
     signals: [],
   }),
 }));

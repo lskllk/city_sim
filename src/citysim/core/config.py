@@ -32,6 +32,8 @@ class SimConfig:
     move_ticks: int = 30           # 跨地点移动耗时
     hp_decay: float = 0.0005       # 饥饿/饥渴为 0 时 hp 每 tick 下降
     hp_regen: float = 0.0005       # 两者满足时 hp 回升最大速率(×均值)
+    move_penalty: float = 0.6      # 异地(MoveTo)候选效用折扣(移动耗时/精力成本)
+    buy_margin: float = 1.0        # 愿买度缓冲: willing=clamp01((money-price)/(price*margin))
 
     @classmethod
     def from_toml(cls, data: dict[str, Any]) -> "SimConfig":
@@ -49,6 +51,8 @@ class SimConfig:
             move_ticks=int(data.get("motion", {}).get("move_ticks", 30)),
             hp_decay=float(data.get("health", {}).get("decay", 0.0005)),
             hp_regen=float(data.get("health", {}).get("regen", 0.0005)),
+            move_penalty=float(data.get("utility", {}).get("move_penalty", 0.6)),
+            buy_margin=float(data.get("utility", {}).get("buy_margin", 1.0)),
         )
 
 

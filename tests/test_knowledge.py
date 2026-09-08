@@ -1,180 +1,131 @@
-"""M5 DoD —— 双层知识库 / 感知落知识 / KB 驱动移动 / 追溯导出。
+"""单层 KnowledgeBase 测试(去掉 INJECTED 原型层后)。
 
-覆盖: overlay 覆盖 / tombstone / 衰减半衰期 / 低置信度 / 追溯链回到根。
+覆盖: learn/upsert(N2 来源不降级) / query 过滤 / refute+tombstone / decay 半衰 /
+knows / subjects / all_facts / trace 溯源。全部事实来自 obs(OBSERVED)/told(TOLD)。
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-from citysim.core.config import load_config
-from citysim.npc.knowledge import (ArchetypeKB, KnowledgeBase, Source,
-                                   load_archetype)
-from citysim.viz.kb_export import export_kb_json
-
-ROOT = Path(__file__).resolve().parents[1]
-CFG = load_config(ROOT / "config" / "sim.toml")
-ARCH = ROOT / "config" / "archetypes" / "old_resident.json"
+from citysim.npc.knowledge import CONF_UNKNOWN, KnowledgeBase, Source
 
 
-def _fact(kb: KnowledgeBase, subject: str, relation: str, obj,
-          conf: float = 1.0, kind: str = "OBSERVED") -> None:
-    kb.learn(subject=subject, relation=relation, obj=obj,
-             confidence=conf, source=Source(kind=kind))
+def _ob(kb: KnowledgeBase, subject: str, relation: str, obj, conf=1.0,
+         kind: str = "OBSERVED", tick: int = 0, value: float = 0.0):
+    kb.learn(subject=subject, relation=relation, obj=obj, confidence=conf,
+             source=Source(kind=kind), tick=tick, value=value)
 
 
-def _mk(seq, subj, rel, obj, conf, kind="INJECTED"):
-    from citysim.npc.knowledge import Fact
-    return Fact(fact_id=f"a:{subj}|{rel}|{seq}", subject=subj, relation=rel,
-                obj=obj, confidence=conf, source=Source(kind=kind),
-                tick_learned=0)
-
-
-# --- 单元: 覆盖/证伪/衰减/置信度 ------------------------------------
-def test_overlay_overrides_archetype() -> None:
-    arch = ArchetypeKB([_mk(1, "bench_1", "affords", "hunger", 0.9)])
-    kb = KnowledgeBase(arch)
-    _fact(kb, "bench_1", "affords", "none", 1.0)
-    got = kb.query(subject="bench_1", relation="affords")
-    assert got[0].obj == "none"          # overlay 优先
-
-
-def test_tombstone_blocks_archetype() -> None:
-    arch = ArchetypeKB([_mk(1, "bench_1", "affords", "hunger", 0.9)])
-    kb = KnowledgeBase(arch)
-    kb.refute("a:bench_1|affords|1")
-    assert kb.query(subject="bench_1", relation="affords") == ()
-
-
-def test_decay_half_life() -> None:
+def test_learn_creates_and_query_returns() -> None:
     kb = KnowledgeBase()
-    _fact(kb, "bench_1", "affords", "hunger", 1.0)
-    kb.decay(now_tick=20160, half_life_ticks=20160)          # 1 个半衰期
-    assert kb.query(subject="bench_1")[0].confidence == pytest.approx(0.5)
-    kb.decay(now_tick=20160 * 2, half_life_ticks=20160)
-    assert kb.query(subject="bench_1")[0].confidence == pytest.approx(0.25)
+    _ob(kb, "bench_1", "affords", "fun", conf=1.0, value=0.3, tick=5)
+    got = kb.query(subject="bench_1", relation="affords")
+    assert len(got) == 1
+    assert got[0].obj == "fun"
+    assert got[0].value == 0.3
+    assert got[0].source.kind == "OBSERVED"
+
+
+def test_upsert_same_key_not_duplicated() -> None:
+    kb = KnowledgeBase()
+    a = kb.learn(subject="bench_1", relation="affords", obj="fun",
+                 confidence=1.0, source=Source(kind="OBSERVED"), tick=10)
+    b = kb.learn(subject="bench_1", relation="affords", obj="fun",
+                 confidence=0.6, source=Source(kind="TOLD"), tick=50)
+    assert len(kb.overlay) == 1
+    assert a.fact_id == b.fact_id          # 同键 upsert, id 稳定
+    # N2: 弱消息(0.6<1.0)不覆盖强证据、不刷新 tick
+    got = kb.query()[0]
+    assert got.confidence == 1.0
+    assert got.source.kind == "OBSERVED"
+    assert got.tick_learned == 10
+
+
+def test_upsert_strong_new_upgrades() -> None:
+    kb = KnowledgeBase()
+    kb.learn(subject="cafe_7", relation="affords", obj="fun",
+             confidence=0.6, source=Source(kind="TOLD"), tick=10)
+    got = kb.learn(subject="cafe_7", relation="affords", obj="fun",
+                   confidence=1.0, source=Source(kind="OBSERVED"), tick=80)
+    assert got.confidence == 1.0
+    assert got.source.kind == "OBSERVED"
+    assert got.tick_learned == 80
+
+
+def test_query_filters_by_subject_relation() -> None:
+    kb = KnowledgeBase()
+    _ob(kb, "a", "affords", "fun")
+    _ob(kb, "a", "located_at", "market")
+    _ob(kb, "b", "affords", "fun")
+    assert len(kb.query(subject="a")) == 2
+    assert len(kb.query(relation="affords")) == 2
+    assert len(kb.query(subject="a", relation="located_at")) == 1
+
+
+def test_refute_tombstones_and_hides() -> None:
+    kb = KnowledgeBase()
+    f = kb.learn(subject="bench_1", relation="affords", obj="fun",
+                 confidence=1.0, source=Source(kind="OBSERVED"), tick=0)
+    assert kb.query(relation="affords")
+    kb.refute(f.fact_id)
+    assert kb.query(relation="affords") == ()
 
 
 def test_low_confidence_treated_unknown() -> None:
     kb = KnowledgeBase()
-    _fact(kb, "bench_1", "affords", "hunger", 0.01)
-    assert kb.query(subject="bench_1", relation="affords") == ()
+    _ob(kb, "bench_1", "affords", "fun", conf=0.01)
+    assert kb.query(relation="affords") == ()   # < CONF_UNKNOWN 不出现在查询里
 
 
-def test_load_archetype_injected() -> None:
-    personality, kb = load_archetype(ARCH)
-    assert personality.get("hunger") == 1.0
-    facts = kb.query()
-    assert facts and all(f.source.kind == "INJECTED" for f in facts)
-
-
-def test_kb_json_export() -> None:
+def test_decay_half_life() -> None:
     kb = KnowledgeBase()
-    _fact(kb, "bench_1", "affords", "hunger", 1.0)
-    out = export_kb_json(kb)
-    assert out["nodes"] and out["edges"]
-    assert out["edges"][0]["source_kind"] == "OBSERVED"
+    _ob(kb, "bench_1", "affords", "fun", conf=1.0, tick=0)
+    kb.decay(now_tick=20160, half_life_ticks=20160)     # 1 个半衰期
+    assert kb.query()[0].confidence == pytest.approx(0.5)
+    kb.decay(now_tick=40320, half_life_ticks=20160)
+    assert kb.query()[0].confidence == pytest.approx(0.25)
 
 
-# --- m5-rectify: T1 命名空间 / T2 逐键合并 / T4 tick / T7 upsert ----------
-def test_fact_id_namespace_separates_layers() -> None:
-    """原型 a: / overlay o: —— refute overlay 不误伤原型, fact() 不串。"""
-    arch_f = _mk(1, "bench_1", "affords", "hunger", 0.9)
-    kb = KnowledgeBase(ArchetypeKB([arch_f]))
-    ov = kb.learn(subject="bench_1", relation="affords", obj="hunger",
-                  confidence=1.0, source=Source(kind="OBSERVED"), tick=5)
-    assert ov.fact_id.startswith("o:")
-    assert kb.archetype.facts[0].fact_id.startswith("a:")
-    assert kb.fact(ov.fact_id) is ov
-    # 只有 overlay 被 refute → 原型不被 tombstone、仍可回退(conf 0.9)
-    kb.refute(ov.fact_id)
-    assert not kb.tombstones & {"a:bench_1|affords|1"}
-    got = kb.query(subject="bench_1", relation="affords")
-    assert got and got[0].fact_id.startswith("a:")
-
-
-def test_query_perfact_keeps_other_archetype_facts() -> None:
-    """目击一设施后 query(affords) 仍见原型里其它 affords(P0-1: 不再整层遮蔽)。"""
-    arch = ArchetypeKB([
-        _mk(1, "bench_1", "affords", "hunger", 0.9),
-        _mk(2, "backup_bench", "affords", "hunger", 0.7)])
-    kb = KnowledgeBase(arch)
-    kb.learn(subject="bench_1", relation="affords", obj="hunger",
-             confidence=1.0, source=Source(kind="OBSERVED"))
-    subs = {f.subject for f in kb.query(relation="affords")}
-    assert subs == {"bench_1", "backup_bench"}
-    # overlay 同键覆盖同 subject 时原型同键隐藏, 但不同键(located_at)不受影响
-    kb2 = KnowledgeBase(ArchetypeKB([
-        _mk(1, "bench_1", "affords", "hunger", 0.9),
-        _mk(2, "market_1", "located_at", "market", 1.0)]))
-    kb2.learn(subject="bench_1", relation="affords", obj="hunger",
-              confidence=1.0, source=Source(kind="OBSERVED"))
-    assert kb2.query(relation="located_at")
-
-
-def test_learn_records_explicit_tick() -> None:
+def test_decay_drops_below_unknown() -> None:
     kb = KnowledgeBase()
-    a = kb.learn(subject="f1", relation="located_at", obj="home",
-                 confidence=1.0, source=Source(kind="OBSERVED"), tick=500)
-    b = kb.learn(subject="f2", relation="located_at", obj="home",
-                 confidence=1.0, source=Source(kind="OBSERVED"), tick=900)
-    assert a.tick_learned == 500 and b.tick_learned == 900
+    _ob(kb, "bench_1", "affords", "fun", conf=1.0, tick=0)
+    kb.decay(now_tick=20160 * 6, half_life_ticks=20160)  # 6 半衰 → ~0.0156
+    assert kb.query() == ()
+    assert len(kb.overlay) == 0
 
 
-def test_learn_upsert_bounded() -> None:
+def test_knows() -> None:
     kb = KnowledgeBase()
-    a = kb.learn(subject="bench_1", relation="affords", obj="hunger",
-                 confidence=1.0, source=Source(kind="OBSERVED"), tick=10)
-    b = kb.learn(subject="bench_1", relation="affords", obj="hunger",
-                 confidence=0.6, source=Source(kind="OBSERVED"), tick=50)
-    assert len(kb.overlay) == 1          # 同键替换, 不新增
-    assert a.fact_id == b.fact_id        # id 稳定
-    assert b.confidence == 1.0           # 取更高 conf
-    assert b.tick_learned == 10          # N2: 弱消息(0.6<1.0)不刷新 tick
-    # 等强再观察(同 1.0)才刷新 tick
-    c = kb.learn(subject="bench_1", relation="affords", obj="hunger",
-                 confidence=1.0, source=Source(kind="OBSERVED"), tick=80)
-    assert c.tick_learned == 80
-    # 不同 obj → 新事实并存
-    d = kb.learn(subject="bench_1", relation="affords", obj="none",
-                 confidence=1.0, source=Source(kind="OBSERVED"), tick=90)
-    assert d.fact_id != c.fact_id
-    assert len(kb.overlay) == 2
+    _ob(kb, "bench_1", "affords", "fun", conf=0.9)
+    assert kb.knows("bench_1", "affords", "fun", min_conf=0.3)
+    assert not kb.knows("bench_1", "affords", "hunger", min_conf=0.3)
 
 
-def test_unknown_relation_raises_valueerror() -> None:
+def test_subjects_and_all_facts() -> None:
+    kb = KnowledgeBase()
+    _ob(kb, "a_1", "affords", "fun")
+    _ob(kb, "b_1", "affords", "fun")
+    assert kb.subjects("affords") == frozenset({"a_1", "b_1"})
+    assert len(kb.all_facts()) == 2
+
+
+def test_learn_unknown_relation_raises() -> None:
     kb = KnowledgeBase()
     with pytest.raises(ValueError):
         kb.learn(subject="x", relation="warp", obj="y", confidence=1.0,
                  source=Source(kind="OBSERVED"))
 
 
-def test_all_facts_matches_query() -> None:
-    arch = ArchetypeKB([
-        _mk(1, "bench_1", "affords", "hunger", 0.9),
-        _mk(2, "market_1", "located_at", "market", 1.0)])
-    kb = KnowledgeBase(arch)
-    kb.learn(subject="bench_1", relation="affords", obj="hunger",
-             confidence=1.0, source=Source(kind="OBSERVED"))
-    assert len(kb.all_facts()) == 2      # 同键去重(overlay 覆盖原型), 另一键并存
-
-
-def test_upsert_keeps_higher_source_no_weak_refresh() -> None:
-    """N2: OBSERVED 1.0 被 TOLD 0.8 重述 → conf/source 不降级、tick 不刷新。"""
+def test_trace_follows_source_ref() -> None:
     kb = KnowledgeBase()
-    a = kb.learn(subject="cafe_7", relation="affords", obj="fun",
-                 confidence=1.0, source=Source(kind="OBSERVED"), tick=100)
-    b = kb.learn(subject="cafe_7", relation="affords", obj="fun",
-                 confidence=0.8, source=Source(kind="TOLD", ref=("n1",)),
-                 tick=5000)
-    got = kb.query(subject="cafe_7", relation="affords")[0]
-    assert got.fact_id == a.fact_id == b.fact_id   # upsert 保 id
-    assert got.confidence == 1.0                   # 高置信不被拉低
-    assert got.source.kind == "OBSERVED"           # 来源不降级(溯源根仍是亲眼)
-    assert got.tick_learned == 100                 # 弱消息不刷新 tick(不延衰减)
-    # 更强新证据才覆盖来源并刷新
-    c = kb.learn(subject="cafe_7", relation="affords", obj="fun",
-                 confidence=0.9, source=Source(kind="TOLD", ref=("n2",)),
-                 tick=9000)                        # 仍 < 1.0 → 不改
-    assert kb.query(subject="cafe_7")[0].source.kind == "OBSERVED"
+    root = kb.learn(subject="cafe_7", relation="affords", obj="fun",
+                    confidence=1.0, source=Source(kind="OBSERVED"), tick=100)
+    spread = kb.learn(subject="cafe_7", relation="affords", obj="fun",
+                      confidence=0.8, source=Source(kind="TOLD",
+                                                    ref=("n1", f"f:{root.fact_id}")),
+                      tick=200)
+    # 弱消息不覆盖强来源: root 仍是唯一活事实, spread 未取代
+    got = kb.query()[0]
+    assert got.fact_id == root.fact_id
+    tree = kb.trace(root.fact_id)
+    assert tree and tree[0].fact_id == root.fact_id

@@ -20,9 +20,11 @@ max_ticks = 48                 # 最困时约每 48 tick 重评一次
 [knowledge]                    # M5: 知识库
 half_life_ticks = 2880        # 2 天(知识半衰期)
 
-[utility]                      # 需求急迫度曲线(m5-rectify 13)
+[utility]                      # 决策打分
 power = 3.0                    # weight = need**power(幂>1 放大真缺口)
 threshold = 0.08               # 低于此分 -> idle
+move_penalty = 0.6             # 异地(MoveTo)候选效用折扣(移动有耗时/精力成本)
+buy_margin = 1.0               # 愿买度缓冲: willing=clamp01((money-price)/(price*margin))
 
 [motion]                       # 跨地点移动(m5-rectify 13; M7 日程/距离前先入 config)
 move_ticks = 30

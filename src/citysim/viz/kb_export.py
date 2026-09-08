@@ -1,7 +1,7 @@
 """知识图导出(M5 5.4): JSON + DOT。事实来源统一 kb.all_facts()。"""
 from __future__ import annotations
 
-_EDGE_COLOR = {"INJECTED": "gray", "OBSERVED": "green",
+_EDGE_COLOR = {"OBSERVED": "green",
                "TOLD": "blue", "INFERRED": "orange"}
 
 

@@ -15,7 +15,7 @@ src/citysim/
 
   npc/person.py      Person 纯数据: signals 单一真源(0..1) + apply_metabolism
   npc/brain.py       decide() 决策纯函数 + circadian/arousal/重评节律
-  npc/knowledge.py   双层知识库 Fact(原型 INJECTED + 个体 OBSERVED/TOLD) + archetype 加载
+  npc/knowledge.py   单层知识库 Fact(obs/told 习得) + item_memory 骨架(docs/kb_design.md)
 
   world/world.py     World 容器 + Entity + itemdef→Entity(世界唯一事实源)
   world/itemdefs.py  config/items/*.json 校验+加载(ItemDef)
@@ -38,8 +38,8 @@ src/citysim/
 config/
   sim.toml            魔法数字(改数值首选这里)
   items/*.json        物品定义(含副作用 on_start/on_complete)
-  archetypes/*.json   原型共享常识 + personality
   scenes/elm_lane.json 单场景装配: locations/entities/npcs/travel/pulses
+  (无 archetypes/: 出生空白知识, NPC 特质/初始知识走场景或建居民接口)
 
 tests/
   helpers.py          搭最小 world 的辅助(make_runtime/add_npc/add_entity)
@@ -56,7 +56,6 @@ tools/
 config/sim.toml          core/config.py → SimConfig(进所有 run_tick/decide)
 config/items/*.json      world/itemdefs.py ──> world/world.py::entity_from_def → Entity
                          └─ on_start/on_complete → world/effects.py::apply_effects
-config/archetypes/*.json npc/knowledge.py::load_archetypes → 挂到每 Person.kb
 config/scenes/elm_lane.json → gateway/scenarios.py::load_scene → (World+Systems+rng_pool)
 
 run_tick(sim/loop.py):

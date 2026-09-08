@@ -30,16 +30,15 @@ def decide(
     personality: Mapping[str, float],
     kb: Any,
     cfg: SimConfig,
-    rng: Any,                     # random.Random, 固定种子保回放确定性
     money: float = 0.0,           # 资金(只减不增; 决定能否 Buy)
 ) -> Intent:
-    """纯函数: 从 KB 打分, 同地点优先, interact/buy/move_to 分流。
+    """纯函数: 从 KB 打分, 按分数分流 interact/buy/move_to。
 
-    打分 = need^power × afford值 × 性格倍率 × 置信度。
-    同地点且视野可 claim:
-      - 若实体是"在售商品"(price>0 且 owner="")且钱够 → buy(买回家);
-        买不起则跳过该候选;
-      - 否则 → interact。
+    打分 = need^power × afford值 × 性格倍率 × 置信度;
+    异地候选另乘移动折扣 move_penalty(移动成本折算进分, 不做本地绝对优先)。
+    视野可 claim 且同地:
+      - 在售商品(price>0 且 owner="")且资金富余 → buy(搬回家); 否则跳过;
+      - 其它 → interact。
     不同地点且有 located_at → move_to。
     """
     visible = {e.entity_id: e for e in percept.visible if e.claimable}
@@ -63,17 +62,17 @@ def decide(
         loc_facts = kb.query(subject=f.subject, relation="located_at")
         if loc_facts:
             loc = str(loc_facts[0].obj)
-        scored.append((f.subject, sig, score, loc,
-                       loc == percept.location_id, f))
+        local = (loc == percept.location_id)
+        if loc and not local:
+            # 异地候选需付出移动成本(耗时/精力) → 效用折扣。
+            # 不做本地绝对优先: 折扣直接进分数, 异地足够好时自然压过本地。
+            score *= cfg.move_penalty
+        scored.append((f.subject, sig, score, loc, local, f))
 
-    # 同地点优先, 组内分数高优先, subject 稳定
-    scored.sort(key=lambda x: (-int(x[4]), -x[2], x[0]))
+    # 按打折后分数降序, subject 稳定(不设本地绝对优先 —— 异地已带移动折扣)
+    scored.sort(key=lambda x: (-x[2], x[0]))
     ranked = tuple((s[0], s[2]) for s in scored)
     relevant = tuple(sorted(needs.items(), key=lambda kv: (-kv[1], kv[0])))
-
-    # 同地点优先, 组内分数高优先, subject 稳定
-    scored.sort(key=lambda x: (-int(x[4]), -x[2], x[0]))
-    ranked = tuple((s[0], s[2]) for s in scored)
 
     for subject, sig, score, loc, local, fact in scored:
         if score <= thresh:
@@ -85,17 +84,23 @@ def decide(
             if e is None:
                 continue
             if e.price > 0 and e.owner == "":
-                # 在售商品只能买, 不能就地用; 买不起则跳过看下一个候选
-                if money >= e.price:
-                    return Buy(
-                        item_id=subject,
-                        trace=DecisionTrace(
-                            ranked=ranked,
-                            reason=(f"购买 {subject} 解 {sig} "
-                                    f"(score={score:.3f}, 价格={e.price:.1f})"),
+                # 在售商品只能买(严格搬回家), 不能就地用。
+                # 买不起 → 跳过; 买得起但资金无富余(愿买度低)→ 也跳过,
+                # 落到下一候选(可能是本地免费/可用的替代) —— 钱越少越不买。
+                if money < e.price:
+                    continue
+                willing = _willingness(money, e.price, cfg.buy_margin)
+                if willing * score <= thresh:
+                    continue
+                return Buy(
+                    item_id=subject,
+                    trace=DecisionTrace(
+                        ranked=ranked,
+                        reason=(f"购买 {subject} 解 {sig} "
+                                f"(score={score:.3f}×愿买{willing:.2f}, "
+                                f"价格={e.price:.1f})"),
                             used_fact_ids=used,
                             relevant_signals=relevant))
-                continue
             return Interact(
                 target_id=subject,
                 trace=DecisionTrace(
@@ -117,6 +122,17 @@ def decide(
             ranked=ranked,
             reason="信号充足或没有值得做的目标",
             relevant_signals=relevant))
+
+
+def _willingness(money: float, price: float, margin: float) -> float:
+    """愿买度 0..1: 资金相对价格越富余越愿买。
+
+    willing = clamp01((money - price) / (price * margin)).
+    money <= price → 0; money >= price*(1+margin) → 1。钱越少越不买。
+    """
+    if price <= 0:
+        return 1.0
+    return max(0.0, min(1.0, (money - price) / (price * max(margin, 1e-6))))
 
 
 # ----------------------------------------------------------------------

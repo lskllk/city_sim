@@ -36,9 +36,9 @@ def test_buy_moves_item_home_deducts_money_updates_kb() -> None:
     npc.home = "home"
     npc.money = 100.0
     npc.kb.learn(subject="tv_1", relation="affords", obj="fun", value=0.4,
-                 confidence=1.0, source=Source(kind="INJECTED"), tick=0)
+                 confidence=1.0, source=Source(kind="OBSERVED"), tick=0)
     npc.kb.learn(subject="tv_1", relation="located_at", obj="market",
-                 confidence=1.0, source=Source(kind="INJECTED"), tick=0)
+                 confidence=1.0, source=Source(kind="OBSERVED"), tick=0)
     seed_reviews(world, systems)
 
     _run(world, systems, rng_pool, 3)

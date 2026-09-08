@@ -25,7 +25,7 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
     """感知 → 记忆(写入): 把当前可见实体 upsert 进记忆库。非纯函数。
 
     同地 re-obs: 现场为准, 整行覆盖(located/owner/claimed/afford/price/…)并刷新
-    believe/remember/last_seen。不可见实体不在此删(由遗忘/反证处理)。
+    believe/remember/last_seen。只 upsert 可见实体, 不做证伪删行(由上层策略定)。
     """
     for v in percept.visible:
         # TODO: affordances 多键 dict → 决定单值 or dict(MemItem.afford 现单值)
@@ -44,12 +44,6 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
                 claimed=claimed, afford=afford or row.afford,
                 value=float(value) if value else row.value,
                 price=v.price, believe=1.0, remember=1.0, last_seen=tick)
-    # 反证(现场为准): 我以为某物在当前位置, 但此刻并不可见(已被消费/搬走/消失)
-    # → 从记忆清除, 免得 decide 空转在已不存在的本地目标上。
-    seen = {v.entity_id for v in percept.visible}
-    for r in list(mem.items()):
-        if r.located == percept.location_id and r.item_id not in seen:
-            mem.delete(r.item_id)
 
 
 BELIEF_MIN = 0.3   # 记忆行 believe 低于此 → 不作为决策候选
@@ -82,6 +76,7 @@ def decide(
     mem: MemBase,
     location_id: str,             # 自身状态: 我在哪(决策不看环境 percept)
     cfg: SimConfig,
+    now_tick: int,                # 当前 tick(过滤失败冷却 cool_until)
     money: float = 0.0,           # 自身状态: 资金(只减不增; 决定能否 Buy)
 ) -> Intent:
     """决策主算法。纯函数。铁律:
@@ -92,21 +87,23 @@ def decide(
 
     流程: 候选收集 → 评分(异地乘移动折扣) → 排序 → 选优分流(只凭记忆行字段)。
     """
-    cands = _gather_candidates(mem, signals, cfg)
+    cands = _gather_candidates(mem, signals, cfg, now_tick)
     scored, ranked, relevant = _score_candidates(
         cands, personality, location_id, cfg)
     return _choose(scored, ranked, relevant, money, cfg)
 
 
 def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
-                       cfg: SimConfig):
+                       cfg: SimConfig, now_tick: int):
     """[阶段1] 候选收集: 记忆行 → 有缺口的需求候选。
 
-    取 afford∈SIGNALS 且 value>0 且 believe>=BELIEF_MIN 且 need=1-signal>0。
-    返回 [(row, sig, need), ...]。
+    取 afford∈SIGNALS 且 value>0 且 believe>=BELIEF_MIN 且 need=1-signal>0;
+    且未被失败冷却屏蔽(cool_until<=now)。返回 [(row, sig, need), ...]。
     """
     out = []
     for row in mem.items():
+        if row.cool_until and row.cool_until > now_tick:
+            continue          # 失败冷却中(如厕所刚被占), 稍后再看
         sig = row.afford
         if sig not in SIGNALS or row.value <= 0 or row.believe < BELIEF_MIN:
             continue

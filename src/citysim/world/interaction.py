@@ -166,6 +166,13 @@ class InteractionSystem:
         world.bus.publish(world.bus.make(
             world.clock_tick, "intent_failed", pid,
             {"target": tid, "why": why}))
+        # 失败→记忆: 证伪只在失败后(目标不存在/已空→删; 被占/不可打断→冷却到实体时长)
+        npc = world.npcs.get(pid)
+        if npc is not None and tid:
+            ent = world.entities.get(tid)
+            npc.on_failure(tid, why, world.clock_tick,
+                           retry_ticks=ent.duration_ticks if ent is not None
+                           else None)
 
     def _resched(self, world: World, pid: str, delay: int) -> None:
         if self._scheduler is not None:

@@ -34,6 +34,7 @@ class MemItem:
     believe: float = 0.0         # 证据强度(0..1): 我信几分
     remember: float = 0.0        # 记忆强度(0..1): 我还记不记得
     last_seen: int = 0           # 最近一次被写的 tick(供遗忘算距上次多久)
+    cool_until: int = 0          # 交互失败屏蔽到某 tick(被占/不可打断等, 到时再看)
 
 
 class MemBase:
@@ -42,6 +43,7 @@ class MemBase:
     _FIELDS = frozenset({
         "located", "owner", "claimed", "afford", "value",
         "price", "stock", "attrs", "believe", "remember", "last_seen",
+        "cool_until",
     })
 
     def __init__(self) -> None:
@@ -111,7 +113,8 @@ class MemBase:
              "claimed": r.claimed, "afford": r.afford, "value": r.value,
              "price": r.price, "stock": r.stock,
              "believe": round(r.believe, 3),
-             "remember": round(r.remember, 3), "last_seen": r.last_seen}
+             "remember": round(r.remember, 3), "last_seen": r.last_seen,
+             "cool_until": r.cool_until}
             for r in self._rows.values()
         ]
 

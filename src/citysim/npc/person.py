@@ -298,21 +298,37 @@ class Person:
             observed_entity_ids=tuple(sorted(v.entity_id
                                              for v in percept.visible)))
 
-    def decide(self, cfg: "SimConfig") -> "Intent":
+    def decide(self, cfg: "SimConfig", now_tick: int) -> "Intent":
         """决策: 只读 记忆+自身状态 → Intent。铁律: 不看环境。"""
         intent = brain.decide(
             self._signals, self._personality, self._mem,
-            self._perceived_loc, cfg, self._money)
+            self._perceived_loc, cfg, now_tick, self._money)
         self._last_intent = intent
         return intent
+
+    def on_failure(self, target_id: str, why: str, now_tick: int,
+                   retry_ticks: int | None = None) -> None:
+        """窄协议: 交互失败 → 证伪/冷却记忆(证伪只在失败后发生)。
+
+        - 目标不存在 / 已空(stock=0) → 删掉该 item 记忆。
+        - 已被占用 / 不可打断 / 购买失败等 → 冷却(cool_until=now+retry), 到时再看。
+        """
+        row = self._mem.get(target_id)
+        if row is None:
+            return
+        if "目标不存在" in why or why.startswith("已空"):
+            self._mem.delete(target_id)
+        else:
+            until = now_tick + (retry_ticks if retry_ticks is not None else 120)
+            self._mem.update(target_id, cool_until=until)
 
     def process(self, percept: "Percept", cfg: "SimConfig") -> "Intent":
         """窄协议: 感知+决策一体(engine 只调这个)。
 
-        内部 = perceive(现场→记忆, 记自身认知) + decide(记忆+自身→Intent)。
+        内部 = perceive(现场→记忆, 记自身认知) + decide(记忆+自身→Intent, 当前 tick)。
         """
         self.perceive(percept, percept.tick)
-        return self.decide(cfg)
+        return self.decide(cfg, percept.tick)
 
     def on_day(self, cfg: "SimConfig", now_tick: int) -> int:
         """窄协议: 每游戏日遗忘(收进 Person)。返回遗忘条数。"""

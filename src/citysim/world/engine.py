@@ -79,6 +79,7 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
             world.clock_tick, "intent_failed", pid,
             {"target": intent.item_id,
              "why": "购买失败(无货/已售/钱不够)"}))
+        npc.on_failure(intent.item_id, "购买失败", world.clock_tick)
     else:
         ent.owner = pid
         ent.location_id = home

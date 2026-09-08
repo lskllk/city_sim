@@ -318,6 +318,16 @@ class Person:
         """窄协议: 每游戏日遗忘(收进 Person)。返回遗忘条数。"""
         return self.decay_memory(cfg, now_tick)
 
+    def next_review(self, cfg: "SimConfig", hour: float) -> int:
+        """窄协议: 自评"下次再想"的 tick 间隔(清醒度节律)。
+
+        只看自身能量/饥饿 + 注入的当前时刻(hour 由世界告知, 属自身时间上下文);
+        不看世界物品。清醒度高 → 想得勤。
+        """
+        a = brain.arousal(hour, self._signals.get("energy", 0.5),
+                          self._signals.get("hunger", 0.5), cfg)
+        return brain.review_interval_ticks(a, cfg)
+
     def decay_memory(self, cfg: "SimConfig", now_tick: int) -> int:
         """遗忘(remember 衰减删行)。每游戏日调; 返回遗忘条数。"""
         return brain.forget(self._mem, now_tick, cfg.half_life_ticks)

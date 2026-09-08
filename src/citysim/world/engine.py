@@ -17,7 +17,6 @@ from citysim.core.types import (
     intent_kind,
     intent_target,
 )
-from citysim.npc.brain import arousal, review_interval_ticks
 from citysim.world.pulses import apply as apply_pulses
 from citysim.world.perception import build_percept
 from citysim.world.travel import Travel
@@ -91,9 +90,7 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
             world.clock_tick, "bought", pid,
             {"item": ent.entity_id, "price": ent.price,
              "home": home, "money": round(npc.money, 2)}))
-    a = arousal(world.hour_f(), npc.signals.get("energy", 0.5),
-                npc.signals.get("hunger", 0.5), cfg)
-    systems.scheduler.schedule(pid, review_interval_ticks(a, cfg))
+    systems.scheduler.schedule(pid, npc.next_review(cfg, world.hour_f()))
 
 
 def tick(world, systems, cfg: SimConfig) -> None:
@@ -177,9 +174,7 @@ def tick(world, systems, cfg: SimConfig) -> None:
             systems.scheduler.schedule(npc_id, max(1, delay))
         else:
             # idle 或提交失败: 按清醒度节律排下次
-            a = arousal(hour, npc.signals.get("energy", 0.5),
-                        npc.signals.get("hunger", 0.5), cfg)
-            systems.scheduler.schedule(npc_id, review_interval_ticks(a, cfg))
+            systems.scheduler.schedule(npc_id, npc.next_review(cfg, hour))
 
     # 5.5 遗忘: 每游戏日 0 点批量 decay(收进 Person)
     if world.clock_tick % cfg.ticks_per_day == 0:

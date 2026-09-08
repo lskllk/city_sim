@@ -192,11 +192,11 @@ class Person:
                          activity_mul=activity_mul)
 
     def heartbeat(self, now_tick: int, cfg: "SimConfig", *,
-                  sleep: bool = False, busy: bool = False) -> None:
-        """身体每 tick 演化(世界广播心跳, Person 内部自己做, 上帝不改 signals):
+                  sleep: bool = False, busy: bool = False) -> bool:
+        """身体每 tick 演化(世界广播心跳, Person 内部自己做, 上帝不改 signals)。
 
         顺序 = 代谢(睡眠冻结 energy / 忙碌冻结 fun) → hp(饿渴死/恢复) → 排泄(pending→膀胱)。
-        若 hp 归零则不再往下(死亡由世界在心跳后按 is_alive 回收)。
+        返回是否仍存活(死则不再往下)。
         """
         amul: dict[str, float] = {}
         if sleep:
@@ -216,13 +216,14 @@ class Person:
             rate = (hunger + thirst) / 2.0
             self._signals["hp"] = min(1.0, hp + cfg.hp_regen * rate)
         if self._signals.get("hp", 1.0) <= 0.0:
-            return
+            return False
         # 排泄: pending → 膀胱
         if self._bladder_pending > 0.0:
             step = min(cfg.bladder_convert, self._bladder_pending)
             self._bladder_pending -= step
             self._signals["bladder"] = _clamp(
                 self._signals.get("bladder", 1.0) - step)
+        return True
 
     # ------------------------------------------------------------------
     # 状态写 —— 位置 / 活动 / 膀胱 / 钱
@@ -305,8 +306,20 @@ class Person:
         self._last_intent = intent
         return intent
 
+    def process(self, percept: "Percept", cfg: "SimConfig") -> "Intent":
+        """窄协议: 感知+决策一体(engine 只调这个)。
+
+        内部 = perceive(现场→记忆, 记自身认知) + decide(记忆+自身→Intent)。
+        """
+        self.perceive(percept, percept.tick)
+        return self.decide(cfg)
+
+    def on_day(self, cfg: "SimConfig", now_tick: int) -> int:
+        """窄协议: 每游戏日遗忘(收进 Person)。返回遗忘条数。"""
+        return self.decay_memory(cfg, now_tick)
+
     def decay_memory(self, cfg: "SimConfig", now_tick: int) -> int:
-        """遗忘(remember 衰减删行)。每游戏日由主循环调; 返回遗忘条数。"""
+        """遗忘(remember 衰减删行)。每游戏日调; 返回遗忘条数。"""
         return brain.forget(self._mem, now_tick, cfg.half_life_ticks)
 
     # ------------------------------------------------------------------

@@ -109,12 +109,11 @@ def tick(world, systems, cfg: SimConfig) -> None:
     # 1. 心跳(身体演化收进 Person; 世界只广播, 不改 signals): 代谢+hp+排泄
     died: list[str] = []
     for pid, npc in world.npcs.items():
-        if npc.is_alive():
-            npc.heartbeat(world.clock_tick, cfg,
-                          sleep=_sleeping(world, systems, pid),
-                          busy=_busy(world, systems, pid))
-            if not npc.is_alive():
-                died.append(pid)
+        alive = npc.heartbeat(world.clock_tick, cfg,
+                              sleep=_sleeping(world, systems, pid),
+                              busy=_busy(world, systems, pid))
+        if not alive:
+            died.append(pid)
     for pid in died:
         _kill(world, systems, pid)             # 死亡销毁 + 日志
 
@@ -126,7 +125,7 @@ def tick(world, systems, cfg: SimConfig) -> None:
     decisions: list[tuple[str, Any, Any]] = []
     for npc_id in due:
         npc = world.npcs.get(npc_id)
-        if npc is None or not npc.is_alive():
+        if npc is None:
             continue
         # 抵达: 旅行到期 → 落到目标 location 再重评
         if npc_id in systems.travel:
@@ -139,8 +138,7 @@ def tick(world, systems, cfg: SimConfig) -> None:
              "observed_entity_ids": sorted(
                  v.entity_id for v in percept.visible),
              "location_id": world.loc_of(npc_id)}))
-        npc.perceive(percept, world.clock_tick)   # 感知 → 记忆(写 mem)
-        intent = npc.decide(cfg)                  # 决策(只看记忆+自身)
+        intent = npc.process(percept, cfg)        # 窄协议: 感知+决策一体(只看记忆+自身)
         kind = intent_kind(intent)
         target = intent_target(intent)
         if isinstance(intent, Idle):
@@ -186,4 +184,4 @@ def tick(world, systems, cfg: SimConfig) -> None:
     # 5.5 遗忘: 每游戏日 0 点批量 decay(收进 Person)
     if world.clock_tick % cfg.ticks_per_day == 0:
         for npc in world.npcs.values():
-            npc.decay_memory(cfg, world.clock_tick)
+            npc.on_day(cfg, world.clock_tick)

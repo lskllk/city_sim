@@ -33,7 +33,7 @@ def _mk(seq, subj, rel, obj, conf, kind="INJECTED"):
 
 # --- 单元: 覆盖/证伪/衰减/置信度 ------------------------------------
 def test_overlay_overrides_archetype() -> None:
-    arch = ArchetypeKB([_mk(1, "bench_1", "affords", "social", 0.9)])
+    arch = ArchetypeKB([_mk(1, "bench_1", "affords", "hunger", 0.9)])
     kb = KnowledgeBase(arch)
     _fact(kb, "bench_1", "affords", "none", 1.0)
     got = kb.query(subject="bench_1", relation="affords")
@@ -41,7 +41,7 @@ def test_overlay_overrides_archetype() -> None:
 
 
 def test_tombstone_blocks_archetype() -> None:
-    arch = ArchetypeKB([_mk(1, "bench_1", "affords", "social", 0.9)])
+    arch = ArchetypeKB([_mk(1, "bench_1", "affords", "hunger", 0.9)])
     kb = KnowledgeBase(arch)
     kb.refute("a:bench_1|affords|1")
     assert kb.query(subject="bench_1", relation="affords") == ()
@@ -49,7 +49,7 @@ def test_tombstone_blocks_archetype() -> None:
 
 def test_decay_half_life() -> None:
     kb = KnowledgeBase()
-    _fact(kb, "bench_1", "affords", "social", 1.0)
+    _fact(kb, "bench_1", "affords", "hunger", 1.0)
     kb.decay(now_tick=20160, half_life_ticks=20160)          # 1 个半衰期
     assert kb.query(subject="bench_1")[0].confidence == pytest.approx(0.5)
     kb.decay(now_tick=20160 * 2, half_life_ticks=20160)
@@ -58,20 +58,20 @@ def test_decay_half_life() -> None:
 
 def test_low_confidence_treated_unknown() -> None:
     kb = KnowledgeBase()
-    _fact(kb, "bench_1", "affords", "social", 0.01)
+    _fact(kb, "bench_1", "affords", "hunger", 0.01)
     assert kb.query(subject="bench_1", relation="affords") == ()
 
 
 def test_load_archetype_injected() -> None:
     personality, kb = load_archetype(ARCH)
-    assert personality.get("social") == 1.0
+    assert personality.get("hunger") == 1.0
     facts = kb.query()
     assert facts and all(f.source.kind == "INJECTED" for f in facts)
 
 
 def test_kb_json_export() -> None:
     kb = KnowledgeBase()
-    _fact(kb, "bench_1", "affords", "social", 1.0)
+    _fact(kb, "bench_1", "affords", "hunger", 1.0)
     out = export_kb_json(kb)
     assert out["nodes"] and out["edges"]
     assert out["edges"][0]["source_kind"] == "OBSERVED"
@@ -80,9 +80,9 @@ def test_kb_json_export() -> None:
 # --- m5-rectify: T1 命名空间 / T2 逐键合并 / T4 tick / T7 upsert ----------
 def test_fact_id_namespace_separates_layers() -> None:
     """原型 a: / overlay o: —— refute overlay 不误伤原型, fact() 不串。"""
-    arch_f = _mk(1, "bench_1", "affords", "social", 0.9)
+    arch_f = _mk(1, "bench_1", "affords", "hunger", 0.9)
     kb = KnowledgeBase(ArchetypeKB([arch_f]))
-    ov = kb.learn(subject="bench_1", relation="affords", obj="social",
+    ov = kb.learn(subject="bench_1", relation="affords", obj="hunger",
                   confidence=1.0, source=Source(kind="OBSERVED"), tick=5)
     assert ov.fact_id.startswith("o:")
     assert kb.archetype.facts[0].fact_id.startswith("a:")
@@ -97,18 +97,18 @@ def test_fact_id_namespace_separates_layers() -> None:
 def test_query_perfact_keeps_other_archetype_facts() -> None:
     """目击一设施后 query(affords) 仍见原型里其它 affords(P0-1: 不再整层遮蔽)。"""
     arch = ArchetypeKB([
-        _mk(1, "bench_1", "affords", "social", 0.9),
-        _mk(2, "backup_bench", "affords", "social", 0.7)])
+        _mk(1, "bench_1", "affords", "hunger", 0.9),
+        _mk(2, "backup_bench", "affords", "hunger", 0.7)])
     kb = KnowledgeBase(arch)
-    kb.learn(subject="bench_1", relation="affords", obj="social",
+    kb.learn(subject="bench_1", relation="affords", obj="hunger",
              confidence=1.0, source=Source(kind="OBSERVED"))
     subs = {f.subject for f in kb.query(relation="affords")}
     assert subs == {"bench_1", "backup_bench"}
     # overlay 同键覆盖同 subject 时原型同键隐藏, 但不同键(located_at)不受影响
     kb2 = KnowledgeBase(ArchetypeKB([
-        _mk(1, "bench_1", "affords", "social", 0.9),
+        _mk(1, "bench_1", "affords", "hunger", 0.9),
         _mk(2, "market_1", "located_at", "market", 1.0)]))
-    kb2.learn(subject="bench_1", relation="affords", obj="social",
+    kb2.learn(subject="bench_1", relation="affords", obj="hunger",
               confidence=1.0, source=Source(kind="OBSERVED"))
     assert kb2.query(relation="located_at")
 
@@ -124,16 +124,16 @@ def test_learn_records_explicit_tick() -> None:
 
 def test_learn_upsert_bounded() -> None:
     kb = KnowledgeBase()
-    a = kb.learn(subject="bench_1", relation="affords", obj="social",
+    a = kb.learn(subject="bench_1", relation="affords", obj="hunger",
                  confidence=1.0, source=Source(kind="OBSERVED"), tick=10)
-    b = kb.learn(subject="bench_1", relation="affords", obj="social",
+    b = kb.learn(subject="bench_1", relation="affords", obj="hunger",
                  confidence=0.6, source=Source(kind="OBSERVED"), tick=50)
     assert len(kb.overlay) == 1          # 同键替换, 不新增
     assert a.fact_id == b.fact_id        # id 稳定
     assert b.confidence == 1.0           # 取更高 conf
     assert b.tick_learned == 10          # N2: 弱消息(0.6<1.0)不刷新 tick
     # 等强再观察(同 1.0)才刷新 tick
-    c = kb.learn(subject="bench_1", relation="affords", obj="social",
+    c = kb.learn(subject="bench_1", relation="affords", obj="hunger",
                  confidence=1.0, source=Source(kind="OBSERVED"), tick=80)
     assert c.tick_learned == 80
     # 不同 obj → 新事实并存
@@ -152,10 +152,10 @@ def test_unknown_relation_raises_valueerror() -> None:
 
 def test_all_facts_matches_query() -> None:
     arch = ArchetypeKB([
-        _mk(1, "bench_1", "affords", "social", 0.9),
+        _mk(1, "bench_1", "affords", "hunger", 0.9),
         _mk(2, "market_1", "located_at", "market", 1.0)])
     kb = KnowledgeBase(arch)
-    kb.learn(subject="bench_1", relation="affords", obj="social",
+    kb.learn(subject="bench_1", relation="affords", obj="hunger",
              confidence=1.0, source=Source(kind="OBSERVED"))
     assert len(kb.all_facts()) == 2      # 同键去重(overlay 覆盖原型), 另一键并存
 

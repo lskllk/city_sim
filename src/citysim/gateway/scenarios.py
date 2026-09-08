@@ -24,8 +24,7 @@ from citysim.world.world import Entity, World, entity_from_def
 ROOT = Path(__file__).resolve().parents[3]          # → d:\...\npc_cognition
 DEFAULT_SCENE = ROOT / "config" / "scenes" / "elm_lane.json"
 CFG = load_config(ROOT / "config" / "sim.toml")
-_ARGS_ORDER = ("energy", "hunger", "thirst", "bladder", "temperature",
-               "health", "fun", "social", "comfort", "hp")
+_ARGS_ORDER = ("energy", "hunger", "thirst", "bladder", "fun", "hp")
 
 
 def load_scene(path: str | Path = DEFAULT_SCENE,
@@ -77,7 +76,6 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
                    location_id=spec.get("home", ""))
         p.home = spec.get("home", "")
         p.money = float(spec.get("money", 100.0))
-        p.hour_f = float(spec.get("hour", idx % 24.0))
         p.archetype_id = spec.get("archetype", "")     # 不得从 KB 猜
         if "spawn" in spec:                              # 显式出生点优先
             p.position = (float(spec["spawn"][0]), float(spec["spawn"][1]))

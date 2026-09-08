@@ -13,8 +13,7 @@ from citysim.sim.loop import run_tick
 from citysim.viz.kb_export import export_kb_json
 
 CFG = load_config()
-SIGNALS = ("energy", "hunger", "thirst", "bladder", "temperature",
-           "health", "fun", "social", "comfort", "hp")
+SIGNALS = ("energy", "hunger", "thirst", "bladder", "fun", "hp")
 
 
 def _run(scenario, ticks):

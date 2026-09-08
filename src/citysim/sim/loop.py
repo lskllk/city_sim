@@ -276,7 +276,7 @@ def _execute_buy(world: World, systems: Systems, cfg: SimConfig,
             {"item": ent.entity_id, "price": ent.price,
              "home": ent.location_id, "money": round(npc.money, 2)}))
     # 买完/失败都尽快重评(回家/换目标)
-    a = arousal(npc.hour_f, npc.signals.get("energy", 0.5),
+    a = arousal(world.hour_f(), npc.signals.get("energy", 0.5),
                 npc.signals.get("hunger", 0.5))
     systems.scheduler.schedule(pid, review_interval_ticks(a, cfg))
 
@@ -298,7 +298,6 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
     # 1. 代谢(全体活着的 NPC; 睡眠冻结精力, 忙碌冻结娱乐——无聊才降 fun)
     died: list[str] = []
     for pid, npc in world.npcs.items():
-        npc.hour_f = hour
         if npc.is_alive():
             amul: dict[str, float] = {}
             if _sleeping(world, systems, pid):
@@ -333,7 +332,7 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
             if trv.target_position is not None:
                 npc.position = trv.target_position   # 位置与 region 落点一致
         prev_ids = npc.kb.overlay_fact_ids()
-        percept = build_percept(world, npc, radius=cfg.perception_radius)
+        percept = build_percept(world, npc)
         # TASK002: perceived 事件(观察用; audience=[] 只进日志/UI 流)
         world.bus.publish(world.bus.make(
             world.clock_tick, "perceived", npc_id,
@@ -393,15 +392,14 @@ def run_tick(world: World, systems: Systems, cfg: SimConfig,
         if isinstance(intent, Buy):
             _execute_buy(world, systems, cfg, npc_id, npc, intent)
             continue
-        ok = systems.interaction.submit(
-            world, npc, intent, radius=cfg.interaction_radius)
+        ok = systems.interaction.submit(world, npc, intent)
         if isinstance(intent, Interact) and ok:
             ent = world.entities.get(intent.target_id)
             delay = ent.duration_ticks if ent else cfg.review_max_ticks
             systems.scheduler.schedule(npc_id, max(1, delay))
         else:
             # idle 或提交失败: 按清醒度节律排下次
-            a = arousal(npc.hour_f, npc.signals.get("energy", 0.5),
+            a = arousal(hour, npc.signals.get("energy", 0.5),
                         npc.signals.get("hunger", 0.5))
             systems.scheduler.schedule(npc_id, review_interval_ticks(a, cfg))
     # 5.5 M5 遗忘: 每游戏日 0 点对全部 NPC 批量 decay。

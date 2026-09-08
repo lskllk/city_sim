@@ -1,8 +1,7 @@
 """PerceptionSystem —— 为 NPC 构建 Percept(纯读取) + 感知落知识(M5)。
 
-TASK001 空间感知: 同 semantic region 全可见(既有行为不变); 跨 region 仅当
-distance <= perception_radius。半径来自 config [spatial]; 无 region 几何时
-退回纯同-region(旧行为), 保证 helpers/无几何世界不改变语义。
+感知为 region 局部: 只看到 npc 所在 location 的全部实体(同 region 全可见),
+不做跨 region 的距离感知。位置/几何仅供可视化与移动, 不参与决策门控。
 """
 from __future__ import annotations
 
@@ -26,40 +25,16 @@ def _view_for(world, npc, e, closed: bool) -> EntityView:
     )
 
 
-def build_percept(world, npc, radius: float | None = None) -> Percept:
-    """同 region 全可见; 跨 region 距离内可见(radius=None 或无从几何时跳过)。
+def build_percept(world, npc) -> Percept:
+    """仅 npc 所在 location 的实体全可见(region 局部感知)。
 
     EntityView.claimable = (无人占用 或 自己占用) 且 stock!=0。
     events = 该 NPC 信箱里取走的全部事件。
     """
     views = []
-    anchor_here = npc.position
     for e in world.entities_at(npc.location_id):
         closed = not e.is_open_now(world.hour_f())   # 停业=空且不可claim
         views.append(_view_for(world, npc, e, closed))
-    # 跨 region: 需要距离语义(region 几何 + 双方 position)才参与
-    if radius is not None and radius > 0 and world.has_spatial(npc.location_id):
-        for e in world.entities.values():
-            if e.location_id == npc.location_id:
-                continue
-            if not world.has_spatial(e.location_id):
-                continue
-            ep = world.anchor_of(e)
-            if ep is None:
-                continue
-            d = ((anchor_here[0] - ep[0]) ** 2
-                 + (anchor_here[1] - ep[1]) ** 2) ** 0.5
-            if d > radius:
-                continue
-            closed = not e.is_open_now(world.hour_f())
-            v = _view_for(world, npc, e, closed)
-            v = EntityView(entity_id=v.entity_id, name=v.name, tags=v.tags,
-                           affordances=v.affordances,
-                           duration_ticks=v.duration_ticks, distance=d,
-                           claimable=v.claimable, stock_zero=v.stock_zero,
-                           location_id=v.location_id, price=v.price,
-                           owner=v.owner)
-            views.append(v)
     events = world.bus.drain_for(npc.person_id)
     npc.last_percept = PerceptionRecord(
         tick=world.clock_tick, npc_id=npc.person_id,

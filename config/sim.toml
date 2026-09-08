@@ -10,25 +10,15 @@ thirst = -0.001388888888888889     # -1/720 （12h 见底）
 energy = -0.00034722222222222224   # -1/2880（48h）
 fun    = -0.00034722222222222224   # -1/2880（48h）
 
-[sleep]
-wake_energy = 0.99             # 精力达此视为睡饱自动醒
-asleep_review_ticks = 480      # 入睡后距下次重评固定 8 小时
-
 [bladder]
 convert_per_tick = 0.02        # pending -> 膀胱 的每 tick 转化速率
-
-[eat]
-hunger_threshold = 0.42        # 饱腹低于此视为饿
-
-[interaction]
-default_duration_ticks = 30    # 未声明时长物品的缺省交互 tick
 
 [review]                       # 重评节律参数
 min_ticks = 1                  # 最清醒时每 tick 想一次
 max_ticks = 48                 # 最困时约每 48 tick 重评一次
 
 [knowledge]                    # M5: 知识库
-half_life_ticks = 10080        # 7 天 = 0.5^(1/7)/天(S5: 21 天=3 半衰期->0.125)
+half_life_ticks = 2880        # 2 天(知识半衰期)
 
 [utility]                      # 需求急迫度曲线(m5-rectify 13)
 power = 3.0                    # weight = need**power(幂>1 放大真缺口)
@@ -40,8 +30,3 @@ move_ticks = 30
 [health]                       # 生命: 饥饿/饥渴为 0 时下降, 两者满足时回升
 hp_decay = 0.0005              # 任一为 0 时 hp 每 tick 下降
 hp_regen = 0.0005              # 两者满足时 hp 回升最大速率(×均值)
-
-[spatial]                      # TASK001: 空间感知。坐标=scene 画布单位, 无米制。
-                               # 同 region 恒可见/可交互; 跨 region 看 distance。
-perception_radius = 100.0      # 小于 elm_lane 邻区中心距(>300)→ 不影响稳态行为
-interaction_radius = 30.0      # 跨 region 交互所需邻近度(同 region 不受限)

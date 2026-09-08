@@ -2,7 +2,7 @@
 
 0..1 float signals 是唯一存储; 不再有 Body(0..100 int) 双写、无第二份生理
 副本。Identity(身份, 几乎不变) / Life(人生轨迹, 缓慢变) 保留为独立小对象;
-状态层 = signals + 少量活动字段(position/activity/hour_f/bladder_pending)。
+状态层 = signals + 少量活动字段(position/activity/bladder_pending)。
 
 本模块不得 import citysim.world(0.2 铁律, CI 检查)。
 """
@@ -98,15 +98,12 @@ class Person:
         default_factory=lambda: Identity(person_id="anon", name="匿名"))
     signals: dict[str, float] = field(default_factory=full_signals)
     personality: dict[str, float] = field(default_factory=dict)   # {信号: 代谢倍率}
-    activity_mul: dict[str, float] = field(default_factory=dict)  # {信号: 活动倍率}
 
     position: tuple[float, float] = (0.0, 0.0)   # TASK001: 连续 2D 坐标(scene 单位)
     current_activity: str = "idle"
-    hour_f: float = 8.0                        # 当日时刻(供清醒度)
     bladder_pending: float = 0.0               # 待转化排泄负荷
     location_id: str = ""                     # 所在 semantic region(M3 世界侧登记)
     home: str = ""                            # 家(购买的商品送到这里)
-    active_interaction_id: str | None = None  # 正在交互的实体 id(观测/仲裁)
     last_intent: "Intent | None" = None       # 最近一次决策(观测)
     kb: "KnowledgeBase" = field(default_factory=KnowledgeBase)  # M5: 每 NPC 知识库
     tell_bias: float = 1.0                     # 传闻讲话概率倍率(elm_lane 人设)

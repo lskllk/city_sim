@@ -4,8 +4,7 @@
  */
 export const SIGNAL_ZH: Record<string, string> = {
   energy: '精力', hunger: '饥饿', thirst: '口渴', bladder: '如厕',
-  temperature: '体温', health: '健康', fun: '娱乐', social: '社交',
-  comfort: '舒适', hp: '生命',
+  fun: '娱乐', hp: '生命',
 };
 
 export function signalZh(id: string): string {

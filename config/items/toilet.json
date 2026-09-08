@@ -2,7 +2,7 @@
   "item_type": "toilet",
   "name": "马桶",
   "tags": ["toilet"],
-  "affordances": {"bladder": 0.6, "comfort": 0.05},
+  "affordances": {"bladder": 0.6},
   "duration_ticks": 5,
   "on_start": [],
   "on_complete": [

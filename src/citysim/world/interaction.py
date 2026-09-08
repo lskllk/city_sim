@@ -14,7 +14,7 @@ from citysim.core.config import SIGNALS
 from citysim.core.types import Idle, Interact
 from citysim.npc.person import Person
 from citysim.world.effects import apply_effects
-from citysim.world.world import Entity, World, distance
+from citysim.world.world import Entity, World
 
 _WAKE_RE = re.compile(r"^(\w+)\s*>=\s*([0-9.]+)$")
 
@@ -39,13 +39,8 @@ class InteractionSystem:
         self._scheduler = scheduler                       # TimingWheel | None
 
     # --- 提交 ---------------------------------------------------------
-    def submit(self, world: World, npc: Person, intent,
-               radius: float | None = None) -> bool:
-        """校验→claim→登记。失败发 intent_failed 事件。返回是否成功登记。
-
-        radius(TASK001 可选): 跨 region 交互的空间门 —— 只有双方 region 都有
-        几何、且实体有锚点时启用; 同 region 交互恒可用(不破坏既有语义)。
-        """
+    def submit(self, world: World, npc: Person, intent) -> bool:
+        """校验→claim→登记。失败发 intent_failed 事件。返回是否成功登记。"""
         pid = npc.person_id
         if isinstance(intent, Idle):
             if pid in self.active:
@@ -69,15 +64,6 @@ class InteractionSystem:
             self._fail(world, pid, tid, "已被他人占用")
             return False
 
-        # TASK001 空间门: 跨 region 需 distance<=interaction_radius(几何齐备才生效)
-        if (ent.location_id != npc.location_id and radius is not None
-                and radius > 0 and world.has_spatial(ent.location_id)
-                and world.has_spatial(npc.location_id)):
-            ep = world.anchor_of(ent)
-            if ep is None or distance(npc.position, ep) > radius:
-                self._fail(world, pid, tid, "跨地点且距离过远")
-                return False
-
         # rule 4: 旧 active 且 target 不同 → 先释放(除非旧交互不可打断)
         old = self.active.get(pid)
         if old is not None and old.entity_id != tid:
@@ -95,7 +81,6 @@ class InteractionSystem:
             remaining_ticks=dur, total_ticks=dur,
         )
         ent.claimed_by = pid
-        npc.active_interaction_id = tid
         npc.current_activity = ent.name
         # 数据化开始效果(M4): on_start(如 add_pending 膀胱负荷)在开始 tick 应用
         if ent.on_start:
@@ -174,7 +159,6 @@ class InteractionSystem:
             if ent is not None and ent.claimed_by == pid:
                 ent.claimed_by = None
         if npc is not None:
-            npc.active_interaction_id = None
             if cancel:
                 npc.current_activity = "idle"
 

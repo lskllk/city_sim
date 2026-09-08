@@ -40,21 +40,8 @@ def test_time_parity(cfg: SimConfig) -> None:
     assert cfg.ticks_per_day == 1440
 
 
-def test_sleep_parity(cfg: SimConfig) -> None:
-    assert cfg.wake_energy == pytest.approx(0.99)
-    assert cfg.asleep_review_ticks == 480
-
-
 def test_bladder_parity(cfg: SimConfig) -> None:
     assert cfg.bladder_convert == pytest.approx(0.02)
-
-
-def test_eat_parity(cfg: SimConfig) -> None:
-    assert cfg.eat_hunger_threshold == pytest.approx(0.42)
-
-
-def test_default_duration_parity(cfg: SimConfig) -> None:
-    assert cfg.default_duration_ticks == 30
 
 
 def test_review_parity(cfg: SimConfig) -> None:
@@ -66,8 +53,7 @@ def test_metabolism_parity(cfg: SimConfig) -> None:
     expected = {
         "hunger": -1.0 / 1440.0, "thirst": -1.0 / 720.0,
         "energy": -1.0 / 2880.0, "fun": -1.0 / 2880.0,
-        "health": 0.0, "social": 0.0, "comfort": 0.0,
-        "temperature": 0.0, "bladder": 0.0, "hp": 0.0,
+        "bladder": 0.0, "hp": 0.0,
     }
     for s in SIGNALS:
         assert s in cfg.metabolism
@@ -75,14 +61,13 @@ def test_metabolism_parity(cfg: SimConfig) -> None:
 
 
 def test_metabolism_missing_signals_default_zero(cfg: SimConfig) -> None:
-    for s in ("health", "social", "comfort", "temperature", "bladder", "hp"):
+    for s in ("bladder", "hp"):
         assert cfg.metabolism[s] == 0.0
 
 
 def test_signals_full_set() -> None:
     assert set(SIGNALS) == {
-        "energy", "hunger", "thirst", "bladder", "temperature",
-        "health", "fun", "social", "comfort", "hp",
+        "energy", "hunger", "thirst", "bladder", "fun", "hp",
     }
 
 

@@ -80,7 +80,6 @@ def test_interruptible_false_refuses_override() -> None:
                  location_id="home")
     world.npcs["p"] = npc
     bed.claimed_by = "p"
-    npc.active_interaction_id = bed.entity_id
     isys = InteractionSystem()
     isys.active["p"] = ActiveInteraction(npc_id="p", entity_id=bed.entity_id,
                                          remaining_ticks=480, total_ticks=480)

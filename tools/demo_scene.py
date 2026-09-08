@@ -76,7 +76,7 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
                 on_start=[{"op": "add_pending",
                            "field": "bladder_pending", "amount": 0.15}])
     _entity(world, "toilet_1", "马桶", {"toilet"},
-            {"bladder": 0.6, "comfort": 0.05}, duration_ticks=5,
+            {"bladder": 0.6}, duration_ticks=5,
             on_complete=TOILET_ON_COMPLETE)
 
     # ---- NPC(初始状态由 seed 扰动, 避免同相位) ---------------------
@@ -90,11 +90,9 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
         p = Person(identity=Identity(person_id=pid,
                                      name=names[i % len(names)]),
                    location_id="home")
-        p.hour_f = r.uniform(0.0, 24.0)
         base = {"energy": r.uniform(0.4, 0.9), "hunger": r.uniform(0.3, 0.9),
                 "thirst": r.uniform(0.3, 0.9), "bladder": 1.0,
-                "health": 1.0, "temperature": 1.0, "fun": 0.6,
-                "social": 0.6, "comfort": 0.8, "hp": 1.0}
+                "fun": 0.6, "hp": 1.0}
         if noise:
             base = {s: max(0.0, min(1.0, v + r.uniform(-noise, noise)))
                     for s, v in base.items()}
@@ -129,7 +127,7 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
             on_start=[{"op": "add_pending",
                        "field": "bladder_pending", "amount": 0.3}])
     _entity(world, "toilet_1", "马桶", {"toilet"},
-            {"bladder": 0.6, "comfort": 0.05}, duration_ticks=5,
+            {"bladder": 0.6}, duration_ticks=5,
             on_complete=TOILET_ON_COMPLETE)
     _entity(world, "water_0", "饮水机", {"drink", "consumable"},
             {"thirst": 0.6}, duration_ticks=10, stock=1000,
@@ -146,10 +144,8 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
         p = Person(identity=Identity(person_id=pid,
                                      name=names[i % len(names)]),
                    location_id="home")
-        p.hour_f = 8.0                       # 同步相位 → 同步需求
         p.set_state(energy=0.6, hunger=0.25, thirst=0.6, bladder=0.9,
-                    health=1.0, temperature=1.0, fun=0.5, social=0.5,
-                    comfort=0.8, hp=1.0)
+                    fun=0.5, hp=1.0)
         world.npcs[pid] = p
         rng_pool[pid] = random.Random(seed + i)
         systems.scheduler.schedule(pid, 1, now=0)

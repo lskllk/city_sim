@@ -15,8 +15,7 @@ except ModuleNotFoundError:  # Python 3.10
 
 # 信号全集（0..1 float, 1=充足/健康, 0=耗尽）。唯一表示, 禁 0..100 int 存储。
 SIGNALS: tuple[str, ...] = (
-    "energy", "hunger", "thirst", "bladder",
-    "temperature", "health", "fun", "social", "comfort", "hp",
+    "energy", "hunger", "thirst", "bladder", "fun", "hp",
 )
 
 
@@ -24,24 +23,15 @@ SIGNALS: tuple[str, ...] = (
 class SimConfig:
     ticks_per_day: int
     metabolism: dict[str, float]     # 全信号 delta; 缺省信号补 0.0
-    wake_energy: float
-    asleep_review_ticks: int
     bladder_convert: float
-    eat_hunger_threshold: float
-    default_duration_ticks: int
     review_min_ticks: int
     review_max_ticks: int
-    half_life_ticks: int = 10080   # M5 知识半衰期(tick; 7 天)
+    half_life_ticks: int = 2880   # M5 知识半衰期(tick; 2 天)
     utility_power: float = 3.0     # 需求急迫度幂次(m5-rectify 13)
     utility_threshold: float = 0.08
     move_ticks: int = 30           # 跨地点移动耗时
     hp_decay: float = 0.0005       # 饥饿/饥渴为 0 时 hp 每 tick 下降
     hp_regen: float = 0.0005       # 两者满足时 hp 回升最大速率(×均值)
-    # TASK001 空间感知: 世界坐标=scene 画布坐标(无米制)。同 region 恒可见;
-    # 跨 region 需 distance<=perception_radius。数值按 elm_lane 尺度(房间矩形
-    # 约 200+ 单位)选: 100 远小于邻区中心距(>300), 只覆盖邻近/街距实体。
-    perception_radius: float = 100.0
-    interaction_radius: float = 30.0
 
     @classmethod
     def from_toml(cls, data: dict[str, Any]) -> "SimConfig":
@@ -50,21 +40,15 @@ class SimConfig:
         return cls(
             ticks_per_day=int(data["time"]["ticks_per_day"]),
             metabolism=full_meta,
-            wake_energy=float(data["sleep"]["wake_energy"]),
-            asleep_review_ticks=int(data["sleep"]["asleep_review_ticks"]),
             bladder_convert=float(data["bladder"]["convert_per_tick"]),
-            eat_hunger_threshold=float(data["eat"]["hunger_threshold"]),
-            default_duration_ticks=int(data["interaction"]["default_duration_ticks"]),
             review_min_ticks=int(data["review"]["min_ticks"]),
             review_max_ticks=int(data["review"]["max_ticks"]),
-            half_life_ticks=int(data.get("knowledge", {}).get("half_life_ticks", 10080)),
+            half_life_ticks=int(data.get("knowledge", {}).get("half_life_ticks", 2880)),
             utility_power=float(data.get("utility", {}).get("power", 3.0)),
             utility_threshold=float(data.get("utility", {}).get("threshold", 0.08)),
             move_ticks=int(data.get("motion", {}).get("move_ticks", 30)),
             hp_decay=float(data.get("health", {}).get("decay", 0.0005)),
             hp_regen=float(data.get("health", {}).get("regen", 0.0005)),
-            perception_radius=float(data.get("spatial", {}).get("perception_radius", 100.0)),
-            interaction_radius=float(data.get("spatial", {}).get("interaction_radius", 30.0)),
         )
 
 

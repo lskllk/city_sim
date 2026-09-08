@@ -53,28 +53,22 @@ def test_same_region_visible_regardless_of_distance() -> None:
     bed.position = (190.0, 190.0)                    # 距 npc 远超 radius
     npc = add_npc(w, None, "npc", location="home")
     npc.position = (10.0, 10.0)
-    perc = build_percept(w, npc, radius=CFG.perception_radius)
+    perc = build_percept(w, npc)
     assert {v.entity_id for v in perc.visible} == {"bed_1"}
 
 
-def test_cross_region_perception_radius() -> None:
-    """跨 region: distance<=perception_radius 可见; 超出不可见。"""
+def test_cross_region_not_visible() -> None:
+    """感知为 region 局部: NPC 只看所在 location 的实体, 跨 region 不可见。"""
     w = _spatial_world()
-    bench = add_entity(w, "bench_1", location="park", tags=("fun",),
-                       affordances={"fun": 0.3})
-    bench.position = (300.0, 100.0)                  # 距 npc 100(边界)
-    tree = add_entity(w, "tree_1", location="park", tags=("tree",))
-    tree.position = (400.0, 100.0)                   # 距 npc 200 → 不可见
+    add_entity(w, "bench_1", location="park", tags=("fun",),
+               affordances={"fun": 0.3})
     npc = add_npc(w, None, "npc", location="home")
-    npc.position = (200.0, 100.0)                    # home 右缘
-    perc = build_percept(w, npc, radius=100.0)
-    ids = {v.entity_id for v in perc.visible}
-    assert "bench_1" in ids and "tree_1" not in ids
-    # last_percept 记录可观察(此刻的记录是 radius=100 那次)
-    assert npc.last_percept is not None
-    assert "bench_1" in npc.last_percept.observed_entity_ids
-    far = build_percept(w, npc, radius=50.0)
-    assert "bench_1" not in {v.entity_id for v in far.visible}
+    assert {v.entity_id for v in build_percept(w, npc).visible} == set()
+    # 同 location 才可见
+    add_entity(w, "bed_1", location="home", tags=("sleepable",),
+               affordances={"energy": 0.7})
+    npc2 = add_npc(w, None, "npc2", location="home")
+    assert {v.entity_id for v in build_percept(w, npc2).visible} == {"bed_1"}
 
 
 def test_travel_continuous_position_and_arrival_consistency() -> None:
@@ -99,15 +93,13 @@ def test_travel_continuous_position_and_arrival_consistency() -> None:
     assert npc.position == (400.0, 100.0)            # 位置与 region 一致
 
 
-def test_cross_region_learns_actual_region_and_emits_learned() -> None:
-    """跨 region 感知落知识: located_at 记实体真实 region; 新知识发 learned 事件。"""
-    w, s, rng = make_runtime(CFG, log=True)          # 已挂 attach_replay
+def test_perception_learns_actual_region_and_emits_learned() -> None:
+    """感知落知识: located_at 记实体真实 region; 新知识发 learned 事件。"""
+    w, s, rng = make_runtime(CFG, log=True)
     w.locations = {k: dict(v) for k, v in DUO.items()}
-    bench = add_entity(w, "bench_1", location="park", tags=("fun",),
-                       affordances={"fun": 0.3})
-    bench.position = (300.0, 100.0)
-    npc = add_npc(w, s, "npc", location="home", rng_pool=rng, seed=3)
-    npc.position = (200.0, 100.0)
+    add_entity(w, "bench_1", location="park", tags=("fun",),
+               affordances={"fun": 0.3})
+    npc = add_npc(w, s, "npc", location="park", rng_pool=rng, seed=3)
     seed_reviews(w, s)
     run_tick(w, s, CFG, rng)
     # located_at 学 park, 不是 npc 所在 home
@@ -118,32 +110,22 @@ def test_cross_region_learns_actual_region_and_emits_learned() -> None:
                for l in s.log_lines)
 
 
-def test_interaction_spatial_gate() -> None:
-    """同 region 交互恒可用; 跨 region 需 distance<=interaction_radius。"""
+def test_interaction_no_distance_gate() -> None:
+    """提交交互不再有跨 region 距离门(几何仅供可视化); claim/stock 仍是准入门。"""
     w = _spatial_world()
-    home_bed = add_entity(w, "bed_1", location="home", tags=("sleepable",),
-                          affordances={"energy": 0.7})
-    home_bed.position = (190.0, 190.0)                # 同 region 但很远
-    far = add_entity(w, "far_bench", location="park", tags=("fun",),
-                     affordances={"fun": 0.3})
-    far.position = (400.0, 100.0)                     # 跨 region 很远
-    near = add_entity(w, "near_bench", location="park", tags=("fun",),
-                      affordances={"fun": 0.3})
-    near.position = (300.0, 100.0)                    # 与 npc(285,100) 相距 15
+    add_entity(w, "bed_1", location="home", tags=("sleepable",),
+               affordances={"energy": 0.7})
+    add_entity(w, "far_bench", location="park", tags=("fun",),
+               affordances={"fun": 0.3})
 
     npc = Person(identity=Identity(person_id="npc", name="npc"),
                  location_id="home")
-    npc.position = (285.0, 100.0)                       # 家门边(离 park 很近)
     w.npcs["npc"] = npc
     isys = InteractionSystem()
 
-    assert isys.submit(w, npc, Interact(target_id="bed_1"),
-                       radius=CFG.interaction_radius)      # 同 region 通过
+    assert isys.submit(w, npc, Interact(target_id="bed_1"))      # 同 region 通过
     isys.release_active(w, "npc")
-    assert not isys.submit(w, npc, Interact(target_id="far_bench"),
-                           radius=CFG.interaction_radius)  # 跨 region 太远拒绝
-    assert isys.submit(w, npc, Interact(target_id="near_bench"),
-                       radius=CFG.interaction_radius)      # 跨 region 距离内通过
+    assert isys.submit(w, npc, Interact(target_id="far_bench"))  # 跨 region 放行(无门)
 
 
 def test_entity_anchor_stable_and_inside_region() -> None:

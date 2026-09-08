@@ -2,7 +2,7 @@
   "item_type": "bed_basic",
   "name": "床",
   "tags": ["sleepable"],
-  "affordances": {"energy": 0.7, "comfort": 0.2},
+  "affordances": {"energy": 0.7},
   "duration_ticks": 480,
   "interruptible": false,
   "wake_condition": "energy>=0.99",

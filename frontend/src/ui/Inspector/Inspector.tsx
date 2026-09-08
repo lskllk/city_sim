@@ -10,8 +10,7 @@ import type { KbEdge, NPCSnapshot } from '../../protocol/schemas';
 
 const SIG_ZH: Record<string, string> = {
   energy: '精力', hunger: '饥饿', thirst: '口渴', bladder: '如厕',
-  temperature: '体温', health: '健康', fun: '娱乐', social: '社交',
-  comfort: '舒适', hp: '生命',
+  fun: '娱乐', hp: '生命',
 };
 const EVENT_ZH: Record<string, string> = {
   decision: '决策', perceived: '感知', learned: '学习', told: '传闻',
@@ -47,7 +46,7 @@ export function Inspector() {
 function NpcInspector({ npc }: { npc: NPCSnapshot }) {
   const room = useWorldStore((s) => s.rooms[npc.loc]);
   const signals = npc.signals ?? {};
-  const order = ['energy', 'hunger', 'thirst', 'fun', 'social', 'comfort', 'hp'];
+  const order = ['energy', 'hunger', 'thirst', 'bladder', 'fun', 'hp'];
   const keys = order.filter((k) => k in signals)
     .concat(Object.keys(signals).filter((k) => !order.includes(k)));
   const ranked = uniqueByMax(npc.intent?.ranked ?? []);

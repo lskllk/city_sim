@@ -23,7 +23,7 @@ class MemItem:
     item_id: str
     # —— 内容(与 Entity 同构, 值由上层填)——
     located: str = ""            # 我以为它在哪(易变)
-    owner: str = ""              # 我以为归谁: me | place_id | person_id
+    owner: str = ""              # 我以为归谁: ""=无主/公共 | person_id | company_id
     claimed: bool = False        # 我以为是否被占用(易变)
     afford: str = ""             # 它能提供什么信号(obs/told 填)
     value: float = 0.0           # 提供多少

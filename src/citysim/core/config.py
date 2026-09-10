@@ -33,7 +33,6 @@ class SimConfig:
     hp_decay: float = 0.0005       # 饥饿/饥渴为 0 时 hp 每 tick 下降
     hp_regen: float = 0.0005       # 两者满足时 hp 回升最大速率(×均值)
     move_penalty: float = 0.6      # 异地(MoveTo)候选效用折扣(移动耗时/精力成本)
-    buy_margin: float = 1.0        # 愿买度缓冲: willing=clamp01((money-price)/(price*margin))
     # —— 生物钟 / 清醒度(简化: 单余弦 + 系数, 见 brain.circadian/arousal) ——
     peak_hour: float = 15.0        # 最清醒时刻(h); 谷=峰±12h
     circadian_min: float = 0.15    # 生物钟谷值
@@ -46,6 +45,7 @@ class SimConfig:
     def from_toml(cls, data: dict[str, Any]) -> "SimConfig":
         meta = data.get("metabolism", {})
         full_meta = {s: float(meta.get(s, 0.0)) for s in SIGNALS}
+        health = data.get("health", {})
         return cls(
             ticks_per_day=int(data["time"]["ticks_per_day"]),
             metabolism=full_meta,
@@ -56,10 +56,9 @@ class SimConfig:
             utility_power=float(data.get("utility", {}).get("power", 3.0)),
             utility_threshold=float(data.get("utility", {}).get("threshold", 0.08)),
             move_ticks=int(data.get("motion", {}).get("move_ticks", 30)),
-            hp_decay=float(data.get("health", {}).get("decay", 0.0005)),
-            hp_regen=float(data.get("health", {}).get("regen", 0.0005)),
+            hp_decay=float(health.get("hp_decay", health.get("decay", 0.0005))),
+            hp_regen=float(health.get("hp_regen", health.get("regen", 0.0005))),
             move_penalty=float(data.get("utility", {}).get("move_penalty", 0.6)),
-            buy_margin=float(data.get("utility", {}).get("buy_margin", 1.0)),
             peak_hour=float(data.get("wake", {}).get("peak_hour", 15.0)),
             circadian_min=float(data.get("wake", {}).get("circadian_min", 0.15)),
             circadian_amp=float(data.get("wake", {}).get("circadian_amp", 0.85)),

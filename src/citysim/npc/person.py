@@ -206,14 +206,15 @@ class Person:
         apply_metabolism(self._signals, cfg.metabolism,
                          personality_mul=self._personality,
                          activity_mul=amul or None)
-        # hp: 饥饿/饥渴任一为 0 → 降; 都满足 → 越大回升越快
+        # hp: 饥饿/口渴/精力任一为 0 → 降; 三者都满足 → 越大回升越快
         hunger = self._signals.get("hunger", 1.0)
         thirst = self._signals.get("thirst", 1.0)
+        energy = self._signals.get("energy", 1.0)
         hp = self._signals.get("hp", 1.0)
-        if hunger <= 0.0 or thirst <= 0.0:
+        if hunger <= 0.0 or thirst <= 0.0 or energy <= 0.0:
             self._signals["hp"] = max(0.0, hp - cfg.hp_decay)
         else:
-            rate = (hunger + thirst) / 2.0
+            rate = (hunger + thirst + energy) / 3.0
             self._signals["hp"] = min(1.0, hp + cfg.hp_regen * rate)
         if self._signals.get("hp", 1.0) <= 0.0:
             return False
@@ -302,7 +303,7 @@ class Person:
         """决策: 只读 记忆+自身状态 → Intent。铁律: 不看环境。"""
         intent = brain.decide(
             self._signals, self._personality, self._mem,
-            self._perceived_loc, cfg, now_tick, self._money)
+            self._perceived_loc, cfg, now_tick, self.person_id)
         self._last_intent = intent
         return intent
 

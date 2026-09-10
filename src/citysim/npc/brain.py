@@ -10,7 +10,6 @@ from typing import Any, Mapping
 
 from citysim.core.config import SIGNALS, SimConfig
 from citysim.core.types import (
-    Buy,
     DecisionTrace,
     Idle,
     Intent,
@@ -30,7 +29,8 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
     for v in percept.visible:
         # TODO: affordances 多键 dict → 决定单值 or dict(MemItem.afford 现单值)
         afford, value = (next(iter(v.affordances.items()), ("", 0.0)))
-        # TODO: owner→me 映射需 npc_id; claimed 语义(被占 vs 空/停业)待对齐
+        # owner 直接存世界真值 id(person_id/company_id/""=无主)：判定"自己的"靠
+        # decide 的 self_id 比对, 不再用 "me" 哨兵。claimed 语义待对齐。
         claimed = not v.claimable
         row = mem.get(v.entity_id)
         if row is None:
@@ -77,11 +77,11 @@ def decide(
     location_id: str,             # 自身状态: 我在哪(决策不看环境 percept)
     cfg: SimConfig,
     now_tick: int,                # 当前 tick(过滤失败冷却 cool_until)
-    money: float = 0.0,           # 自身状态: 资金(只减不增; 决定能否 Buy)
+    self_id: str = "",            # 自身身份 id(判定"自己的"用品)
 ) -> Intent:
     """决策主算法。纯函数。铁律:
 
-      决策只读【记忆 mem + 自身状态 signals/personality/location/money】,
+      决策只读【记忆 mem + 自身状态 signals/personality/location】,
       绝不看环境/现场(percept/world)。现场真值只在感知写入(observe)与执行失败
       反证时进入记忆; decide 自己永远不查现场。
 
@@ -90,7 +90,7 @@ def decide(
     cands = _gather_candidates(mem, signals, cfg, now_tick)
     scored, ranked, relevant = _score_candidates(
         cands, personality, location_id, cfg)
-    return _choose(scored, ranked, relevant, money, cfg)
+    return _choose(scored, ranked, relevant, cfg, self_id, location_id)
 
 
 def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
@@ -127,53 +127,36 @@ def _score_candidates(cands, personality: Mapping[str, float],
         needs[sig] = need
         eff = (need ** power) * row.value \
             * float(personality.get(sig, 1.0)) * row.believe
-        local = (row.located == location_id)
-        if row.located and not local:
+        # 异地(MoveTo)成本直接在此乘折扣; 不为"是否本地"单独留分支
+        if row.located and row.located != location_id:
             eff *= cfg.move_penalty
-        scored.append((row.item_id, sig, eff, row.located, local, row))
+        scored.append((row.item_id, sig, eff, row.located, row))
     scored.sort(key=lambda x: (-x[2], x[0]))
     ranked = tuple((s[0], round(s[2], 4)) for s in scored)
     relevant = tuple(sorted(needs.items(), key=lambda kv: (-kv[1], kv[0])))
     return scored, ranked, relevant
 
 
-def _choose(scored, ranked, relevant, money: float, cfg: SimConfig) -> Intent:
+def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
+            location_id: str) -> Intent:
     """[阶段4] 选优分流 —— 只凭记忆行字段, 不看现场。全不够格则 Idle。
 
-    local: 在售(row.price>0 且 owner=="")→ 买得起且愿买 → Buy, 否则跳过;
-           其它(免费/已拥有/公共) → Interact。
-    !local 且 row.located → MoveTo。
+    不判断"是否本地": 异地成本已在 _score_candidates 乘过 move_penalty。
+    统一先过"能不能用"(自己的 owner==self_id / 免费公共 owner=="" 且 price<=0);
+    能用者: 在异地 → MoveTo, 否则 → Interact。在售/他人所有的跳过。
     """
     thresh = cfg.utility_threshold
-    for item_id, sig, eff, loc, local, row in scored:
+    for item_id, sig, eff, loc, row in scored:
         if eff <= thresh:
             continue
-        if local:
-            # 只凭记忆: 不看现场。owner=me/他人映射待 owner 三态化(见 memory TODO)。
-            if row.price > 0 and row.owner == "":
-                # 在售货架: 只能买回家; 买不起/愿买度不足 → 跳过看下一候选
-                if money < row.price:
-                    continue
-                willing = _willingness(money, row.price, cfg.buy_margin)
-                if willing * eff <= thresh:
-                    continue
-                return Buy(
-                    item_id=item_id,
-                    trace=DecisionTrace(
-                        ranked=ranked,
-                        reason=(f"购买 {item_id} 解 {sig} "
-                                f"(score={eff:.3f}×愿买{willing:.2f}, "
-                                f"价格={row.price:.1f})"),
-                        used_fact_ids=(),
-                        relevant_signals=relevant))
-            return Interact(
-                target_id=item_id,
-                trace=DecisionTrace(
-                    ranked=ranked,
-                    reason=f"目标 {item_id} (score={eff:.3f})",
-                    used_fact_ids=(),
-                    relevant_signals=relevant))
-        if loc:
+        # 能不能用: 自己的 or 免费公共; 否则(在售/他人所有)跳过
+        mine = bool(self_id) and row.owner == self_id
+        free_public = row.owner == "" and row.price <= 0
+        if not (mine or free_public):
+            continue
+        if not loc:                       # 无地点信息 → 不可达
+            continue
+        if loc != location_id:            # 异地 → 前往(成本已入分)
             return MoveTo(
                 dest=loc,
                 trace=DecisionTrace(
@@ -181,23 +164,19 @@ def _choose(scored, ranked, relevant, money: float, cfg: SimConfig) -> Intent:
                     reason=f"记忆: {item_id} 能解 {sig} → 去 {loc}",
                     used_fact_ids=(),
                     relevant_signals=relevant))
+        return Interact(
+            target_id=item_id,
+            trace=DecisionTrace(
+                ranked=ranked,
+                reason=f"目标 {item_id} (score={eff:.3f})",
+                used_fact_ids=(),
+                relevant_signals=relevant))
     return Idle(
         trace=DecisionTrace(
             ranked=ranked,
             reason="信号充足或没有值得做的目标",
             used_fact_ids=(),
             relevant_signals=relevant))
-
-
-def _willingness(money: float, price: float, margin: float) -> float:
-    """愿买度 0..1: 资金相对价格越富余越愿买。
-
-    willing = clamp01((money - price) / (price * margin)).
-    money <= price → 0; money >= price*(1+margin) → 1。钱越少越不买。
-    """
-    if price <= 0:
-        return 1.0
-    return max(0.0, min(1.0, (money - price) / (price * max(margin, 1e-6))))
 
 
 # ----------------------------------------------------------------------

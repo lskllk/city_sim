@@ -86,7 +86,7 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
         ent.position = None                     # 归家后锚点重排
         world.layout_location(home)
         npc.note(ent.entity_id, tick=world.clock_tick,
-                 located=home, owner="me", price=ent.price)   # 记忆: 在家归我
+                 located=home, owner=pid, price=ent.price)     # 记忆: 在家归我(id)
         world.bus.publish(world.bus.make(
             world.clock_tick, "bought", pid,
             {"item": ent.entity_id, "price": ent.price,

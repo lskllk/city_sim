@@ -23,14 +23,14 @@
   },
 
   "entities": [
-    {"type": "bed_basic",   "at": "apt_101", "id": "bed_wang"},
-    {"type": "meal_simple", "at": "apt_101", "id": "food_wang", "stock": 1},
-    {"type": "toilet",      "at": "apt_101", "id": "wc_101"},
-    {"type": "water_dispenser", "at": "apt_101", "id": "water_101"},
+    {"type": "bed_basic",   "at": "apt_101", "id": "bed_wang",  "owner": "npc_wang"},
+    {"type": "meal_simple", "at": "apt_101", "id": "food_wang", "stock": 1, "owner": "npc_wang"},
+    {"type": "toilet",      "at": "apt_101", "id": "wc_101",   "owner": "npc_wang"},
+    {"type": "water_dispenser", "at": "apt_101", "id": "water_101", "owner": "npc_wang"},
 
-    {"type": "bed_basic", "at": "apt_102", "id": "bed_li"},
-    {"type": "toilet",    "at": "apt_102", "id": "wc_102"},
-    {"type": "water_dispenser", "at": "apt_102", "id": "water_102"},
+    {"type": "bed_basic", "at": "apt_102", "id": "bed_li",  "owner": "npc_li"},
+    {"type": "toilet",    "at": "apt_102", "id": "wc_102",  "owner": "npc_li"},
+    {"type": "water_dispenser", "at": "apt_102", "id": "water_102", "owner": "npc_li"},
 
     {"type": "bench", "at": "plaza", "id": "bench_1"},
 

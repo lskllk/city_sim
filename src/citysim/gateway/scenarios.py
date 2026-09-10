@@ -59,6 +59,8 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
         e.entity_id = spec["id"]
         if "stock" in spec:
             e.stock = int(spec["stock"])
+        if "owner" in spec:            # 归属 id(person_id/company_id; 缺省=""公共)
+            e.owner = str(spec["owner"])
         e.open_hours = Entity.parse_open_hours(spec.get("open_hours"))
         if "position" in spec:          # 显式锚点优先(可选)
             e.position = (float(spec["position"][0]), float(spec["position"][1]))

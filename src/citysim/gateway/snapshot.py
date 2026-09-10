@@ -15,6 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from citysim.core.types import intent_kind, intent_target
+from citysim.emojis import SEMANTIC_EMOJI
 
 # TASK002: WS 消息协议版本(协议变化时递增; 本契约变更故 +1)
 PROTOCOL_VERSION = 2
@@ -36,8 +37,9 @@ def encode_event(ev: dict) -> dict:
     return d
 
 
-_ICONS = {"sleepable": "🛏", "toilet": "🚽", "edible": "🍱",
-          "entertain": "📺", "drink": "🚰", "consumable": "🍽"}
+# tag -> 语义 key; 字形统一取自 citysim.emojis(由 emojis_by_category 生成)
+_ICON_KEYS = {"sleepable": "bed", "toilet": "toilet", "edible": "food",
+              "entertain": "tv", "drink": "water", "consumable": "meal"}
 _TAG_PRIORITY = ("sleepable", "toilet", "edible",
                  "entertain", "drink", "consumable")
 _EVENT_KINDS = ("interaction_done", "intent_failed", "decision", "perceived",
@@ -52,8 +54,8 @@ def fmt_clock(hour_f: float) -> str:
 def icon_of(entity) -> str:
     for t in _TAG_PRIORITY:
         if t in entity.tags:
-            return _ICONS[t]
-    return "📦"
+            return SEMANTIC_EMOJI[_ICON_KEYS[t]]
+    return SEMANTIC_EMOJI["box"]
 
 
 def parse_log_line(line: str) -> dict | None:

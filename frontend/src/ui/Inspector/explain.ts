@@ -2,6 +2,8 @@
  * explain.ts —— 纯函数: 把 backend 结构化数据组织成可读的行为解释。
  * 只重组 backend 数据, 不重新计算 decision; 无 React/store 依赖(可单测)。
  */
+import { EMOJI } from '../../emojis';
+
 export const SIGNAL_ZH: Record<string, string> = {
   energy: '精力', hunger: '饥饿', thirst: '口渴', bladder: '如厕',
   fun: '娱乐', hp: '生命',
@@ -16,12 +18,13 @@ export const ACTION_ZH: Record<string, string> = {
   move_to: '前往', buy: '购买', interact: '使用', idle: '闲逛',
 };
 
-export const ACTION_ICON: Record<string, string> = {
-  move_to: '🚶', buy: '🛒', interact: '🔧', idle: '😌',
-};
-
 export const KIND_EN: Record<string, string> = {
   move_to: 'Moving to', buy: 'Buying', interact: 'Using', idle: 'Idle',
+};
+
+// kind -> 语义 key; 字形统一取自 emojis.ts(由 emojis_by_category 生成)
+export const ACTION_ICON: Record<string, string> = {
+  move_to: 'walk', buy: 'cart', interact: 'tool', idle: 'relaxed',
 };
 
 export function actionVerb(kind: string): string {
@@ -29,7 +32,8 @@ export function actionVerb(kind: string): string {
 }
 
 export function actionIcon(kind: string): string {
-  return ACTION_ICON[kind] ?? '•';
+  const key = ACTION_ICON[kind];
+  return (key && EMOJI[key]) || '•';
 }
 
 /** 状态徽章(来自 act_class/active/travel 等既有字段, 不编造) */

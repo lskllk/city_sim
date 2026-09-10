@@ -1,0 +1,55 @@
+{
+  "folder": "d:/sim_city/emojis_by_category",
+  "categories": [
+    {
+      "file": "01_💯_Most_Popular_Emojis.json",
+      "category": "💯 Most Popular Emojis",
+      "total": 100
+    },
+    {
+      "file": "02_😀_Faces_and_Emotions_Emojis.json",
+      "category": "😀 Faces and Emotions Emojis",
+      "total": 171
+    },
+    {
+      "file": "03_👋_People_and_Body_Emojis.json",
+      "category": "👋 People and Body Emojis",
+      "total": 388
+    },
+    {
+      "file": "04_🐵_Animals_and_Nature_Emojis.json",
+      "category": "🐵 Animals and Nature Emojis",
+      "total": 155
+    },
+    {
+      "file": "05_🍎_Food_and_Drinks_Emojis.json",
+      "category": "🍎 Food and Drinks Emojis",
+      "total": 136
+    },
+    {
+      "file": "06_🌍_Travel_and_Places_Emojis.json",
+      "category": "🌍 Travel and Places Emojis",
+      "total": 219
+    },
+    {
+      "file": "07_🎃_Activities_and_Sports_Emojis.json",
+      "category": "🎃 Activities and Sports Emojis",
+      "total": 85
+    },
+    {
+      "file": "08_👓_Objects_and_Tools_Emojis.json",
+      "category": "👓 Objects and Tools Emojis",
+      "total": 266
+    },
+    {
+      "file": "09_🏧_Symbols_and_Signs_Emojis.json",
+      "category": "🏧 Symbols and Signs Emojis",
+      "total": 224
+    },
+    {
+      "file": "10_🏁_Flags_Emojis.json",
+      "category": "🏁 Flags Emojis",
+      "total": 270
+    }
+  ]
+}

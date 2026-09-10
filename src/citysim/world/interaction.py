@@ -1,12 +1,10 @@
 """InteractionSystem —— 执行 Intent + claim 仲裁 + 分 tick 效果推进。
 
 世界侧唯一执行器: 校验 → claim → 登记 ActiveInteraction; 每 tick 分摊
-affordances; 完成时处理 消耗品/如厕; 睡眠用 wake_condition
-数据驱动提前结束。事件经 EventBus 发布给 NPC 信箱。
+affordances; 完成时处理 消耗品/如厕。事件经 EventBus 发布给 NPC 信箱。
 """
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -15,8 +13,6 @@ from citysim.core.types import Idle, Interact
 from citysim.npc.person import Person
 from citysim.world.effects import apply_effects
 from citysim.world.world import Entity, World
-
-_WAKE_RE = re.compile(r"^(\w+)\s*>=\s*([0-9.]+)$")
 
 
 @dataclass
@@ -106,18 +102,14 @@ class InteractionSystem:
                 step = delta / act.total_ticks
                 if step:
                     npc.add_signal(s, step)
-            # 睡眠泛化: wake_condition 满足即提前完成
-            if ent.wake_condition and _wake_satisfied(ent.wake_condition, npc.signals):
-                self._complete(world, pid, ent, act, early=True)
-                continue
             # 3. remaining - 1
             act.remaining_ticks -= 1
             if act.remaining_ticks <= 0:
-                self._complete(world, pid, ent, act, early=False)
+                self._complete(world, pid, ent, act)
 
     # --- 完成 ---------------------------------------------------------
     def _complete(self, world: World, pid: str, ent: Entity,
-                  act: ActiveInteraction, *, early: bool) -> None:
+                  act: ActiveInteraction) -> None:
         npc = world.npcs[pid]
         self._release(world, pid, cancel=False)
 
@@ -133,11 +125,8 @@ class InteractionSystem:
         if ent.on_complete:
             apply_effects(world, npc, ent, ent.on_complete)
 
-        # 4. 提前结束(唤醒等)→ 尽快重评; 否则 idle
-        if early:
-            self._resched(world, pid, 1)   # 提前结束(唤醒等)→ 尽快重评
-        else:
-            npc.set_activity("idle")
+        # 4. 完成 → idle(下次重评由提交时排的调度触发)
+        npc.set_activity("idle")
 
         # 5. 事件(先发布, 观察者可解析实体 tags) -> 6. 统一回收空消耗品
         world.bus.publish(world.bus.make(
@@ -177,12 +166,3 @@ class InteractionSystem:
     def _resched(self, world: World, pid: str, delay: int) -> None:
         if self._scheduler is not None:
             self._scheduler.schedule(pid, delay, now=world.clock_tick)
-
-
-def _wake_satisfied(cond: str, signals: dict[str, float]) -> bool:
-    """解析 "signal>=value"(正则, 禁 eval)。"""
-    m = _WAKE_RE.match(cond.strip())
-    if not m:
-        return False
-    signal, val = m.group(1), float(m.group(2))
-    return signals.get(signal, 0.0) >= val

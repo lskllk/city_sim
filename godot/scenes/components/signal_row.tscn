@@ -1,0 +1,30 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/components/signal_row.gd" id="1_sig"]
+
+[node name="SignalRow" type="HBoxContainer"]
+theme_override_constants/separation = 6
+script = ExtResource("1_sig")
+
+[node name="Name" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(52, 0)
+text = "精力"
+
+[node name="Bar" type="ProgressBar" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 8)
+max_value = 1.0
+step = 0.0
+value = 0.5
+show_percentage = false
+
+[node name="Value" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(44, 0)
+text = "50%"
+horizontal_alignment = 2

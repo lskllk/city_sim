@@ -6,7 +6,6 @@
 加载即校验(testm4 Step 1, fail-fast):
   - affordances 的 key 必须 ∈ SIGNALS
   - on_start/on_complete 里的 op 必须是已注册 op
-  - wake_condition 仅 "signal>=float"(正则)
   - duration_ticks >= 1
 任何一条不过 → 抛 ConfigError 并指明文件+字段, 禁止静默跳过。
 """
@@ -14,7 +13,6 @@ from __future__ import annotations
 
 import functools
 import json
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
@@ -22,7 +20,6 @@ from typing import Any, Mapping
 from citysim.core.config import SIGNALS
 
 _ITEMS_DIR = Path(__file__).resolve().parents[3] / "config" / "items"
-_WAKE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\s*>=\s*-?\d+(?:\.\d+)?$")
 
 
 class ConfigError(Exception):
@@ -43,7 +40,6 @@ class ItemDef:
     affordances: Mapping[str, float] = field(default_factory=dict)
     duration_ticks: int = 30
     interruptible: bool = True
-    wake_condition: str | None = None
     on_start: tuple[Mapping[str, Any], ...] = ()
     on_complete: tuple[Mapping[str, Any], ...] = ()
     attrs: Mapping[str, Any] = field(default_factory=dict)
@@ -59,7 +55,6 @@ def _parse(data: dict) -> ItemDef:
         affordances=dict(data.get("affordances", {})),
         duration_ticks=int(data.get("duration_ticks", 30)),
         interruptible=bool(data.get("interruptible", True)),
-        wake_condition=data.get("wake_condition"),
         on_start=tuple(dict(x) for x in data.get("on_start", [])),
         on_complete=tuple(dict(x) for x in data.get("on_complete", [])),
         attrs=dict(data.get("attrs", {})),
@@ -71,10 +66,6 @@ def _parse(data: dict) -> ItemDef:
 def _validate(path: Path, d: ItemDef, ops: set[str]) -> None:
     if d.duration_ticks < 1:
         raise ConfigError(f"{path.name}: {d.item_type} duration_ticks<1")
-    if d.wake_condition is not None and not _WAKE_RE.match(d.wake_condition):
-        raise ConfigError(
-            f"{path.name}: {d.item_type} wake_condition 非法格式 "
-            f"{d.wake_condition!r}(需 signal>=float)")
     for s in d.affordances:
         if s not in SIGNALS:
             raise ConfigError(

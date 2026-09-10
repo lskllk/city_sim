@@ -34,14 +34,12 @@ def add_npc(world: World, systems, person_id: str, *, location: str = "loc",
 def add_entity(world: World, entity_id: str, *, location: str = "loc",
                name: str | None = None, tags=(), affordances=None,
                duration_ticks: int = 30, stock: int = 1,
-               wake_condition: str | None = None, attrs=None,
-               on_complete: list | None = None) -> Entity:
+               attrs=None, on_complete: list | None = None) -> Entity:
     e = Entity(
         entity_id=entity_id, name=name or entity_id, tags=set(tags),
         affordances=dict(affordances or {}), duration_ticks=duration_ticks,
         location_id=location, stock=stock,
         attrs=dict(attrs or {}),
-        wake_condition=wake_condition,
         on_complete=list(on_complete or []),
     )
     world.entities[entity_id] = e

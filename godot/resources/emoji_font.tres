@@ -1,0 +1,5 @@
+[gd_resource type="SystemFont" format=3]
+
+[resource]
+font_names = PackedStringArray("Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji")
+allow_system_fallback = true

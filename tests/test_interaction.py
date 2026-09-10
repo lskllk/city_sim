@@ -57,16 +57,15 @@ def test_consumable_stock() -> None:
     assert food.stock == 0
 
 
-def test_sleep_wake() -> None:
-    """精力 0.3 上床 → wake_condition(energy>=0.99) 自动醒 → 醒后不再睡着。"""
+def test_sleep_restores_energy() -> None:
+    """精力 0.3 上床 → 睡满时长后精力回满, 交互结束后已醒。"""
     world, systems, rng_pool = make_runtime(CFG)
     add_entity(world, "bed_1", tags=("sleepable",),
-               affordances={"energy": 0.7}, duration_ticks=480,
-               wake_condition="energy>=0.99")
+               affordances={"energy": 0.7}, duration_ticks=480)
     npc = add_npc(world, systems, "npc", rng_pool=rng_pool, seed=8, energy=0.3)
     seed_reviews(world, systems)
     _run(world, systems, rng_pool, 520)
-    assert npc.signal("energy") > 0.9           # 睡饱
+    assert npc.signal("energy") > 0.9            # 睡饱
     assert not is_asleep(world, systems, "npc")  # 已醒(不在睡眠交互中)
     assert systems.interaction.active.get("npc") is None
 

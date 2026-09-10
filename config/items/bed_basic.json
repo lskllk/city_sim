@@ -5,7 +5,6 @@
   "affordances": {"energy": 0.7},
   "duration_ticks": 480,
   "interruptible": false,
-  "wake_condition": "energy>=0.99",
   "on_start": [],
   "on_complete": [],
   "attrs": {},

@@ -1,0 +1,218 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/render/world_canvas.gd" id="2_world"]
+[ext_resource type="Script" path="res://scripts/render/map_layer.gd" id="3_map"]
+[ext_resource type="Script" path="res://scripts/render/entity_layer.gd" id="4_ent"]
+[ext_resource type="Script" path="res://scripts/render/overlay_layer.gd" id="5_ovl"]
+[ext_resource type="Script" path="res://scripts/ui/inspector.gd" id="6_insp"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_inspector"]
+content_margin_left = 14.0
+content_margin_top = 12.0
+content_margin_right = 14.0
+content_margin_bottom = 12.0
+bg_color = Color(0.0470588, 0.0588235, 0.0823529, 1)
+border_width_left = 1
+border_color = Color(0.137255, 0.172549, 0.227451, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_connbanner"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.109804, 0.105882, 0.0627451, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.415686, 0.360784, 0.117647, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_hover"]
+content_margin_left = 9.0
+content_margin_top = 6.0
+content_margin_right = 9.0
+content_margin_bottom = 6.0
+bg_color = Color(0.0823529, 0.105882, 0.14902, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.25098, 0.352941, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="Root" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="WorldCanvas" type="Control" parent="Root"]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("2_world")
+
+[node name="WorldRoot" type="Node2D" parent="Root/WorldCanvas"]
+unique_name_in_owner = true
+
+[node name="MapLayer" type="Node2D" parent="Root/WorldCanvas/WorldRoot"]
+unique_name_in_owner = true
+script = ExtResource("3_map")
+
+[node name="EntityLayer" type="Node2D" parent="Root/WorldCanvas/WorldRoot"]
+unique_name_in_owner = true
+script = ExtResource("4_ent")
+
+[node name="OverlayLayer" type="Node2D" parent="Root/WorldCanvas/WorldRoot"]
+unique_name_in_owner = true
+script = ExtResource("5_ovl")
+
+[node name="HUD" type="HBoxContainer" parent="Root/WorldCanvas"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = 40.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="ResetButton" type="Button" parent="Root/WorldCanvas/HUD"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "⊞ Reset View"
+
+[node name="SelLabel" type="Label" parent="Root/WorldCanvas/HUD"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+text = "点选 NPC / 地点 / 物品"
+
+[node name="Spacer" type="Control" parent="Root/WorldCanvas/HUD"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="RateBar" type="HBoxContainer" parent="Root/WorldCanvas/HUD"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="RatePause" type="Button" parent="Root/WorldCanvas/HUD/RateBar"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+toggle_mode = true
+text = "⏸"
+tooltip_text = "pause"
+
+[node name="Rate1x" type="Button" parent="Root/WorldCanvas/HUD/RateBar"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+toggle_mode = true
+text = "1x"
+tooltip_text = "1x"
+
+[node name="Rate10x" type="Button" parent="Root/WorldCanvas/HUD/RateBar"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+toggle_mode = true
+text = "10x"
+tooltip_text = "10x"
+
+[node name="Rate100x" type="Button" parent="Root/WorldCanvas/HUD/RateBar"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+toggle_mode = true
+text = "100x"
+tooltip_text = "100x"
+
+[node name="Rate1000x" type="Button" parent="Root/WorldCanvas/HUD/RateBar"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+toggle_mode = true
+text = "1000x"
+tooltip_text = "1000x"
+
+[node name="ConnBanner" type="Label" parent="Root/WorldCanvas"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -180.0
+offset_top = -46.0
+offset_right = 180.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.941176, 0.764706, 0.368627, 1)
+theme_override_styles/normal = SubResource("StyleBox_connbanner")
+text = "Simulation connecting…"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HoverTip" type="PanelContainer" parent="Root/WorldCanvas"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBox_hover")
+
+[node name="HoverLabel" type="Label" parent="Root/WorldCanvas/HoverTip"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.803922, 0.839216, 0.894118, 1)
+
+[node name="Inspector" type="PanelContainer" parent="Root"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBox_inspector")
+script = ExtResource("6_insp")
+
+[node name="Scroll" type="ScrollContainer" parent="Root/Inspector"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Body" type="VBoxContainer" parent="Root/Inspector/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6

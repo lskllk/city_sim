@@ -5,10 +5,7 @@
   "affordances": {"bladder": 0.6},
   "duration_ticks": 5,
   "on_start": [],
-  "on_complete": [
-    {"op": "set_signal", "signal": "bladder", "value": 1.0},
-    {"op": "clear_pending", "field": "bladder_pending"}
-  ],
+  "on_complete": [],
   "attrs": {},
   "stock": 1
 }

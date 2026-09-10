@@ -48,6 +48,15 @@ tests/
 tools/
   demo_scene.py       build_demo/build_scarce 可复现 demo 世界(测试/观察共用)
   watch.py/narrate.py/soak*.py/scarcity_check/check_imports  观测统计
+
+godot/                独立 Godot 4 观察器前端(方案A: 只读订阅 gateway /ws)
+  scenes/*.tscn       静态布局/组件/世界可视(Node2D可视化实例), 编辑器可直接改
+  resources/*.tres     字体(CJK/Emoji)+主题
+  scripts/net/         ws_client(Net autoload)+commands(Commands autoload)
+  scripts/state/       store.gd(Store autoload): 只读镜像 world/sim/selection
+  scripts/render/      world_canvas + camera/map/entity/overlay 层, *_visual
+  scripts/ui/          inspector + components/* + fonts/zh/emojis
+  (铁律: Godot 只渲染/发命令, 不计算 simulation; 见 godot/README.md)
 ```
 
 ## 主要调用关系
@@ -68,6 +77,8 @@ run_tick(sim/loop.py):
 
 观察器(gateway): SimRunner 独占跑 run_tick → snapshot.build_snapshot(纯读 world)
                  → WS 推给前端; query 走 snapshot.do_query
+Godot 观察器(godot/): Net 收 envelope → main.dispatch → Store(镜像) → WorldCanvas/Inspector
+                 UI 经 Commands.cmd 发 set_speed/step/reset
 ```
 
 数据契约(core/types.py)是 NPC/世界间桥梁：世界造 `Percept`，brain 读它产出 `Intent`，

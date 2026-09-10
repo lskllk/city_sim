@@ -1,6 +1,6 @@
 """效果操作解释器(M4 4.2) —— op 表 + apply_effects。
 
-首批 5 个 op(定死): set_signal / add_signal / clear_pending /
+首批 5 个 op(定死): set_signal / add_signal / add_pending /
 spawn_item(按物品类型在世界生成) / consume_self。
 效果从 Entity.on_complete / on_start(数据化)驱动, 替换硬编码分支。
 """
@@ -46,16 +46,6 @@ def _add_signal(world, npc, entity, eff) -> None:
 
 
 _PENDING_WHITELIST = frozenset({"bladder_pending"})
-
-
-@register("clear_pending")
-def _clear_pending(world, npc, entity, eff) -> None:
-    f = eff.get("field", "")
-    if f not in _PENDING_WHITELIST:
-        log.warning("clear_pending 拒绝字段 %r(白名单: %s)",
-                    f, sorted(_PENDING_WHITELIST))
-        return
-    npc.set_bladder_pending(0.0)
 
 
 @register("add_pending")

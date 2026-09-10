@@ -19,24 +19,15 @@ DEFAULT_NAMES = ["王二", "李四", "张三", "赵五", "钱六",
                  "孙七", "周八", "吴九", "郑十", "陈一"]
 
 
-TOILET_ON_COMPLETE = [
-    {"op": "set_signal", "signal": "bladder", "value": 1.0},
-    {"op": "clear_pending", "field": "bladder_pending"},
-]
-
-
 def _entity(world: World, eid: str, name: str, tags, affordances,
             duration_ticks: int, stock: int = 1,
-            wake_condition: str | None = None, attrs=None,
-            on_start: list | None = None,
-            on_complete: list | None = None) -> Entity:
+            attrs=None, on_start: list | None = None) -> Entity:
     e = Entity(
         entity_id=eid, name=name, tags=set(tags),
         affordances=dict(affordances), duration_ticks=duration_ticks,
         location_id="home", stock=stock,
-        attrs=dict(attrs or {}), wake_condition=wake_condition,
+        attrs=dict(attrs or {}),
         on_start=list(on_start or []),
-        on_complete=list(on_complete or []),
     )
     world.entities[eid] = e
     return e
@@ -64,16 +55,14 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
                            "field": "bladder_pending", "amount": 0.3}])
     for i in range(max(2, n_npc)):
         _entity(world, f"bed_{i}", "床", {"sleepable"},
-                {"energy": 0.7}, duration_ticks=480,
-                wake_condition="energy>=0.99")
+                {"energy": 0.7}, duration_ticks=480)
     for i in range(max(4, n_npc)):
         _entity(world, f"water_{i}", "饮水机", {"drink", "consumable"},
                 {"thirst": 0.6}, duration_ticks=10, stock=5000,
                 on_start=[{"op": "add_pending",
                            "field": "bladder_pending", "amount": 0.15}])
     _entity(world, "toilet_1", "马桶", {"toilet"},
-            {"bladder": 0.6}, duration_ticks=5,
-            on_complete=TOILET_ON_COMPLETE)
+            {"bladder": 0.6}, duration_ticks=5)
 
     # ---- NPC(初始状态由 seed 扰动, 避免同相位) ---------------------
     names = names or DEFAULT_NAMES
@@ -117,16 +106,14 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
             on_start=[{"op": "add_pending",
                        "field": "bladder_pending", "amount": 0.3}])
     _entity(world, "toilet_1", "马桶", {"toilet"},
-            {"bladder": 0.6}, duration_ticks=5,
-            on_complete=TOILET_ON_COMPLETE)
+            {"bladder": 0.6}, duration_ticks=5)
     _entity(world, "water_0", "饮水机", {"drink", "consumable"},
             {"thirst": 0.6}, duration_ticks=10, stock=1000,
             on_start=[{"op": "add_pending",
                        "field": "bladder_pending", "amount": 0.15}])
     for i in range(n_npc):
         _entity(world, f"bed_{i}", "床", {"sleepable"},
-                {"energy": 0.7}, duration_ticks=480,
-                wake_condition="energy>=0.99")
+                {"energy": 0.7}, duration_ticks=480)
 
     names = names or DEFAULT_NAMES
     for i in range(n_npc):

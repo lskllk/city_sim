@@ -16,7 +16,7 @@ from citysim.world.world import World
 ROOT = Path(__file__).resolve().parents[1]
 CFG = load_config(ROOT / "config" / "sim.toml")
 
-ALLOWED_OPS = {"set_signal", "add_signal", "clear_pending",
+ALLOWED_OPS = {"set_signal", "add_signal",
                "add_pending", "spawn_item", "consume_self"}
 
 
@@ -55,22 +55,6 @@ def test_add_signal_clamp_edges() -> None:
     apply_effects(w, npc, ent,
                   [{"op": "add_signal", "signal": "fun", "delta": -3.0}])
     assert npc.signal("fun") == 0.0
-
-
-def test_clear_pending_whitelist_ok() -> None:
-    w, npc, ent = _ctx()
-    npc.set_bladder_pending(0.7)
-    apply_effects(w, npc, ent,
-                  [{"op": "clear_pending", "field": "bladder_pending"}])
-    assert npc.bladder_pending == 0.0
-
-
-def test_clear_pending_whitelist_rejects() -> None:
-    w, npc, ent = _ctx()
-    npc.set_signal("hunger", 0.4)
-    apply_effects(w, npc, ent,
-                  [{"op": "clear_pending", "field": "signals"}])  # 拒绝
-    assert npc.signal("hunger") == pytest.approx(0.4)   # 未被清
 
 
 def test_add_pending_ok_and_whitelist() -> None:

@@ -2,15 +2,18 @@
 #
 # 行为:
 #   1. 先探测 ws 端口是否已在监听(如 run.cmd 已起后端) → 在跑就不重复启动。
-#   2. 没在跑 → OS.create_process 拉起 `python -m uvicorn ...`, 记住 pid。
+#   2. 没在跑 → 按候选解释器依次拉起 uvicorn, 拉起后等端口就绪才算成功;
+#      失败的候选(如 Windows Store 的 python 占位符 / 缺依赖)会被跳过并试下一个。
 #   3. Godot 退出时 OS.kill 收掉自己拉起的进程(不影响外部已存在的后端)。
 #
 # 环境变量:
 #   CITYSIM_NO_AUTOSTART=1     关闭自动启动
-#   CITYSIM_PYTHON=...         python 可执行文件(默认 "python", 失败回退 "py")
+#   CITYSIM_PYTHON=...         python 可执行文件(显式指定, 最高优先)
 #   CITYSIM_WS_URL=ws://...    后端端点(默认 ws://127.0.0.1:8765/ws)
 #   CITYSIM_BACKEND_CONSOLE=0  不弹后端控制台窗口(默认弹, 便于看日志)
 extends Node
+
+const READY_TIMEOUT_MS := 8000
 
 var _pid := -1
 var _spawned := false
@@ -27,7 +30,7 @@ func _ensure() -> void:
 	if await _port_open("127.0.0.1", port, 600):
 		print("[Backend] already listening on :%d — skip autostart" % port)
 		return
-	_spawn(port)
+	await _spawn(port)
 
 
 # --- 内部 --------------------------------------------------------------
@@ -48,25 +51,65 @@ func _repo_root() -> String:
 	return ProjectSettings.globalize_path("res://").path_join("..").simplify_path()
 
 
+## 候选解释器, 按优先级: 显式指定 → 本机真实安装 → PATH 的 python / py。
+func _candidates() -> Array:
+	var out: Array = []
+	var explicit := OS.get_environment("CITYSIM_PYTHON").strip_edges()
+	if explicit != "":
+		out.append({"exe": explicit, "pre": PackedStringArray()})
+	for p in _discover_windows_pythons():
+		out.append({"exe": p, "pre": PackedStringArray()})
+	out.append({"exe": "python", "pre": PackedStringArray()})
+	out.append({"exe": "py", "pre": PackedStringArray(["-3"])})
+	return out
+
+
+## Windows: %LOCALAPPDATA%\Programs\Python\Python3*\python.exe(新→旧)。
+func _discover_windows_pythons() -> PackedStringArray:
+	var found := PackedStringArray()
+	var base := OS.get_environment("LOCALAPPDATA")
+	if base == "":
+		return found
+	var dir := base.path_join("Programs").path_join("Python")
+	if not DirAccess.dir_exists_absolute(dir):
+		return found
+	for sub in DirAccess.get_directories_at(dir):
+		if not sub.begins_with("Python3"):
+			continue
+		var exe := dir.path_join(sub).path_join("python.exe")
+		if FileAccess.file_exists(exe):
+			found.append(exe)
+	found.sort()
+	found.reverse()
+	return found
+
+
 func _spawn(port: int) -> void:
 	var root := _repo_root()
 	OS.set_environment("PYTHONPATH", root.path_join("src"))
-	var py := OS.get_environment("CITYSIM_PYTHON").strip_edges()
-	if py == "":
-		py = "python"
 	var open_console := OS.get_environment("CITYSIM_BACKEND_CONSOLE") != "0"
-	var args := PackedStringArray(["-m", "uvicorn",
-		"citysim.gateway.server:app", "--port", str(port)])
-	_pid = OS.create_process(py, args, open_console)
-	if _pid <= 0 and py == "python":
-		_pid = OS.create_process("py", args, open_console)   # Windows py launcher
-	_spawned = _pid > 0
-	if _spawned:
-		print("[Backend] started: %s -m uvicorn citysim.gateway.server:app --port %d (pid=%d)"
-			% [py, port, _pid])
-	else:
-		push_warning("[Backend] 自动启动失败: 请确认已安装 viz 依赖 "
-			+ "(python -m pip install -e \".[viz]\"), 或手动运行 run.cmd")
+	var tried: Array = []
+	for cand in _candidates() as Array:
+		var exe: String = cand["exe"]
+		var args := PackedStringArray(cand["pre"])
+		args.append_array(PackedStringArray(["-m", "uvicorn",
+			"citysim.gateway.server:app", "--port", str(port)]))
+		tried.append(exe)
+		var pid := OS.create_process(exe, args, open_console)
+		if pid <= 0:
+			continue
+		# 拉起 ≠ 成功(可能是 Store 占位符 / 缺依赖): 等端口就绪再判定。
+		if await _port_open("127.0.0.1", port, READY_TIMEOUT_MS):
+			_pid = pid
+			_spawned = true
+			print("[Backend] started via '%s' (pid=%d): ws://127.0.0.1:%d/ws"
+				% [exe, pid, port])
+			return
+		OS.kill(pid)
+		push_warning("[Backend] '%s' 拉起后端口 %d 未就绪, 尝试下一个解释器" % [exe, port])
+	push_warning("[Backend] 自动启动失败(已尝试: %s)。请确认已安装 viz 依赖 "
+		% ", ".join(tried)
+		+ "(python -m pip install -e \".[viz]\"), 或手动运行 run.cmd")
 
 
 func _port_open(host: String, port: int, timeout_ms: int) -> bool:

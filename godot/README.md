@@ -19,7 +19,8 @@ python -m uvicorn citysim.gateway.server:app --port 8765
 
 - 自动启动开关/参数(环境变量)：
   - `CITYSIM_NO_AUTOSTART=1` 关闭自动启动
-  - `CITYSIM_PYTHON` 指定 python(默认 `python`, 失败回退 `py`)
+  - `CITYSIM_PYTHON` 指定 python(不设则自动发现 `%LOCALAPPDATA%\Programs\Python\Python3*`,
+    再回退 PATH 的 `python` / `py -3`; 拉起后会探测端口, 失败自动换下一个)
   - `CITYSIM_BACKEND_CONSOLE=0` 不弹后端控制台窗口(默认弹, 便于看日志)
   - 前提：已装 viz 依赖 `python -m pip install -e ".[viz]"`(否则后端起不来,
     会打印 warning, 可改用仓库根目录 `run.cmd`)

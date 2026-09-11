@@ -1,0 +1,8 @@
+{
+  "type": "work_office",
+  "name": "办公楼",
+  "kind": "work",
+  "capacity": 200,
+  "pattern": "v",
+  "aspect": 1.2
+}

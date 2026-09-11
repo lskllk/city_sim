@@ -16,13 +16,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
-from typing import TYPE_CHECKING, Any, Mapping
+from datetime import date, timedelta
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 from citysim.core.config import SIGNALS
-from citysim.core.types import PerceptionRecord, intent_kind
+from citysim.core.types import (
+    Buy,
+    Decision,
+    Idle,
+    Interact,
+    MoveTo,
+    PerceptionRecord,
+    intent_kind,
+    intent_target,
+)
 from citysim.npc import brain
 from citysim.npc.memory import MemBase, MemItem
+from citysim.npc.schedule import PlanEntry, Schedule
 
 if TYPE_CHECKING:  # pragma: no cover
     from citysim.core.config import SimConfig
@@ -31,6 +41,15 @@ if TYPE_CHECKING:  # pragma: no cover
 
 def _clamp(v: float) -> float:
     return max(0.0, min(1.0, float(v)))
+
+
+_GAME_EPOCH = date(2026, 1, 1)   # 游戏第 0 天对应的日期(用于年龄)
+
+
+def _age_on(birthday: date, current: date) -> int:
+    """整岁: 未过生日则减一。"""
+    return (current.year - birthday.year
+            - ((current.month, current.day) < (birthday.month, birthday.day)))
 
 
 # ----------------------------------------------------------------------
@@ -47,6 +66,17 @@ class Identity:
     def birthday_date(self) -> date:
         y, m, d = self.birthday.split("-")
         return date(int(y), int(m), int(d))
+
+
+@dataclass
+class _Goal:
+    """正在执行的一个目标(计划的当前条目 / 一个 reflex)。
+
+    phase: to_dest=还没到目标地(异地), doing=已在目标地/正在交互。
+    """
+    source: str                               # "plan" | "reflex"
+    intent: "Intent"
+    phase: str = "to_dest"
 
 
 # ----------------------------------------------------------------------
@@ -99,11 +129,16 @@ class Person:
         self._home: str = home
         self._tell_bias: float = tell_bias
         self._money: float = money
+        self._age: int | None = self._age_from_birthday(0)   # 每天 on_day 重算
         self._bladder_pending: float = 0.0
         self._last_intent: "Intent | None" = None
         self._last_percept: "PerceptionRecord | None" = None
         self._mem = MemBase()
         self._perceived_loc: str = ""   # 最近一次感知到自己在哪(自身认知, 不长期维护坐标)
+        self._schedule = Schedule()     # 当天计划表(空 = 纯 reflex 模式)
+        self._plan_goal: "_Goal | None" = None
+        self._reflex_goal: "_Goal | None" = None
+        self._failures: list[dict] = []  # 失败日志(0:00 交 LLM)
         if signals:
             self.set_signals(**dict(signals))
 
@@ -129,6 +164,16 @@ class Person:
     @property
     def money(self) -> float:
         return self._money
+
+    @property
+    def age(self) -> int | None:
+        """整岁(每天 on_day 更新); 生日缺失时 None。"""
+        return self._age
+
+    @property
+    def role(self) -> str:
+        """角色码(如 "worker"/"student"), 由场景写入 Identity.traits。"""
+        return str(self._identity.traits.get("role", ""))
 
     @property
     def perceived_loc(self) -> str:
@@ -289,6 +334,14 @@ class Person:
         """观测: 记忆库只读快照(不对外暴露可写对象)。"""
         return self._mem.to_dicts()
 
+    def plan_snapshot(self) -> list[dict]:
+        """观测: 当天计划表只读快照(供前端时间线渲染)。"""
+        return [{
+            "id": e.entry_id, "at_tick": e.at_tick, "status": e.status,
+            "intent": intent_kind(e.intent),
+            "target": intent_target(e.intent) or "",
+        } for e in self._schedule.entries()]
+
     def perceive(self, percept: "Percept", tick: int) -> None:
         """现场 → 记忆(写入)。非纯函数。感知即知道自己当前在哪。"""
         self._perceived_loc = percept.location_id
@@ -299,51 +352,158 @@ class Person:
             observed_entity_ids=tuple(sorted(v.entity_id
                                              for v in percept.visible)))
 
-    def decide(self, cfg: "SimConfig", now_tick: int) -> "Intent":
-        """决策: 只读 记忆+自身状态 → Intent。铁律: 不看环境。"""
+    def set_plan(self, entries: "Sequence[PlanEntry]") -> None:
+        """装配: 灌入当天计划(LLM 产物)。覆盖旧计划与执行指针。"""
+        self._schedule = Schedule(entries)
+        self._plan_goal = None
+
+    def _reflex_intent(self, cfg: "SimConfig", now_tick: int) -> "Intent | None":
+        """兜底决策(高危需求): 复用 brain.decide; Idle → None。"""
         intent = brain.decide(
             self._signals, self._personality, self._mem,
             self._perceived_loc, cfg, now_tick, self.person_id)
-        self._last_intent = intent
-        return intent
+        return None if isinstance(intent, Idle) else intent
+
+    def decide(self, cfg: "SimConfig", now_tick: int,
+               can_preempt: bool = True) -> Decision:
+        """决策仲裁: 致命 reflex > 计划 > idle。只读记忆+自身, 不看环境。
+
+        can_preempt: 世界告知"当前交互能否被计划抢占"(不可打断的睡觉等);
+                     reflex(致命)不受此限, 始终可抢占。
+        """
+        while True:
+            # 1. reflex 执行中 → 继续
+            if self._reflex_goal is not None:
+                d = self._advance(self._reflex_goal)
+                if d is not None:
+                    return self._record(d)
+                continue
+            # 2. 启动 reflex(在途不打断: 先到站)
+            traveling = (self._plan_goal is not None
+                         and self._plan_goal.phase == "to_dest")
+            if not traveling:
+                r = self._reflex_intent(cfg, now_tick)
+                if r is not None:
+                    self._reflex_goal = _Goal("reflex", r)
+                    continue
+            # 3. 计划执行中 → 截止/推进
+            if self._plan_goal is not None:
+                dl = self._schedule.deadline()
+                if dl is not None and now_tick >= dl and can_preempt:
+                    self._schedule.drop()          # 硬中止当前条目
+                    self._plan_goal = None
+                    continue
+                d = self._advance(self._plan_goal)
+                if d is not None:
+                    return self._record(d)
+                continue
+            # 4. 取下一计划条目
+            e = self._schedule.current()
+            if e is None or now_tick < e.at_tick:
+                return self._record(Decision(Idle(), "idle"))
+            self._schedule.commit()
+            self._plan_goal = _Goal("plan", e.intent)
+            continue
+
+    def _advance(self, goal: "_Goal") -> "Decision | None":
+        """推进一个 goal: 异地先 MoveTo; 到达/无需移动后返回实际 Intent。"""
+        if goal.phase == "to_dest":
+            dest = self._dest_for(goal.intent)
+            if dest and self._perceived_loc != dest:
+                return Decision(MoveTo(dest=dest), goal.source)
+            if isinstance(goal.intent, MoveTo):
+                self._finish_goal(goal)            # 纯移动: 到达即完成
+                return None
+            goal.phase = "doing"
+        return Decision(goal.intent, goal.source)
+
+    def _dest_for(self, intent: "Intent") -> str:
+        if isinstance(intent, MoveTo):
+            return intent.dest
+        if isinstance(intent, Interact):
+            row = self._mem.get(intent.target_id)
+            return row.located if row is not None else ""
+        if isinstance(intent, Buy):
+            row = self._mem.get(intent.item_id)
+            return row.located if row is not None else ""
+        return ""
+
+    def _finish_goal(self, goal: "_Goal") -> None:
+        if goal.source == "plan":
+            self._schedule.complete()
+            if self._plan_goal is goal:
+                self._plan_goal = None
+        elif self._reflex_goal is goal:
+            self._reflex_goal = None
+
+    def _record(self, decision: Decision) -> Decision:
+        self._last_intent = decision.intent
+        return decision
+
+    def on_interaction_done(self, entity_id: str, tick: int = 0) -> None:
+        """窄协议: 世界告知某交互自然完成 → 结束对应 goal(计划推进下一条)。"""
+        for g in (self._reflex_goal, self._plan_goal):
+            if g is not None and intent_target(g.intent) == entity_id:
+                self._finish_goal(g)
+                return
+
+    def failure_log(self) -> list[dict]:
+        """观测: 失败日志只读快照(0:00 交 LLM 用)。"""
+        return list(self._failures)
+
+    def drain_failures(self) -> list[dict]:
+        """取走并清空失败日志(夜间计划器消费)。"""
+        out = self._failures
+        self._failures = []
+        return out
 
     def on_failure(self, target_id: str, why: str, now_tick: int,
                    retry_ticks: int | None = None) -> None:
-        """窄协议: 交互失败 → 证伪/冷却记忆(证伪只在失败后发生)。
+        """窄协议: 交互失败 → 证伪/冷却记忆 + 记失败日志 + 跳过对应计划条。
 
         - 目标不存在 / 已空(stock=0) → 删掉该 item 记忆。
         - 已被占用 / 不可打断 / 购买失败等 → 冷却(cool_until=now+retry), 到时再看。
+        - 失败日志留待 0:00 交 LLM(底层不推理)。
         """
+        self._failures.append(
+            {"tick": now_tick, "target": target_id, "why": why})
         row = self._mem.get(target_id)
-        if row is None:
-            return
-        if "目标不存在" in why or why.startswith("已空"):
-            self._mem.delete(target_id)
-        else:
-            until = now_tick + (retry_ticks if retry_ticks is not None else 120)
-            self._mem.update(target_id, cool_until=until)
+        if row is not None:
+            if "目标不存在" in why or why.startswith("已空"):
+                self._mem.delete(target_id)
+            else:
+                until = now_tick + (retry_ticks
+                                    if retry_ticks is not None else 120)
+                self._mem.update(target_id, cool_until=until)
+        # 该目标失败 → 清 reflex / skip 计划条
+        if self._reflex_goal is not None \
+                and intent_target(self._reflex_goal.intent) == target_id:
+            self._reflex_goal = None
+        elif self._plan_goal is not None \
+                and intent_target(self._plan_goal.intent) == target_id:
+            self._schedule.drop()
+            self._plan_goal = None
 
-    def process(self, percept: "Percept", cfg: "SimConfig") -> "Intent":
+    def process(self, percept: "Percept", cfg: "SimConfig",
+                can_preempt: bool = True) -> Decision:
         """窄协议: 感知+决策一体(engine 只调这个)。
 
-        内部 = perceive(现场→记忆, 记自身认知) + decide(记忆+自身→Intent, 当前 tick)。
+        内部 = perceive(现场→记忆, 记自身认知) + decide(仲裁, 当前 tick)。
         """
         self.perceive(percept, percept.tick)
-        return self.decide(cfg, percept.tick)
+        return self.decide(cfg, percept.tick, can_preempt)
 
     def on_day(self, cfg: "SimConfig", now_tick: int) -> int:
-        """窄协议: 每游戏日遗忘(收进 Person)。返回遗忘条数。"""
+        """窄协议: 每游戏日 ① 重算年龄 ② 遗忘。返回遗忘条数。"""
+        self._age = self._age_from_birthday(now_tick // max(1, cfg.ticks_per_day))
         return self.decay_memory(cfg, now_tick)
 
-    def next_review(self, cfg: "SimConfig", hour: float) -> int:
-        """窄协议: 自评"下次再想"的 tick 间隔(清醒度节律)。
-
-        只看自身能量/饥饿 + 注入的当前时刻(hour 由世界告知, 属自身时间上下文);
-        不看世界物品。清醒度高 → 想得勤。
-        """
-        a = brain.arousal(hour, self._signals.get("energy", 0.5),
-                          self._signals.get("hunger", 0.5), cfg)
-        return brain.review_interval_ticks(a, cfg)
+    def _age_from_birthday(self, day_index: int) -> int | None:
+        try:
+            b = self._identity.birthday_date()
+        except (ValueError, AttributeError):
+            return None
+        return _age_on(b, _GAME_EPOCH + timedelta(days=day_index))
 
     def decay_memory(self, cfg: "SimConfig", now_tick: int) -> int:
         """遗忘(remember 衰减删行)。每游戏日调; 返回遗忘条数。"""
@@ -358,6 +518,8 @@ class Person:
             "home": self._home,
             "activity": self._current_activity,
             "money": round(self._money, 2),
+            "age": self._age,
+            "role": self.role,
             "signals": {k: round(v, 4) for k, v in self._signals.items()},
             "personality": dict(self._personality),
             "bladder_pending": round(self._bladder_pending, 4),

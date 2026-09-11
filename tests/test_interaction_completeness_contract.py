@@ -30,7 +30,7 @@ def test_consume_self_event_sequence() -> None:
             at_event_present.append(food.entity_id in world.entities)
 
     world.bus.subscribe_log(_on)
-    add_npc(world, systems, "npc", rng_pool=rng_pool, seed=1, hunger=0.2)
+    add_npc(world, systems, "npc", rng_pool=rng_pool, seed=1, hunger=0.05)
     seed_reviews(world, systems)
 
     done_tick = None
@@ -52,7 +52,7 @@ def test_consume_self_not_double_deduct_and_recycles_at_zero() -> None:
     归零回收只发生在 interaction_done 之后。"""
     world, systems, rng_pool = make_runtime(CFG)
     add_entity(world, "snack_1", tags=("edible", "consumable"),
-               affordances={"hunger": 0.2}, duration_ticks=3, stock=2,
+               affordances={"hunger": 0.04}, duration_ticks=3, stock=2,
                on_complete=[{"op": "consume_self"}])
     seen_at_event: list[int] = []
     dones = []
@@ -65,7 +65,7 @@ def test_consume_self_not_double_deduct_and_recycles_at_zero() -> None:
             seen_at_event.append(ent.stock if ent is not None else -1)
 
     world.bus.subscribe_log(_on)
-    add_npc(world, systems, "n", rng_pool=rng_pool, seed=3, hunger=0.1)
+    add_npc(world, systems, "n", rng_pool=rng_pool, seed=3, hunger=0.0)
     seed_reviews(world, systems)
     for _ in range(200):
         run_tick(world, systems, CFG, rng_pool)

@@ -14,25 +14,17 @@ fun    = -0.00017361111111111112   # -1/5760（4 天）
 [bladder]
 convert_per_tick = 0.02        # pending -> 膀胱 的每 tick 转化速率
 
-[review]                       # 重评节律参数
-min_ticks = 1                  # 最清醒时每 tick 想一次
-max_ticks = 48                 # 最困时约每 48 tick 重评一次
-
-[wake]                         # 生物钟 / 清醒度(brain.circadian/arousal)
-peak_hour = 15.0               # 最清醒时刻(h); 谷=峰±12h
-circadian_min = 0.15           # 生物钟谷值
-circadian_amp = 0.85           # 振幅(峰=min+amp)
-energy_floor = 0.4             # 清醒度里 energy 基准系数
-energy_gain = 0.6              # 清醒度里 energy 增益
-hunger_penalty = 0.2           # 饥饿拖累
-
 [knowledge]                    # M5: 知识库
 half_life_ticks = 2880        # 2 天(知识半衰期)
 
 [utility]                      # 决策打分
 power = 3.0                    # weight = need**power(幂>1 放大真缺口)
-threshold = 0.08               # 低于此分 -> idle
+threshold = 0.0                # 效用最低分(置 0): 是否行动由 fallback_need 决定,
+                               # eff 仍用于在多个候选中排序选优。
 move_penalty = 0.6             # 异地(MoveTo)候选效用折扣(移动有耗时/精力成本)
+fallback_need = 0.9            # 兜底触发下限: 仅 need>=此值才纳入候选
+                               # 0.9 = 信号掉到 10% 以下(接近致命)才动手;
+                               # 平时应由计划表系统驱动, 此处只当安全网。
 
 [motion]                       # 跨地点移动(m5-rectify 13; M7 日程/距离前先入 config)
 move_ticks = 30

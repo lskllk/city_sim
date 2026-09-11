@@ -1,8 +1,12 @@
 {
-  "item_type": "toilet",
+  "item_type": "toilet_basic",
   "name": "马桶",
-  "tags": ["toilet"],
-  "affordances": {"bladder": 0.6},
+  "tags": [
+    "toilet"
+  ],
+  "affordances": {
+    "bladder": 0.6
+  },
   "duration_ticks": 5,
   "on_start": [],
   "on_complete": [],

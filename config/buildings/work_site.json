@@ -1,0 +1,8 @@
+{
+  "type": "work_site",
+  "name": "工地",
+  "kind": "work",
+  "capacity": 40,
+  "pattern": "diag",
+  "aspect": 1.3
+}

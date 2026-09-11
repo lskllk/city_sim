@@ -27,7 +27,7 @@ def _setup(log=True):
                on_complete=list(TOILET_DONE))
     for pid in ("a", "b"):
         npc = add_npc(w, s, pid, location="home", rng_pool=rng, seed=1,
-                      bladder=0.2)
+                      bladder=0.05)
         npc.note("toilet_1", located="home", afford="bladder", value=0.6,
                  believe=1.0)
     seed_reviews(w, s)

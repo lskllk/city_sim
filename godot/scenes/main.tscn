@@ -1,11 +1,13 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/render/world_canvas.gd" id="2_world"]
 [ext_resource type="Script" path="res://scripts/render/map_layer.gd" id="3_map"]
 [ext_resource type="Script" path="res://scripts/render/entity_layer.gd" id="4_ent"]
 [ext_resource type="Script" path="res://scripts/render/overlay_layer.gd" id="5_ovl"]
+[ext_resource type="Script" path="res://scripts/render/map_labels.gd" id="8_labels"]
 [ext_resource type="Script" path="res://scripts/ui/inspector.gd" id="6_insp"]
+[ext_resource type="Script" path="res://scripts/render/plan_timeline.gd" id="7_timeline"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_inspector"]
 content_margin_left = 14.0
@@ -66,7 +68,13 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 0
 
-[node name="WorldCanvas" type="Control" parent="Root"]
+[node name="Left" type="VBoxContainer" parent="Root"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 0
+
+[node name="WorldCanvas" type="Control" parent="Root/Left"]
 unique_name_in_owner = true
 clip_contents = true
 layout_mode = 2
@@ -74,22 +82,33 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 script = ExtResource("2_world")
 
-[node name="WorldRoot" type="Node2D" parent="Root/WorldCanvas"]
+[node name="WorldRoot" type="Node2D" parent="Root/Left/WorldCanvas"]
 unique_name_in_owner = true
 
-[node name="MapLayer" type="Node2D" parent="Root/WorldCanvas/WorldRoot"]
+[node name="MapLayer" type="Node2D" parent="Root/Left/WorldCanvas/WorldRoot"]
 unique_name_in_owner = true
 script = ExtResource("3_map")
 
-[node name="EntityLayer" type="Node2D" parent="Root/WorldCanvas/WorldRoot"]
+[node name="EntityLayer" type="Node2D" parent="Root/Left/WorldCanvas/WorldRoot"]
 unique_name_in_owner = true
 script = ExtResource("4_ent")
 
-[node name="OverlayLayer" type="Node2D" parent="Root/WorldCanvas/WorldRoot"]
+[node name="OverlayLayer" type="Node2D" parent="Root/Left/WorldCanvas/WorldRoot"]
 unique_name_in_owner = true
 script = ExtResource("5_ovl")
 
-[node name="HUD" type="HBoxContainer" parent="Root/WorldCanvas"]
+[node name="MapLabels" type="Control" parent="Root/Left/WorldCanvas"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("8_labels")
+
+[node name="HUD" type="HBoxContainer" parent="Root/Left/WorldCanvas"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 10
@@ -102,29 +121,44 @@ grow_horizontal = 2
 mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="ResetButton" type="Button" parent="Root/WorldCanvas/HUD"]
+[node name="ResetButton" type="Button" parent="Root/Left/WorldCanvas/HUD"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "⊞ Reset View"
 
-[node name="SelLabel" type="Label" parent="Root/WorldCanvas/HUD"]
+[node name="SelLabel" type="Label" parent="Root/Left/WorldCanvas/HUD"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-text = "点选 NPC / 地点 / 物品"
+text = "点建筑 → 右侧选人"
 
-[node name="Spacer" type="Control" parent="Root/WorldCanvas/HUD"]
+[node name="MoneyLabel" type="Label" parent="Root/Left/WorldCanvas/HUD"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.941176, 0.815686, 0.482353, 1)
+text = ""
+
+[node name="Spacer" type="Control" parent="Root/Left/WorldCanvas/HUD"]
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
 
-[node name="RateBar" type="HBoxContainer" parent="Root/WorldCanvas/HUD"]
+[node name="ClockLabel" type="Label" parent="Root/Left/WorldCanvas/HUD"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+mouse_filter = 2
+text = "Day 1 · 00:00"
+horizontal_alignment = 2
+
+[node name="RateBar" type="HBoxContainer" parent="Root/Left/WorldCanvas/HUD"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="RatePause" type="Button" parent="Root/WorldCanvas/HUD/RateBar"]
+[node name="RatePause" type="Button" parent="Root/Left/WorldCanvas/HUD/RateBar"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
@@ -132,7 +166,7 @@ toggle_mode = true
 text = "⏸"
 tooltip_text = "pause"
 
-[node name="Rate1x" type="Button" parent="Root/WorldCanvas/HUD/RateBar"]
+[node name="Rate1x" type="Button" parent="Root/Left/WorldCanvas/HUD/RateBar"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
@@ -140,7 +174,7 @@ toggle_mode = true
 text = "1x"
 tooltip_text = "1x"
 
-[node name="Rate10x" type="Button" parent="Root/WorldCanvas/HUD/RateBar"]
+[node name="Rate10x" type="Button" parent="Root/Left/WorldCanvas/HUD/RateBar"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
@@ -148,7 +182,7 @@ toggle_mode = true
 text = "10x"
 tooltip_text = "10x"
 
-[node name="Rate100x" type="Button" parent="Root/WorldCanvas/HUD/RateBar"]
+[node name="Rate100x" type="Button" parent="Root/Left/WorldCanvas/HUD/RateBar"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
@@ -156,7 +190,7 @@ toggle_mode = true
 text = "100x"
 tooltip_text = "100x"
 
-[node name="Rate1000x" type="Button" parent="Root/WorldCanvas/HUD/RateBar"]
+[node name="Rate1000x" type="Button" parent="Root/Left/WorldCanvas/HUD/RateBar"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
@@ -164,7 +198,7 @@ toggle_mode = true
 text = "1000x"
 tooltip_text = "1000x"
 
-[node name="ConnBanner" type="Label" parent="Root/WorldCanvas"]
+[node name="ConnBanner" type="Label" parent="Root/Left/WorldCanvas"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
@@ -186,18 +220,26 @@ text = "Simulation connecting…"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="HoverTip" type="PanelContainer" parent="Root/WorldCanvas"]
+[node name="HoverTip" type="PanelContainer" parent="Root/Left/WorldCanvas"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBox_hover")
 
-[node name="HoverLabel" type="Label" parent="Root/WorldCanvas/HoverTip"]
+[node name="HoverLabel" type="Label" parent="Root/Left/WorldCanvas/HoverTip"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.803922, 0.839216, 0.894118, 1)
+
+[node name="PlanTimeline" type="Control" parent="Root/Left"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 160)
+layout_mode = 2
+size_flags_vertical = 0
+clip_contents = true
+script = ExtResource("7_timeline")
 
 [node name="Inspector" type="PanelContainer" parent="Root"]
 unique_name_in_owner = true

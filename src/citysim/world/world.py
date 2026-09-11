@@ -60,6 +60,8 @@ class Entity:
     on_complete: list[dict] = field(default_factory=list)    # M4 数据化效果
     price: float = 0.0                      # 价格(0=免费)
     owner: str = ""                         # 归属(""=无主/商店; npc_id=某人拥有)
+    item_type: str = ""                     # 物品类型 id(合并同类容器/购买送货用)
+    persist_empty: bool = False             # stock 归 0 不被回收(容器/货架)
     # elm_lane 开放时段: None=全天; []=永久关闭; [[start,end],...]分钟-of-day
     open_hours: list | None = None
     position: tuple[float, float] | None = None  # TASK001 空间锚点(scene 单位; None=未布置)
@@ -118,7 +120,8 @@ def entity_from_def(d: ItemDef, location_id: str) -> Entity:
         location_id=location_id, stock=d.stock, attrs=dict(d.attrs),
         interruptible=d.interruptible,
         on_start=list(d.on_start), on_complete=list(d.on_complete),
-        price=d.price,
+        price=d.price, item_type=d.item_type,
+        persist_empty=d.persist_empty,
     )
 
 

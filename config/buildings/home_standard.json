@@ -1,0 +1,8 @@
+{
+  "type": "home_standard",
+  "name": "住所",
+  "kind": "home",
+  "capacity": 6,
+  "pattern": "h",
+  "aspect": 1.0
+}

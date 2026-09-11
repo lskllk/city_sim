@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
@@ -25,6 +26,10 @@ from citysim.sim.loop import attach_replay, run_tick
 SPEED_TPS = {"pause": 0, "1x": 1, "10x": 10, "100x": 100, "1000x": 1000}
 PUSH_HZ = 60
 
+# 仓库根(src/citysim/gateway/server.py → parents[3]); 配置用绝对路径,
+# 这样后端进程的工作目录无关紧要(Godot 自动拉起时尤其重要)。
+_ROOT = Path(__file__).resolve().parents[3]
+
 # TASK004-ext: legacy gateway/static 观察器已删除; server 只作 WS 推流端点。
 # UI 由独立 frontend/ 提供(vite dev/preview)。
 
@@ -38,7 +43,7 @@ class SimRunner:
     """单实例、单线程(asyncio)拥有 world; 所有读写都在事件循环里。"""
 
     def __init__(self) -> None:
-        self.cfg = load_config()
+        self.cfg = load_config(_ROOT / "config" / "sim.toml")
         self.clients: set[WebSocket] = set()
         self.speed = "pause"          # 启动即暂停, 方便观察初态
         self.log_cursor = 0
@@ -57,8 +62,7 @@ class SimRunner:
             run_tick(self.world, self.systems, self.cfg, self.rng_pool)
 
     def drain_log(self) -> list[dict]:
-        evs = (self.systems.ui_events or [])[self.log_cursor:]
-        self.log_cursor = len(self.systems.ui_events or [])
+        evs, self.log_cursor = self.systems.ui_events.drain(self.log_cursor)
         out = []
         for i, e in enumerate(evs, self.event_seq):
             d = dict(e)

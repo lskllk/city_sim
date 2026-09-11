@@ -1,0 +1,8 @@
+{
+  "type": "shop_small",
+  "name": "店铺",
+  "kind": "shop",
+  "capacity": 24,
+  "pattern": "v",
+  "aspect": 1.0
+}

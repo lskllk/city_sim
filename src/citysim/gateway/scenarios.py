@@ -2,7 +2,7 @@
 
 把 config/scenes/elm_lane.json 建成 (world, systems, rng_pool):
   - 实体: 走 config/items defs(entity_from_def) + scene 覆盖 stock/open_hours, 零手搓;
-  - NPC: scene 的 personality/init/kb_extra/tell_bias(出生空白知识, 单层靠 obs 学);
+  - NPC: scene 的 personality/init/memory/tell_bias(初始记忆, 单层靠 obs 学);
   - Systems: travel 距离矩阵 + 归一化 pulses(世界侧定时脚本)。
 
 铁律: npc 不 import world; 加载器只组装, 不做决策。
@@ -15,7 +15,9 @@ from pathlib import Path
 
 from citysim.core.config import load_config
 from citysim.npc.person import Identity, Person
-from citysim.sim.loop import make_systems
+from citysim.npc.planner import ScriptedPlanner
+from citysim.sim.loop import attach_replay, make_systems
+from citysim.world.buildings import build_locations
 from citysim.world.pulses import normalize as _norm_pulses
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.world import Entity, World, entity_from_def
@@ -24,6 +26,8 @@ ROOT = Path(__file__).resolve().parents[3]          # → d:\...\npc_cognition
 DEFAULT_SCENE = ROOT / "config" / "scenes" / "elm_lane.json"
 CFG = load_config(ROOT / "config" / "sim.toml")
 _ARGS_ORDER = ("energy", "hunger", "thirst", "bladder", "fun", "hp")
+# 初始记忆行允许的字段(与 Person.note 对齐; 其余忽略)
+_MEM_FIELDS = frozenset({"located", "owner", "afford", "value", "price", "stock"})
 
 
 def load_scene(path: str | Path = DEFAULT_SCENE,
@@ -31,12 +35,12 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
     """读 scene json → (world, systems, rng_pool)。唯一场景入口。"""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     world = World()
-    # TASK001 region 几何: scene 的 x/y/w/h 即世界坐标(无第二套地图)
-    world.locations = {loc_id: dict(geom) for loc_id, geom in
-                       data.get("locations", {}).items()}
+    # 建筑: 类型库(config/buildings) + 面积∝容量 自动布局 → 算出几何
+    world.locations = build_locations(data)
 
     systems = make_systems(log=True,
                            tell_p=float(data.get("tell_p", 0.0)))
+    attach_replay(world, systems)      # 让 bus 事件(intent_failed/bought/…) 进 ui_events
     rng_pool: dict[str, random.Random] = {}
 
     # travel 距离矩阵(对称补齐)
@@ -51,6 +55,7 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
 
     # ---- 实体: itemdefs + scene 覆盖 -----------------------------------
     defs = load_item_defs()
+    merged: dict[tuple, Entity] = {}      # 同一商品 → 合并, 不重复建实体
     for spec in data.get("entities", []):
         d = defs.get(spec["type"])
         if d is None:
@@ -61,19 +66,38 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
             e.stock = int(spec["stock"])
         if "owner" in spec:            # 归属 id(person_id/company_id; 缺省=""公共)
             e.owner = str(spec["owner"])
+        if "duration_ticks" in spec:   # scene 覆盖交互时长(如长时看电视)
+            e.duration_ticks = int(spec["duration_ticks"])
+        if "price" in spec:            # scene 覆盖售价(商店)
+            e.price = float(spec["price"])
+        if "persist_empty" in spec:    # 容器/货架: stock 归 0 不回收
+            e.persist_empty = bool(spec["persist_empty"])
+        if "on_complete" in spec:      # scene 覆盖完成效果(如菜摊 spawn_item×3)
+            e.on_complete = [dict(x) for x in spec["on_complete"]]
         e.open_hours = Entity.parse_open_hours(spec.get("open_hours"))
         if "position" in spec:          # 显式锚点优先(可选)
             e.position = (float(spec["position"][0]), float(spec["position"][1]))
+        # 同一商品(同 类型/地点/归属/售价/效果) → 库存合并, 不重复建实体
+        key = (e.item_type, e.location_id, e.owner, round(e.price, 6),
+               repr(e.on_complete))
+        prev = merged.get(key)
+        if prev is not None:
+            prev.stock = -1 if (prev.stock == -1 or e.stock == -1) \
+                else prev.stock + e.stock
+            continue
+        merged[key] = e
         world.spawn_entity(e)
     # TASK001 默认锚点: 每个 region 内按实体 id 稳定生成(显式 position 不覆盖)
     for loc_id in world.locations:
         world.layout_location(loc_id)
 
-    # ---- NPC: 人设 + 初始记忆(出生空白, kb_extra 合成 item 行) --------
+    # ---- NPC: 人设 + 初始记忆(memory 段, 出生空白, 单层靠 obs 学) ------
     for idx, spec in enumerate(data.get("npcs", [])):
         pid = spec["id"]
         home_region = spec.get("home", "")
-        p = Person(identity=Identity(person_id=pid, name=spec["name"]),
+        p = Person(identity=Identity(person_id=pid, name=spec["name"],
+                                     birthday=str(spec.get("birthday", "")),
+                                     traits={"role": str(spec.get("role", ""))}),
                    home=home_region,
                    money=float(spec.get("money", 100.0)),
                    personality=spec.get("personality", {}),
@@ -81,23 +105,23 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
         world.place_npc(pid, home_region)
         init = spec.get("init", {})
         p.set_signals(**{k: float(v) for k, v in init.items() if k in _ARGS_ORDER})
-        # kb_extra(affords/located_at/price_of) 合成进每个 item 记忆行
-        mem0: dict[str, dict] = {}
-        for f in spec.get("kb_extra", []):
-            rec = mem0.setdefault(f["subject"], {})
-            rel = f["relation"]
-            if rel == "affords":
-                rec["afford"] = f["obj"]
-                rec["value"] = float(f.get("value", 0.0))
-            elif rel == "located_at":
-                rec["located"] = f["obj"]
-            elif rel == "price_of":
-                rec["price"] = float(f.get("value", f.get("obj", 0)))
-        for item_id, rec in mem0.items():
-            p.note(item_id, tick=0, believe=1.0, **rec)
+        # 初始记忆: {item_id: {located/afford/value/price/stock/owner/believe}}
+        for item_id, rec in (spec.get("memory") or {}).items():
+            if not isinstance(rec, dict):
+                continue
+            fields = {k: v for k, v in rec.items() if k in _MEM_FIELDS}
+            p.note(str(item_id), tick=0,
+                   believe=float(rec.get("believe", 1.0)), **fields)
         world.npcs[pid] = p
         rng_pool[pid] = random.Random(seed * 100 + idx)
-        systems.scheduler.schedule(pid, 1, now=0)
+
+    # ---- 固定日计划(演示/观察): 有 plans 段就用 ScriptedPlanner 替换模板 ----
+    plans = data.get("plans", {})
+    if plans:
+        systems.planner = ScriptedPlanner(plans)
+        for pid, p in world.npcs.items():
+            res = systems.planner.plan_for_person(p, 0)       # 应用当天计划
+            p.set_plan(res.entries)
     return world, systems, rng_pool
 
 

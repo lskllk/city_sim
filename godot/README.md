@@ -6,14 +6,23 @@
 
 ## 运行
 
-```bash
-# 1) 起后端(与浏览器前端共用同一端点)
-python -m uvicorn citysim.gateway.server:app --port 8765
+**后端会自动拉起**：Godot 启动时若发现 `ws` 端口没在监听，会自己
+`OS.create_process` 起 `python -m uvicorn ...`，退出时自动收掉。
 
-# 2) 用 Godot 打开本目录并运行(或命令行直接跑)
+```bash
+# 直接跑 Godot 即可(自动起后端)
 "D:/Godot_v4.7.2-stable_win64.exe" --path D:/sim_city/godot
+
+# 或先手动起后端(此时 Godot 检测到端口已在, 不会重复启动)
+python -m uvicorn citysim.gateway.server:app --port 8765
 ```
 
+- 自动启动开关/参数(环境变量)：
+  - `CITYSIM_NO_AUTOSTART=1` 关闭自动启动
+  - `CITYSIM_PYTHON` 指定 python(默认 `python`, 失败回退 `py`)
+  - `CITYSIM_BACKEND_CONSOLE=0` 不弹后端控制台窗口(默认弹, 便于看日志)
+  - 前提：已装 viz 依赖 `python -m pip install -e ".[viz]"`(否则后端起不来,
+    会打印 warning, 可改用仓库根目录 `run.cmd`)
 - WS 端点默认 `ws://127.0.0.1:8765/ws`，可用环境变量 `CITYSIM_WS_URL` 覆盖。
 - 无头集成冒烟：`CITYSIM_SMOKE=1` 时挂载 `scripts/debug/smoke_probe.gd`，
   轮换选中 NPC/实体/地点以走完 Inspector 构建路径。
@@ -48,14 +57,17 @@ scripts/
   main.gd                      入口: WS 生命周期 + 消息 dispatch(镜像 App.tsx)
   protocol/protocol.gd         消息解析 + 宽容取值
   net/ws_client.gd  (autoload Net)        WebSocketPeer + 重连(backoff)
+  net/backend.gd    (autoload Backend)    启动时自动拉起/退出时收掉 Python 后端
   net/commands.gd   (autoload Commands)   命令发送单例(镜像 commands.ts)
   state/store.gd    (autoload Store)      世界/模拟/选择 只读镜像
   sim/interpolation.gd         纯视觉插值
   render/camera.gd             pan / zoom / fit(镜像 Camera.ts)
   render/world_canvas.gd       相机+三层+HUD+输入(镜像 WorldView/SimulationStage)
-  render/map_layer.gd          街区矩形(数据驱动, _draw)
-  render/entity_layer.gd       实体/NPC 实例的 reconcile/平滑/拾取
-  render/overlay_layer.gd      选中高亮(数据驱动, _draw)
+  render/map_layer.gd          建筑几何 helper(世界尺寸/命中; 绘制已移交 map_labels)
+  render/map_labels.gd         建筑矢量层(屏幕坐标: 类别色/徽记/填充率/名称/角标)
+  render/entity_layer.gd       (空) 地图不再渲染 NPC, 改为点建筑→右侧选人
+  render/overlay_layer.gd      选中房间框(已被 map_labels 的屏幕层取代)
+  render/plan_timeline.gd      计划表时间线(等比例时间轴/节点/灰蓝/悬浮, _draw)
   render/npc_visual.gd, entity_visual.gd   单实例可视化
   ui/inspector.gd              Inspector(实例化 components/*)
   ui/components/*.gd           行控件的 set_row(...)

@@ -1,0 +1,8 @@
+{
+  "type": "shop_supermarket",
+  "name": "超市",
+  "kind": "shop",
+  "capacity": 100,
+  "pattern": "v",
+  "aspect": 1.4
+}

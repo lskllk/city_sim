@@ -1,7 +1,9 @@
 {
-  "item_type": "work_bench",
+  "item_type": "station_workbench",
   "name": "工位",
-  "tags": ["work"],
+  "tags": [
+    "work"
+  ],
   "affordances": {},
   "duration_ticks": 240,
   "on_start": [],

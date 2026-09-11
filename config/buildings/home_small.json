@@ -1,0 +1,8 @@
+{
+  "type": "home_small",
+  "name": "小屋",
+  "kind": "home",
+  "capacity": 3,
+  "pattern": "h",
+  "aspect": 1.0
+}

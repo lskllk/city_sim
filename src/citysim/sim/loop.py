@@ -8,9 +8,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from citysim.core.config import SimConfig
+from citysim.core.ring import RingBuffer
+from citysim.npc.planner import Planner
 from citysim.world.events import Event
 from citysim.world.interaction import InteractionSystem
-from citysim.world.scheduler import TimingWheel
 from citysim.world.travel import Travel
 from citysim.world.world import World
 
@@ -18,21 +19,21 @@ from citysim.world.world import World
 @dataclass
 class Systems:
     """执行环境(世界侧容器; 由 engine.tick duck 消费)。"""
-    scheduler: TimingWheel
     interaction: InteractionSystem
     travel: dict[str, Travel] = field(default_factory=dict)  # npc_id -> Travel
     log_lines: list[str] | None = None   # 录制/回放(非 None 即开启)
-    ui_events: list = field(default_factory=list)  # 结构化事件(UI/网关消费)
+    ui_events: RingBuffer = field(default_factory=RingBuffer)  # 事件环形缓冲(定长)
     tell_p: float = 0.0                  # (预留)通知概率, 待 _notify_due 用
     log_attached: bool = False           # attach_replay 幂等标记
     travel_costs: dict[str, int] | None = None
     pulses: list = field(default_factory=list)
+    planner: Planner | None = None       # 日计划器(0:00 生成次日计划; 缺省规则模板)
+    last_decision: dict = field(default_factory=dict)  # 观测去重: npc_id -> 上次决策签名
 
 
 def make_systems(*, log: bool = False, tell_p: float = 0.0) -> Systems:
-    sch = TimingWheel()
-    return Systems(scheduler=sch,
-                   interaction=InteractionSystem(scheduler=sch),
+    return Systems(interaction=InteractionSystem(),
+                   planner=Planner(),
                    log_lines=[] if log else None, tell_p=tell_p)
 
 

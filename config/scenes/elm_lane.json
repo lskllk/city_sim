@@ -1,61 +1,230 @@
 {
   "scene": "elm_lane",
   "display_name": "榆树巷 · 两户（2 人）",
-  "canvas": {"w": 1280, "h": 800},
-  "tell_p": 0.15,
-
-  "locations": {
-    "apt_101": {"name": "王二家", "x":  40, "y":  40, "w": 260, "h": 200, "kind": "home"},
-    "apt_102": {"name": "李四家", "x":  40, "y": 300, "w": 260, "h": 200, "kind": "home"},
-    "plaza":   {"name": "街心广场", "x": 360, "y": 300, "w": 320, "h": 260, "kind": "public"},
-    "market":  {"name": "大超市",   "x": 760, "y":  40, "w": 280, "h": 260, "kind": "shop"},
-    "site":    {"name": "工地",     "x": 760, "y": 380, "w": 280, "h": 260, "kind": "work"}
+  "canvas": {
+    "w": 1280,
+    "h": 800
   },
-
+  "tell_p": 0.15,
+  "locations": {
+    "apt_001": {
+      "type": "home_standard",
+      "name": "王二家"
+    },
+    "apt_002": {
+      "type": "home_standard",
+      "name": "李四家"
+    },
+    "plaza_001": {
+      "type": "public_plaza",
+      "name": "街心广场"
+    },
+    "market_001": {
+      "type": "shop_supermarket",
+      "name": "大超市"
+    },
+    "site_001": {
+      "type": "work_site",
+      "name": "工地"
+    }
+  },
   "travel": {
     "default": 20,
     "pairs": {
-      "apt_101|plaza": 4, "apt_102|plaza": 4,
-      "plaza|market": 8, "apt_101|market": 12, "apt_102|market": 12,
-      "market|site": 6, "plaza|site": 10,
-      "apt_101|apt_102": 3
+      "apt_001|plaza_001": 4,
+      "apt_002|plaza_001": 4,
+      "plaza_001|market_001": 8,
+      "apt_001|market_001": 12,
+      "apt_002|market_001": 12,
+      "market_001|site_001": 6,
+      "plaza_001|site_001": 10,
+      "apt_001|apt_002": 3
     }
   },
-
   "entities": [
-    {"type": "bed_basic",   "at": "apt_101", "id": "bed_wang",  "owner": "npc_wang"},
-    {"type": "meal_simple", "at": "apt_101", "id": "food_wang", "stock": 1, "owner": "npc_wang"},
-    {"type": "toilet",      "at": "apt_101", "id": "wc_101",   "owner": "npc_wang"},
-    {"type": "water_dispenser", "at": "apt_101", "id": "water_101", "owner": "npc_wang"},
-
-    {"type": "bed_basic", "at": "apt_102", "id": "bed_li",  "owner": "npc_li"},
-    {"type": "toilet",    "at": "apt_102", "id": "wc_102",  "owner": "npc_li"},
-    {"type": "water_dispenser", "at": "apt_102", "id": "water_102", "owner": "npc_li"},
-
-    {"type": "bench", "at": "plaza", "id": "bench_1"},
-
-    {"type": "meal_simple", "at": "market", "id": "market_1", "stock": 50},
-    {"type": "tv", "at": "market", "id": "tv_1"},
-    {"type": "tv", "at": "market", "id": "tv_2"},
-
-    {"type": "work_bench", "at": "site", "id": "site_1"}
+    {
+      "type": "bed_basic",
+      "at": "apt_001",
+      "id": "bed_basic_001",
+      "owner": "npc_wang_er"
+    },
+    {
+      "type": "meal_simple",
+      "at": "apt_001",
+      "id": "meal_simple_001",
+      "stock": 2,
+      "persist_empty": true,
+      "owner": "npc_wang_er"
+    },
+    {
+      "type": "media_tv",
+      "at": "apt_001",
+      "id": "media_tv_001",
+      "duration_ticks": 240,
+      "owner": "npc_wang_er"
+    },
+    {
+      "type": "toilet_basic",
+      "at": "apt_001",
+      "id": "toilet_basic_001",
+      "owner": "npc_wang_er"
+    },
+    {
+      "type": "drink_dispenser",
+      "at": "apt_001",
+      "id": "drink_dispenser_001",
+      "owner": "npc_wang_er"
+    },
+    {
+      "type": "bed_basic",
+      "at": "apt_002",
+      "id": "bed_basic_002",
+      "owner": "npc_li_si"
+    },
+    {
+      "type": "meal_simple",
+      "at": "apt_002",
+      "id": "meal_simple_002",
+      "stock": -1,
+      "owner": "npc_li_si"
+    },
+    {
+      "type": "toilet_basic",
+      "at": "apt_002",
+      "id": "toilet_basic_002",
+      "owner": "npc_li_si"
+    },
+    {
+      "type": "drink_dispenser",
+      "at": "apt_002",
+      "id": "drink_dispenser_002",
+      "owner": "npc_li_si"
+    },
+    {
+      "type": "seat_bench",
+      "at": "plaza_001",
+      "id": "seat_bench_001"
+    },
+    {
+      "type": "meal_simple",
+      "at": "market_001",
+      "id": "meal_simple_003",
+      "stock": 50,
+      "price": 3,
+      "persist_empty": true
+    },
+    {
+      "type": "media_tv",
+      "at": "market_001",
+      "id": "media_tv_002",
+      "stock": 2,
+      "price": 60,
+      "persist_empty": true
+    },
+    {
+      "type": "station_workbench",
+      "at": "site_001",
+      "id": "station_workbench_001"
+    }
   ],
-
   "pulses": [],
-
+  "plans": {
+    "npc_wang_er": [
+      {
+        "at": "08:00",
+        "intent": "interact",
+        "target": "meal_simple_001"
+      },
+      {
+        "at": "12:00",
+        "intent": "buy",
+        "target": "meal_simple_003",
+        "qty": 3
+      },
+      {
+        "at": "12:00",
+        "intent": "interact",
+        "target": "meal_simple_001"
+      },
+      {
+        "at": "14:00",
+        "intent": "interact",
+        "target": "media_tv_001"
+      },
+      {
+        "at": "18:00",
+        "intent": "interact",
+        "target": "meal_simple_001"
+      },
+      {
+        "at": "18:00",
+        "intent": "interact",
+        "target": "media_tv_001"
+      },
+      {
+        "at": "21:00",
+        "intent": "interact",
+        "target": "bed_basic_001"
+      }
+    ]
+  },
   "npcs": [
-    {"id": "npc_wang", "name": "王二", "home": "apt_101",
-     "personality": {"hunger": 1.0, "energy": 1.0, "fun": 0.8},
-     "init": {"energy": 0.55, "hunger": 0.45, "thirst": 0.6, "bladder": 0.85, "fun": 0.5},
-     "kb_extra": [
-       {"subject": "market_1", "relation": "affords", "obj": "hunger", "value": 0.5, "confidence": 1.0},
-       {"subject": "market_1", "relation": "located_at", "obj": "market", "confidence": 1.0},
-       {"subject": "tv_1", "relation": "affords", "obj": "fun", "value": 0.4, "confidence": 1.0},
-       {"subject": "tv_1", "relation": "located_at", "obj": "market", "confidence": 1.0}
-     ]},
-
-    {"id": "npc_li", "name": "李四", "home": "apt_102",
-     "personality": {"hunger": 1.1, "energy": 1.0},
-     "init": {"energy": 0.6, "hunger": 0.35, "thirst": 0.5, "bladder": 0.8, "fun": 0.6}}
+    {
+      "id": "npc_wang_er",
+      "name": "王二",
+      "home": "apt_001",
+      "money": 200,
+      "birthday": "1985-06-15",
+      "role": "worker",
+      "personality": {
+        "hunger": 1.0,
+        "energy": 1.0,
+        "fun": 0.8
+      },
+      "init": {
+        "energy": 0.55,
+        "hunger": 0.45,
+        "thirst": 0.6,
+        "bladder": 0.85,
+        "fun": 0.5
+      },
+      "memory": {
+        "meal_simple_003": {
+          "located": "market_001",
+          "afford": "hunger",
+          "value": 0.5,
+          "price": 3.0
+        },
+        "media_tv_002": {
+          "located": "market_001",
+          "afford": "fun",
+          "value": 0.4,
+          "price": 60.0
+        },
+        "media_tv_001": {
+          "located": "apt_001"
+        }
+      }
+    },
+    {
+      "id": "npc_li_si",
+      "name": "李四",
+      "home": "apt_002",
+      "money": 150,
+      "birthday": "1996-11-02",
+      "role": "student",
+      "personality": {
+        "hunger": 1.1,
+        "energy": 1.0
+      },
+      "init": {
+        "energy": 0.6,
+        "hunger": 0.35,
+        "thirst": 0.5,
+        "bladder": 0.8,
+        "fun": 0.6
+      },
+      "memory": {}
+    }
   ]
 }

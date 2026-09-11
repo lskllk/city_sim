@@ -1,0 +1,8 @@
+{
+  "type": "public_plaza",
+  "name": "广场",
+  "kind": "public",
+  "capacity": 60,
+  "pattern": "dots",
+  "aspect": 1.5
+}

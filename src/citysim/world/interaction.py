@@ -6,7 +6,6 @@ affordances; 完成时处理 消耗品/如厕。事件经 EventBus 发布给 NPC
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from citysim.core.config import SIGNALS
 from citysim.core.types import Idle, Interact
@@ -23,6 +22,14 @@ class ActiveInteraction:
     total_ticks: int
 
 
+@dataclass
+class Suspension:
+    """软挂起的交互进度(被 reflex 抢占时暂存, 供 resume 恢复)。"""
+    entity_id: str
+    remaining_ticks: int
+    total_ticks: int
+
+
 def _clamp(v: float) -> float:
     return max(0.0, min(1.0, float(v)))
 
@@ -30,9 +37,9 @@ def _clamp(v: float) -> float:
 class InteractionSystem:
     """一次持有多名 NPC 的进行中交互; 每 tick step 推进。"""
 
-    def __init__(self, scheduler: Any = None) -> None:
+    def __init__(self) -> None:
         self.active: dict[str, ActiveInteraction] = {}   # key = npc_id
-        self._scheduler = scheduler                       # TimingWheel | None
+        self.suspended: dict[str, Suspension] = {}        # key = npc_id(软挂起进度)
 
     # --- 提交 ---------------------------------------------------------
     def submit(self, world: World, npc: Person, intent) -> bool:
@@ -41,7 +48,6 @@ class InteractionSystem:
         if isinstance(intent, Idle):
             if pid in self.active:
                 self._release(world, pid, cancel=True)
-                self._resched(world, pid, 1)
             return True
         if not isinstance(intent, Interact):
             return False
@@ -59,9 +65,17 @@ class InteractionSystem:
         if ent.claimed_by not in (None, pid):
             self._fail(world, pid, tid, "已被他人占用")
             return False
+        # 现实约束: 目标必须与 NPC 同 region(异地需先 MoveTo, 由执行器负责)
+        if ent.location_id != world.loc_of(pid):
+            self._fail(world, pid, tid, "目标不在此地")
+            return False
+
+        old = self.active.get(pid)
+        # 同 target 且已在交互 → 继续(不重置 remaining, 不重复 on_start)
+        if old is not None and old.entity_id == tid:
+            return True
 
         # rule 4: 旧 active 且 target 不同 → 先释放(除非旧交互不可打断)
-        old = self.active.get(pid)
         if old is not None and old.entity_id != tid:
             old_ent = world.entities.get(old.entity_id)
             if old_ent is not None and not old_ent.interruptible:
@@ -110,6 +124,27 @@ class InteractionSystem:
     # --- 完成 ---------------------------------------------------------
     def _complete(self, world: World, pid: str, ent: Entity,
                   act: ActiveInteraction) -> None:
+        self._finalize(world, pid, ent, act, aborted=False)
+
+    def abort(self, world: World, pid: str) -> None:
+        """硬中止(计划截止抢占): 同样触发 on_complete + 消耗 + 回收。"""
+        act = self.active.get(pid)
+        if act is None:
+            return
+        ent = world.entities.get(act.entity_id)
+        if ent is None:
+            self.active.pop(pid, None)
+            return
+        self.suspended.pop(pid, None)          # 硬中止 → 丢弃挂起进度
+        self._finalize(world, pid, ent, act, aborted=True)
+
+    def _finalize(self, world: World, pid: str, ent: Entity,
+                  act: ActiveInteraction, *, aborted: bool) -> None:
+        """自然完成 / 硬中止共用收尾: 消耗 + on_complete + 事件 + 回收。
+
+        区别: 自然完成额外通知 Person(on_interaction_done) 推进计划; 中止不发。
+        两者都触发 on_complete(被打断也要触发, 见 docs/task006.md)。
+        """
         npc = world.npcs[pid]
         self._release(world, pid, cancel=False)
 
@@ -125,15 +160,53 @@ class InteractionSystem:
         if ent.on_complete:
             apply_effects(world, npc, ent, ent.on_complete)
 
-        # 4. 完成 → idle(下次重评由提交时排的调度触发)
+        # 4. 完成 → idle(下一 tick 由 drive 自然重评)
         npc.set_activity("idle")
 
         # 5. 事件(先发布, 观察者可解析实体 tags) -> 6. 统一回收空消耗品
+        kind = "interaction_aborted" if aborted else "interaction_done"
         world.bus.publish(world.bus.make(
-            world.clock_tick, "interaction_done", pid,
-            {"entity": ent.entity_id}))
-        if ent.stock == 0 and (ent.is_consumable or _self_consumes(ent)):
+            world.clock_tick, kind, pid, {"entity": ent.entity_id}))
+        if (ent.stock == 0 and not ent.persist_empty
+                and (ent.is_consumable or _self_consumes(ent))):
             world.entities.pop(ent.entity_id, None)
+        if not aborted:
+            npc.on_interaction_done(ent.entity_id, world.clock_tick)
+
+    # --- 软挂起 / 恢复(reflex 抢占) ------------------------------------
+    def suspend(self, world: World, pid: str) -> Suspension | None:
+        """软挂起当前交互: 释放 claim, 保留剩余进度。"""
+        act = self.active.pop(pid, None)
+        if act is None:
+            return None
+        ent = world.entities.get(act.entity_id)
+        if ent is not None and ent.claimed_by == pid:
+            ent.claimed_by = None
+        npc = world.npcs.get(pid)
+        if npc is not None:
+            npc.set_activity("idle")
+        susp = Suspension(act.entity_id, max(1, act.remaining_ticks),
+                          max(1, act.total_ticks))
+        self.suspended[pid] = susp
+        return susp
+
+    def resume(self, world: World, npc: Person, entity_id: str) -> bool:
+        """恢复挂起进度(重新 claim + 还原 remaining); 无匹配挂起则 False。"""
+        pid = npc.person_id
+        susp = self.suspended.get(pid)
+        if susp is None or susp.entity_id != entity_id:
+            return False
+        ent = world.entities.get(entity_id)
+        if ent is None or ent.stock == 0 or ent.claimed_by not in (None, pid):
+            return False
+        self.suspended.pop(pid, None)
+        ent.claimed_by = pid
+        self.active[pid] = ActiveInteraction(
+            npc_id=pid, entity_id=entity_id,
+            remaining_ticks=max(1, susp.remaining_ticks),
+            total_ticks=max(1, susp.total_ticks))
+        npc.set_activity(ent.name)
+        return True
 
     # --- 内部 ---------------------------------------------------------
     def release_active(self, world: World, pid: str) -> None:
@@ -162,7 +235,3 @@ class InteractionSystem:
             npc.on_failure(tid, why, world.clock_tick,
                            retry_ticks=ent.duration_ticks if ent is not None
                            else None)
-
-    def _resched(self, world: World, pid: str, delay: int) -> None:
-        if self._scheduler is not None:
-            self._scheduler.schedule(pid, delay, now=world.clock_tick)

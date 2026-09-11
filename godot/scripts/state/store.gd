@@ -39,6 +39,7 @@ var sel_kind: String = ""
 var sel_npc: String = ""
 var sel_location: String = ""
 var sel_entity: String = ""
+var history: Array = []                  # 浏览历史 [{kind, id}], 供「返回」
 
 
 func clear_world() -> void:
@@ -50,6 +51,7 @@ func clear_world() -> void:
 	seed_value = 0
 	n_npc = 0
 	signals_list = []
+	history = []
 
 
 func init_hello(h: Dictionary) -> void:
@@ -84,11 +86,43 @@ func apply_snapshot(snap: Dictionary) -> void:
 
 
 func select(kind: String, id: String) -> void:
+	if kind == sel_kind and id == _sel_id():
+		return
+	history.append({"kind": sel_kind, "id": _sel_id()})   # 记账, 供返回
+	_apply(kind, id)
+	selection_changed.emit()
+
+
+## 回退到上一个选中项。
+func back() -> void:
+	if history.is_empty():
+		return
+	var prev: Dictionary = history.pop_back()
+	_apply(Protocol.s(prev.get("kind", "")), Protocol.s(prev.get("id", "")))
+	selection_changed.emit()
+
+
+func can_go_back() -> bool:
+	return not history.is_empty()
+
+
+func _sel_id() -> String:
+	match sel_kind:
+		"npc":
+			return sel_npc
+		"location":
+			return sel_location
+		"entity":
+			return sel_entity
+		_:
+			return ""
+
+
+func _apply(kind: String, id: String) -> void:
 	sel_kind = kind
 	sel_npc = id if kind == "npc" else ""
 	sel_location = id if kind == "location" else ""
 	sel_entity = id if kind == "entity" else ""
-	selection_changed.emit()
 
 
 func clear_selection() -> void:
@@ -147,7 +181,7 @@ func selected_name() -> String:
 			var e := entity(sel_entity)
 			if not e.is_empty():
 				return "已选中 物品：%s" % Protocol.s(e.get("name", sel_entity), sel_entity)
-	return "点选 NPC / 地点 / 物品"
+	return "点建筑 → 右侧选人"
 
 
 func _to_map(arr: Variant) -> Dictionary:

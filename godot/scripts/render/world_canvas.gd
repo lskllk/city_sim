@@ -19,9 +19,12 @@ const RATE_BY_NODE := {
 @onready var map_layer: MapLayer = %MapLayer
 @onready var entity_layer: EntityLayer = %EntityLayer
 @onready var overlay_layer: OverlayLayer = %OverlayLayer
+@onready var map_labels: MapLabels = %MapLabels
 
 @onready var _reset_button: Button = %ResetButton
 @onready var _sel_label: Label = %SelLabel
+@onready var _money_label: Label = %MoneyLabel
+@onready var _clock_label: Label = %ClockLabel
 @onready var _rate_bar: HBoxContainer = %RateBar
 @onready var _conn_banner: Label = %ConnBanner
 @onready var _hover_tip: PanelContainer = %HoverTip
@@ -40,6 +43,7 @@ func _ready() -> void:
 
 	camera = WorldCamera.new(camera_root)
 	camera.resize(size.x, size.y)
+	map_labels.setup(camera)      # 建筑矢量层跟随相机投影(屏幕坐标, 不受缩放影响)
 
 	_reset_button.pressed.connect(reset_view)
 	for node_name in RATE_BY_NODE:
@@ -199,6 +203,11 @@ func hover_at(screen_pos: Vector2) -> Dictionary:
 func _refresh_hud() -> void:
 	if _sel_label != null:
 		_sel_label.text = Store.selected_name()
+	if _money_label != null:
+		var sel_n := Store.npc(Store.sel_npc) if Store.sel_kind == "npc" else {}
+		_money_label.text = ("¥%d" % int(Protocol.num(sel_n.get("money")))) if not sel_n.is_empty() else ""
+	if _clock_label != null:
+		_clock_label.text = "Day %d · %s" % [Store.day, Store.clock]
 	var connected := Store.connection == "open"
 	for spd in _rate_buttons:
 		var b: Button = _rate_buttons[spd]

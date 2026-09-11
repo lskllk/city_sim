@@ -1,0 +1,8 @@
+{
+  "type": "school_basic",
+  "name": "学校",
+  "kind": "school",
+  "capacity": 120,
+  "pattern": "dots",
+  "aspect": 1.4
+}

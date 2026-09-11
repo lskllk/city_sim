@@ -5,10 +5,9 @@
 """
 from __future__ import annotations
 
-from math import cos, pi
-from typing import Any, Mapping
+from typing import Mapping
 
-from citysim.core.config import SIGNALS, SimConfig
+from citysim.core.config import REFLEX_SIGNALS, SimConfig
 from citysim.core.types import (
     DecisionTrace,
     Idle,
@@ -97,19 +96,22 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
                        cfg: SimConfig, now_tick: int):
     """[阶段1] 候选收集: 记忆行 → 有缺口的需求候选。
 
-    取 afford∈SIGNALS 且 value>0 且 believe>=BELIEF_MIN 且 need=1-signal>0;
-    且未被失败冷却屏蔽(cool_until<=now)。返回 [(row, sig, need), ...]。
+    取 afford∈REFLEX_SIGNALS(致命/强生理) 且 value>0 且 believe>=BELIEF_MIN,
+    且未被失败冷却屏蔽
+    (cool_until<=now), 并且 need=1-signal 达「兜底下限」cfg.fallback_need
+    (默认 0.9 → 信号掉到 10% 以下才纳入; 平时不产生任何候选, 交给计划表系统)。
+    返回 [(row, sig, need), ...]。
     """
     out = []
     for row in mem.items():
         if row.cool_until and row.cool_until > now_tick:
             continue          # 失败冷却中(如厕所刚被占), 稍后再看
         sig = row.afford
-        if sig not in SIGNALS or row.value <= 0 or row.believe < BELIEF_MIN:
+        if sig not in REFLEX_SIGNALS or row.value <= 0 or row.believe < BELIEF_MIN:
             continue
         need = 1.0 - float(signals.get(sig, 1.0))
-        if need <= 0:
-            continue
+        if need < cfg.fallback_need:
+            continue          # 未到兜底线: 不行动(正常行为应由计划驱动)
         out.append((row, sig, need))
     return out
 
@@ -178,47 +180,3 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
             used_fact_ids=(),
             relevant_signals=relevant))
 
-
-# ----------------------------------------------------------------------
-# 清醒度 / 重评节律(主循环调度用)
-# 生物钟与清醒度系数已参数化进 config [wake](见 SimConfig), 本模块零魔法数字。
-# ----------------------------------------------------------------------
-
-def circadian(hour_f: float, cfg: SimConfig) -> float:
-    """纯生物钟分量(0..1): 单余弦拟合, 峰在 cfg.peak_hour, 谷在 ±12h。
-
-    circ = circadian_min + circadian_amp * peakcurve(hour)
-    峰(peak) → min+amp; 谷(peak±12) → min。
-    """
-    phase = 2.0 * pi * (hour_f - cfg.peak_hour) / 24.0
-    curve = (1.0 + cos(phase)) / 2.0          # 峰=1, 谷=0
-    return cfg.circadian_min + cfg.circadian_amp * curve
-
-
-def arousal(hour_f: float, energy: float, hunger: float,
-            cfg: SimConfig) -> float:
-    """清醒度 0..1: 生物钟 × (energy_floor + energy_gain·energy), 饥饿轻微拖累。"""
-    energy = max(0.0, min(1.0, float(energy)))
-    hunger = max(0.0, min(1.0, float(hunger)))
-    level = circadian(hour_f, cfg) * (cfg.energy_floor + cfg.energy_gain * energy)
-    level -= cfg.hunger_penalty * (1.0 - hunger)
-    return max(0.0, min(1.0, level))
-
-
-def review_interval_ticks(
-    arousal_value: float,
-    cfg: SimConfig,
-    rng: Any = None,
-) -> int:
-    """清醒度(0..1) -> 距下次重评的 tick 间隔, clamp 到 [review_min, review_max]。
-
-    清醒度高 => 间隔短; 可选 rng 抖动 ±1 避免同拍。
-    """
-    a = max(0.0, min(1.0, float(arousal_value)))
-    lo, hi = cfg.review_min_ticks, cfg.review_max_ticks
-    span = hi - lo
-    interval = int(round(hi - span * a))
-    interval = max(lo, interval)
-    if rng is not None:
-        interval = max(lo, interval + int(rng.randint(-1, 1)))
-    return interval

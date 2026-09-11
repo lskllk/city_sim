@@ -47,9 +47,8 @@ def add_entity(world: World, entity_id: str, *, location: str = "loc",
 
 
 def seed_reviews(world: World, systems, delay: int = 1) -> None:
-    """给所有 NPC 排首评(delay 默认 1 tick 后)。"""
-    for pid in world.npcs:
-        systems.scheduler.schedule(pid, delay, now=world.clock_tick)
+    """兼容占位: 旧"给所有 NPC 排首评"已删除(驱动改为每 tick 扫描空闲 NPC)。"""
+    return None
 
 
 def is_asleep(world: World, systems, person_id: str) -> bool:

@@ -21,6 +21,7 @@ const SIGNAL_ORDER := ["energy", "hunger", "thirst", "bladder", "fun", "hp"]
 
 var _dirty := true
 var _accum := 0.0
+var _last_key := ""      # 内容指纹: 不变则跳过重建(否则 hover 会被高频刷新打断)
 
 
 func _ready() -> void:
@@ -39,14 +40,70 @@ func _process(delta: float) -> void:
 	if _dirty and _accum >= 0.1:
 		_accum = 0.0
 		_dirty = false
-		refresh()
+		var key := _content_key()
+		if key != _last_key:
+			_last_key = key
+			refresh()
+
+
+## 当前选中要展示的内容指纹(选择/人员/物件/数值变化才重建)。
+func _content_key() -> String:
+	return "h%d|%s" % [Store.history.size(), _content_key_body()]
+
+
+func _content_key_body() -> String:
+	match Store.sel_kind:
+		"npc":
+			var n := Store.npc(Store.sel_npc)
+			if n.is_empty():
+				return "npc:"
+			var sig := Protocol.as_dict(n.get("signals", {}))
+			var sigk := ""
+			for s in ["energy", "hunger", "thirst", "bladder", "fun", "hp"]:
+				sigk += "%d," % int(round(Protocol.num(sig.get(s), 0.0) * 100.0))
+			return "npc:%s|%s|%s|%s|%s|%d|%d" % [
+				Store.sel_npc, n.get("activity", ""), n.get("money", ""),
+				sigk, str(n.get("intent", {})),
+				Protocol.as_array(n.get("memory", [])).size(),
+				Protocol.as_array(n.get("events", [])).size(),
+			]
+		"entity":
+			var e := Store.entity(Store.sel_entity)
+			return "ent:%s|%s|%s" % [Store.sel_entity, e.get("stock", ""),
+				e.get("claimed_by", "")]
+		"location":
+			var parts := PackedStringArray([Store.sel_location])
+			var pids: Array = []
+			for k in Store.npcs:
+				if Protocol.s(Store.npcs[k].get("loc", "")) == Store.sel_location:
+					pids.append(str(k))
+			pids.sort()
+			for k in pids:
+				var n := Store.npc(str(k))
+				parts.append("p:%s/%s/%s" % [n.get("name", ""), n.get("age", ""),
+					n.get("role", "")])
+			var eids: Array = []
+			for k in Store.entities:
+				if Protocol.s(Store.entities[k].get("loc", "")) == Store.sel_location:
+					eids.append(str(k))
+			eids.sort()
+			for k in eids:
+				var e := Store.entity(str(k))
+				parts.append("e:%s/%s/%s" % [e.get("item_type", ""),
+					e.get("stock", ""), e.get("price", "")])
+			return "loc:" + "|".join(parts)
+		_:
+			return "empty"
 
 
 # ---------------------------------------------------------------------------
 # 组装
 # ---------------------------------------------------------------------------
 func refresh() -> void:
+	_last_key = _content_key()
 	_clear()
+	if Store.can_go_back():
+		_body.add_child(_back_button())
 	match Store.sel_kind:
 		"npc":
 			var n := Store.npc(Store.sel_npc)
@@ -72,7 +129,7 @@ func _clear() -> void:
 
 func _build_empty() -> void:
 	var l := _label("城市观察窗", 14, MUTED)
-	l.text = "城市观察窗\n点选 NPC / 物件 / 建筑查看"
+	l.text = "城市观察窗\n点建筑查看人员与物件"
 	_body.add_child(l)
 
 
@@ -86,6 +143,20 @@ func _build_npc(n: Dictionary) -> void:
 			_first_nonempty(Protocol.s(n.get("act_class")), Protocol.s(n.get("activity"))),
 		]
 	)
+
+	# --- 当前行为 ---
+	var act_body := _section("当前行为")
+	_add_kv(act_body, "正在做", _activity_text(n))
+	_add_kv(act_body, "金钱", "¥%d" % int(Protocol.num(n.get("money"))))
+	var active := Protocol.as_dict(n.get("active", {}))
+	if not active.is_empty():
+		_add_kv(act_body, "剩余", "%d / %d tick" % [
+			int(Protocol.num(active.get("remaining"))),
+			int(Protocol.num(active.get("total")))])
+	var cur_intent := Protocol.as_dict(n.get("intent", {}))
+	_add_kv(act_body, "意图", "%s → %s" % [
+		Protocol.s(cur_intent.get("kind", "—")),
+		Store.name_of(Protocol.s(cur_intent.get("target", "")))])
 
 	# --- Status ---
 	var sig_body := _section("Status")
@@ -135,13 +206,13 @@ func _build_npc(n: Dictionary) -> void:
 				Protocol.num(d.get("believe")), Protocol.num(d.get("remember"))
 			)
 
-	# --- Event Log ---
+	# --- Event Log(最近 80 条; 单行 "D1 08:00 | 类型 | 人话") ---
 	var events := Protocol.as_array(n.get("events", []))
-	var ev_body := _section("Event Log")
+	var limit := mini(80, events.size())
+	var ev_body := _section("Event Log · 最近 %d 条" % limit)
 	if events.is_empty():
 		ev_body.add_child(_muted_label("暂无"))
 	else:
-		var limit := mini(15, events.size())
 		for i in range(limit):
 			var ev := Protocol.as_dict(events[events.size() - 1 - i])
 			var kind := Protocol.s(ev.get("kind", Protocol.s(ev.get("type", ""))))
@@ -151,47 +222,155 @@ func _build_npc(n: Dictionary) -> void:
 				_event_color(kind), _one_line(ev))
 
 
+func _build_location(id: String) -> void:
+	var room := Store.room(id)
+	var people: Array = []
+	for k in Store.npcs:
+		if Protocol.s(Store.npcs[k].get("loc", "")) == id:
+			people.append(str(k))
+	people.sort()
+	var items: Array = []
+	for k in Store.entities:
+		if Protocol.s(Store.entities[k].get("loc", "")) == id:
+			items.append(str(k))
+	items.sort()
+
+	var head: Control = NPC_HEADER.instantiate()
+	_body.add_child(head)
+	var cap := int(Protocol.num(room.get("capacity"), 0.0))
+	head.set_header(Protocol.s(room.get("name", id)),
+		"%s · %d/%d 人 · %d 物件" % [
+			Zh.kind_zh(Protocol.s(room.get("kind", ""))),
+			people.size(), cap, items.size()])
+
+	# 人员(表头 + 可点行)
+	var pbody := _section("人员 %d" % people.size())
+	_add_cols_row(pbody, ["姓名", "年龄", "角色"], null, true)
+	if people.is_empty():
+		pbody.add_child(_muted_label("无人"))
+	else:
+		for k in people:
+			var n := Store.npc(k)
+			var age := Protocol.num(n.get("age"), -1.0)
+			_add_cols_row(pbody, [
+				Protocol.s(n.get("name", k)),
+				"—" if age < 0.0 else str(int(age)),
+				Zh.role_zh(Protocol.s(n.get("role", ""))),
+			], func() -> void: Store.select("npc", k))
+
+	# 物件(表头 + 可点行 → 详情)
+	var ibody := _section("物件 %d" % items.size())
+	_add_cols_row(ibody, ["名称", "数量", "价格"], null, true)
+	if items.is_empty():
+		ibody.add_child(_muted_label("无"))
+	else:
+		for k in items:
+			var e := Store.entity(k)
+			_add_cols_row(ibody, [
+				_item_name(e, k), _qty_txt(e), _price_txt(e),
+			], func() -> void: Store.select("entity", k))
+
+
 func _build_entity(id: String) -> void:
 	var e := Store.entity(id)
 	var head: Control = NPC_HEADER.instantiate()
 	_body.add_child(head)
-	head.set_header(
-		Protocol.s(e.get("name", id)),
-		"物件 · %s" % Store.name_of(Protocol.s(e.get("loc", "")))
-	)
-	var body := _section("Status")
-	var tags := Protocol.as_array(e.get("tags", []))
-	var tag_text := "—"
-	if not tags.is_empty():
-		var parts := PackedStringArray()
-		for t in tags:
-			parts.append(str(t))
-		tag_text = " / ".join(parts)
-	_add_kv(body, "类型", tag_text)
-	_add_kv(body, "库存", str(int(Protocol.num(e.get("stock")))) if e.has("stock") else "—")
+	head.set_header(Protocol.s(e.get("name", id)),
+		"%s · %s" % [_item_name(e, id), Store.name_of(Protocol.s(e.get("loc", "")))])
+
+	var body := _section("属性")
+	_add_kv(body, "id", id)
+	_add_kv(body, "类型", "%s（%s）" % [Protocol.s(e.get("item_type", "—")),
+		_item_name(e, id)])
+	_add_kv(body, "地点", Store.name_of(Protocol.s(e.get("loc", ""))))
+	_add_kv(body, "库存", _qty_txt(e))
+	_add_kv(body, "价格", _price_txt(e))
+	var owner := Protocol.s(e.get("owner", ""))
+	_add_kv(body, "归属", Store.name_of(owner) if owner != "" else "公共")
 	var claimed := Protocol.s(e.get("claimed_by", ""))
 	_add_kv(body, "使用中", Store.name_of(claimed) if claimed != "" else "否")
+	_add_kv(body, "交互时长", "%d tick" % int(Protocol.num(e.get("duration_ticks"))))
+	var tags := Protocol.as_array(e.get("tags", []))
+	_add_kv(body, "标签", " / ".join(tags) if not tags.is_empty() else "—")
+	var aff := Protocol.as_dict(e.get("affordances", {}))
+	if not aff.is_empty():
+		var parts := PackedStringArray()
+		for ek in aff:
+			parts.append("%s %+.2f" % [Zh.signal_zh(str(ek)), Protocol.num(aff[ek])])
+		_add_kv(body, "信号效果", "，".join(parts))
+	for eff_name in ["on_start", "on_complete"]:
+		var effs := Protocol.as_array(e.get(eff_name, []))
+		if not effs.is_empty():
+			_add_kv(body, eff_name, str(effs))
 	_stub_sections()
 
 
-func _build_location(id: String) -> void:
-	var room := Store.room(id)
-	var head: Control = NPC_HEADER.instantiate()
-	_body.add_child(head)
-	head.set_header(Protocol.s(room.get("name", id)), "建筑")
+func _item_name(e: Dictionary, fallback: String) -> String:
+	var t := Protocol.s(e.get("item_type", ""))
+	if t != "" and Zh.item_zh(t) != t:
+		return Zh.item_zh(t)
+	return Protocol.s(e.get("name", fallback), fallback)
 
-	var n_npc := 0
-	for k in Store.npcs:
-		if Protocol.s(Store.npcs[k].get("loc", "")) == id:
-			n_npc += 1
-	var n_ent := 0
-	for k in Store.entities:
-		if Protocol.s(Store.entities[k].get("loc", "")) == id:
-			n_ent += 1
-	var body := _section("Status")
-	_add_kv(body, "NPC", str(n_npc))
-	_add_kv(body, "物件", str(n_ent))
-	_stub_sections()
+
+func _qty_txt(e: Dictionary) -> String:
+	var s := int(Protocol.num(e.get("stock"), -1.0))
+	return "∞" if s < 0 else str(s)
+
+
+func _price_txt(e: Dictionary) -> String:
+	var p := Protocol.num(e.get("price"), 0.0)
+	return "—" if p <= 0.0 else "¥%d" % int(p)
+
+
+## 统一列表行: 第 0 列弹性左对齐, 后两列固定宽(右/左); 有 on_click 则可点+hover 高亮。
+const COL_W := [0.0, 54.0, 84.0]
+const COL_ALIGN := [0, 2, 0]
+const ROW_H := 26
+
+func _add_cols_row(body: VBoxContainer, texts: Array, on_click: Variant,
+		is_header: bool = false) -> void:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 10)
+	hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tint := Color("7f8ea3") if is_header else Color("c7d2e2")
+	for i in texts.size():
+		var l := Label.new()
+		l.text = str(texts[i])
+		l.add_theme_font_size_override("font_size", 12)
+		l.add_theme_color_override("font_color", tint)
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.horizontal_alignment = COL_ALIGN[i] if i < COL_ALIGN.size() else 0
+		l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var w: float = COL_W[i] if i < COL_W.size() else 0.0
+		if w > 0.0:
+			l.custom_minimum_size.x = w
+			l.size_flags_horizontal = Control.SIZE_FILL
+		else:
+			l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hb.add_child(l)
+
+	if is_header:
+		body.add_child(hb)
+		return
+
+	var btn := Button.new()
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.custom_minimum_size.y = ROW_H
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	var hover := StyleBoxFlat.new()
+	hover.bg_color = Color("1a2230")
+	hover.set_corner_radius_all(4)
+	btn.add_theme_stylebox_override("hover", hover)
+	btn.add_theme_stylebox_override("pressed", hover)
+	if on_click is Callable:
+		btn.pressed.connect(on_click)
+	body.add_child(btn)
+	btn.add_child(hb)
+	hb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hb.offset_left = 6.0
+	hb.offset_right = -6.0
 
 
 func _stub_sections() -> void:
@@ -216,6 +395,20 @@ func _add_kv(body: VBoxContainer, k: String, v: String) -> void:
 	row.set_row(k, v)
 
 
+## 返回上一界面(如 王二家 → 王二 后回退)。
+func _back_button() -> Button:
+	var b := Button.new()
+	b.text = "← 返回"
+	b.flat = true
+	b.focus_mode = Control.FOCUS_NONE
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.add_theme_font_size_override("font_size", 12)
+	b.add_theme_color_override("font_color", Color("6fb7ff"))
+	b.pressed.connect(func() -> void: Store.back())
+	return b
+
+
 func _label(text: String, font_size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.text = text
@@ -226,6 +419,31 @@ func _label(text: String, font_size: int, color: Color) -> Label:
 
 func _muted_label(text: String) -> Label:
 	return _label(text, 12, MUTED)
+
+
+func _activity_text(n: Dictionary) -> String:
+	var cls := Protocol.s(n.get("act_class", "idle"))
+	var act := Protocol.s(n.get("activity", ""))
+	match cls:
+		"move":
+			var tv := Protocol.as_dict(n.get("travel", {}))
+			return "前往 %s" % Store.name_of(Protocol.s(tv.get("to", "")))
+		"eat":
+			return _act_with("吃饭", act)
+		"sleep":
+			return _act_with("睡觉", act)
+		"toilet":
+			return "上厕所"
+		"drink":
+			return "喝水"
+		"fun":
+			return _act_with("娱乐", act)
+		_:
+			return "空闲"
+
+
+func _act_with(prefix: String, act: String) -> String:
+	return prefix + (" · " + act if act != "" else "")
 
 
 # ---------------------------------------------------------------------------
@@ -268,20 +486,29 @@ func _one_line(ev: Dictionary) -> String:
 	var kind := Protocol.s(ev.get("kind", Protocol.s(ev.get("type", ""))))
 	match kind:
 		"decision":
-			var intent := Protocol.s(ev.get("intent", ""))
-			var target := Protocol.s(ev.get("target", ""))
-			return "决定 %s%s" % [intent, (" → %s" % target) if target != "" else ""]
+			return _action_text(Protocol.s(ev.get("intent", "")),
+				Protocol.s(ev.get("target", "")))
 		"perceived":
 			var obs := Protocol.as_array(p.get("observed_entity_ids", []))
 			return "感知 %d 物件" % obs.size()
 		"interaction_done":
-			return "完成 %s" % Protocol.s(p.get("entity", ""))
+			return "完成 · %s" % Store.name_of(Protocol.s(p.get("entity", "")))
+		"interaction_aborted":
+			return "中止 · %s" % Store.name_of(Protocol.s(p.get("entity", "")))
 		"intent_failed":
 			return "未遂：%s" % Protocol.s(p.get("why", ""))
 		"bought":
-			return "购买 %s" % Protocol.s(p.get("item", ""))
+			return "买 %s ×%s" % [Store.name_of(Protocol.s(p.get("item", ""))),
+				str(p.get("qty", 1))]
 		_:
 			return ""
+
+
+## 意图 -> 人话(查不到货物类型时回退到物品名)。
+func _action_text(intent: String, target: String) -> String:
+	var e := Store.entity(target)
+	var itype := Protocol.s(e.get("item_type", "")) if not e.is_empty() else ""
+	return Zh.action_text(intent, Store.name_of(target), itype)
 
 
 func _event_color(kind: String) -> Color:
@@ -298,6 +525,8 @@ func _event_color(kind: String) -> Color:
 			return Color("ffd24d")
 		"interaction_done":
 			return Color("a8b6c8")
+		"interaction_aborted":
+			return Color("c08b6a")
 		"intent_failed", "npc_died":
 			return Color("e05252")
 		"stock_changed":

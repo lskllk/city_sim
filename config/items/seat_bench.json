@@ -1,8 +1,12 @@
 {
-  "item_type": "bench",
+  "item_type": "seat_bench",
   "name": "长椅",
-  "tags": ["social"],
-  "affordances": {"fun": 0.12},
+  "tags": [
+    "social"
+  ],
+  "affordances": {
+    "fun": 0.12
+  },
   "duration_ticks": 45,
   "on_start": [],
   "on_complete": [],

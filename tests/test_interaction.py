@@ -28,8 +28,8 @@ def test_claim_conflict() -> None:
     world, systems, rng_pool = make_runtime(CFG, log=True)
     add_entity(world, "food_1", tags=("edible", "consumable"),
                affordances={"hunger": 0.5}, duration_ticks=10, stock=1)
-    add_npc(world, systems, "npc_a", rng_pool=rng_pool, seed=5, hunger=0.2)
-    add_npc(world, systems, "npc_b", rng_pool=rng_pool, seed=6, hunger=0.2)
+    add_npc(world, systems, "npc_a", rng_pool=rng_pool, seed=5, hunger=0.05)
+    add_npc(world, systems, "npc_b", rng_pool=rng_pool, seed=6, hunger=0.05)
     seed_reviews(world, systems)
     _run(world, systems, rng_pool, 60)
 
@@ -46,7 +46,7 @@ def test_consumable_stock() -> None:
     world, systems, rng_pool = make_runtime(CFG)
     food = add_entity(world, "food_1", tags=("edible", "consumable"),
                       affordances={"hunger": 0.5}, duration_ticks=10, stock=1)
-    npc = add_npc(world, systems, "npc", rng_pool=rng_pool, seed=7, hunger=0.2)
+    npc = add_npc(world, systems, "npc", rng_pool=rng_pool, seed=7, hunger=0.05)
     seed_reviews(world, systems)
     _run(world, systems, rng_pool, 40)
     assert food.stock == 0
@@ -58,14 +58,14 @@ def test_consumable_stock() -> None:
 
 
 def test_sleep_restores_energy() -> None:
-    """精力 0.3 上床 → 睡满时长后精力回满, 交互结束后已醒。"""
+    """精力极低(兜底线以下)上床 → 睡满时长后精力显著回升, 交互结束后已醒。"""
     world, systems, rng_pool = make_runtime(CFG)
     add_entity(world, "bed_1", tags=("sleepable",),
                affordances={"energy": 0.7}, duration_ticks=480)
-    npc = add_npc(world, systems, "npc", rng_pool=rng_pool, seed=8, energy=0.3)
+    npc = add_npc(world, systems, "npc", rng_pool=rng_pool, seed=8, energy=0.05)
     seed_reviews(world, systems)
     _run(world, systems, rng_pool, 520)
-    assert npc.signal("energy") > 0.9            # 睡饱
+    assert npc.signal("energy") > 0.6            # 睡饱(0.05 + 0.7 回升)
     assert not is_asleep(world, systems, "npc")  # 已醒(不在睡眠交互中)
     assert systems.interaction.active.get("npc") is None
 
@@ -74,7 +74,7 @@ def test_interruptible_false_refuses_override() -> None:
     """interruptible=False(床) 进行中 → 拒绝被新意图顶掉, claim 不悬挂。"""
     world = World()
     bed = world.spawn_item_type("bed_basic", "home")
-    toilet = world.spawn_item_type("toilet", "home")
+    toilet = world.spawn_item_type("toilet_basic", "home")
     npc = Person(identity=Identity(person_id="p", name="p"))
     world.npcs["p"] = npc
     bed.claimed_by = "p"

@@ -1,0 +1,8 @@
+{
+  "type": "home_large",
+  "name": "大宅",
+  "kind": "home",
+  "capacity": 12,
+  "pattern": "h",
+  "aspect": 1.2
+}

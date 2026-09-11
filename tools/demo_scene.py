@@ -82,7 +82,6 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
         world.npcs[pid] = p
         world.place_npc(pid, "home")
         rng_pool[pid] = random.Random(seed + i)
-        systems.scheduler.schedule(pid, 1, now=0)
 
     return world, systems, rng_pool, CFG
 
@@ -126,5 +125,4 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
         world.npcs[pid] = p
         world.place_npc(pid, "home")
         rng_pool[pid] = random.Random(seed + i)
-        systems.scheduler.schedule(pid, 1, now=0)
     return world, systems, rng_pool, CFG

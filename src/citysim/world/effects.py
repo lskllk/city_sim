@@ -61,14 +61,16 @@ def _add_pending(world, npc, entity, eff) -> None:
 
 @register("spawn_item")
 def _spawn_item(world, npc, entity, eff) -> None:
-    """在世界按 item_type 生成一件物品(默认 npc 所在 location)。"""
+    """在世界按 item_type 生成 count 件物品(默认 npc 所在 location)。"""
     it = eff.get("item_type")
     if not it:
         return
     defs = load_item_defs()
     if it not in defs:
         return
-    world.spawn_item_type(it, world.loc_of(npc.person_id))
+    count = int(eff.get("count", 1))
+    for _ in range(max(1, count)):
+        world.spawn_item_type(it, world.loc_of(npc.person_id))
 
 
 @register("consume_self")

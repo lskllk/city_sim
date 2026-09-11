@@ -1,0 +1,17 @@
+{
+  "item_type": "food_apple",
+  "name": "苹果",
+  "tags": [
+    "edible",
+    "consumable"
+  ],
+  "affordances": {
+    "hunger": 0.35,
+    "thirst": 0.05
+  },
+  "duration_ticks": 12,
+  "on_start": [],
+  "on_complete": [],
+  "attrs": {},
+  "stock": 1
+}

@@ -13,17 +13,21 @@ src/citysim/
   core/types.py      NPC↔世界数据契约(frozen+slots) + 意图多态 Intent=Idle|MoveTo|Interact|Buy
   core/ids.py        占位(空)
 
-  npc/person.py      Person 纯数据: signals 单一真源(0..1) + apply_metabolism
-  npc/brain.py       decide() 决策纯函数 + circadian/arousal/重评节律
-  npc/knowledge.py   单层知识库 Fact(obs/told 习得) + item_memory 骨架(docs/kb_design.md)
+  npc/person.py      Person 门面: signals 单一真源 + 计划表执行/中断仲裁 + 失败日志
+  npc/brain.py       decide() 兜底 reflex 纯函数(fallback_need 触发; 节律已删)
+  npc/schedule.py    PlanEntry + Schedule(当天 (at_tick, Intent) 脚本)
+  npc/planner.py     LLM 日计划生成器(PlannerInput 纯数据 + 规则模板降级 + 缓存/校验)
 
   world/world.py     World 容器 + Entity + itemdef→Entity(世界唯一事实源)
+  world/buildings.py 建筑类型库(config/buildings) + 面积∝容量 自动布局
+  world/names.py     中文姓名池(config/names) + 生成规则(姓+名, id=拼音)
   world/itemdefs.py  config/items/*.json 校验+加载(ItemDef)
   world/effects.py   副作用 op 表 + apply_effects
   world/interaction.py InteractionSystem: 执行/claim/affordance 推进/消耗/睡眠唤醒
-  world/perception.py 建 Percept + 感知→知识录入
+                       + abort(硬中止)/suspend/resume(reflex 抢占高保真恢复)
+  world/perception.py 建 Percept + 感知→记忆写入
   world/events.py    EventBus 事件→NPC 信箱
-  world/scheduler.py TimingWheel 每 NPC 下次重评调度
+  world/drive.py     执行驱动: 每 tick 所有非旅行 NPC 决策(交互中也跑, 供抢占)
 
   sim/loop.py        run_tick 唯一推进入口 + Travel + 购物成交 + 传闻gossip
   sim/pulses.py      世界侧定时脚本(set_stock/close_forever)
@@ -38,8 +42,10 @@ src/citysim/
 config/
   sim.toml            魔法数字(改数值首选这里)
   items/*.json        物品定义(含副作用 on_start/on_complete)
-  scenes/elm_lane.json 单场景装配: locations/entities/npcs/travel/pulses
-  (无 archetypes/: 出生空白知识, NPC 特质/初始知识走场景或建居民接口)
+  buildings/*.json    建筑类型库(kind/capacity/pattern/aspect)
+  names/names.json    姓名池(姓/名, hanzi+pinyin)
+  scenes/elm_lane.json 单场景装配: locations(只写 type)/entities/npcs/travel/pulses
+  (无 archetypes/: 出生空白记忆, NPC 特质/初始记忆走场景 memory 段或建居民接口)
 
 tests/
   helpers.py          搭最小 world 的辅助(make_runtime/add_npc/add_entity)
@@ -70,9 +76,9 @@ config/scenes/elm_lane.json → gateway/scenarios.py::load_scene → (World+Syst
 run_tick(sim/loop.py):
   1 代谢 person.apply_metabolism + hp
   → 排泄 → 交互 InteractionSystem.step
-  → 到期重评: build_percept(perception) + consolidate_observations(+knowledge)
-              → decide(brain, 查 npc.kb) → Interact/MoveTo/Buy/Idle
-              → 提交给 InteractionSystem.submit / systems.travel / _execute_buy
+  → 决策: build_percept(perception) + perceive(obs→记忆)
+              → decide: 致命 reflex > 计划表 > idle (docs/task006.md)
+              → 仲裁执行: 继续/挂起(suspend)/硬中止(abort)/提交/旅行
   → 每日 KB.decay(knowledge)
 
 观察器(gateway): SimRunner 独占跑 run_tick → snapshot.build_snapshot(纯读 world)

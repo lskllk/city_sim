@@ -45,6 +45,7 @@ class ItemDef:
     attrs: Mapping[str, Any] = field(default_factory=dict)
     stock: int = 1
     price: float = 0.0
+    persist_empty: bool = False   # stock 归 0 不被回收(容器/货架持续存在)
 
 
 def _parse(data: dict) -> ItemDef:
@@ -60,6 +61,7 @@ def _parse(data: dict) -> ItemDef:
         attrs=dict(data.get("attrs", {})),
         stock=int(data.get("stock", 1)),
         price=float(data.get("price", 0.0)),
+        persist_empty=bool(data.get("persist_empty", False)),
     )
 
 

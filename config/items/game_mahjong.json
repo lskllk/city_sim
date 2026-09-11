@@ -1,8 +1,12 @@
 {
-  "item_type": "mahjong",
+  "item_type": "game_mahjong",
   "name": "麻将桌",
-  "tags": ["entertain"],
-  "affordances": {"fun": 0.55},
+  "tags": [
+    "entertain"
+  ],
+  "affordances": {
+    "fun": 0.55
+  },
   "duration_ticks": 90,
   "on_start": [],
   "on_complete": [],

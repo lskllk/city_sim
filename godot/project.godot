@@ -21,11 +21,13 @@ config/icon="res://icon.svg"
 Store="*res://scripts/state/store.gd"
 Commands="*res://scripts/net/commands.gd"
 Net="*res://scripts/net/ws_client.gd"
+Backend="*res://scripts/net/backend.gd"
 
 [display]
 
 window/size/viewport_width=1600
 window/size/viewport_height=900
+window/dpi/allow_hidpi=true
 
 [gui]
 
@@ -35,3 +37,4 @@ theme/custom="res://resources/theme.tres"
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+anti_aliasing/quality/msaa_2d=2

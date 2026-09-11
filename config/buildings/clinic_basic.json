@@ -1,0 +1,8 @@
+{
+  "type": "clinic_basic",
+  "name": "诊所",
+  "kind": "clinic",
+  "capacity": 40,
+  "pattern": "plus",
+  "aspect": 1.1
+}

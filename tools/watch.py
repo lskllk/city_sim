@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
+from citysim.core.types import intent_kind, intent_target  # noqa: E402
 from citysim.npc.person import signals_as_percent  # noqa: E402
 from citysim.sim.loop import run_tick  # noqa: E402
 from demo_scene import build_demo  # noqa: E402
@@ -38,14 +39,16 @@ def _row(world, systems, pid: str) -> str:
         ent = world.entities.get(ai.entity_id)
         act = f"{act}[{ent.name if ent else ai.entity_id}剩{rem}t]"
     it = npc.last_intent
-    li = f"{it.kind}" if it else "?"
-    if it and it.target_id:
-        li += f"({it.target_id})"
-    due = systems.scheduler.next_due(pid)
-    next_t = due if due is None else due - world.clock_tick
+    li = intent_kind(it) if it else "?"
+    tgt = intent_target(it) if it else None
+    if tgt:
+        li += f"({tgt})"
+    trv = systems.travel.get(pid)
+    move = (f"→{trv.to_loc}@{trv.arrive_tick - world.clock_tick}"
+            if trv is not None else "")
     return (f"{npc.name:<4} E:{pct['energy']:>3} H:{pct['hunger']:>3} "
             f"T:{pct['thirst']:>3} B:{pct['bladder']:>3} | {li:<6} {act:<22} "
-            f"重评@{next_t}")
+            f"{move}")
 
 
 def _events_since(lines, from_idx: int):

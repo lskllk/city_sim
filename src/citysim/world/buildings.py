@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import functools
 import json
+import re
 from dataclasses import dataclass
 from math import sqrt
 from pathlib import Path
 
 _DIR = Path(__file__).resolve().parents[3] / "config" / "buildings"
+
+_DOOR_RE = re.compile(r"_(\d+)$")   # 地点 id 末尾序号 → 门牌号
 
 GAP = 0.5          # 单位空间里的街道间隙(相对 sqrt(capacity))
 MARGIN = 24.0      # 画布留边(px)
@@ -105,10 +108,17 @@ def _pack(need: dict[str, dict], w_canvas: float, h_canvas: float) -> dict[str, 
     }
 
 
+def _door_no(loc_id: str) -> str:
+    """地点 id 的序号后缀 → 门牌号(如 apt_001 → "1 号")。无序号则空。"""
+    m = _DOOR_RE.search(loc_id)
+    return f"{int(m.group(1))} 号" if m else ""
+
+
 def build_locations(data: dict) -> dict[str, dict]:
     """scene data → {loc_id: {name, kind, capacity, pattern, x, y, w, h}}。
 
     - location 带已知 `type` → 解出 kind/capacity/pattern, 由自动布局算几何;
+    - 展示名优先级: 显式 `name` > id 序号派生的门牌号 `N 号` > 类型名;
     - location 已带显式 x/y/w/h(向后兼容) → 原样保留;
     - 其余字段透传。
     """
@@ -125,7 +135,7 @@ def build_locations(data: dict) -> dict[str, dict]:
         t = types.get(spec.get("type"))
         if t is not None:
             resolved[loc_id] = {
-                "name": spec.get("name", t.name),
+                "name": spec.get("name") or _door_no(loc_id) or t.name,
                 "kind": t.kind,
                 "capacity": int(spec.get("capacity", t.capacity)),
                 "pattern": t.pattern,

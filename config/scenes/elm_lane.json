@@ -8,12 +8,10 @@
   "tell_p": 0.15,
   "locations": {
     "apt_001": {
-      "type": "home_standard",
-      "name": "王二家"
+      "type": "home_standard"
     },
     "apt_002": {
-      "type": "home_standard",
-      "name": "李四家"
+      "type": "home_standard"
     },
     "plaza_001": {
       "type": "public_plaza",

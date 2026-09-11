@@ -41,3 +41,23 @@ def test_explicit_geometry_kept() -> None:
             "locations": {"room_001": {"name": "X", "x": 1, "y": 2, "w": 3, "h": 4}}}
     out = build_locations(data)
     assert out["room_001"]["x"] == 1 and out["room_001"]["h"] == 4
+
+
+def test_home_name_is_door_no() -> None:
+    w, _s, _r = load_scene()
+    # 住宅无显式 name → 由 id 序号派生门牌号
+    assert w.locations["apt_001"]["name"] == "1 号"
+    assert w.locations["apt_002"]["name"] == "2 号"
+    # 有显式 name 的地点保留语义名
+    assert w.locations["market_001"]["name"] == "大超市"
+    assert w.locations["plaza_001"]["name"] == "街心广场"
+
+
+def test_name_precedence() -> None:
+    data = {"canvas": {"w": 100, "h": 100}, "locations": {
+        "apt_007": {"type": "home_standard"},                # → 7 号
+        "apt_008": {"type": "home_standard", "name": "甲宅"},  # 显式优先
+    }}
+    out = build_locations(data)
+    assert out["apt_007"]["name"] == "7 号"
+    assert out["apt_008"]["name"] == "甲宅"

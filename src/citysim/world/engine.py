@@ -171,6 +171,13 @@ def _apply(world, systems, cfg, pid, npc, decision) -> None:
         here = world.loc_of(pid)
         if dest == here:
             return
+        ok, why = world.entry_check(dest, pid)
+        if not ok:                               # 无权/已满: 不出发, 记一次失败
+            world.bus.publish(world.bus.make(
+                world.clock_tick, "intent_failed", pid,
+                {"target": dest, "why": why}))
+            npc.on_failure(dest, why, world.clock_tick)
+            return
         cost = _travel_cost(systems, cfg, here, dest)
         systems.travel[pid] = Travel(
             from_loc=here, to_loc=dest,
@@ -230,7 +237,16 @@ def tick(world, systems, cfg: SimConfig) -> None:
         trv = systems.travel[pid]
         if world.clock_tick >= trv.arrive_tick:
             systems.travel.pop(pid)
-            world.place_npc(pid, trv.to_loc)
+            ok, why = world.entry_check(trv.to_loc, pid)   # 到达时再验(可能满)
+            if ok:
+                world.place_npc(pid, trv.to_loc)
+            else:
+                world.bus.publish(world.bus.make(
+                    world.clock_tick, "entry_denied", pid,
+                    {"loc": trv.to_loc, "why": why}))
+                npc = world.npcs.get(pid)
+                if npc is not None:
+                    npc.on_failure(trv.to_loc, why, world.clock_tick)
 
     # 5b. 决策: 先对全部该决策者算 Decision(同一世界快照), 再统一仲裁执行
     #     仲裁 = 继续/挂起/中止/提交; 见 docs/task006.md。

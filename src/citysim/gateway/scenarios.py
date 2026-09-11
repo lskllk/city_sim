@@ -115,6 +115,13 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
         world.npcs[pid] = p
         rng_pool[pid] = random.Random(seed * 100 + idx)
 
+    # ---- 住所归属: NPC.home → 建筑 owner/open_to, 再封口 public ----
+    # 场景未显式写 owner 时, 首个住进该房的人成为户主, 其余入 open_to。
+    for pid, p in world.npcs.items():
+        if p.home:
+            world.bind_home(pid, p.home)
+    world.resolve_access()
+
     # ---- 固定日计划(演示/观察): 有 plans 段就用 ScriptedPlanner 替换模板 ----
     plans = data.get("plans", {})
     if plans:

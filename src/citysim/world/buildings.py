@@ -134,12 +134,19 @@ def build_locations(data: dict) -> dict[str, dict]:
             continue
         t = types.get(spec.get("type"))
         if t is not None:
+            owner = str(spec.get("owner", ""))
+            open_to = [str(x) for x in (spec.get("open_to") or [])]
             resolved[loc_id] = {
                 "name": spec.get("name") or _door_no(loc_id) or t.name,
                 "kind": t.kind,
                 "capacity": int(spec.get("capacity", t.capacity)),
                 "pattern": t.pattern,
                 "aspect": float(spec.get("aspect", t.aspect)),
+                # 进入权限: owner=户主, open_to=额外允许的 npc id; public 未指定(None)
+                # 时由 World.resolve_access() 根据“有无 owner”封口。
+                "owner": owner,
+                "open_to": open_to,
+                "public": spec.get("public"),
             }
         else:
             resolved[loc_id] = dict(spec)

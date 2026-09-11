@@ -69,7 +69,25 @@
 
 产出写回 `world.locations`，随 `hello` 下发给前端。
 
-## 5. 渲染层次
+## 5. 进入权限（access）
+
+建筑不只是方块，还带**准入门槛**（数据在 `world.locations`，随 `hello` 下发）：
+
+| 字段 | 含义 |
+|---|---|
+| `owner` | 户主 npc_id（`""`=无主） |
+| `open_to` | 除户主外额外允许进入的 npc id 列表（同住人/访客） |
+| `public` | `true`=公共场所；未显式写时由 `World.resolve_access()` 封口：有主/有名单=私人，否则公共 |
+| `capacity` | 人数上限（同视觉容量），满则进不去 |
+
+- **归属来源**：场景不重复写 owner —— `load_scene` 把每个 NPC 的 `home` 登记进建筑：
+  首个住客为户主，其余进 `open_to`（见 `World.bind_home`）。
+- **拦截点**（`world/engine.py`）：
+  - `MoveTo` 提交时：`World.entry_check` 不过 → 不出发，发 `intent_failed`；
+  - 旅行到达时：再验一次（途中可能满）→ 不过则发 `entry_denied`，人留在原地。
+- 右栏：点建筑显示「进入权限」（公共 / 户主名）；点 NPC 显示「住址」（无则 `-`）。
+
+## 6. 渲染层次
 
 ```
 ┌───────────────────────────────┐
@@ -81,7 +99,7 @@
 - **点建筑** → Inspector 列出「人员 + 物件清单」。
 - **选中环**（overlay）: 绿=NPC 当前所在, 橙=意图目标, 蓝=点选焦点。
 
-## 6. 扩展点
+## 7. 扩展点
 
 - 新类别：加 `config/buildings/<type>.json` + `map_layer._kind_color` 一个分支。
 - 容量上限将来可作世界规则（拥挤/排队），现在只作视觉。

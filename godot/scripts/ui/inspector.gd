@@ -147,6 +147,7 @@ func _build_npc(n: Dictionary) -> void:
 	# --- 当前行为 ---
 	var act_body := _section("当前行为")
 	_add_kv(act_body, "正在做", _activity_text(n))
+	_add_kv(act_body, "住址", _home_text(n))
 	_add_kv(act_body, "金钱", "¥%d" % int(Protocol.num(n.get("money"))))
 	var active := Protocol.as_dict(n.get("active", {}))
 	if not active.is_empty():
@@ -243,6 +244,12 @@ func _build_location(id: String) -> void:
 			Zh.kind_zh(Protocol.s(room.get("kind", ""))),
 			people.size(), cap, items.size()])
 
+	# 权限: 公共场所="公共"; 私人住所="户主名(及同住人)"
+	var acc_body := _section("权限")
+	_add_kv(acc_body, "进入权限", _access_text(room))
+	if not bool(room.get("public", true)):
+		_add_kv(acc_body, "容量", "%d 人" % cap)
+
 	# 人员(表头 + 可点行)
 	var pbody := _section("人员 %d" % people.size())
 	_add_cols_row(pbody, ["姓名", "年龄", "角色"], null, true)
@@ -312,6 +319,29 @@ func _item_name(e: Dictionary, fallback: String) -> String:
 	return Protocol.s(e.get("name", fallback), fallback)
 
 
+## NPC 住址(无 → "-")。
+func _home_text(n: Dictionary) -> String:
+	var home := Protocol.s(n.get("home", ""))
+	return Store.name_of(home) if home != "" else "-"
+
+
+## 建筑进入权限: 公共 / 户主(及同住人)名。
+func _access_text(room: Dictionary) -> String:
+	var owner := Protocol.s(room.get("owner", ""))
+	var open_to := Protocol.as_array(room.get("open_to", []))
+	var pub: Variant = room.get("public", null)
+	if pub == null:
+		pub = owner == "" and open_to.is_empty()
+	if bool(pub):
+		return "公共"
+	var names := PackedStringArray()
+	if owner != "":
+		names.append(Store.name_of(owner))
+	for x in open_to:
+		var nm := Store.name_of(Protocol.s(x))
+		if nm != "" and not names.has(nm):
+			names.append(nm)
+	return "、".join(names) if not names.is_empty() else "受限"
 func _qty_txt(e: Dictionary) -> String:
 	var s := int(Protocol.num(e.get("stock"), -1.0))
 	return "∞" if s < 0 else str(s)

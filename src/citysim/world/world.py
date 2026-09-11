@@ -152,6 +152,58 @@ class World:
         return [e for e in self.entities.values()
                 if e.location_id == location_id]
 
+    # --- 建筑进入权限(owner/open_to/capacity) --------------------------
+    def occupants(self, location_id: str) -> int:
+        """当前在该 region 内的 NPC 数(旅行中尚未落地的不算)。"""
+        return sum(1 for pid in self.npcs
+                   if self._npc_region.get(pid) == location_id)
+
+    def bind_home(self, npc_id: str, home: str) -> None:
+        """把 NPC 的住所登记到建筑: 首个为户主, 其余进 open_to。"""
+        r = self.locations.get(home)
+        if r is None:
+            return
+        owner = str(r.get("owner", ""))
+        if owner == "":
+            r["owner"] = npc_id
+        elif owner != npc_id:
+            extra = list(r.get("open_to") or [])
+            if npc_id not in extra:
+                extra.append(npc_id)
+            r["open_to"] = extra
+
+    def resolve_access(self) -> None:
+        """未显式指定 public 的地点: 有主/有名单=私人, 否则公共。"""
+        for r in self.locations.values():
+            if r.get("public") is None:
+                r["public"] = not (r.get("owner") or r.get("open_to"))
+
+    def is_public(self, r: dict) -> bool:
+        """建筑是否公共(未 resolve 时按 owner/open_to 判定)。"""
+        p = r.get("public")
+        if p is not None:
+            return bool(p)
+        return not (r.get("owner") or r.get("open_to"))
+
+    def allowed_in(self, r: dict, npc_id: str) -> bool:
+        if self.is_public(r):
+            return True
+        if npc_id == r.get("owner", ""):
+            return True
+        return npc_id in (r.get("open_to") or [])
+
+    def entry_check(self, location_id: str, npc_id: str) -> tuple[bool, str]:
+        """可否进入某建筑 → (ok, 失败原因)。未注册 region 不设限。"""
+        r = self.locations.get(location_id)
+        if r is None:
+            return True, ""
+        if not self.allowed_in(r, npc_id):
+            return False, "无权进入"
+        cap = int(r.get("capacity", 0) or 0)
+        if cap > 0 and self.occupants(location_id) >= cap:
+            return False, "已满"
+        return True, ""
+
     # --- TASK001 空间 helper ------------------------------------------
     def region_rect(self, location_id: str) -> dict | None:
         return self.locations.get(location_id)

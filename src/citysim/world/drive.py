@@ -3,7 +3,7 @@
 接缝(stub): 计划表系统落地前的占位。当前规则: **所有非旅行 NPC** 每 tick 决策。
 - 交互中的 NPC **也纳入**(否则无法被 reflex 抢占 / 被计划截止推进)。
 - 旅行中的 NPC 不纳入(在途不打断, 到站再评估)。
-- 忙/空闲由 Person.decide 内部仲裁(见 docs/task006.md): reflex > 计划 > idle。
+- 忙/空闲由 Person.decide 内部仲裁: reflex > 计划 > idle。
 
 TODO(schedule): 计划表系统成熟后, 由 plan 决定谁在何时被推动执行。
 """

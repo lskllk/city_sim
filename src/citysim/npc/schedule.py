@@ -1,6 +1,6 @@
 """schedule —— 计划表(当天有序 Intent 脚本)。纯数据/纯逻辑, 不 import world。
 
-模型见 docs/task006.md: 计划 = [(at_tick, Intent)] 有序序列。
+模型: 计划 = [(at_tick, Intent)] 有序序列。
 - current  = 第一条未结束(pending/active)的条目。
 - deadline = 下一条的 at_tick(当前条目的硬中止时刻)。
 - 同刻多条按列表原顺序保留(sorted 稳定), 串行执行。

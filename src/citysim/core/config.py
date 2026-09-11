@@ -19,7 +19,7 @@ SIGNALS: tuple[str, ...] = (
 )
 
 # 兜底 reflex 只覆盏"致命/强生理"信号; fun 等非致命需求交给计划(LLM)。
-# 见 docs/task006.md 与 2026-09-11 讨论。
+# 见 2026-09-11 讨论（计划表 + 中断系统）。
 REFLEX_SIGNALS: tuple[str, ...] = ("energy", "hunger", "thirst", "bladder")
 
 

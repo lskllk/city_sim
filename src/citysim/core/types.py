@@ -98,7 +98,7 @@ Intent = Idle | MoveTo | Interact | Buy
 class Decision:
     """Person 的一次决策(供 engine 仲裁): intent + 来源。
 
-    source 决定抢占语义(见 docs/task006.md):
+    source 决定抢占语义:
       "reflex" → 软挂起当前交互(reflex 完后恢复)
       "plan"   → 硬中止当前交互(触发 on_complete, 不恢复)
       "idle"   → 无事可做

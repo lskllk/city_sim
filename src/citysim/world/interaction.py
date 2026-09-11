@@ -143,7 +143,7 @@ class InteractionSystem:
         """自然完成 / 硬中止共用收尾: 消耗 + on_complete + 事件 + 回收。
 
         区别: 自然完成额外通知 Person(on_interaction_done) 推进计划; 中止不发。
-        两者都触发 on_complete(被打断也要触发, 见 docs/task006.md)。
+        两者都触发 on_complete(被打断也要触发)。
         """
         npc = world.npcs[pid]
         self._release(world, pid, cancel=False)

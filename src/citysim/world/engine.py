@@ -155,7 +155,7 @@ def _preempt(world, systems, pid, source) -> None:
 
 
 def _apply(world, systems, cfg, pid, npc, decision) -> None:
-    """执行一条 Decision: 继续(同目标)/挂起/中止/提交。见 docs/task006.md。"""
+    """执行一条 Decision: 继续(同目标)/挂起/中止/提交。"""
     intent = decision.intent
     active = systems.interaction.active.get(pid)
 
@@ -249,7 +249,7 @@ def tick(world, systems, cfg: SimConfig) -> None:
                     npc.on_failure(trv.to_loc, why, world.clock_tick)
 
     # 5b. 决策: 先对全部该决策者算 Decision(同一世界快照), 再统一仲裁执行
-    #     仲裁 = 继续/挂起/中止/提交; 见 docs/task006.md。
+    #     仲裁 = 继续/挂起/中止/提交。
     due = due_npcs(world, systems)
     decisions: list[tuple[str, Any, Any]] = []
     for npc_id in due:

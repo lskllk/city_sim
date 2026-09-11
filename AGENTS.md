@@ -77,7 +77,7 @@ run_tick(sim/loop.py):
   1 代谢 person.apply_metabolism + hp
   → 排泄 → 交互 InteractionSystem.step
   → 决策: build_percept(perception) + perceive(obs→记忆)
-              → decide: 致命 reflex > 计划表 > idle (docs/task006.md)
+              → decide: 致命 reflex > 计划表 > idle
               → 仲裁执行: 继续/挂起(suspend)/硬中止(abort)/提交/旅行
   → 每日 KB.decay(knowledge)
 

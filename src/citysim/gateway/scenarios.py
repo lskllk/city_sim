@@ -156,7 +156,7 @@ def build_scenario(scenario: str | None = None, seed: int = 3,
                    n_npc: int | None = None,
                    tell_p: float | None = None):
     # 场景来源优先级: 显式文件路径 > 环境变量 CITYSIM_SCENE > 内置默认场景。
-    # 路径既可为绝对路径, 也可相对仓库根(如 godot_editor/scene.json)。
+    # 路径既可为绝对路径, 也可相对仓库根(如 godot/scene.json)。
     path = _resolve_scene_path(str(scenario)) if scenario else None
     if path is None:
         env = os.environ.get("CITYSIM_SCENE", "").strip()

@@ -41,31 +41,28 @@ python tools/watch.py --npc 6 --ticks 2400 --period 240
 python tools/watch.py --1x          # 真实节拍 2 tick/s
 ```
 
-### 2) Observatory 浏览器前端(React + Pixi)
+### 2) Godot 观察器 / 编辑器
 
-后端只做 WS 推流端点(纯数据), UI 由独立 `frontend/` 提供:
+后端只做 WS 推流端点(纯数据), UI 是 `godot/` 这一个 Godot 项目里的两个场景:
 
-```bash
-# 一键(自动起后端+前端, 详见下)
-bash dev.sh          # Git-Bash / Linux / macOS
-双击 dev.cmd          # Windows cmd
-```
-
-分步手动起:
+- 观察器: `scenes/main.tscn`(连 `/ws`, 渲染世界 + Inspector)
+- 编辑器: `scenes/editor/editor.tscn`(画路网/摆建筑/放人物物件, 导出场景 JSON)
 
 ```bash
-# 终端 A: 起后端
+# 一键(见 run.cmd)
+run.cmd              # 后端 + 观察器
+run.cmd editor       # 只打开编辑器(不启动后端)
+run.cmd backend      # 只起后端
+
+# 或手动:
 python -m uvicorn citysim.gateway.server:app --port 8765
-
-# 终端 B: 起前端(dev, 自动代理 /ws 到 8765)
-cd frontend && npm install && npm run dev
-# 浏览器打开 http://localhost:5173
+"D:/Godot_v4.7.2-stable_win64.exe" --path godot
+"D:/Godot_v4.7.2-stable_win64.exe" --path godot res://scenes/editor/editor.tscn
 ```
 
-后端启动即暂停；点击 NPC / 地点 / 物品查看其行为、Why、知识、感知与事件。
-退出：`dev.sh` 按 Ctrl+C 会同时停前后端；`dev.cmd` 关掉弹出的两个窗口即可。
-日志在 `.logs/`。可用环境变量改端口：`BE_PORT` / `FE_PORT`；
-如不想自动释放旧进程占用端口：`KILL_STALE=0 bash dev.sh`。
+Godot 观察器启动时会自己拉起后端(见 `godot/scripts/net/backend.gd`), 端口已在监听则跳过；
+退出时收掉自己拉起的进程。后端启动即暂停；点建筑 → 右侧选人 / 看物件。
+编辑器导出场景后, 用环境变量让观察器加载它: `set CITYSIM_SCENE=godot\samples\scene.json`。
 
 ### 3) 叙事 / 压力工具(可选)
 

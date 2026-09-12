@@ -3,7 +3,7 @@ rem ============================================================
 rem  Start only the citysim backend (WS :8765) for the Godot observer.
 rem  Override port:  set BE_PORT=xxxx
 rem  Load an editor-exported scene:
-rem      set CITYSIM_SCENE=..\godot_editor\scene.json
+rem      set CITYSIM_SCENE=..\scene.json
 rem  Ctrl+C to stop.
 rem ============================================================
 cd /d "%~dp0.."

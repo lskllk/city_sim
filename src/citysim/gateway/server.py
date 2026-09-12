@@ -31,7 +31,7 @@ PUSH_HZ = 60
 _ROOT = Path(__file__).resolve().parents[3]
 
 # TASK004-ext: legacy gateway/static 观察器已删除; server 只作 WS 推流端点。
-# UI 由独立 frontend/ 提供(vite dev/preview)。
+# UI 由独立 Godot 观察器 godot/ 提供(见 godot/README.md)。
 
 
 def _real_tps(speed: str) -> int:
@@ -167,6 +167,6 @@ async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
 
 @app.get("/")
 async def _root() -> dict:
-    """健康探针; 观察器 UI 由独立 frontend 提供(vite dev/preview, 连接 /ws)。"""
+    """健康探针; 观察器 UI 由独立 Godot 项目 godot/ 提供(连接 /ws)。"""
     return {"service": "citysim", "status": "ok",
-            "ws": "/ws", "observer": "run frontend/ (npm run dev)"}
+            "ws": "/ws", "observer": "run godot/ (Godot Editor)"}

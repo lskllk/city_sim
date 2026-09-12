@@ -24,10 +24,6 @@ const AREA_PER_CAPACITY := 20.0   # 1 capacity ≈ 20 m²(面积∝容量的起�
 # 进出口(资产逻辑定义): 观察器/后端 config/buildings/*.json 的 doors 段。
 # 缺省南面; 编辑器在摆放时按主门自动朝向最近道路。
 const DOOR_DEFAULT := {"side": "south", "offset": 0.0}
-const SIDE_NORMAL := {
-	"north": Vector2(0, -1), "south": Vector2(0, 1),
-	"east": Vector2(1, 0), "west": Vector2(-1, 0),
-}
 const ROAD_SNAP_M := 3.0          # 画路点击吸附到既有道路的距离(米)
 
 var bounds := Rect2(0.0, 0.0, 800.0, 600.0)
@@ -60,22 +56,8 @@ func _type_doors(type_id: String) -> Array:
 
 ## 门定义(side/offset) + 建筑尺寸 → 局部(未旋转)门点与朝外法线。
 func door_local(b: Dictionary, d: Dictionary) -> Dictionary:
-	var s: Vector2 = b["size"]
-	var off := float(d.get("offset", 0.0))
-	match String(d.get("side", "south")):
-		"north":
-			return {"pos": Vector2(s.x * off, -s.y * 0.5), "normal": Vector2(0, -1)}
-		"east":
-			return {"pos": Vector2(s.x * 0.5, s.y * off), "normal": Vector2(1, 0)}
-		"west":
-			return {"pos": Vector2(-s.x * 0.5, s.y * off), "normal": Vector2(-1, 0)}
-		_:
-			return {"pos": Vector2(s.x * off, s.y * 0.5), "normal": Vector2(0, 1)}
-
-
-func _rot_vec(v: Vector2, deg: float) -> Vector2:
-	var a := deg_to_rad(deg)
-	return Vector2(v.x * cos(a) - v.y * sin(a), v.x * sin(a) + v.y * cos(a))
+	return BuildingGeom.door_local(
+		b["size"], String(d.get("side", "south")), float(d.get("offset", 0.0)))
 
 
 ## 建筑所有门的【世界】门点+法线(导出/渲染共用)。
@@ -85,8 +67,8 @@ func door_worlds(b: Dictionary) -> Array:
 	for d in _type_doors(String(b["type"])):
 		var ld: Dictionary = door_local(b, d)
 		out.append({
-			"pos": (b["center"] as Vector2) + _rot_vec(ld["pos"], rot),
-			"normal": _rot_vec(ld["normal"], rot),
+			"pos": (b["center"] as Vector2) + BuildingGeom.rotate_vec(ld["pos"], rot),
+			"normal": BuildingGeom.rotate_vec(ld["normal"], rot),
 		})
 	return out
 
@@ -143,7 +125,7 @@ func align_to_road(b: Dictionary, hint: Vector2) -> bool:
 	var theta := atan2(-n.y, -n.x) - atan2(local_n.y, local_n.x)
 	b["rot"] = rad_to_deg(theta)
 	# 门点贴路沿: center = 路沿 - R*local_door
-	var rvec := _rot_vec(ld["pos"], float(b["rot"]))
+	var rvec := BuildingGeom.rotate_vec(ld["pos"], float(b["rot"]))
 	var curb := (road["point"] as Vector2) + n * (float(road["width"]) * 0.5)
 	b["center"] = curb - rvec
 	_sync_doors(b)
@@ -636,50 +618,18 @@ func error_count(level: String = "") -> int:
 
 # --- 几何 helper ---------------------------------------------------------
 func obb_corners(b: Dictionary) -> Array:
-	var c: Vector2 = b["center"]
-	var s: Vector2 = b["size"]
-	var a := deg_to_rad(float(b.get("rot", 0.0)))
-	var ux := Vector2(cos(a), sin(a))
-	var uy := Vector2(-sin(a), cos(a))
-	var hx := ux * (s.x * 0.5)
-	var hy := uy * (s.y * 0.5)
-	return [c + hx + hy, c - hx + hy, c - hx - hy, c + hx - hy]
+	return BuildingGeom.obb_corners(b["center"], b["size"], float(b.get("rot", 0.0)))
 
 
 func point_in_building(b: Dictionary, p: Vector2) -> bool:
-	var d := p - (b["center"] as Vector2)
-	var a := -deg_to_rad(float(b.get("rot", 0.0)))
-	var lx := d.x * cos(a) - d.y * sin(a)
-	var ly := d.x * sin(a) + d.y * cos(a)
-	var s: Vector2 = b["size"]
-	return absf(lx) <= s.x * 0.5 and absf(ly) <= s.y * 0.5
+	return BuildingGeom.point_in_obb(
+		b["center"], b["size"], float(b.get("rot", 0.0)), p)
 
 
 func obb_overlap(a: Dictionary, b: Dictionary) -> bool:
-	var pa := obb_corners(a)
-	var pb := obb_corners(b)
-	var axes: Array = []
-	for poly in [pa, pb]:
-		for i in 4:
-			var e: Vector2 = poly[(i + 1) % 4] - poly[i]
-			if e.length() > 0.0001:
-				axes.append(Vector2(-e.y, e.x).normalized())
-	for ax in axes:
-		var amin := INF
-		var amax := -INF
-		var bmin := INF
-		var bmax := -INF
-		for p in pa:
-			var d: float = p.dot(ax)
-			amin = minf(amin, d)
-			amax = maxf(amax, d)
-		for p in pb:
-			var d: float = p.dot(ax)
-			bmin = minf(bmin, d)
-			bmax = maxf(bmax, d)
-		if amax < bmin or bmax < amin:
-			return false
-	return true
+	return BuildingGeom.obb_overlap(
+		a["center"], a["size"], float(a.get("rot", 0.0)),
+		b["center"], b["size"], float(b.get("rot", 0.0)))
 
 
 # --- 序列化 --------------------------------------------------------------

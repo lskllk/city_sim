@@ -2,12 +2,12 @@
 #
 # 渲染按【编辑器 MapView 的思路】: 道路(含圆角接头) → 建筑(支持 rot 的 OBB,
 # 底色/徽记/名称/占用角标) → 进出口 → 人物标记 → 物件角标。
-# 建筑/道路的样式与绘制都走观察器自己的 building_style.gd(唯一权威, 编辑器也加载它)。
+# 建筑/道路的样式与绘制都走观察器自己的 building_style.gd(唯一权威, 编辑器项目内也直接用)。
 # 编辑器未导出 map 段时(如内置 elm_lane), 回退到按 locations 矩形绘制。
 class_name MapLabels
 extends Control
 
-const BuildingStyle := preload("res://scripts/render/building_style.gd")
+const BuildingStyle := preload("res://scripts/shared/building_style.gd")
 
 const BG := BuildingStyle.BG
 const C_NPC_M := Color("4aa3ff")     # 男性
@@ -84,17 +84,9 @@ func _draw_map_building(font: Font, id: String, occ: Dictionary) -> void:
 		return
 	var c := _pt(b.get("center", [0, 0]))
 	var s := _pt(b.get("size", [1, 1]))
-	var a := deg_to_rad(Protocol.num(b.get("rot"), 0.0))
-	var ux := Vector2(cos(a), sin(a))
-	var uy := Vector2(-sin(a), cos(a))
-	var hx := ux * s.x * 0.5
-	var hy := uy * s.y * 0.5
-	var pts := PackedVector2Array([
-		camera.world_to_screen(c + hx + hy),
-		camera.world_to_screen(c - hx + hy),
-		camera.world_to_screen(c - hx - hy),
-		camera.world_to_screen(c + hx - hy),
-	])
+	var pts := PackedVector2Array()
+	for corner in BuildingGeom.obb_corners(c, s, Protocol.num(b.get("rot"), 0.0)):
+		pts.append(camera.world_to_screen(corner))
 	var rect := _aabb(pts)
 	if rect.size.x < 6.0 or rect.size.y < 6.0:
 		return
@@ -174,7 +166,7 @@ func _draw_npc_markers(font: Font) -> void:
 		for i in ids.size():
 			var pid := String(ids[i])
 			var n := Store.npc(pid)
-			var pos := base_pos + Vector2((i - (ids.size() - 1) * 0.5) * 18.0, -16.0)
+			var pos := BuildingGeom.npc_marker_pos(base_pos, i, ids.size(), 18.0, 16.0)
 			var col: Color = C_NPC_F if Protocol.s(n.get("gender", "")) == "female" \
 				else C_NPC_M
 			draw_circle(pos, 7.0, col)
@@ -194,7 +186,7 @@ func _draw_item_badges(font: Font) -> void:
 		var rect := _building_screen_rect(String(loc))
 		if rect.size == Vector2.ZERO:
 			continue
-		var badge := Rect2(rect.position + Vector2(2, 2), Vector2(34, 16))
+		var badge := BuildingGeom.item_badge_rect(rect.position)
 		draw_rect(badge, Color(C_ITEM.r, C_ITEM.g, C_ITEM.b, 0.92), true)
 		draw_rect(badge, Color(1, 1, 1, 0.35), false, 1.0)
 		draw_string(font, badge.position + Vector2(4, 12), "物 %d" % int(counts[loc]),
@@ -278,16 +270,10 @@ func _building_screen_rect(id: String) -> Rect2:
 	if not b.is_empty():
 		var c := _pt(b.get("center", [0, 0]))
 		var s := _pt(b.get("size", [1, 1]))
-		var a := deg_to_rad(Protocol.num(b.get("rot"), 0.0))
-		var ux := Vector2(cos(a), sin(a))
-		var uy := Vector2(-sin(a), cos(a))
-		var hx := ux * s.x * 0.5
-		var hy := uy * s.y * 0.5
-		return _aabb(PackedVector2Array([
-			camera.world_to_screen(c + hx + hy),
-			camera.world_to_screen(c - hx + hy),
-			camera.world_to_screen(c - hx - hy),
-			camera.world_to_screen(c + hx - hy)]))
+		var pts := PackedVector2Array()
+		for corner in BuildingGeom.obb_corners(c, s, Protocol.num(b.get("rot"), 0.0)):
+			pts.append(camera.world_to_screen(corner))
+		return _aabb(pts)
 	var r := Store.room(id)
 	if r.is_empty():
 		return Rect2()

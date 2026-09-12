@@ -1,6 +1,8 @@
 extends Control
 
-const MV := preload("res://scripts/map_view.gd")
+const MV := preload("res://scripts/editor/map_view.gd")
+## 同项目引用观察器资产样式(建筑底色/徽记): 唯一权威, 不再走 AssetStyle 桥。
+const BuildingStyle := preload("res://scripts/shared/building_style.gd")
 ## main.gd —— 编辑器外壳: 菜单 / 画布 / 右侧(工具+资产+检查器)。
 ##
 ## 交互(对齐观察器 Inspector 的信息架构):
@@ -19,6 +21,7 @@ var _base_page: VBoxContainer
 var _detail_page: VBoxContainer
 var _inspector: VBoxContainer
 var _grid_spin: SpinBox
+var _del_selected_btn: Button
 var _tool_btns: Array[Button] = []
 var _type_keys: Array = []
 var _item_type_keys: Array = []
@@ -122,6 +125,13 @@ func _build_right_panel() -> VBoxContainer:
 		tools.add_child(b)
 	_base_page.add_child(tools)
 
+	_base_page.add_child(_header("选中"))
+	_del_selected_btn = Button.new()
+	_del_selected_btn.text = "删除选中 (Del)"
+	_del_selected_btn.disabled = true
+	_del_selected_btn.pressed.connect(func() -> void: _view.delete_selected())
+	_base_page.add_child(_del_selected_btn)
+
 	_base_page.add_child(_header("资产 · Building"))
 	_palette = ItemList.new()
 	_palette.custom_minimum_size.y = 140
@@ -198,7 +208,7 @@ func _fill_palette() -> void:
 		var t: Dictionary = MapDoc.building_types[k]
 		_palette.add_item("%s  (%s · cap%s)" % [
 			String(t.get("name", k)), k, str(t.get("capacity", "?"))])
-		_palette.set_item_custom_fg_color(i, AssetStyle.kind_color(String(t.get("kind", ""))))
+		_palette.set_item_custom_fg_color(i, BuildingStyle.kind_color(String(t.get("kind", ""))))
 
 
 func _on_pick_type(index: int) -> void:
@@ -235,6 +245,8 @@ func _on_selection_changed() -> void:
 				_context_building = a
 			detail = MapDoc.items.has(_view.sel_id)
 	_show_page(detail)
+	if _del_selected_btn != null:
+		_del_selected_btn.disabled = not (_view.sel_kind in ["node", "edge"])
 
 
 func _clear_inspector() -> void:
@@ -321,9 +333,16 @@ func _build_building(bid: String) -> void:
 	title.add_theme_font_size_override("font_size", 16)
 	_inspector.add_child(title)
 	var sub := Label.new()
-	sub.text = "%s · %d 人 · %d 物件" % [AssetStyle.kind_zh(kind), people.size(), items.size()]
+	sub.text = "%s · %d 人 · %d 物件" % [Zh.kind_zh(kind), people.size(), items.size()]
 	sub.add_theme_color_override("font_color", MUTED)
 	_inspector.add_child(sub)
+
+	var del_b := Button.new()
+	del_b.text = "删除建筑"
+	del_b.pressed.connect(func() -> void:
+		MapDoc.remove_building(bid)
+		_view.clear_selection())
+	_inspector.add_child(del_b)
 
 	# 名称
 	var nsec := _section("基本")
@@ -374,7 +393,7 @@ func _build_building(bid: String) -> void:
 			var n: Dictionary = MapDoc.npcs[pid]
 			psec.add_child(_row_button("%s    %d    %s" % [
 				String(n.get("name", pid)), MapDoc.age_of(n),
-				AssetStyle.role_zh(String(n.get("role", "")))],
+				Zh.role_zh(String(n.get("role", "")))],
 				func() -> void: _view.select("npc", String(pid))))
 	_inspector.add_child(psec)
 
@@ -446,7 +465,7 @@ func _build_person(pid: String) -> void:
 	basic.add_child(_lrow("年龄", _f_age))
 	_f_role = OptionButton.new()
 	for r in MapDoc.ROLES:
-		_f_role.add_item(AssetStyle.role_zh(r))
+		_f_role.add_item(Zh.role_zh(r))
 	_f_role.selected = maxi(0, MapDoc.ROLES.find(String(n.get("role", ""))))
 	basic.add_child(_lrow("角色", _f_role))
 	_f_money = _spin(0, 1000000, 10)
@@ -712,7 +731,3 @@ func _notification(what: int) -> void:
 		_item_type_keys = MapDoc.item_types.keys()
 		_item_type_keys.sort()
 		_update_tool_buttons()
-		if not AssetStyle.available():
-			_refresh_status("警告: 未找到观察器资产样式, 底色退化为中性灰")
-		else:
-			_refresh_status("资产样式来自观察器: %s" % AssetStyle.source_path())

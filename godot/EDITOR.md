@@ -1,16 +1,16 @@
 # CitySim Editor（世界编辑器：路网/建筑/人物/物件）
 
-独立 Godot 项目，**PCB-layout 风格**的手动制图工具：连路 + 摆建筑 + 放人物/物件。
+观察器 Godot 项目（`godot/`）内的编辑器场景，**PCB-layout 风格**的手动制图工具：连路 + 摆建筑 + 放人物/物件。
 **只做作者态，不参与 simulation**；导出**场景 JSON**后交给后端 / 观察器加载。
 
-渲染（建筑底色/徽记/名称）不自己维护，运行时加载观察器项目
-`godot/scripts/render/building_style.gd`（唯一权威），见 `scripts/building_style_loader.gd`。
+渲染（建筑底色/徽记/名称/道路/门）不自己维护，与观察器共用
+`scripts/shared/building_style.gd`（唯一权威）；同一项目内直接 `preload`，不再有 AssetStyle 桥。
 
 ## 运行
 
 ```bash
-"D:/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path godot_editor
-# 或用 Godot 编辑器打开 godot_editor/project.godot
+"D:/Godot_v4.7.2-stable_win64.exe" --path godot res://scenes/editor/editor.tscn
+# 或在 Godot 编辑器打开 godot/project.godot 后运行 scenes/editor/editor.tscn
 ```
 
 ## 界面
@@ -43,7 +43,7 @@
 - **详情页**：人物（姓名/性别/年龄/角色/资金/性格/特质 + 保存/重滚/删除）、
   物件（库存/售价/归属 + 保存/删除）；「‹ 建筑」返回到建筑详情。
 - **返回建筑/道路模式**：详情页顶部「‹ 返回 (建筑/道路)」，或点画布空白处 / 未选中。
-- **选择/移动**：切「选择」→ 点建筑/节点/NPC 标记；`Delete` 删除。
+- **选择/移动**：切「选择」→ 点建筑/节点/NPC 标记；`Delete`/`Backspace` 删除（也可用右侧「删除选中 / 删除建筑」按钮）。
 - **导入/导出**：菜单 `文件 → 导入地图…/导出地图…/导出场景…`。
   - `导出地图…` = `citysim.map`（路网+建筑，nav 用）；
   - `导出场景…` = 后端 `config/scenes` 格式（含 locations/npcs/entities），交给观察器。
@@ -64,7 +64,7 @@ map:       原始路网（供后续观察器画路）
 让观察器加载它（后端环境变量）：
 
 ```bash
-set CITYSIM_SCENE=godot_editor\scene.json
+set CITYSIM_SCENE=godot\samples\scene.json
 python -m uvicorn citysim.gateway.server:app --port 8765
 # 或直接跑 godot\run_backend.cmd
 ```
@@ -99,5 +99,4 @@ python -m uvicorn citysim.gateway.server:app --port 8765
 - 人物初值信号（init）、初始记忆、日计划（plans）编辑。
 - 物件拖拽换建筑；edge 属性（等级/宽度/单行）编辑面板。
 - 撤销/重做；多选；吸附到已有节点/路边。
-- 观察器渲染导出场景里的路网（当前只渲染建筑/人物/物件）。
 - 由路网拓扑自动算 travel 距离（现为直线粗估）。

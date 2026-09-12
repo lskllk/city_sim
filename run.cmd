@@ -3,9 +3,9 @@ setlocal enableextensions
 rem ============================================================
 rem  CitySim 一键运行 (Windows)
 rem
-rem    run.cmd            自动: 起后端 + 观察器(有 Godot 用 Godot, 否则浏览器)
+rem    run.cmd            自动: 起后端 + Godot 观察器
 rem    run.cmd godot      后端 + Godot 观察器
-rem    run.cmd web        后端 + 浏览器前端(React/Vite)
+rem    run.cmd editor     只打开 Godot 编辑器(不启动后端)
 rem    run.cmd backend    只起后端(WebSocket :8765)
 rem
 rem  可选环境变量:
@@ -38,6 +38,9 @@ if not defined BE_PORT set "BE_PORT=8765"
 set "MODE=%~1"
 if "%MODE%"=="" set "MODE=auto"
 
+rem ---- 编辑器模式: 只打开 Godot 编辑器场景(不启动后端) -----------
+if /I "%MODE%"=="editor" goto :editor
+
 rem ---- 依赖自检(可 NO_INSTALL=1 跳过) ----------------------------
 if not defined NO_INSTALL (
   %PY% -c "import citysim" >nul 2>nul
@@ -66,39 +69,30 @@ start "CitySim backend :%BE_PORT%" cmd /k "cd /d ""%~dp0"" && %PY% -m uvicorn ci
 
 if /I "%MODE%"=="backend" goto :done
 
-rem ---- 选择观察器 -------------------------------------------------
-if /I "%MODE%"=="godot" goto :godot
-if /I "%MODE%"=="web"   goto :web
-
-rem auto: 优先 Godot, 找不到就用浏览器前端
-if defined GODOT_EXE goto :godot
-if exist "%ProgramFiles%\Godot\godot.exe" set "GODOT_EXE=%ProgramFiles%\Godot\godot.exe"
-if not defined GODOT_EXE if exist "D:\Godot_v4.7.2-stable_win64.exe" set "GODOT_EXE=D:\Godot_v4.7.2-stable_win64.exe"
-if defined GODOT_EXE goto :godot
-goto :web
-
-:godot
+rem ---- 定位 Godot (editor / godot 共用) -------------------------
+if not defined GODOT_EXE if exist "%ProgramFiles%\Godot\godot.exe" set "GODOT_EXE=%ProgramFiles%\Godot\godot.exe"
+if not defined GODOT_EXE if exist "D:\Godot_v4.7.2-stable_win64.exe\Godot_v4.7.2-stable_win64.exe" set "GODOT_EXE=D:\Godot_v4.7.2-stable_win64.exe\Godot_v4.7.2-stable_win64.exe"
 if not defined GODOT_EXE (
   echo [x] 未找到 Godot。请设置:  set GODOT_EXE=D:\path\to\Godot_v4.x-stable_win64.exe
   pause
   exit /b 1
 )
+
 timeout /t 2 >nul
 echo [run] 启动 Godot 观察器: %GODOT_EXE%
 "%GODOT_EXE%" --path "%~dp0godot"
 goto :done
 
-:web
-timeout /t 2 >nul
-echo [run] 启动浏览器前端: http://localhost:5173
-pushd "%~dp0frontend"
-if not exist node_modules (
-  echo [setup] npm install ...
-  call npm install
+:editor
+if not defined GODOT_EXE if exist "%ProgramFiles%\Godot\godot.exe" set "GODOT_EXE=%ProgramFiles%\Godot\godot.exe"
+if not defined GODOT_EXE if exist "D:\Godot_v4.7.2-stable_win64.exe\Godot_v4.7.2-stable_win64.exe" set "GODOT_EXE=D:\Godot_v4.7.2-stable_win64.exe\Godot_v4.7.2-stable_win64.exe"
+if not defined GODOT_EXE (
+  echo [x] 未找到 Godot。请设置:  set GODOT_EXE=D:\path\to\Godot_v4.x-stable_win64.exe
+  pause
+  exit /b 1
 )
-start "" "http://localhost:5173"
-call npm run dev
-popd
+echo [run] 启动 Godot 编辑器(不启动后端): %GODOT_EXE%
+"%GODOT_EXE%" --path "%~dp0godot" res://scenes/editor/editor.tscn
 goto :done
 
 :done

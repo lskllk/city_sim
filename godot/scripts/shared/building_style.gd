@@ -1,13 +1,14 @@
 # building_style.gd —— 建筑"资产"唯一样式真源 (single authority)。
 #
-# 谁用:
-#   - 观察器(godot/)   : `const BuildingStyle = preload("res://scripts/render/building_style.gd")`
-#   - 地图编辑器(godot_editor/) : 运行时 load 观察器项目里的同一文件, 见 building_style_loader.gd
+# 谁用(同一 Godot 项目内):
+#   - 观察器渲染: scripts/render/map_labels.gd
+#   - 编辑器画布: scripts/editor/map_view.gd (底色/徽记/道路/门)
+#   - 编辑器外壳: scripts/editor/main.gd   (资产列表着色)
 # 这样"观察器怎么渲染, 编辑器就怎么渲染", 不再各自维护一份底色/徽记。
 #
-# 约束(必须自包含, 供跨项目加载):
-#   - 只用 Godot 内建类型; 不 preload 项目内其它资源;
-#   - 不用 class_name / autoload(跨项目加载时不注册全局类)。
+# 约束(保持自包含, 便于将来复用/单测):
+#   - 只用 Godot 内建类型; 不反向依赖 editor/ 或 render/ 其它脚本;
+#   - 不用 class_name / autoload(保持为纯静态工具类)。
 # 视觉通道与 docs/building_abstraction.md 对齐:
 #   色相 = kind(类别), 面积 = capacity(后端算), 红度 = 占用率(观察器运行时有)。
 extends RefCounted

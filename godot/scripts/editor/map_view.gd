@@ -1,5 +1,7 @@
 class_name MapView
 extends Control
+## 同项目引用观察器建筑样式(底色/徽记/道路/门): 唯一权威。
+const BuildingStyle := preload("res://scripts/shared/building_style.gd")
 ## MapView —— 编辑画布: 栅格 / 路网 / 建筑 / 选中 / 校验高亮 + 交互。
 ##
 ## 只读写 MapDoc(autoload), 不碰 simulation。相机: 世界(米) -> 屏幕(px)。
@@ -127,7 +129,7 @@ func _draw_npcs() -> void:
 		var mates: Array = MapDoc.npcs_at(home)
 		var idx := mates.find(pid)
 		var c := w2s(MapDoc.buildings[home]["center"])
-		var pos := c + Vector2((idx - (mates.size() - 1) * 0.5) * 20.0, -20.0)
+		var pos := BuildingGeom.npc_marker_pos(c, idx, mates.size(), 20.0, 20.0)
 		var sel: bool = sel_kind == "npc" and sel_id == pid
 		var col: Color = C_NPC_F if String(n.get("gender", "")) == "female" else C_NPC_M
 		draw_circle(pos, 8.0, col)
@@ -147,7 +149,7 @@ func _draw_items() -> void:
 		var b: Dictionary = MapDoc.buildings[bid]
 		var s: Vector2 = b["size"]
 		var top_left := w2s((b["center"] as Vector2) - s * 0.5)
-		var badge := Rect2(top_left + Vector2(2, 2), Vector2(34, 16))
+		var badge := BuildingGeom.item_badge_rect(top_left)
 		draw_rect(badge, Color(C_ITEM.r, C_ITEM.g, C_ITEM.b, 0.92), true)
 		draw_rect(badge, Color(1, 1, 1, 0.35), false, 1.0)
 		var font := get_theme_default_font()
@@ -202,7 +204,7 @@ func _draw_edge_road(e: Dictionary, col: Color) -> void:
 	var pts := PackedVector2Array()
 	for p in e["geom"]:
 		pts.append(w2s(p))
-	AssetStyle.draw_road(self, pts, w, col)  # 共享圆角接头实现
+	BuildingStyle.draw_road(self, pts, w, col)  # 共享圆角接头实现
 
 
 func _kind_of(b: Dictionary) -> String:
@@ -216,7 +218,7 @@ func _draw_buildings() -> void:
 		var b: Dictionary = MapDoc.buildings[id]
 		var sel: bool = sel_kind == "building" and sel_id == id
 		var kind := _kind_of(b)
-		var base := AssetStyle.kind_color(kind)
+		var base := BuildingStyle.kind_color(kind)
 		var pts := PackedVector2Array()
 		for c in MapDoc.obb_corners(b):
 			pts.append(w2s(c))
@@ -229,15 +231,15 @@ func _draw_buildings() -> void:
 		for dw in MapDoc.door_worlds(b):
 			var dp := w2s(dw["pos"])
 			draw_circle(dp, 3.0, Color("ffcf5a"))
-			AssetStyle.draw_door(self, dp, dw["normal"], 5.0, Color(1, 1, 1, 0.85))
-		# 名称: 与观察器同底账(AssetStyle)
+			BuildingStyle.draw_door(self, dp, dw["normal"], 5.0, Color(1, 1, 1, 0.85))
+		# 名称: 与观察器同底账(BuildingStyle)
 		var min_px: float = minf(b["size"].x, b["size"].y) * zoom
 		var ctr := w2s(b["center"])
 		var fsize := int(clampf(min_px / 8.0, 9.0, 16.0))
-		AssetStyle.draw_centered(self, font, MapDoc.type_display(String(b["type"])),
+		BuildingStyle.draw_centered(self, font, MapDoc.type_display(String(b["type"])),
 			ctr, fsize, Color.WHITE if sel else Color("c7d2e2"))
 		if min_px >= 52.0:
-			AssetStyle.draw_emblem(self, ctr + Vector2(0, -min_px * 0.28), kind, base)
+			BuildingStyle.draw_emblem(self, ctr + Vector2(0, -min_px * 0.28), kind, base)
 		draw_circle(ctr, 2.0, C_BLDG_SEL if sel else Color("d8c7a8"))
 
 
@@ -342,16 +344,25 @@ func _gui_input(event: InputEvent) -> void:
 					MapDoc.align_building(sel_id)   # 松手后主门重新对齐路边
 				_dragging = false
 				queue_redraw()
-	elif event is InputEventKey and event.pressed:
-		if event.keycode == KEY_DELETE or event.keycode == KEY_BACKSPACE:
-			_delete_selected()
-		elif event.keycode == KEY_ESCAPE:
-			if _road_from != "" or _road_pending:
-				_road_from = ""
-				_road_pending = false
-			else:
-				clear_selection()
-			queue_redraw()
+
+
+## 键盘删除/取消。用 _unhandled_key_input, 不再依赖画布是否持有焦点
+## (点工具按钮/资产列表会把焦点移走; 文本框/SpinBox 仍会先吃掉 Backspace/Delete)。
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	var k := (event as InputEventKey).keycode
+	if k == KEY_DELETE or k == KEY_BACKSPACE:
+		delete_selected()
+		get_viewport().set_input_as_handled()
+	elif k == KEY_ESCAPE:
+		if _road_from != "" or _road_pending:
+			_road_from = ""
+			_road_pending = false
+		else:
+			clear_selection()
+		queue_redraw()
+		get_viewport().set_input_as_handled()
 
 
 func _zoom_at(pos: Vector2, factor: float) -> void:
@@ -483,7 +494,7 @@ func _npc_at(pos: Vector2) -> String:
 		var mates: Array = MapDoc.npcs_at(home)
 		var idx := mates.find(pid)
 		var c := w2s(MapDoc.buildings[home]["center"])
-		var p := c + Vector2((idx - (mates.size() - 1) * 0.5) * 20.0, -20.0)
+		var p := BuildingGeom.npc_marker_pos(c, idx, mates.size(), 20.0, 20.0)
 		if p.distance_to(pos) <= 10.0:
 			return pid
 	return ""
@@ -497,7 +508,7 @@ func _item_at(pos: Vector2) -> String:
 		var b: Dictionary = MapDoc.buildings[bid]
 		var s: Vector2 = b["size"]
 		var tl := w2s((b["center"] as Vector2) - s * 0.5)
-		if Rect2(tl + Vector2(2, 2), Vector2(34, 16)).has_point(pos):
+		if BuildingGeom.item_badge_rect(tl).has_point(pos):
 			return String(ids[0])
 	return ""
 
@@ -539,7 +550,7 @@ func _dist_to_seg(p: Vector2, a: Vector2, b: Vector2) -> float:
 	return p.distance_to(a + ab * t)
 
 
-func _delete_selected() -> void:
+func delete_selected() -> void:
 	match sel_kind:
 		"building":
 			MapDoc.remove_building(sel_id)

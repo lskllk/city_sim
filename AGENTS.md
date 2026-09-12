@@ -55,13 +55,17 @@ tools/
   demo_scene.py       build_demo/build_scarce 可复现 demo 世界(测试/观察共用)
   watch.py/narrate.py/soak*.py/scarcity_check/check_imports  观测统计
 
-godot/                独立 Godot 4 观察器前端(方案A: 只读订阅 gateway /ws)
-  scenes/*.tscn       静态布局/组件/世界可视(Node2D可视化实例), 编辑器可直接改
+godot/                Godot 4 观察器 + 编辑器(同一项目, 两个场景; 只读订阅 gateway /ws)
+  scenes/main.tscn    观察器入口; scenes/editor/editor.tscn 编辑器入口
+  scenes/components/  静态组件模板(.tscn), 编辑器可直接改
+  scenes/world/       世界可视(npv/entity visual)
   resources/*.tres     字体(CJK/Emoji)+主题
   scripts/net/         ws_client(Net autoload)+commands(Commands autoload)
   scripts/state/       store.gd(Store autoload): 只读镜像 world/sim/selection
   scripts/render/      world_canvas + camera/map/entity/overlay 层, *_visual
+  scripts/shared/      building_style(样式真源) + building_geom(几何/布局真源)
   scripts/ui/          inspector + components/* + fonts/zh/emojis
+  scripts/editor/      map_doc(MapDoc autoload)/map_view/main: 作者态制图, 导出 scene JSON
   (铁律: Godot 只渲染/发命令, 不计算 simulation; 见 godot/README.md)
 ```
 

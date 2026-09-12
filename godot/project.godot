@@ -22,12 +22,12 @@ Store="*res://scripts/state/store.gd"
 Commands="*res://scripts/net/commands.gd"
 Net="*res://scripts/net/ws_client.gd"
 Backend="*res://scripts/net/backend.gd"
+MapDoc="*res://scripts/editor/map_doc.gd"
 
 [display]
 
 window/size/viewport_width=1600
 window/size/viewport_height=900
-window/dpi/allow_hidpi=true
 
 [gui]
 

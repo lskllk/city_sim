@@ -4,5 +4,11 @@
   "kind": "work",
   "capacity": 200,
   "pattern": "v",
-  "aspect": 1.2
+  "aspect": 1.2,
+  "doors": [
+    {
+      "side": "south",
+      "offset": 0.0
+    }
+  ]
 }

@@ -4,5 +4,23 @@
   "kind": "public",
   "capacity": 60,
   "pattern": "dots",
-  "aspect": 1.5
+  "aspect": 1.5,
+  "doors": [
+    {
+      "side": "south",
+      "offset": 0.0
+    },
+    {
+      "side": "north",
+      "offset": 0.0
+    },
+    {
+      "side": "east",
+      "offset": 0.0
+    },
+    {
+      "side": "west",
+      "offset": 0.0
+    }
+  ]
 }

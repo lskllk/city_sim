@@ -4,5 +4,11 @@
   "kind": "school",
   "capacity": 120,
   "pattern": "dots",
-  "aspect": 1.4
+  "aspect": 1.4,
+  "doors": [
+    {
+      "side": "south",
+      "offset": 0.0
+    }
+  ]
 }

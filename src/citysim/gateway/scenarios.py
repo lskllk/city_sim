@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 from pathlib import Path
 
@@ -35,8 +36,12 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
     """读 scene json → (world, systems, rng_pool)。唯一场景入口。"""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     world = World()
-    # 建筑: 类型库(config/buildings) + 面积∝容量 自动布局 → 算出几何
+    # 建筑: 类型库(config/buildings) + 显式几何或 面积∝容量 自动布局
     world.locations = build_locations(data)
+    # 画布尺寸随场景下发(编辑器导出的地图可能不是 1280x800)
+    world.canvas = dict(data.get("canvas", {}))
+    # 编辑器导出的原始路网/建筑(含 rot/doors), 供观察器按编辑器思路渲染
+    world.map = data.get("map") or {}
 
     systems = make_systems(log=True,
                            tell_p=float(data.get("tell_p", 0.0)))
@@ -95,9 +100,12 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
     for idx, spec in enumerate(data.get("npcs", [])):
         pid = spec["id"]
         home_region = spec.get("home", "")
+        extra_traits = spec.get("traits") or {}
         p = Person(identity=Identity(person_id=pid, name=spec["name"],
+                                     gender=str(spec.get("gender", "")),
                                      birthday=str(spec.get("birthday", "")),
-                                     traits={"role": str(spec.get("role", ""))}),
+                                     traits={"role": str(spec.get("role", "")),
+                                             **dict(extra_traits)}),
                    home=home_region,
                    money=float(spec.get("money", 100.0)),
                    personality=spec.get("personality", {}),
@@ -133,10 +141,32 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
 
 
 # 兼容入口: 现在只有单一场景, scenario 名忽略(保留给旧测试/调用方)
+def _resolve_scene_path(raw: str) -> Path | None:
+    """把场景路径解析为文件: 绝对/相对当前目录 → 相对仓库根。找不到返回 None。"""
+    if not raw:
+        return None
+    p = Path(raw)
+    if p.is_file():
+        return p
+    alt = ROOT / raw
+    return alt if alt.is_file() else None
+
+
 def build_scenario(scenario: str | None = None, seed: int = 3,
                    n_npc: int | None = None,
                    tell_p: float | None = None):
-    w, s, r = load_scene(DEFAULT_SCENE, seed=seed)
+    # 场景来源优先级: 显式文件路径 > 环境变量 CITYSIM_SCENE > 内置默认场景。
+    # 路径既可为绝对路径, 也可相对仓库根(如 godot_editor/scene.json)。
+    path = _resolve_scene_path(str(scenario)) if scenario else None
+    if path is None:
+        env = os.environ.get("CITYSIM_SCENE", "").strip()
+        if env:
+            path = _resolve_scene_path(env)
+            if path is None:
+                import sys
+                print(f"[scenarios] CITYSIM_SCENE 指向的文件不存在: {env}"
+                      f" (相对仓库根: {ROOT}); 回退默认场景", file=sys.stderr)
+    w, s, r = load_scene(path or DEFAULT_SCENE, seed=seed)
     if tell_p is not None:
         s.tell_p = float(tell_p)
     return w, s, r

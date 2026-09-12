@@ -19,6 +19,7 @@ signal connection_changed(status: String)
 var entities: Dictionary = {}          # id -> Dictionary
 var npcs: Dictionary = {}              # id -> Dictionary
 var rooms: Dictionary = {}             # id -> Dictionary
+var map: Dictionary = {}               # 编辑器原始地图 {nodes,edges,buildings}; 无则 {}
 var canvas: Dictionary = {"w": 1280.0, "h": 800.0}
 var scenario: String = ""
 var seed_value: int = 0
@@ -46,6 +47,7 @@ func clear_world() -> void:
 	entities = {}
 	npcs = {}
 	rooms = {}
+	map = {}
 	canvas = {"w": 1280.0, "h": 800.0}
 	scenario = ""
 	seed_value = 0
@@ -64,6 +66,7 @@ func init_hello(h: Dictionary) -> void:
 	var info := Protocol.as_dict(h.get("locations", {}))
 	var locs := Protocol.as_dict(info.get("locations", {}))
 	rooms = locs
+	map = Protocol.as_dict(h.get("map", {}))
 	var cv := Protocol.as_dict(info.get("canvas", {}))
 	if not cv.is_empty():
 		canvas = {

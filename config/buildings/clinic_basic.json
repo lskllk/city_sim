@@ -4,5 +4,11 @@
   "kind": "clinic",
   "capacity": 40,
   "pattern": "plus",
-  "aspect": 1.1
+  "aspect": 1.1,
+  "doors": [
+    {
+      "side": "south",
+      "offset": 0.0
+    }
+  ]
 }

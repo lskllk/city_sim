@@ -6,7 +6,7 @@
 
 | 视觉通道 | 编码 | 实现 |
 |---|---|---|
-| **色相 + 纹路** | 建筑**类别**（kind） | `map_layer._kind_color` + `_draw_pattern` |
+| **色相 + 纹路** | 建筑**类别**（kind） | `godot/scripts/render/building_style.gd`（唯一权威）|
 | **面积** | 建筑**容量**（capacity，能容多少人） | 后端 `world/buildings.py` 自动布局算 w/h |
 | **红度（明度）** | **当前占用填充率** `n / capacity` | `map_layer` fill lerp → 红 |
 
@@ -37,10 +37,20 @@
 
 ## 3. 类型库 + 场景
 
-**类型库** `config/buildings/*.json`（可批量复用/修改）：
+**类型库** `config/buildings/*.json`（可批量复用/修改；**资产定义 + 逻辑定义**）：
 ```json
-{"type":"supermarket","name":"超市","kind":"shop","capacity":100,"pattern":"v","aspect":1.4}
+{"type":"shop_supermarket","name":"超市","kind":"shop",
+ "capacity":100,"pattern":"v","aspect":1.4,
+ "doors":[{"side":"south","offset":0.0}]}
 ```
+- `doors` = 进出口（**逻辑定义**）：`side ∈ north/south/east/west` 是门所在外墙，
+  `offset ∈ [-0.5,0.5]` 沿该墙居中偏移；缺省南门。
+  后端 `build_locations` 把它算成世界坐标 `door_points`（含朝外法线）；
+  地图编辑器摆放时用主门自动朝向并贴到最近道路的路沿。
+- `kind/pattern/aspect` + 上面的类别色 = 观察器的**资产定义**；
+  编辑器不再自己定义底色/徽记，而是运行时加载
+  `godot/scripts/render/building_style.gd`（见 `building_style_loader.gd`），
+  做到"观察器怎么渲染，编辑器就怎么渲染"。
 
 **场景** `config/scenes/*.json` 的 `locations` 只写类型，**不写坐标**：
 ```json

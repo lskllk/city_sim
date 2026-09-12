@@ -4,5 +4,11 @@
   "kind": "home",
   "capacity": 3,
   "pattern": "h",
-  "aspect": 1.0
+  "aspect": 1.0,
+  "doors": [
+    {
+      "side": "south",
+      "offset": 0.0
+    }
+  ]
 }

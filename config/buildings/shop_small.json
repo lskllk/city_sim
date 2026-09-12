@@ -4,5 +4,11 @@
   "kind": "shop",
   "capacity": 24,
   "pattern": "v",
-  "aspect": 1.0
+  "aspect": 1.0,
+  "doors": [
+    {
+      "side": "south",
+      "offset": 0.0
+    }
+  ]
 }

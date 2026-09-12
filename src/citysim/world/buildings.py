@@ -1,7 +1,8 @@
 """buildings —— 建筑类型库 + 场景自动布局。纯几何, 不依赖 world/渲染。
 
 设计见 docs/building_abstraction.md:
-- 类型库 config/buildings/*.json: {type, name, kind, capacity, pattern, aspect}
+- 类型库 config/buildings/*.json: {type, name, kind, capacity, pattern, aspect, doors}
+  doors = 进出口定义(资产逻辑): [{"side": north|south|east|west, "offset": -0.5..0.5}]
 - 场景 locations 只写 {type, name?} —— 不写坐标;
 - 自动布局: 面积 ∝ capacity(边长=sqrt(cap*aspect)), 按 kind 分区、shelf 打包、
   整体等比缩放铺进画布(等比缩放不破坏"面积∝容量")。
@@ -22,6 +23,10 @@ _DOOR_RE = re.compile(r"_(\d+)$")   # 地点 id 末尾序号 → 门牌号
 GAP = 0.5          # 单位空间里的街道间隙(相对 sqrt(capacity))
 MARGIN = 24.0      # 画布留边(px)
 
+# 缺省进出口: 南面临街。doors 属于"资产逻辑定义", 与视觉(资产定义)分离。
+DEFAULT_DOOR: dict = {"side": "south", "offset": 0.0}
+DOOR_SIDES = ("north", "south", "east", "west")
+
 
 @dataclass(frozen=True)
 class BuildingType:
@@ -31,6 +36,22 @@ class BuildingType:
     capacity: int = 10
     pattern: str = "plain"
     aspect: float = 1.0
+    doors: tuple[dict, ...] = (DEFAULT_DOOR,)
+
+
+def _parse_doors(raw) -> tuple[dict, ...]:
+    """校验并归一化 doors; 非法项丢弃, 全非法则回退缺省南门。"""
+    out: list[dict] = []
+    if isinstance(raw, list):
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            side = str(item.get("side", "south"))
+            if side not in DOOR_SIDES:
+                continue
+            out.append({"side": side,
+                        "offset": max(-0.5, min(0.5, float(item.get("offset", 0.0))))})
+    return tuple(out) or (DEFAULT_DOOR,)
 
 
 def _parse(d: dict) -> BuildingType:
@@ -40,7 +61,35 @@ def _parse(d: dict) -> BuildingType:
         capacity=int(d.get("capacity", 10)),
         pattern=str(d.get("pattern", "plain")),
         aspect=float(d.get("aspect", 1.0)),
+        doors=_parse_doors(d.get("doors")),
     )
+
+
+def door_points(geom: dict, doors) -> list[dict]:
+    """房间几何(x,y,w,h) + doors 定义 → 世界坐标进出口点。
+
+    - side: 门所在的外墙(未旋转的房间局部坐标);
+    - offset: 沿该墙的归一化偏移(-0.5..0.5), 0=居中; 垂直于墙的边用它;
+    - 返回 {side, offset, x, y, nx, ny}: (x,y)=门世界点, (nx,ny)=朝外法线。
+    """
+    x, y = float(geom.get("x", 0.0)), float(geom.get("y", 0.0))
+    w, h = float(geom.get("w", 0.0)), float(geom.get("h", 0.0))
+    out: list[dict] = []
+    for d in doors or (DEFAULT_DOOR,):
+        side = str(d.get("side", "south"))
+        off = float(d.get("offset", 0.0))
+        if side == "south":
+            px, py, nx, ny = x + w * (0.5 + off), y + h, 0.0, 1.0
+        elif side == "north":
+            px, py, nx, ny = x + w * (0.5 + off), y, 0.0, -1.0
+        elif side == "east":
+            px, py, nx, ny = x + w, y + h * (0.5 + off), 1.0, 0.0
+        else:  # west
+            px, py, nx, ny = x, y + h * (0.5 + off), -1.0, 0.0
+        out.append({"side": side, "offset": off,
+                    "x": round(px, 1), "y": round(py, 1),
+                    "nx": nx, "ny": ny})
+    return out
 
 
 @functools.lru_cache(maxsize=2)
@@ -142,12 +191,17 @@ def build_locations(data: dict) -> dict[str, dict]:
                 "capacity": int(spec.get("capacity", t.capacity)),
                 "pattern": t.pattern,
                 "aspect": float(spec.get("aspect", t.aspect)),
+                "doors": [dict(d) for d in t.doors],
                 # 进入权限: owner=户主, open_to=额外允许的 npc id; public 未指定(None)
                 # 时由 World.resolve_access() 根据“有无 owner”封口。
                 "owner": owner,
                 "open_to": open_to,
                 "public": spec.get("public"),
             }
+            # 显式几何(编辑器导出的地图)优先: 带 x/y/w/h 就原样保留, 不参与自动布局。
+            for gk in ("x", "y", "w", "h"):
+                if gk in spec:
+                    resolved[loc_id][gk] = float(spec[gk])
         else:
             resolved[loc_id] = dict(spec)
 
@@ -155,5 +209,8 @@ def build_locations(data: dict) -> dict[str, dict]:
     geom = _pack(need, w_canvas, h_canvas)
     out: dict[str, dict] = {}
     for k, v in resolved.items():
-        out[k] = {**v, **geom.get(k, {})}
+        merged = {**v, **geom.get(k, {})}
+        # 进出口世界点(资产逻辑): 用最终几何算, 未知类型回退南门。
+        merged["door_points"] = door_points(merged, v.get("doors"))
+        out[k] = merged
     return out

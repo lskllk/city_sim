@@ -19,10 +19,14 @@ rem        并会跳过已在监听的后端。若旧后端把端口占住, 本�
 rem ============================================================
 cd /d "%~dp0"
 
-rem ---- 找 Python -------------------------------------------------
+rem ---- 找 Python (优先仓库 .venv) --------------------------------
 set "PY=python"
-where python >nul 2>nul
-if errorlevel 1 set "PY=py"
+if exist ".venv\Scripts\python.exe" (
+  set "PY=%CD%\.venv\Scripts\python.exe"
+) else (
+  where python >nul 2>nul
+  if errorlevel 1 set "PY=py"
+)
 %PY% --version >nul 2>nul
 if errorlevel 1 (
   echo [x] 未找到 Python。请安装 Python 3.10+ 并加入 PATH。

@@ -176,6 +176,11 @@ class Person:
         return str(self._identity.traits.get("role", ""))
 
     @property
+    def gender(self) -> str:
+        """性别码("male"/"female"/""), 来自场景人设。"""
+        return self._identity.gender
+
+    @property
     def perceived_loc(self) -> str:
         """最近一次感知到自己在哪(决策用; 真实位置归 World, 本层不长期维护坐标)。"""
         return self._perceived_loc

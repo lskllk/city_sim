@@ -144,6 +144,7 @@ def _npc_base(world, systems, pid: str, p) -> dict:
     center = world.region_center(loc) or (0.0, 0.0)
     return {
         "id": pid, "name": p.name, "loc": loc,
+        "gender": p.gender,
         "home": p.home, "position": [float(x) for x in center],
         "activity": p.current_activity,
         "act_class": act_class_of(world, systems, pid),
@@ -248,17 +249,18 @@ def hello_payload(runner) -> dict:
         all_scene = _json.loads(Path(locs_path).read_text(encoding="utf-8"))
     except OSError:
         all_scene = {"canvas": {"w": 1280, "h": 760}, "locations": {}}
-    used = {e.location_id for e in runner.world.entities.values()}
-    used |= {runner.world.loc_of(n.person_id) for n in runner.world.npcs.values()}
-    # 用 world 上【算好的】几何(kind/capacity/pattern + 自动布局的 x/y/w/h),
+    # 用 world 上【算好的】几何(kind/capacity/pattern + 显式或自动布局的 x/y/w/h),
     # 不是原始 scene 文本。
+    # 全部下发: 编辑器导出的空建筑也要在观察器里可见(占用为 0)。
     loc_map = dict(runner.world.locations)
-    if used:
-        loc_map = {k: v for k, v in loc_map.items() if k in used}
-    locs = {"canvas": all_scene.get("canvas", {"w": 1280, "h": 760}),
-            "locations": loc_map}
+    # canvas 优先取世界加载时记录的场景值(支持编辑器导出的非默认画布)
+    canvas = getattr(runner.world, "canvas", None) or \
+        all_scene.get("canvas", {"w": 1280, "h": 760})
+    locs = {"canvas": canvas, "locations": loc_map}
     from citysim.core.config import SIGNALS
     return {"type": "hello", "protocol": PROTOCOL_VERSION,
+            # 编辑器原始地图(节点/路段/建筑含 rot/doors); 无则 {}
+            "map": getattr(runner.world, "map", {}) or {},
             "scenario": runner.params["scenario"],
             "seed": runner.params["seed"],
             "n_npc": runner.params["n_npc"],

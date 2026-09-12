@@ -51,17 +51,33 @@ func _repo_root() -> String:
 	return ProjectSettings.globalize_path("res://").path_join("..").simplify_path()
 
 
-## 候选解释器, 按优先级: 显式指定 → 本机真实安装 → PATH 的 python / py。
+## 候选解释器, 按优先级:
+##   显式指定 → 仓库 .venv(依赖装在这里) → 本机真实安装 → PATH 的 python / py。
 func _candidates() -> Array:
 	var out: Array = []
 	var explicit := OS.get_environment("CITYSIM_PYTHON").strip_edges()
 	if explicit != "":
 		out.append({"exe": explicit, "pre": PackedStringArray()})
+	var venv := _venv_python()
+	if venv != "":
+		out.append({"exe": venv, "pre": PackedStringArray()})
 	for p in _discover_windows_pythons():
 		out.append({"exe": p, "pre": PackedStringArray()})
 	out.append({"exe": "python", "pre": PackedStringArray()})
 	out.append({"exe": "py", "pre": PackedStringArray(["-3"])})
 	return out
+
+
+## 仓库自带虚拟环境解释器(Windows Scripts/ 或 Unix bin/); 不存在返回 ""。
+func _venv_python() -> String:
+	var root := _repo_root()
+	var win := root.path_join(".venv").path_join("Scripts").path_join("python.exe")
+	if FileAccess.file_exists(win):
+		return win
+	var unix := root.path_join(".venv").path_join("bin").path_join("python")
+	if FileAccess.file_exists(unix):
+		return unix
+	return ""
 
 
 ## Windows: %LOCALAPPDATA%\Programs\Python\Python3*\python.exe(新→旧)。

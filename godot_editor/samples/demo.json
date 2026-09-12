@@ -1,0 +1,26 @@
+{
+  "format": "citysim.map",
+  "version": 1,
+  "world": {
+    "unit": "m",
+    "bounds": [0, 0, 200, 150],
+    "grid": 1.0
+  },
+  "nodes": {
+    "n_001": {"xy": [40, 40], "kind": "junction"},
+    "n_002": {"xy": [120, 40], "kind": "junction"},
+    "n_003": {"xy": [120, 110], "kind": "junction"}
+  },
+  "edges": {
+    "e_001": {"a": "n_001", "b": "n_002", "class": "local", "width": 4.0,
+              "speed": 1.3, "oneway": false, "geom": [[40, 40], [120, 40]]},
+    "e_002": {"a": "n_002", "b": "n_003", "class": "local", "width": 4.0,
+              "speed": 1.3, "oneway": false, "geom": [[120, 40], [120, 110]]}
+  },
+  "buildings": {
+    "bld_001": {"type": "home_standard", "center": [40, 80], "size": [11, 11],
+                "rot": 0.0, "doors": []},
+    "bld_002": {"type": "shop_small", "center": [80, 80], "size": [14, 14],
+                "rot": 0.0, "doors": []}
+  }
+}

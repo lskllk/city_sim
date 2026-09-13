@@ -65,8 +65,8 @@ class InteractionSystem:
         if ent.claimed_by not in (None, pid):
             self._fail(world, pid, tid, "已被他人占用")
             return False
-        # 现实约束: 目标同 region, 或就在自己背包里(随身物品随处可用)
-        if ent.holder_id != pid and ent.location_id != world.loc_of(pid):
+        # 现实约束: 目标必须同 region
+        if ent.location_id != world.loc_of(pid):
             self._fail(world, pid, tid, "目标不在此地")
             return False
 

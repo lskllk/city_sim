@@ -12,6 +12,5 @@
   "on_start": [],
   "on_complete": [],
   "attrs": {},
-  "stock": 1,
-  "carryable": true
+  "stock": 1
 }

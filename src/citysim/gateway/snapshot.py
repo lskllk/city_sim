@@ -160,8 +160,6 @@ def _npc_base(world, systems, pid: str, p) -> dict:
             "from": tv.from_loc, "to": tv.to_loc,
             "depart": tv.depart_tick, "arrive": tv.arrive_tick},
         "plan": p.plan_snapshot(),      # 当天计划表(前端时间线 viz 用)
-        "inventory": [e.entity_id for e in world.entities_held_by(pid)],
-        "inventory_slots": len(world.entities_held_by(pid)),
     }
 
 
@@ -179,10 +177,8 @@ def build_snapshot(world, systems, cfg, speed: str,
             "events": _recent_events(systems, pid),
         })
     ents = [{"id": e.entity_id, "name": e.name, "loc": e.location_id,
-             "holder": e.holder_id,
              "item_type": e.item_type,
              "tags": sorted(e.tags), "stock": e.stock,
-             "carryable": e.carryable,
              "claimed_by": e.claimed_by, "icon": icon_of(e),
              "position": None if e.position is None else
                           [float(e.position[0]), float(e.position[1])],

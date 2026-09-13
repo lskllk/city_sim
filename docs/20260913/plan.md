@@ -76,7 +76,6 @@
 @home         我家
 @affiliation  我所属组织（公司 / 学校）的所在地
 @shop         我开的那家店
-@self         随身
 ```
 
 `@affiliation` 是**解析器**，不是地点 id。所以：
@@ -183,7 +182,7 @@ utility(candidate) = base × plan_mult × (将来的 mood_mult / emotion_mult)
 | `config/roles.json` | **新增**：角色 → anchors / rhythm / weights | 数据 |
 | `npc/planner.py` | `template_plan()` → 从 role 数据编译 anchors；删 `_MEALS`/`_SLEEP` 常量 | 中 |
 | `npc/schedule.py` | `PlanEntry.intent` → `goal`（保留旧构造做兼容） | 小 |
-| `npc/goal.py` | **新增**：`Goal` + `@home`/`@affiliation`/`@shop`/`@self` 解析器 | 小 |
+| `npc/goal.py` | **新增**：`Goal` + `@home`/`@affiliation`/`@shop` 解析器 | 小 |
 | `npc/brain.py` | `decide(..., plans)` 入参；`_gather_candidates` 接受 goal.signal；`_score_candidates` 乘 `plan_mult` | 中 |
 | `npc/person.py` | 透传 `plans` 给 `brain.decide` | 小 |
 | `world/engine.py` | 计划截止 / 硬中止沿用现有；不新增 | — |
@@ -193,6 +192,14 @@ utility(candidate) = base × plan_mult × (将来的 mood_mult / emotion_mult)
 ---
 
 ## 7. 不在本次范围
+
+### 已定简化：货物移动 = 瞬移
+
+`_execute_buy` → `_deliver()` 把货**直接送进家里容器**（nav 场景里 `container=auto1` 就是它）。
+NPC 背包 / `Take` / `Place` 已全栈删除：`Place` 原本**完全不可达**，`Take` 只在濒死反射路径触发。
+
+**这是有意识的玩法取舍**：MVP 阶段承认“买了就到家”。将来真做物流，用
+`mass / volume / container` 重新设计，**而不是复活旧背包**。
 
 ### F3（下一步）：比价与成本项 —— 让 `decide` 能产生 `Buy`
 

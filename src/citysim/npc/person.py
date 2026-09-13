@@ -308,7 +308,6 @@ class Person:
              owner: str | None = None, afford: str | None = None,
              value: float | None = None, price: float | None = None,
              stock: int | None = None, believe: float | None = None,
-             carryable: bool | None = None,
              item_type: str | None = None) -> None:
         """往记忆 upsert 一行(增/改; 部分字段可省略)。供成交/事件等记记忆用。"""
         row = self._mem.get(item_id)
@@ -330,8 +329,6 @@ class Person:
             fields["stock"] = int(stock)
         if believe is not None:
             fields["believe"] = float(believe)
-        if carryable is not None:
-            fields["carryable"] = bool(carryable)
         if item_type is not None:
             fields["item_type"] = str(item_type)
         fields.setdefault("remember", 1.0)

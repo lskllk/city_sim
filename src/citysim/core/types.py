@@ -9,10 +9,6 @@ from typing import Any, Literal, Mapping
 
 SourceKind = Literal["OBSERVED", "TOLD", "INFERRED"]
 
-# 物品在 NPC 身上(背包)时的位置保留值。用于 EntityView.location_id /
-# MemItem.located / MoveTo.dest 的统一语义: 看到 @self 就直接交互, 不用移动。
-BACKPACK = "@self"
-
 
 @dataclass(frozen=True, slots=True)
 class EntityView:
@@ -28,7 +24,6 @@ class EntityView:
     location_id: str = ""
     price: float = 0.0                    # 价格(0=免费)
     owner: str = ""                       # 归属(""=无主/商店)
-    carryable: bool = False               # 可携带(可 take 进背包)
     item_type: str = ""                   # 物品类型 id(去重/合并用)
 
 
@@ -97,24 +92,7 @@ class Buy:
     trace: DecisionTrace = field(default_factory=DecisionTrace)
 
 
-@dataclass(frozen=True, slots=True)
-class Take:
-    """瞬时: 把世界上的物品收进背包(实例/堆叠)."""
-    target_id: str
-    qty: int = 1
-    trace: DecisionTrace = field(default_factory=DecisionTrace)
-
-
-@dataclass(frozen=True, slots=True)
-class Place:
-    """瞬时: 把背包里的物品放到世界目的地(region/容器). 交付给人用 Give. """
-    target_id: str          # 背包实体 id
-    dest: str               # 目的地(region id / 容器实体 id)
-    qty: int = 1
-    trace: DecisionTrace = field(default_factory=DecisionTrace)
-
-
-Intent = Idle | MoveTo | Interact | Buy | Take | Place
+Intent = Idle | MoveTo | Interact | Buy
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,10 +118,6 @@ def intent_kind(intent: Intent) -> str:
         return "interact"
     if isinstance(intent, Buy):
         return "buy"
-    if isinstance(intent, Take):
-        return "take"
-    if isinstance(intent, Place):
-        return "place"
     raise TypeError(f"unknown intent {intent!r}")
 
 
@@ -155,8 +129,4 @@ def intent_target(intent: Intent) -> str | None:
         return intent.target_id
     if isinstance(intent, Buy):
         return intent.item_id
-    if isinstance(intent, Take):
-        return intent.target_id
-    if isinstance(intent, Place):
-        return intent.target_id
     return None

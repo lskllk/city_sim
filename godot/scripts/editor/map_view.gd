@@ -263,18 +263,26 @@ func _draw_nodes() -> void:
 			draw_rect(Rect2(p - Vector2(7, 7), Vector2(14, 14)), base, false, 1.5)
 
 
-## 吸附标记。landed=true 表示是【已落下的起点】—— 实心+外圈, 与“待落”的准星区分。
-func _draw_snap_marker(p: Vector2, snap: Dictionary, landed: bool = false) -> void:
+## 吸附标记。三种形态:
+##   landed=true  → 已落下的起点: 实心圆 + 外圈
+##   preview=true → 光标处的落脚点: 未吸附也给一个细圈+小点(否则 hover 时看不到会落在哪)
+##   否则        → 吸中时的十字准星(未吸附则不画)
+func _draw_snap_marker(p: Vector2, snap: Dictionary, landed: bool = false,
+		preview: bool = false) -> void:
 	var kind := String(snap.get("kind", "free"))
-	if kind == "free" and not landed:
-		return                                  # 未吸附的光标: 不画标记, 只看预览线
+	if kind == "free":
+		if landed:
+			draw_circle(p, 5.0, C_SNAP_FREE)
+			draw_arc(p, 9.0, 0.0, TAU, 24, C_SNAP_FREE, 2.0)
+		elif preview:
+			draw_circle(p, 2.5, C_SNAP_FREE)
+			draw_arc(p, 7.0, 0.0, TAU, 20, C_SNAP_FREE, 1.0)
+		return
 	var col := C_SNAP_ROAD
 	if kind == "node":
 		col = C_SNAP_NODE
 	elif kind == "door":
 		col = C_SNAP_DOOR
-	elif kind == "free":
-		col = C_SNAP_FREE
 	if landed:
 		draw_circle(p, 5.0, col)
 		draw_arc(p, 9.0, 0.0, TAU, 24, col, 2.0)
@@ -348,13 +356,13 @@ func _draw_ghost() -> void:
 	elif tool == Tool.ROAD:
 		var target_snap := MapDoc.resolve_snap(_mouse_world, _node_at(_mouse))
 		var start_snap := _start_snap()
-		var has := not start_snap.is_empty()
 		var target := w2s(target_snap["point"] as Vector2)
-		if has:
+		if not start_snap.is_empty():
 			var a := w2s(start_snap["point"] as Vector2)
 			draw_line(a, target, C_GHOST, 2.0)
 			_draw_snap_marker(a, start_snap, true)      # 起点落脚点(实心)
-		_draw_snap_marker(target, target_snap)
+		# 光标落脚点: 未点击也显示(未吸附时给细圈+小点)
+		_draw_snap_marker(target, target_snap, false, true)
 
 
 # --- 交互 ----------------------------------------------------------------

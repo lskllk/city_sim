@@ -208,13 +208,23 @@ func _road_geometry() -> Dictionary:
 	return {"nodes": nodes_s, "edges": edges_s}
 
 
+## 建筑门墙(屏幕坐标): {pos, normal(朝外/朝路)}，供道路端头收口用。
+func _road_walls() -> Array:
+	var out: Array = []
+	for bid in MapDoc.buildings:
+		for dw in MapDoc.door_worlds(MapDoc.buildings[bid]):
+			out.append({"pos": w2s(dw["pos"]), "normal": dw["normal"]})
+	return out
+
+
 func _draw_edges() -> void:
 	var geo := _road_geometry()
 	for id in MapDoc.edges:
 		_draw_edge_road(MapDoc.edges[id], C_ROAD)
-	# 路口: 把 3/4/5/6 叉的凹角缺口填成圆弧(共享实现)
+	# 路口: 3/4/5/6 叉凹角缺口 + 死胡同正对墙的端头收口(共享实现)
 	BuildingStyle.draw_junctions(self,
-		BuildingStyle.build_junctions(geo["nodes"], geo["edges"]), C_ROAD)
+		BuildingStyle.build_junctions(geo["nodes"], geo["edges"], _road_walls()),
+		C_ROAD)
 	if sel_kind == "edge" and MapDoc.edges.has(sel_id):
 		var e: Dictionary = MapDoc.edges[sel_id]
 		_draw_edge_road(e, C_ROAD_SEL)

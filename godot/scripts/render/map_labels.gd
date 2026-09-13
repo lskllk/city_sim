@@ -75,9 +75,27 @@ func _draw_roads() -> void:
 			"a": Protocol.s(e.get("a", "")), "b": Protocol.s(e.get("b", "")),
 			"pts": pts,
 			"width_px": maxf(Protocol.num(e.get("width"), 4.0) * camera.zoom, 2.0)}
-	# 路口: 与编辑器同一套几何(通用 N 叉圆角)
+	# 路口: 3/4/5/6 叉凹角 + 死胡同端头收口, 与编辑器同一套几何
 	BuildingStyle.draw_junctions(self,
-		BuildingStyle.build_junctions(nodes_s, edges_s), BuildingStyle.ROAD_COLOR)
+		BuildingStyle.build_junctions(nodes_s, edges_s, _road_walls()),
+		BuildingStyle.ROAD_COLOR)
+
+
+## 建筑门墙(屏幕坐标): {pos, normal} —— 法线由建筑中心指向门(近似朝外)。
+func _road_walls() -> Array:
+	var out: Array = []
+	var blds := Protocol.as_dict(Store.map.get("buildings", {}))
+	for bid in blds:
+		var b := Protocol.as_dict(blds[bid])
+		var c := _pt(b.get("center"))
+		for dd in Protocol.as_array(b.get("doors", [])):
+			var wp := _pt(dd)
+			var nrm := wp - c
+			if nrm.length() < 0.001:
+				continue
+			out.append({"pos": camera.world_to_screen(wp),
+				"normal": nrm.normalized()})
+	return out
 
 
 # ---------------------------------------------------------------------------

@@ -24,10 +24,15 @@ const AREA_PER_CAPACITY := 20.0   # 1 capacity ≈ 20 m²(面积∝容量的起�
 # 进出口(资产逻辑定义): 观察器/后端 config/buildings/*.json 的 doors 段。
 # 缺省南面; 编辑器在摆放时按主门自动朝向最近道路。
 const DOOR_DEFAULT := {"side": "south", "offset": 0.0}
-const ROAD_SNAP_M := 3.0          # 画路点击吸附到既有道路的距离(米)
+const ROAD_SNAP_M := 3.0          # 画路点击吸附到既有道路中心线的距离(米)
+const DOOR_SNAP_M := 4.0          # 画路点击吸附到建筑门的距离(米)
 
 var bounds := Rect2(0.0, 0.0, 800.0, 600.0)
 var grid_size := 1.0
+var grid_snap := true             # 栅格捕获开关
+var net_snap := true              # 路网吸附开关(既有节点 / 建筑门 / 道路中心线)
+var scene_name := "editor_scene"   # 导入/导出的场景名(导出默认用它)
+var scene_display := ""            # 场景展示名(导入时记住, 不在文件对话框里丢)
 var nodes: Dictionary = {}        # id -> {xy:Vector2, kind:String}
 var edges: Dictionary = {}        # id -> {a,b,class,width,speed,oneway,geom:Array[Vector2]}
 var buildings: Dictionary = {}    # id -> {type,center:Vector2,size:Vector2,rot:float,doors:Array[Vector2]}
@@ -143,6 +148,11 @@ func _config_root() -> String:
 	return ProjectSettings.globalize_path("res://").path_join("..").simplify_path()
 
 
+## 场景默认目录(编辑器导入/导出只认场景文件)。
+func scenes_dir() -> String:
+	return _config_root().path_join("config").path_join("scenes")
+
+
 func load_name_pool() -> void:
 	name_pool = {}
 	var p := _config_root().path_join("config").path_join("names").path_join("names.json")
@@ -215,7 +225,6 @@ func new_map() -> void:
 	_seq = {"n": 0, "e": 0, "b": 0, "i": 0}
 	changed.emit()
 
-
 func default_size_for(type_id: String) -> Vector2:
 	var t: Dictionary = building_types.get(type_id, {})
 	var cap := float(t.get("capacity", 6))
@@ -225,9 +234,80 @@ func default_size_for(type_id: String) -> Vector2:
 
 
 func snap(p: Vector2) -> Vector2:
-	if grid_size <= 0.0:
+	if not grid_snap or grid_size <= 0.0:
 		return p
 	return p.snapped(Vector2(grid_size, grid_size))
+
+
+## 最近的建筑门点: {pos, building, index, dist}; 无建筑返回 {}。
+func nearest_door(p: Vector2) -> Dictionary:
+	var best: Dictionary = {}
+	var bd := INF
+	for bid in buildings:
+		var ws: Array = door_worlds(buildings[bid])
+		for i in range(ws.size()):
+			var d := p.distance_to(ws[i]["pos"] as Vector2)
+			if d < bd:
+				bd = d
+				best = {"pos": ws[i]["pos"], "building": bid, "index": i, "dist": d}
+	return best
+
+
+## 统一吸附解析(画路 / 预览共用)。优先级:
+##   既有节点 > 建筑门 > 道路中心线 > 栅格/原始
+## node_hit 由视图用屏幕像素半径算出("" = 未命中节点)。
+## 返回 {kind, point, id, building, door_index, edge}。
+func resolve_snap(world_pos: Vector2, node_hit: String = "") -> Dictionary:
+	if net_snap and node_hit != "" and nodes.has(node_hit):
+		return {"kind": "node", "point": nodes[node_hit]["xy"], "id": node_hit,
+			"building": String(nodes[node_hit].get("door_of", "")),
+			"door_index": int(nodes[node_hit].get("door_index", -1)), "edge": ""}
+	if net_snap:
+		var dw := nearest_door(world_pos)
+		if not dw.is_empty() and float(dw["dist"]) <= DOOR_SNAP_M:
+			return {"kind": "door", "point": dw["pos"], "id": "",
+				"building": String(dw["building"]), "door_index": int(dw["index"]),
+				"edge": ""}
+		var rd := nearest_road(world_pos)
+		if not rd.is_empty() and float(rd["dist"]) <= ROAD_SNAP_M:
+			return {"kind": "road", "point": rd["point"], "id": "",
+				"building": "", "door_index": -1, "edge": String(rd["edge"])}
+	return {"kind": "free", "point": snap(world_pos), "id": "",
+		"building": "", "door_index": -1, "edge": ""}
+
+
+## 把建筑的第 index 个门变成路网节点(已存在则复用)。
+## 带 door_of 的节点会跟随建筑(反之移动节点也会带着建筑走, 见 move_node)。
+func node_at_door(bid: String, door_index: int) -> String:
+	for nid in nodes:
+		if String(nodes[nid].get("door_of", "")) == bid \
+				and int(nodes[nid].get("door_index", 0)) == door_index:
+			return nid
+	if not buildings.has(bid):
+		return ""
+	var ws: Array = door_worlds(buildings[bid])
+	if door_index < 0 or door_index >= ws.size():
+		return ""
+	_seq.n += 1
+	var nid := "n_%03d" % int(_seq.n)
+	nodes[nid] = {"xy": ws[door_index]["pos"], "kind": "junction",
+		"door_of": bid, "door_index": door_index}
+	return nid
+
+
+## 原则: 没有边的节点不存在 → 清掉孤立节点。返回清除数量。
+func prune_orphan_nodes() -> int:
+	var used := {}
+	for eid in edges:
+		var e: Dictionary = edges[eid]
+		used[String(e["a"])] = true
+		used[String(e["b"])] = true
+	var n := 0
+	for nid in nodes.keys():
+		if not used.has(nid):
+			nodes.erase(nid)
+			n += 1
+	return n
 
 
 ## 摆放建筑(规则: 必须先有路; 自动把主门对齐到最近道路)。无路返回 ""。
@@ -251,6 +331,7 @@ func move_building(id: String, world_pos: Vector2) -> void:
 		return
 	buildings[id]["center"] = world_pos
 	_sync_doors(buildings[id])
+	_push_building_to_nodes(id)
 	errors = validate()
 	changed.emit()
 
@@ -262,6 +343,7 @@ func align_building(id: String) -> bool:
 	var b: Dictionary = buildings[id]
 	if not align_to_road(b, b["center"]):
 		return false
+	_push_building_to_nodes(id)
 	errors = validate()
 	changed.emit()
 	return true
@@ -296,15 +378,24 @@ func _make_edge(a: String, b: String, attrs: Dictionary) -> Dictionary:
 		"geom": [nodes[a]["xy"], nodes[b]["xy"]]}
 
 
-## 画路落点: 靠既有道路则打断道路插入 T/十字节点, 否则新建节点。
-func add_road_node(world_pos: Vector2) -> String:
-	var road := nearest_road(world_pos)
-	if not road.is_empty() and float(road["dist"]) <= ROAD_SNAP_M:
-		var p: Vector2 = road["point"]
-		for nid in nodes:
-			if (nodes[nid]["xy"] as Vector2).distance_to(p) < 0.5:
-				return nid
-		return _split_edge(String(road["edge"]), p)
+## 在道路中心线上打断该边, 插入 T/十字节点(附近已有节点则复用)。
+func split_road_at(edge_id: String, point: Vector2) -> String:
+	for nid in nodes:
+		if (nodes[nid]["xy"] as Vector2).distance_to(point) < 0.5:
+			return nid
+	return _split_edge(edge_id, point)
+
+
+## 画路落点: 统一吸附 → 复用节点 / 建门节点 / 打断道路 / 新建节点。
+func add_road_node(world_pos: Vector2, node_hit: String = "") -> String:
+	var s := resolve_snap(world_pos, node_hit)
+	match String(s["kind"]):
+		"node":
+			return String(s["id"])
+		"door":
+			return node_at_door(String(s["building"]), int(s["door_index"]))
+		"road":
+			return split_road_at(String(s["edge"]), s["point"] as Vector2)
 	return add_node(world_pos)
 
 
@@ -332,22 +423,60 @@ func _next_edge_id() -> String:
 	return "e_%03d" % int(_seq.e)
 
 
+## 相邻边的端点几何跟随(仅当线段是直连两点, 折线则只改对应端点)。
+func _follow_edges(nid: String) -> void:
+	for eid in edges:
+		var e: Dictionary = edges[eid]
+		var is_a: bool = e["a"] == nid
+		var is_b: bool = e["b"] == nid
+		if not (is_a or is_b):
+			continue
+		var g: Array = e["geom"]
+		if g.is_empty() or g.size() == 2:
+			e["geom"] = [nodes[e["a"]]["xy"], nodes[e["b"]]["xy"]]
+		elif is_a:
+			g[0] = nodes[nid]["xy"]
+		else:
+			g[g.size() - 1] = nodes[nid]["xy"]
+
+
+## 门节点 → 建筑: 平移建筑(不改朝向), 使它的门点落在这个节点上。
+func _pull_building_to_node(nid: String) -> void:
+	var bid := String(nodes[nid].get("door_of", ""))
+	if bid == "" or not buildings.has(bid):
+		return
+	var b: Dictionary = buildings[bid]
+	var idx := int(nodes[nid].get("door_index", 0))
+	var ws: Array = door_worlds(b)
+	if idx < 0 or idx >= ws.size():
+		return
+	b["center"] = (b["center"] as Vector2) \
+		+ ((nodes[nid]["xy"] as Vector2) - (ws[idx]["pos"] as Vector2))
+	_sync_doors(b)
+
+
+## 建筑 → 门节点: 绑定的节点贴到建筑门上(建筑被移动/转向/换类型后调)。
+func _push_building_to_nodes(bid: String) -> void:
+	if not buildings.has(bid):
+		return
+	var ws: Array = door_worlds(buildings[bid])
+	for nid in nodes:
+		if String(nodes[nid].get("door_of", "")) != bid:
+			continue
+		var idx := int(nodes[nid].get("door_index", 0))
+		if idx < 0 or idx >= ws.size():
+			continue
+		nodes[nid]["xy"] = ws[idx]["pos"]
+		_follow_edges(nid)
+
+
+## 移动节点: 相连的边跟随; 若是建筑门节点, 建筑也跟着平移。
 func move_node(id: String, world_pos: Vector2) -> void:
 	if not nodes.has(id):
 		return
 	nodes[id]["xy"] = snap(world_pos)
-	# 相邻边的端点几何跟随(仅当线段是直连两点)
-	for eid in edges:
-		var e: Dictionary = edges[eid]
-		if e["a"] == id or e["b"] == id:
-			var g: Array = e["geom"]
-			if g.is_empty() or g.size() == 2:
-				e["geom"] = [nodes[e["a"]]["xy"], nodes[e["b"]]["xy"]]
-			else:
-				if e["a"] == id:
-					g[0] = nodes[id]["xy"]
-				else:
-					g[g.size() - 1] = nodes[id]["xy"]
+	_follow_edges(id)
+	_pull_building_to_node(id)
 	errors = validate()
 	changed.emit()
 
@@ -359,6 +488,7 @@ func set_building_type(id: String, type_id: String) -> void:
 	buildings[id]["size"] = default_size_for(type_id)
 	align_to_road(buildings[id], buildings[id]["center"])
 	_sync_doors(buildings[id])
+	_push_building_to_nodes(id)
 	errors = validate()
 	changed.emit()
 
@@ -369,18 +499,25 @@ func remove_node(id: String) -> void:
 		var e: Dictionary = edges[eid]
 		if e["a"] == id or e["b"] == id:
 			edges.erase(eid)
+	prune_orphan_nodes()
 	errors = validate()
 	changed.emit()
 
 
 func remove_edge(id: String) -> void:
 	edges.erase(id)
+	prune_orphan_nodes()          # 原则: 没有边的节点不存在
 	errors = validate()
 	changed.emit()
 
 
 func remove_building(id: String) -> void:
 	buildings.erase(id)
+	# 解绑门节点(节点本身留着, 只是不再是"某建筑的门")
+	for nid in nodes:
+		if String(nodes[nid].get("door_of", "")) == id:
+			nodes[nid].erase("door_of")
+			nodes[nid].erase("door_index")
 	# 解除引用: 人物住所 / 物件所在建筑
 	for iid in items:
 		if String(items[iid].get("at", "")) == id:
@@ -388,6 +525,7 @@ func remove_building(id: String) -> void:
 	for pid in npcs:
 		if String(npcs[pid].get("home", "")) == id:
 			npcs[pid]["home"] = ""
+	prune_orphan_nodes()
 	errors = validate()
 	changed.emit()
 
@@ -645,7 +783,12 @@ func _vec(a) -> Vector2:
 func to_dict() -> Dictionary:
 	var nd := {}
 	for id in nodes:
-		nd[id] = {"xy": _v(nodes[id]["xy"]), "kind": nodes[id]["kind"]}
+		var n: Dictionary = nodes[id]
+		var rec := {"xy": _v(n["xy"]), "kind": n["kind"]}
+		if String(n.get("door_of", "")) != "":
+			rec["door_of"] = n["door_of"]
+			rec["door_index"] = int(n.get("door_index", 0))
+		nd[id] = rec
 	var ed := {}
 	for id in edges:
 		var e: Dictionary = edges[id]
@@ -666,7 +809,7 @@ func to_dict() -> Dictionary:
 	return {"format": SCHEMA, "version": VERSION,
 		"world": {"unit": "m",
 			"bounds": [bounds.position.x, bounds.position.y, bounds.size.x, bounds.size.y],
-			"grid": grid_size},
+			"grid": grid_size, "grid_snap": grid_snap, "net_snap": net_snap},
 		"nodes": nd, "edges": ed, "buildings": bd}
 
 
@@ -674,13 +817,20 @@ func from_dict(d: Dictionary) -> void:
 	new_map()
 	var w: Dictionary = d.get("world", {})
 	grid_size = float(w.get("grid", 1.0))
+	grid_snap = bool(w.get("grid_snap", true))
+	net_snap = bool(w.get("net_snap", true))
 	var bd = w.get("bounds", [0, 0, 800, 600])
 	if bd is Array and bd.size() >= 4:
 		bounds = Rect2(float(bd[0]), float(bd[1]), float(bd[2]), float(bd[3]))
 	var nd: Dictionary = d.get("nodes", {})
 	for id in nd:
-		nodes[String(id)] = {"xy": _vec(nd[id]["xy"]),
-			"kind": String(nd[id].get("kind", "junction"))}
+		var n: Dictionary = nd[id]
+		var rec := {"xy": _vec(n["xy"]),
+			"kind": String(n.get("kind", "junction"))}
+		if String(n.get("door_of", "")) != "":
+			rec["door_of"] = String(n["door_of"])
+			rec["door_index"] = int(n.get("door_index", 0))
+		nodes[String(id)] = rec
 	var ed: Dictionary = d.get("edges", {})
 	for id in ed:
 		var e: Dictionary = ed[id]
@@ -706,6 +856,7 @@ func from_dict(d: Dictionary) -> void:
 	for id in buildings:
 		if building_types.has(String(buildings[id]["type"])):
 			_sync_doors(buildings[id])
+	prune_orphan_nodes()          # 原则: 没有边的节点不存在
 	errors = validate()
 	changed.emit()
 
@@ -726,7 +877,8 @@ func _recount() -> void:
 
 ## 导出为后端可加载的场景(config/scenes 格式) + 原始路网。
 ## 建筑按 OBB 的外接矩形写成显式 x/y/w/h, 后端 build_locations 会原样保留。
-func to_scene_dict(scene_name: String = "editor_scene") -> Dictionary:
+func to_scene_dict(scene_name_arg: String = "") -> Dictionary:
+	var nm := scene_name_arg if scene_name_arg != "" else scene_name
 	var locs := {}
 	for bid in buildings:
 		var b: Dictionary = buildings[bid]
@@ -779,14 +931,14 @@ func to_scene_dict(scene_name: String = "editor_scene") -> Dictionary:
 			var a: Vector2 = buildings[bids[i]]["center"]
 			var b2: Vector2 = buildings[bids[j]]["center"]
 			pairs["%s|%s" % [bids[i], bids[j]]] = maxi(1, int(a.distance_to(b2) / 10.0))
-	return {"scene": scene_name, "display_name": scene_name,
+	return {"scene": nm, "display_name": scene_display if scene_display != "" else nm,
 		"canvas": {"w": bounds.size.x, "h": bounds.size.y},
 		"locations": locs, "travel": {"default": 20, "pairs": pairs},
 		"entities": ents, "pulses": [], "plans": {}, "npcs": ppl,
 		"map": to_dict()}
 
 
-func save_scene(path: String, scene_name: String = "editor_scene") -> bool:
+func save_scene(path: String, scene_name: String = "") -> bool:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		return false
@@ -795,21 +947,87 @@ func save_scene(path: String, scene_name: String = "editor_scene") -> bool:
 	return true
 
 
-func save_map(path: String) -> bool:
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
+## 导入编辑器场景(config/scenes 格式)。
+## map 段还原路网/建筑; 无 map 段时用 locations 矩形兜底; entities/npcs 还原物件与人物。
+func load_scene_dict(d: Dictionary) -> bool:
+	if not d.has("locations") and not d.has("map"):
 		return false
-	f.store_string(JSON.stringify(to_dict(), "  "))
-	f.close()
+	scene_name = String(d.get("scene", "editor_scene"))
+	scene_display = String(d.get("display_name", ""))
+	new_map()
+	var m: Variant = d.get("map")
+	if m is Dictionary and not (m as Dictionary).is_empty():
+		from_dict(m)
+	_load_buildings_from_locations(d)
+	_load_items(d)
+	_load_npcs(d)
+	_recount()
+	errors = validate()
+	changed.emit()
 	return true
 
 
-func load_map(path: String) -> bool:
-	var txt := FileAccess.get_file_as_string(path)
-	if txt == "":
-		return false
-	var j: Variant = JSON.parse_string(txt)
-	if not (j is Dictionary):
-		return false
-	from_dict(j)
-	return true
+## locations 段 → 建筑: 已有(来自 map)的只补自定义名; 缺的按矩形造一个。
+func _load_buildings_from_locations(d: Dictionary) -> void:
+	var locs: Dictionary = d.get("locations", {})
+	for bid in locs:
+		var loc: Dictionary = locs[bid]
+		var t := String(loc.get("type", ""))
+		if not building_types.has(t):
+			continue
+		if buildings.has(bid):
+			var nm0 := String(loc.get("name", ""))
+			if nm0 != "" and nm0 != type_display(t):
+				buildings[bid]["name"] = nm0
+			continue
+		var w := float(loc.get("w", 0.0))
+		var h := float(loc.get("h", 0.0))
+		if w <= 0.0 or h <= 0.0:
+			var sz := default_size_for(t)
+			w = sz.x
+			h = sz.y
+		var b := {"type": t,
+			"center": Vector2(float(loc.get("x", 0.0)) + w * 0.5,
+				float(loc.get("y", 0.0)) + h * 0.5),
+			"size": Vector2(w, h), "rot": 0.0, "doors": []}
+		var nm := String(loc.get("name", ""))
+		if nm != "":
+			b["name"] = nm
+		buildings[bid] = b
+		_sync_doors(b)
+
+
+func _load_items(d: Dictionary) -> void:
+	items.clear()
+	for e in d.get("entities", []):
+		if not (e is Dictionary):
+			continue
+		var iid := String(e.get("id", ""))
+		if iid == "":
+			continue
+		items[iid] = {"type": String(e.get("type", "")),
+			"at": String(e.get("at", "")),
+			"owner": String(e.get("owner", "")),
+			"stock": int(e.get("stock", 1)),
+			"price": float(e.get("price", 0.0)),
+			"persist_empty": bool(e.get("persist_empty", false))}
+
+
+func _load_npcs(d: Dictionary) -> void:
+	npcs.clear()
+	for p in d.get("npcs", []):
+		if not (p is Dictionary):
+			continue
+		var pid := String(p.get("id", ""))
+		if pid == "":
+			continue
+		npcs[pid] = {"name": String(p.get("name", pid)),
+			"gender": String(p.get("gender", "")),
+			"birthday": String(p.get("birthday", "")),
+			"role": String(p.get("role", "")),
+			"money": float(p.get("money", 100.0)),
+			"home": String(p.get("home", "")),
+			"personality": p.get("personality", {}),
+			"init": p.get("init", {}),
+			"traits": p.get("traits", {}),
+			"tell_bias": float(p.get("tell_bias", 1.0))}

@@ -23,6 +23,10 @@ const C_ROAD := Color("59636f")
 const C_ROAD_SEL := Color("4aa3ff")
 const C_BLDG_SEL := Color("4aa3ff")
 const C_NODE := Color("e8c07d")
+const C_DOOR_NODE := Color("ffcf5a")   # 建筑门节点(与普通路口区分)
+const C_SNAP_NODE := Color("e8c07d")
+const C_SNAP_DOOR := Color("ffcf5a")
+const C_SNAP_ROAD := Color("7fe3a0")
 const C_ERR := Color("e05252")
 const C_WARN := Color("e8a34d")
 const C_GHOST := Color(0.45, 0.8, 1.0, 0.35)
@@ -44,7 +48,7 @@ var _drag_off := Vector2.ZERO
 var _road_from := ""
 # 起点未落地(只有一个点): 不建节点, 等第二个点真正成边时才落。
 var _road_pending := false
-var _road_pending_pos := Vector2.ZERO
+var _road_pending_snap: Dictionary = {}
 
 
 func _ready() -> void:
@@ -69,6 +73,7 @@ func set_tool(t: int) -> void:
 	if t != Tool.ROAD:
 		_road_from = ""
 		_road_pending = false
+		_road_pending_snap = {}
 	status_message.emit(_tool_hint())
 	queue_redraw()
 
@@ -245,11 +250,43 @@ func _draw_buildings() -> void:
 
 func _draw_nodes() -> void:
 	for id in MapDoc.nodes:
-		var p := w2s(MapDoc.nodes[id]["xy"])
+		var n: Dictionary = MapDoc.nodes[id]
+		var p := w2s(n["xy"])
 		var sel: bool = sel_kind == "node" and sel_id == id
+		var is_door := String(n.get("door_of", "")) != ""
 		var r := 5.0 if sel else 3.5
-		draw_circle(p, r, C_ROAD_SEL if sel else C_NODE)
+		var base := C_DOOR_NODE if is_door else C_NODE
+		draw_circle(p, r, C_ROAD_SEL if sel else base)
 		draw_arc(p, r, 0.0, TAU, 16, Color("0f1319"), 1.0)
+		if is_door:            # 门节点: 外面再套一个方框, 一眼看出它属于建筑
+			draw_rect(Rect2(p - Vector2(7, 7), Vector2(14, 14)), base, false, 1.5)
+
+
+## 吸附预览: 十字准星 + 外圈, 颜色区分吸附到了什么。
+func _draw_snap_marker(p: Vector2, snap: Dictionary) -> void:
+	var kind := String(snap.get("kind", "free"))
+	if kind == "free":
+		return
+	var col := C_SNAP_ROAD
+	if kind == "node":
+		col = C_SNAP_NODE
+	elif kind == "door":
+		col = C_SNAP_DOOR
+	draw_arc(p, 9.0, 0.0, TAU, 24, col, 2.0)
+	draw_line(p + Vector2(-13, 0), p + Vector2(13, 0), col, 1.0)
+	draw_line(p + Vector2(0, -13), p + Vector2(0, 13), col, 1.0)
+
+
+func _snap_label(snap: Dictionary) -> String:
+	match String(snap.get("kind", "free")):
+		"node":
+			return "吸附节点"
+		"door":
+			return "吸附门口"
+		"road":
+			return "吸附路中"
+		_:
+			return "自由"
 
 
 func _draw_errors() -> void:
@@ -290,17 +327,20 @@ func _draw_ghost() -> void:
 			w2s(c + Vector2(-h.x, -h.y))])
 		draw_polyline(pts, C_GHOST, 2.0, true)
 	elif tool == Tool.ROAD:
+		var snap := MapDoc.resolve_snap(_mouse_world, _node_at(_mouse))
 		var a := Vector2.ZERO
 		var has := false
 		if _road_from != "" and MapDoc.nodes.has(_road_from):
 			a = w2s(MapDoc.nodes[_road_from]["xy"])
 			has = true
-		elif _road_pending:
-			a = w2s(_road_pending_pos)
+		elif _road_pending and not _road_pending_snap.is_empty():
+			a = w2s(_road_pending_snap["point"] as Vector2)
 			has = true
+		var target := w2s(snap["point"] as Vector2)
 		if has:
-			draw_line(a, w2s(_mouse_world), C_GHOST, 2.0)
+			draw_line(a, target, C_GHOST, 2.0)
 			draw_circle(a, 4.0, C_GHOST)
+		_draw_snap_marker(target, snap)
 
 
 # --- 交互 ----------------------------------------------------------------
@@ -332,6 +372,7 @@ func _gui_input(event: InputEvent) -> void:
 			if tool == Tool.ROAD and (_road_from != "" or _road_pending):
 				_road_from = ""
 				_road_pending = false
+				_road_pending_snap = {}
 				status_message.emit("已结束当前连线")
 			else:
 				clear_selection()
@@ -359,6 +400,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		if _road_from != "" or _road_pending:
 			_road_from = ""
 			_road_pending = false
+			_road_pending_snap = {}
 		else:
 			clear_selection()
 		queue_redraw()
@@ -426,35 +468,36 @@ func _on_left_press(pos: Vector2) -> void:
 
 
 ## 画路点击: 起点先不落节点(避免右键取消留下悬空点); 第二点成边时才建节点。
+## 画路点击: 统一吸附(节点 > 建筑门 > 路中心线)。
+## 首点不落节点(避免取消后留悬空点), 等第二个点成边时才落。
 func _road_click(pos: Vector2) -> void:
-	var nid := _node_at(pos)
+	var snap := MapDoc.resolve_snap(s2w(pos), _node_at(pos))
 	if _road_from == "" and not _road_pending:
-		# 首点: 吸附已有节点则直接作起点; 否则只记待定点
-		if nid != "":
-			_road_from = nid
-			status_message.emit("起点: %s — 点下一个点连线 (右键/Esc 取消)" % nid)
+		if String(snap["kind"]) == "node":
+			_road_from = String(snap["id"])
+			status_message.emit("起点: %s — 点下一个点连线 (右键/Esc 取消)" % _road_from)
 		else:
 			_road_pending = true
-			_road_pending_pos = s2w(pos)
-			status_message.emit("起点待定 — 点下一个点成路 (右键/Esc 取消)")
+			_road_pending_snap = snap
+			status_message.emit("起点待定[%s] — 点下一个点成路 (右键/Esc 取消)"
+				% _snap_label(snap))
 		return
 	# 起点待定且终点落回起点附近: 直接取消, 不建任何节点
-	if _road_pending and nid == "" and s2w(pos).distance_to(_road_pending_pos) < 0.5:
+	if _road_pending and String(snap["kind"]) == "free" \
+			and (snap["point"] as Vector2) \
+				.distance_to(_road_pending_snap["point"] as Vector2) < 0.5:
 		_road_pending = false
+		_road_pending_snap = {}
 		status_message.emit("起点与终点重合, 未成路")
 		return
-	# 第二点起: 需要时才落节点
-	var target := nid
-	if target == "":
-		target = MapDoc.add_road_node(s2w(pos))
+	var target := _materialize(snap)
 	var start := _road_from
 	if _road_pending:
-		if target != "" and (MapDoc.nodes[target]["xy"] as Vector2) \
-				.distance_to(_road_pending_pos) < 0.5:
-			start = target
-		else:
-			start = MapDoc.add_road_node(_road_pending_pos)
+		start = _materialize(_road_pending_snap)
 		_road_pending = false
+		_road_pending_snap = {}
+	if start == "" or target == "":
+		return
 	if start == target:
 		status_message.emit("起点与终点重合, 未成路")
 		_road_from = target
@@ -463,6 +506,20 @@ func _road_click(pos: Vector2) -> void:
 	if made != "":
 		status_message.emit("连线 %s → %s" % [start, target])
 	_road_from = target
+
+
+## 把一次吸附解析落成真实节点: 节点→复用; 门→建门节点; 路→打断插入 T/十字。
+func _materialize(snap: Dictionary) -> String:
+	match String(snap.get("kind", "free")):
+		"node":
+			return String(snap["id"])
+		"door":
+			return MapDoc.node_at_door(String(snap["building"]),
+				int(snap["door_index"]))
+		"road":
+			return MapDoc.split_road_at(String(snap["edge"]),
+				snap["point"] as Vector2)
+	return MapDoc.add_road_node(snap.get("point", Vector2.ZERO) as Vector2)
 
 
 func _node_at(pos: Vector2) -> String:
@@ -573,7 +630,7 @@ func _tool_hint() -> String:
 		Tool.PLACE:
 			return "放置模式: 在画布点击放置建筑"
 		Tool.ROAD:
-			return "连线模式: 点击落节点; 连续点成路; 右键/Esc 结束"
+			return "连线模式: 点落点(自动吸附 节点/门口/路中); 连续点成路; 右键/Esc 结束"
 		Tool.NPC:
 			return "人物模式: 点建筑 → 新增随机人物"
 		Tool.ITEM:

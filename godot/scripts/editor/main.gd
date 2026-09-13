@@ -91,11 +91,11 @@ func _build_menu() -> MenuBar:
 	var file := PopupMenu.new()
 	file.name = "文件"
 	file.add_item("新建", 0)
-	file.add_item("导入地图…", 1)
-	file.add_item("导出地图…", 2)
-	file.add_item("导出场景… (给观察器)", 3)
 	file.add_separator()
-	file.add_item("返回主菜单", 4)
+	file.add_item("导入场景…", 1)
+	file.add_item("导出场景…", 2)
+	file.add_separator()
+	file.add_item("返回主菜单", 3)
 	file.id_pressed.connect(_on_file_menu)
 	mb.add_child(file)
 	var viewm := PopupMenu.new()
@@ -166,6 +166,25 @@ func _build_right_panel() -> VBoxContainer:
 		MapDoc.grid_size = v
 		_view.queue_redraw())
 	_base_page.add_child(_grid_spin)
+
+	# --- 吸附开关(2 个选项) ---
+	var snap_grid := CheckBox.new()
+	snap_grid.text = "吸附到栅格"
+	snap_grid.button_pressed = MapDoc.grid_snap
+	snap_grid.tooltip_text = "关闭后落点不被栅格对齐(仍保留节点/门口/路中吸附)"
+	snap_grid.toggled.connect(func(on: bool) -> void:
+		MapDoc.grid_snap = on
+		_view.queue_redraw())
+	_base_page.add_child(snap_grid)
+
+	var snap_net := CheckBox.new()
+	snap_net.text = "吸附路网/门口"
+	snap_net.button_pressed = MapDoc.net_snap
+	snap_net.tooltip_text = "画路时自动吸到 已有节点 > 建筑门口 > 道路中心线"
+	snap_net.toggled.connect(func(on: bool) -> void:
+		MapDoc.net_snap = on
+		_view.queue_redraw())
+	_base_page.add_child(snap_net)
 	right.add_child(_base_page)
 
 	# --- 详情页: 整体替换基础页, 带返回 ---
@@ -685,12 +704,10 @@ func _on_file_menu(id: int) -> void:
 			_dirty = false
 			_refresh_status("已新建空白地图")
 		1:
-			_show_dialog(false)
+			_show_scene_dialog(false)
 		2:
-			_show_dialog(true)
+			_show_scene_dialog(true)
 		3:
-			_show_scene_dialog()
-		4:
 			_leave_to_menu()
 
 
@@ -712,53 +729,41 @@ func _leave_to_menu() -> void:
 	d.popup_centered()
 
 
-func _show_scene_dialog() -> void:
-	var d := FileDialog.new()
-	d.access = FileDialog.ACCESS_FILESYSTEM
-	d.file_mode = FileDialog.FILE_MODE_SAVE_FILE
-	d.add_filter("*.json", "CitySim Scene")
-	d.use_native_dialog = false
-	d.size = Vector2i(760, 520)
-	d.current_file = "scene.json"
-	d.file_selected.connect(func(p: String) -> void:
-		if MapDoc.save_scene(p, "editor_scene"):
-			_dirty = false
-			_refresh_status("已导出场景: " + p)
-		else:
-			_refresh_status("导出失败: " + p)
-		d.queue_free())
-	d.canceled.connect(d.queue_free)
-	add_child(d)
-	d.popup_centered()
-
-
-func _show_dialog(save: bool) -> void:
+## 场景导入/导出共用一个对话框; 默认目录锁定 config/scenes。
+func _show_scene_dialog(save: bool) -> void:
 	var d := FileDialog.new()
 	d.access = FileDialog.ACCESS_FILESYSTEM
 	d.file_mode = FileDialog.FILE_MODE_SAVE_FILE if save \
 		else FileDialog.FILE_MODE_OPEN_FILE
-	d.add_filter("*.json", "CitySim Map")
+	d.add_filter("*.json", "CitySim Scene")
 	d.use_native_dialog = false
 	d.size = Vector2i(760, 520)
+	var dir := MapDoc.scenes_dir()
+	if DirAccess.dir_exists_absolute(dir):
+		d.current_dir = dir
 	add_child(d)
 	if save:
-		d.current_file = "map.json"
+		d.current_file = MapDoc.scene_name + ".json"
 		d.file_selected.connect(func(p: String) -> void:
-			if MapDoc.save_map(p):
-				_refresh_status("已导出地图: " + p)
+			if MapDoc.save_scene(p, p.get_file().get_basename()):
+				_dirty = false
+				_refresh_status("已导出场景: " + p)
 			else:
 				_refresh_status("导出失败: " + p)
 			d.queue_free())
 	else:
 		d.file_selected.connect(func(p: String) -> void:
-			if MapDoc.load_map(p):
+			var j: Variant = JSON.parse_string(FileAccess.get_file_as_string(p))
+			if j is Dictionary and MapDoc.load_scene_dict(j):
 				_view.fit_to_content()
 				_view.clear_selection()
 				_dirty = false
-				_refresh_status("已导入: " + p)
+				_refresh_status("已导入场景: " + p)
 			else:
-				_refresh_status("导入失败: " + p)
+				_refresh_status("导入失败(不是场景文件): " + p)
 			d.queue_free())
+	d.canceled.connect(d.queue_free)
+	d.popup_centered()
 	d.canceled.connect(d.queue_free)
 	d.popup_centered()
 

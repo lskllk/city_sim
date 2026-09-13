@@ -20,6 +20,7 @@ from citysim.npc.planner import ScriptedPlanner
 from citysim.sim.loop import attach_replay, make_systems
 from citysim.world.buildings import build_locations
 from citysim.world.pulses import normalize as _norm_pulses
+from citysim.world.roads import RoadGraph
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.world import Entity, World, entity_from_def
 
@@ -44,7 +45,8 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
     world.map = data.get("map") or {}
 
     systems = make_systems(log=True,
-                           tell_p=float(data.get("tell_p", 0.0)))
+                           tell_p=float(data.get("tell_p", 0.0)),
+                           roads=RoadGraph(world.map, CFG.move_m_per_tick))
     attach_replay(world, systems)      # 让 bus 事件(intent_failed/bought/…) 进 ui_events
     rng_pool: dict[str, random.Random] = {}
 

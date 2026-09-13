@@ -212,6 +212,19 @@ class World:
         r = self.locations.get(location_id)
         return None if r is None else _region_center(r)
 
+    def door_point(self, location_id: str) -> tuple[float, float] | None:
+        """建筑门点(寻路起点/终点)。编辑器 map 的门 > 建筑中心 > region 中心。"""
+        b = ((self.map or {}).get("buildings") or {}).get(location_id)
+        if isinstance(b, dict):
+            doors = b.get("doors") or []
+            d = doors[0] if doors else None
+            if isinstance(d, (list, tuple)) and len(d) >= 2:
+                return (float(d[0]), float(d[1]))
+            c = b.get("center")
+            if isinstance(c, (list, tuple)) and len(c) >= 2:
+                return (float(c[0]), float(c[1]))
+        return self.region_center(location_id)
+
     def layout_location(self, location_id: str) -> None:
         """给某 region 内全部实体写入稳定默认锚点(显式 position 不覆盖)。
 

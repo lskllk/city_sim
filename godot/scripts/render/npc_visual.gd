@@ -8,6 +8,17 @@ extends Node2D
 @onready var _bubble: PanelContainer = $Bubble
 @onready var _bubble_label: Label = $Bubble/BubbleLabel
 
+## 圆点多边形半径为 7(世界单位); 路网场景里建筑才 8~22 单位 → 缩到 ~3.9 才不遮住房子。
+const BODY_SCALE := 0.55
+
+
+func _ready() -> void:
+	_body.scale = Vector2(BODY_SCALE, BODY_SCALE)
+	_ring.scale = Vector2(BODY_SCALE, BODY_SCALE)
+	# 气泡仍走世界坐标; 随圆点变小把底边拉近头顶
+	_bubble.offset_top = -32.0
+	_bubble.offset_bottom = -8.0
+
 
 func set_color(c: Color) -> void:
 	_body.color = c

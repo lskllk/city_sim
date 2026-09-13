@@ -25,7 +25,8 @@ fallback_need = 0.9            # 兜底触发下限: 仅 need>=此值才纳入�
                                # 平时应由计划表系统驱动, 此处只当安全网。
 
 [motion]                       # 跨地点移动(m5-rectify 13; M7 日程/距离前先入 config)
-move_ticks = 30
+move_ticks = 30                # 无路网时的固定耗时(MoveTo 降级)
+move_m_per_tick = 10.0         # 有路网时: 每 tick 可走米数(等价编辑器 travel 降级的 距离/10)
 
 [health]                       # 生命: 饥饿/口渴/精力任一为 0 时下降, 三者满足时回升
 hp_decay = 0.00034722222222222222   # 1/2880: 关键信号归零后约 2 天掉光 hp

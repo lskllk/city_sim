@@ -35,6 +35,17 @@ def _travel_cost(systems, cfg: SimConfig, a: str, b: str) -> int:
     return cfg.move_ticks
 
 
+def _route_between(world, systems, a: str, b: str):
+    """有路网且两端都接得上 → 沿路最短路径; 否则 None(上层降级)。"""
+    roads = getattr(systems, "roads", None)
+    if roads is None or not roads.ok:
+        return None
+    pa, pb = world.door_point(a), world.door_point(b)
+    if pa is None or pb is None:
+        return None
+    return roads.route(pa, pb)
+
+
 def _sleeping(world, systems, pid: str) -> bool:
     act = systems.interaction.active.get(pid)
     if act is None:
@@ -179,13 +190,19 @@ def _apply(world, systems, cfg, pid, npc, decision) -> None:
                 {"target": dest, "why": why}))
             npc.on_failure(dest, why, world.clock_tick)
             return
-        cost = _travel_cost(systems, cfg, here, dest)
+        route = _route_between(world, systems, here, dest)
+        if route is None:                        # 无路网 → 直线/固定耗时降级
+            cost = _travel_cost(systems, cfg, here, dest)
+            wps: tuple[tuple[float, float], ...] = ()
+        else:
+            cost = route.ticks
+            wps = route.waypoints
         systems.travel[pid] = Travel(
             from_loc=here, to_loc=dest,
             depart_tick=world.clock_tick,
-            arrive_tick=world.clock_tick + cost)
+            arrive_tick=world.clock_tick + cost,
+            waypoints=wps)
         return
-
     if isinstance(intent, Buy):
         if active is not None:
             if not _can_preempt(world, systems, pid, decision.source):

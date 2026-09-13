@@ -44,6 +44,7 @@ func _ready() -> void:
 	camera = WorldCamera.new(camera_root)
 	camera.resize(size.x, size.y)
 	map_labels.setup(camera)      # 建筑矢量层跟随相机投影(屏幕坐标, 不受缩放影响)
+	entity_layer.setup(camera)    # NPC 圆点层同坐标系, 但画在建筑之上
 
 	_reset_button.pressed.connect(reset_view)
 	for node_name in RATE_BY_NODE:

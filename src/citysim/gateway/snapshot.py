@@ -158,7 +158,9 @@ def _npc_base(world, systems, pid: str, p) -> dict:
             "total": act.total_ticks},
         "travel": None if tv is None else {
             "from": tv.from_loc, "to": tv.to_loc,
-            "depart": tv.depart_tick, "arrive": tv.arrive_tick},
+            "depart": tv.depart_tick, "arrive": tv.arrive_tick,
+            "waypoints": [[round(x, 2), round(y, 2)]
+                          for x, y in tv.waypoints]},
         "plan": p.plan_snapshot(),      # 当天计划表(前端时间线 viz 用)
     }
 

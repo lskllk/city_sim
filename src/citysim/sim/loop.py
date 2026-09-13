@@ -28,13 +28,16 @@ class Systems:
     travel_costs: dict[str, int] | None = None
     pulses: list = field(default_factory=list)
     planner: Planner | None = None       # 日计划器(0:00 生成次日计划; 缺省规则模板)
+    roads: object | None = None          # world.roads.RoadGraph; 有则 MoveTo 走最短路
     last_decision: dict = field(default_factory=dict)  # 观测去重: npc_id -> 上次决策签名
 
 
-def make_systems(*, log: bool = False, tell_p: float = 0.0) -> Systems:
+def make_systems(*, log: bool = False, tell_p: float = 0.0,
+                 roads: object | None = None) -> Systems:
     return Systems(interaction=InteractionSystem(),
                    planner=Planner(),
-                   log_lines=[] if log else None, tell_p=tell_p)
+                   log_lines=[] if log else None, tell_p=tell_p,
+                   roads=roads)
 
 
 def attach_replay(world: World, systems: Systems) -> None:

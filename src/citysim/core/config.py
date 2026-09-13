@@ -31,7 +31,8 @@ class SimConfig:
     half_life_ticks: int = 2880   # M5 知识半衰期(tick; 2 天)
     utility_power: float = 3.0     # 需求急迫度幂次(m5-rectify 13)
     utility_threshold: float = 0.0   # 效用最低分(兜底策略下置 0: 到 need 下限即行动)
-    move_ticks: int = 30           # 跨地点移动耗时
+    move_ticks: int = 30           # 跨地点移动耗时(无路网时的降级)
+    move_m_per_tick: float = 10.0  # 有路网时: 每 tick 可走米数
     hp_decay: float = 0.0005       # 饥饿/饥渴为 0 时 hp 每 tick 下降
     hp_regen: float = 0.0005       # 两者满足时 hp 回升最大速率(×均值)
     move_penalty: float = 0.6      # 异地(MoveTo)候选效用折扣(移动耗时/精力成本)
@@ -50,6 +51,7 @@ class SimConfig:
             utility_power=float(data.get("utility", {}).get("power", 3.0)),
             utility_threshold=float(data.get("utility", {}).get("threshold", 0.0)),
             move_ticks=int(data.get("motion", {}).get("move_ticks", 30)),
+            move_m_per_tick=float(data.get("motion", {}).get("move_m_per_tick", 10.0)),
             hp_decay=float(health.get("hp_decay", health.get("decay", 0.0005))),
             hp_regen=float(health.get("hp_regen", health.get("regen", 0.0005))),
             move_penalty=float(data.get("utility", {}).get("move_penalty", 0.6)),

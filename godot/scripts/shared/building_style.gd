@@ -73,10 +73,9 @@ const FLAT_EPS := 0.05
 
 
 ## nodes: {id: Vector2}; edges: {id: {a, b, pts: PackedVector2Array, width_px}}。
-## walls: [{pos: Vector2, normal: Vector2}] —— 建筑门墙(法线朝外/朝路), 用于端头收口。
-## 返回 {node_id: Array[PackedVector2Array]} —— 每个路口/端头要补的填充块。
+## 返回 {node_id: Array[PackedVector2Array]} —— 每个路口要补的填充块。
 static func build_junctions(nodes: Dictionary, edges: Dictionary,
-		walls: Array = [], fillet_of_width: float = 0.5) -> Dictionary:
+		fillet_of_width: float = 0.5) -> Dictionary:
 	var inc := {}                     # nid -> [{dir, half}]
 	for eid in edges:
 		var e: Dictionary = edges[eid]
@@ -95,16 +94,8 @@ static func build_junctions(nodes: Dictionary, edges: Dictionary,
 	var out := {}
 	for nid in inc:
 		var list: Array = inc[nid]
-		if list.is_empty():
-			continue
-		var blocks: Array = []
-		if list.size() == 1:
-			var apron := _end_apron(nodes[nid], list[0], walls, fillet_of_width)
-			if not apron.is_empty():
-				blocks.append(apron)
-			if not blocks.is_empty():
-				out[nid] = blocks
-			continue
+		if list.size() < 2:
+			continue                   # 尽头: 没有缺口
 		var pos: Vector2 = nodes[nid]
 		var half := 0.0
 		for it in list:
@@ -114,6 +105,7 @@ static func build_junctions(nodes: Dictionary, edges: Dictionary,
 		list.sort_custom(func(p, q):
 			return atan2(p["dir"].y, p["dir"].x) < atan2(q["dir"].y, q["dir"].x))
 		var n := list.size()
+		var blocks: Array = []
 		for i in range(n):
 			var d0: Vector2 = list[i]["dir"]
 			var d1: Vector2 = list[(i + 1) % n]["dir"]
@@ -139,46 +131,6 @@ static func build_junctions(nodes: Dictionary, edges: Dictionary,
 		if not blocks.is_empty():
 			out[nid] = blocks
 	return out
-
-
-## 端头收口多边形: 死胡同正对一堵墙时, 把圆弧端改成"平头贴墙 + 两个圆角"。
-## 圆弧端与墙是相切(点接触)两侧各裂出一个尖角; 铺到墙 + 圆角就没尖角了。
-static func _end_apron(pos: Vector2, item: Dictionary, walls: Array,
-		fillet_of_width: float) -> PackedVector2Array:
-	var a := float(item["half"])
-	var d: Vector2 = item["dir"]              # 节点→沿路(向内), 建筑在反方向
-	var u := -d                              # 节点→建筑
-	var m := u.rotated(PI * 0.5)
-	for w in walls:
-		var wp: Vector2 = w["pos"]
-		var wn: Vector2 = w["normal"]
-		if wn.dot(u) > -0.9:
-			continue                         # 门得基本朝着路尾(法线与 u 反向)
-		var rel := wp - pos
-		if absf(rel.dot(m)) > a * 0.5:
-			continue                         # 门要大致落在路宽内
-		var L := rel.dot(u)                  # 节点到墙的距离
-		if L <= 0.05 or L > a * 2.0:
-			continue
-		var r: float = minf(minf(L, a) * 0.5, a * fillet_of_width)
-		var poly := PackedVector2Array()
-		poly.append(pos - m * a)
-		poly.append(pos + u * (L - r) - m * a)
-		_arc_into(poly, pos + u * (L - r) - m * (a - r), r, m, u, PI, PI * 0.5)
-		poly.append(pos + u * L + m * (a - r))     # 墙上的另一侧切点
-		_arc_into(poly, pos + u * (L - r) + m * (a - r), r, m, u, PI * 0.5, 0.0)
-		poly.append(pos + m * a)
-		return poly
-	return PackedVector2Array()
-
-
-## 按 (m, u) 局部轴从 ang0 扫到 ang1 的圆弧(不含起点, 含终点)。
-static func _arc_into(poly: PackedVector2Array, c: Vector2, r: float,
-		axis_m: Vector2, axis_u: Vector2, ang0: float, ang1: float) -> void:
-	var steps := 8
-	for k in range(1, steps + 1):
-		var ang := lerp_angle(ang0, ang1, float(k) / float(steps))
-		poly.append(c + (axis_m * cos(ang) + axis_u * sin(ang)) * r)
 
 
 static func _inc_add(inc: Dictionary, nid: String, dir: Vector2, half: float) -> void:

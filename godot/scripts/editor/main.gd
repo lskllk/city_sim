@@ -27,6 +27,7 @@ var _type_keys: Array = []
 var _item_type_keys: Array = []
 
 var _context_building := ""     # 当前详情所属建筑
+var _dirty := false            # 有未导出修改(退出前确认)
 
 # 详情表单控件(每次重建时重新赋值)
 var _f_name: LineEdit
@@ -59,7 +60,7 @@ func _build() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_theme_constant_override("separation", 4)
 	add_child(root)
-	root.add_child(_build_menu())
+	root.add_child(_build_topbar())
 
 	var hb := HBoxContainer.new()
 	hb.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -94,6 +95,8 @@ func _build_menu() -> MenuBar:
 	file.add_item("导入地图…", 1)
 	file.add_item("导出地图…", 2)
 	file.add_item("导出场景… (给观察器)", 3)
+	file.add_separator()
+	file.add_item("返回主菜单", 4)
 	file.id_pressed.connect(_on_file_menu)
 	mb.add_child(file)
 	var viewm := PopupMenu.new()
@@ -104,6 +107,22 @@ func _build_menu() -> MenuBar:
 			_view.fit_to_content())
 	mb.add_child(viewm)
 	return mb
+
+
+## 顶栏: 菜单 + 右侧「主菜单」按钮(显式退出入口)。
+func _build_topbar() -> HBoxContainer:
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 6)
+	bar.add_child(_build_menu())
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.add_child(spacer)
+	var home := Button.new()
+	home.text = "⌂ 主菜单"
+	home.tooltip_text = "返回启动界面"
+	home.pressed.connect(_leave_to_menu)
+	bar.add_child(home)
+	return bar
 
 
 func _build_right_panel() -> VBoxContainer:
@@ -169,6 +188,7 @@ func _show_page(detail: bool) -> void:
 
 
 func _on_doc_changed() -> void:
+	_dirty = true
 	if _detail_page.visible:
 		_rebuild_inspector()
 
@@ -667,6 +687,7 @@ func _on_file_menu(id: int) -> void:
 			MapDoc.new_map()
 			_view.fit_to_content()
 			_view.clear_selection()
+			_dirty = false
 			_refresh_status("已新建空白地图")
 		1:
 			_show_dialog(false)
@@ -674,6 +695,26 @@ func _on_file_menu(id: int) -> void:
 			_show_dialog(true)
 		3:
 			_show_scene_dialog()
+		4:
+			_leave_to_menu()
+
+
+## 退出编辑器回启动界面; 有未导出修改时先确认。
+func _leave_to_menu() -> void:
+	if not _dirty:
+		App.return_to_launcher()
+		return
+	var d := ConfirmationDialog.new()
+	d.title = "返回主菜单"
+	d.dialog_text = "有尚未导出的修改，确定返回主菜单？"
+	d.ok_button_text = "返回"
+	d.cancel_button_text = "取消"
+	d.confirmed.connect(func() -> void:
+		d.queue_free()
+		App.return_to_launcher())
+	d.canceled.connect(d.queue_free)
+	add_child(d)
+	d.popup_centered()
 
 
 func _show_scene_dialog() -> void:
@@ -686,6 +727,7 @@ func _show_scene_dialog() -> void:
 	d.current_file = "scene.json"
 	d.file_selected.connect(func(p: String) -> void:
 		if MapDoc.save_scene(p, "editor_scene"):
+			_dirty = false
 			_refresh_status("已导出场景: " + p)
 		else:
 			_refresh_status("导出失败: " + p)
@@ -717,6 +759,7 @@ func _show_dialog(save: bool) -> void:
 			if MapDoc.load_map(p):
 				_view.fit_to_content()
 				_view.clear_selection()
+				_dirty = false
 				_refresh_status("已导入: " + p)
 			else:
 				_refresh_status("导入失败: " + p)

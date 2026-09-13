@@ -4,44 +4,113 @@
     "w": 800.0
   },
   "display_name": "editor_scene",
-  "entities": [],
+  "entities": [
+    {
+      "at": "bld_001",
+      "id": "bed_basic_001",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_001",
+      "id": "bed_basic_002",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_001",
+      "id": "food_apple_003",
+      "type": "food_apple"
+    },
+    {
+      "at": "bld_001",
+      "id": "food_pear_004",
+      "type": "food_pear"
+    },
+    {
+      "at": "bld_001",
+      "id": "game_mahjong_005",
+      "stock": -1,
+      "type": "game_mahjong"
+    },
+    {
+      "at": "bld_001",
+      "id": "toilet_basic_006",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_001",
+      "id": "station_workbench_007",
+      "stock": -1,
+      "type": "station_workbench"
+    },
+    {
+      "at": "bld_004",
+      "id": "bed_basic_008",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_004",
+      "id": "meal_simple_009",
+      "stock": 10000,
+      "type": "meal_simple"
+    },
+    {
+      "at": "bld_004",
+      "id": "drink_dispenser_010",
+      "stock": -1,
+      "type": "drink_dispenser"
+    },
+    {
+      "at": "bld_004",
+      "id": "media_tv_011",
+      "price": 60.0,
+      "type": "media_tv"
+    }
+  ],
   "locations": {
     "bld_001": {
       "h": 7.75,
-      "name": "小屋2",
-      "type": "home_small",
-      "w": 7.75,
-      "x": 403.13,
-      "y": 292.25
-    },
-    "bld_002": {
-      "h": 7.75,
-      "name": "小屋1",
+      "name": "小屋",
       "type": "home_small",
       "w": 7.75,
       "x": 386.13,
-      "y": 288.25
+      "y": 290.25
+    },
+    "bld_002": {
+      "h": 7.75,
+      "name": "小屋",
+      "type": "home_small",
+      "w": 7.75,
+      "x": 394.13,
+      "y": 290.25
     },
     "bld_003": {
-      "h": 28.28,
-      "name": "广场",
-      "type": "public_plaza",
-      "w": 42.43,
-      "x": 424.79,
-      "y": 271.72
+      "h": 7.75,
+      "name": "小屋",
+      "type": "home_small",
+      "w": 7.75,
+      "x": 402.13,
+      "y": 290.25
+    },
+    "bld_004": {
+      "h": 7.75,
+      "name": "小屋",
+      "type": "home_small",
+      "w": 7.75,
+      "x": 410.13,
+      "y": 290.25
     }
   },
   "map": {
     "buildings": {
       "bld_001": {
         "center": [
-          407.0,
-          296.127
+          390.0,
+          294.127
         ],
         "doors": [
           [
-            407.0,
-            300.0
+            390.0,
+            298.0
           ]
         ],
         "rot": 0.0,
@@ -53,13 +122,13 @@
       },
       "bld_002": {
         "center": [
-          390.0,
-          292.127
+          398.0,
+          294.127
         ],
         "doors": [
           [
-            390.0,
-            296.0
+            398.0,
+            298.0
           ]
         ],
         "rot": 0.0,
@@ -71,84 +140,54 @@
       },
       "bld_003": {
         "center": [
-          446.0,
-          285.858
+          406.0,
+          294.127
         ],
         "doors": [
           [
-            446.0,
-            300.0
-          ],
-          [
-            446.0,
-            271.716
-          ],
-          [
-            467.213,
-            285.858
-          ],
-          [
-            424.787,
-            285.858
+            406.0,
+            298.0
           ]
         ],
         "rot": 0.0,
         "size": [
-          42.426,
-          28.284
+          7.746,
+          7.746
         ],
-        "type": "public_plaza"
-      }
-    },
-    "edges": {
-      "e_006": {
-        "a": "n_001",
-        "b": "n_006",
-        "class": "local",
-        "geom": [
-          [
-            366.0,
-            302.0
-          ],
-          [
-            390.0,
-            302.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
+        "type": "home_small"
       },
-      "e_008": {
-        "a": "n_006",
-        "b": "n_007",
-        "class": "local",
-        "geom": [
+      "bld_004": {
+        "center": [
+          414.0,
+          294.127
+        ],
+        "doors": [
           [
-            390.0,
-            302.0
-          ],
-          [
-            390.0,
+            414.0,
             298.0
           ]
         ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      },
-      "e_009": {
-        "a": "n_006",
-        "b": "n_003",
+        "rot": 0.0,
+        "size": [
+          7.746,
+          7.746
+        ],
+        "type": "home_small"
+      }
+    },
+    "edges": {
+      "e_001": {
+        "a": "n_002",
+        "b": "n_001",
         "class": "local",
         "geom": [
           [
-            390.0,
-            302.0
+            350.0,
+            300.0
           ],
           [
-            478.0,
-            302.0
+            479.0,
+            300.0
           ]
         ],
         "oneway": false,
@@ -161,29 +200,15 @@
       "n_001": {
         "kind": "junction",
         "xy": [
-          366.0,
-          302.0
+          479.0,
+          300.0
         ]
       },
-      "n_003": {
+      "n_002": {
         "kind": "junction",
         "xy": [
-          478.0,
-          302.0
-        ]
-      },
-      "n_006": {
-        "kind": "junction",
-        "xy": [
-          390.0,
-          302.0
-        ]
-      },
-      "n_007": {
-        "kind": "junction",
-        "xy": [
-          390.0,
-          298.0
+          350.0,
+          300.0
         ]
       }
     },
@@ -199,7 +224,178 @@
       "unit": "m"
     }
   },
-  "npcs": [],
+  "npcs": [
+    {
+      "birthday": "2008-12-03",
+      "gender": "male",
+      "home": "bld_001",
+      "id": "npc_zhang_jie",
+      "init": {},
+      "money": 370.0,
+      "name": "张杰",
+      "personality": {
+        "energy": 1.0,
+        "fun": 1.0,
+        "hunger": 1.2
+      },
+      "role": "doctor",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1999-11-11",
+      "gender": "female",
+      "home": "bld_001",
+      "id": "npc_zhao_min",
+      "init": {},
+      "money": 408.0,
+      "name": "赵敏",
+      "personality": {
+        "energy": 0.9,
+        "fun": 1.1,
+        "hunger": 1.1
+      },
+      "role": "worker",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2001-12-09",
+      "gender": "male",
+      "home": "bld_001",
+      "id": "npc_wang_yang",
+      "init": {},
+      "money": 86.0,
+      "name": "王洋",
+      "personality": {
+        "energy": 1.1,
+        "fun": 1.0,
+        "hunger": 0.8
+      },
+      "role": "teacher",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1964-07-20",
+      "gender": "male",
+      "home": "bld_001",
+      "id": "npc_luo_jie",
+      "init": {},
+      "money": 10.0,
+      "name": "罗杰",
+      "personality": {
+        "energy": 1.1,
+        "fun": 1.3,
+        "hunger": 1.1
+      },
+      "role": "unemployed",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2006-07-05",
+      "gender": "female",
+      "home": "bld_004",
+      "id": "npc_hu_li",
+      "init": {},
+      "money": 68.0,
+      "name": "胡丽",
+      "personality": {
+        "energy": 0.9,
+        "fun": 1.3,
+        "hunger": 1.1
+      },
+      "role": "engineer",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1994-06-08",
+      "gender": "male",
+      "home": "bld_004",
+      "id": "npc_sun_yong",
+      "init": {},
+      "money": 90.0,
+      "name": "孙勇",
+      "personality": {
+        "energy": 1.0,
+        "fun": 1.0,
+        "hunger": 1.0
+      },
+      "role": "student",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2008-11-13",
+      "gender": "female",
+      "home": "bld_004",
+      "id": "npc_xu_na",
+      "init": {},
+      "money": 314.0,
+      "name": "徐娜",
+      "personality": {
+        "energy": 0.9,
+        "fun": 1.0,
+        "hunger": 0.9
+      },
+      "role": "retired",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1962-08-11",
+      "gender": "female",
+      "home": "bld_004",
+      "id": "npc_he_xiuying",
+      "init": {},
+      "money": 468.0,
+      "name": "何秀英",
+      "personality": {
+        "energy": 1.1,
+        "fun": 0.7,
+        "hunger": 1.2
+      },
+      "role": "worker",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2003-12-05",
+      "gender": "female",
+      "home": "bld_004",
+      "id": "npc_hu_fang",
+      "init": {},
+      "money": 14.0,
+      "name": "胡芳",
+      "personality": {
+        "energy": 0.9,
+        "fun": 0.8,
+        "hunger": 0.9
+      },
+      "role": "worker",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1969-06-20",
+      "gender": "male",
+      "home": "bld_004",
+      "id": "npc_zhou_er",
+      "init": {},
+      "money": 446.0,
+      "name": "周二",
+      "personality": {
+        "energy": 1.1,
+        "fun": 1.0,
+        "hunger": 0.9
+      },
+      "role": "doctor",
+      "tell_bias": 1.0,
+      "traits": {}
+    }
+  ],
   "plans": {},
   "pulses": [],
   "scene": "editor_scene",
@@ -207,8 +403,11 @@
     "default": 20,
     "pairs": {
       "bld_001|bld_002": 1,
-      "bld_001|bld_003": 4,
-      "bld_002|bld_003": 5
+      "bld_001|bld_003": 1,
+      "bld_001|bld_004": 2,
+      "bld_002|bld_003": 1,
+      "bld_002|bld_004": 1,
+      "bld_003|bld_004": 1
     }
   }
 }

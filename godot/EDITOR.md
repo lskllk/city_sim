@@ -8,6 +8,11 @@
 
 ## 运行
 
+推荐：直接运行项目，在主菜单（启动界面）点「地图编辑器」进入；
+编辑器内用 `文件 ▸ 返回主菜单` 或顶栏「⌂ 主菜单」退出（有未导出修改会先确认）。
+
+也可单独打开编辑器场景：
+
 ```bash
 "D:/Godot_v4.7.2-stable_win64.exe" --path godot res://scenes/editor/editor.tscn
 # 或在 Godot 编辑器打开 godot/project.godot 后运行 scenes/editor/editor.tscn

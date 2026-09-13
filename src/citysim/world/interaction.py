@@ -65,8 +65,8 @@ class InteractionSystem:
         if ent.claimed_by not in (None, pid):
             self._fail(world, pid, tid, "已被他人占用")
             return False
-        # 现实约束: 目标必须与 NPC 同 region(异地需先 MoveTo, 由执行器负责)
-        if ent.location_id != world.loc_of(pid):
+        # 现实约束: 目标同 region, 或就在自己背包里(随身物品随处可用)
+        if ent.holder_id != pid and ent.location_id != world.loc_of(pid):
             self._fail(world, pid, tid, "目标不在此地")
             return False
 
@@ -170,6 +170,7 @@ class InteractionSystem:
         if (ent.stock == 0 and not ent.persist_empty
                 and (ent.is_consumable or _self_consumes(ent))):
             world.entities.pop(ent.entity_id, None)
+            npc.forget_item(ent.entity_id)
         if not aborted:
             npc.on_interaction_done(ent.entity_id, world.clock_tick)
 

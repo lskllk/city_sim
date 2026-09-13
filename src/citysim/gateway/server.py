@@ -25,6 +25,8 @@ from citysim.sim.loop import attach_replay, run_tick
 
 SPEED_TPS = {"pause": 0, "1x": 1, "10x": 10, "100x": 100, "1000x": 1000}
 PUSH_HZ = 60
+# 单个客户端的单条发送最长等待秒数。超时 → 判为卡死并断开, 绝不阻塞模拟主循环。
+CLIENT_SEND_TIMEOUT = 1.5
 
 # 仓库根(src/citysim/gateway/server.py → parents[3]); 配置用绝对路径,
 # 这样后端进程的工作目录无关紧要(Godot 自动拉起时尤其重要)。
@@ -102,14 +104,26 @@ class SimRunner:
         msgs += [json.dumps(envelope("event", encode_event(ev)),
                             ensure_ascii=False) for ev in evs]
         dead = []
-        for ws in self.clients:
+        for ws in list(self.clients):
             try:
                 for m in msgs:
-                    await ws.send_text(m)
-            except Exception:  # noqa: BLE001
+                    # 一个慢/卡住的客户端不能拖死整个模拟:
+                    # 发送超时即断开(观察器会自动重连)。
+                    await asyncio.wait_for(ws.send_text(m),
+                                           timeout=CLIENT_SEND_TIMEOUT)
+            except Exception:  # noqa: BLE001  (超时/断开/协议错误)
                 dead.append(ws)
         for ws in dead:
             self.clients.discard(ws)
+            # 关闭也可能阻塞, 丢到后台任务, 不占用主循环。
+            asyncio.create_task(_safe_close(ws))
+
+
+async def _safe_close(ws: WebSocket) -> None:
+    try:
+        await asyncio.wait_for(ws.close(), timeout=1.0)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 app = FastAPI()

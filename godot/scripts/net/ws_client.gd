@@ -23,10 +23,17 @@ var _reconnect_in := -1.0
 
 
 func _ready() -> void:
+	# 不自动连接: 由 App 调用 start(), 保证 wiring 先就绪。
+	pass
+
+
+## 从 Settings(network/ws_url)读取端点; 环境变量 CITYSIM_WS_URL 仍最高优先。
+func configure_from_settings() -> void:
 	var env_url := OS.get_environment("CITYSIM_WS_URL").strip_edges()
 	if env_url != "":
 		url = env_url
-	# 不自动连接: 由 Main 调用 start(), 保证 wiring 先就绪。
+	else:
+		url = str(Settings.get_value("network", "ws_url", "ws://127.0.0.1:8765/ws"))
 
 func start() -> void:
 	if _started:

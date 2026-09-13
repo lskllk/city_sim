@@ -48,6 +48,11 @@ _EVENT_KINDS = ("interaction_done", "intent_failed", "decision", "perceived",
 # Event Log 不显示的观测噪声(高频遥测, 不是"任务变更")
 _HIDDEN_EVENT_KINDS = frozenset({"perceived"})
 
+# 每帧 snapshot 里每个 NPC 携带的最近事件上限。
+# 注意: 这是每 1/60s 重发的字段, 取值过大会让 payload 随时间无上限增长,
+# 进而撑爆 WS 带宽/拖垮观察器(实测 200 时约 3 天后单帧 ~85KB、带宽持续上升)。
+NPC_EVENT_LIMIT = 20
+
 
 def fmt_clock(hour_f: float) -> str:
     m = int(round(hour_f * 60)) % (24 * 60)
@@ -123,15 +128,16 @@ def _intent_detail(it) -> dict | None:
 
 
 def _recent_events(systems, pid: str) -> list:
-    """最近 200 条与该 NPC 相关的事件(倒序扫描取最新; 隐藏高频遥测)。
+    """最近 NPC_EVENT_LIMIT 条与该 NPC 相关的事件(倒序扫描取最新; 隐藏高频遥测)。
 
-    ui_events 是定长环形缓冲, 只扫其现有内容。
+    ui_events 是定长环形缓冲, 只扫其现有内容。上限刻意取小: 该字段每帧
+    随 snapshot 下发, 必须"有界且小", 否则长跑会拖垮 WS(见 NPC_EVENT_LIMIT)。
     """
     out = []
     for ev in reversed(systems.ui_events):
         if ev.get("subject") == pid and ev.get("kind") not in _HIDDEN_EVENT_KINDS:
             out.append(dict(ev))
-            if len(out) >= 200:
+            if len(out) >= NPC_EVENT_LIMIT:
                 break
     out.reverse()
     return out
@@ -159,6 +165,8 @@ def _npc_base(world, systems, pid: str, p) -> dict:
             "from": tv.from_loc, "to": tv.to_loc,
             "depart": tv.depart_tick, "arrive": tv.arrive_tick},
         "plan": p.plan_snapshot(),      # 当天计划表(前端时间线 viz 用)
+        "inventory": [e.entity_id for e in world.entities_held_by(pid)],
+        "inventory_slots": len(world.entities_held_by(pid)),
     }
 
 
@@ -176,8 +184,10 @@ def build_snapshot(world, systems, cfg, speed: str,
             "events": _recent_events(systems, pid),
         })
     ents = [{"id": e.entity_id, "name": e.name, "loc": e.location_id,
+             "holder": e.holder_id,
              "item_type": e.item_type,
              "tags": sorted(e.tags), "stock": e.stock,
+             "carryable": e.carryable,
              "claimed_by": e.claimed_by, "icon": icon_of(e),
              "position": None if e.position is None else
                           [float(e.position[0]), float(e.position[1])],

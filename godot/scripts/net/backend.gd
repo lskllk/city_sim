@@ -17,27 +17,36 @@ const READY_TIMEOUT_MS := 8000
 
 var _pid := -1
 var _spawned := false
+var _ensuring := false
 
 
 func _ready() -> void:
 	if OS.get_environment("CITYSIM_NO_AUTOSTART") == "1":
 		return
-	call_deferred("_ensure")
+	if not bool(Settings.get_value("backend", "autostart", true)):
+		return
+	call_deferred("ensure")
 
 
-func _ensure() -> void:
+## 确保后端在跑(幂等; 供 App 开始游戏时兜底调用)。
+func ensure() -> void:
+	if _ensuring:
+		return
+	_ensuring = true
 	var port := _port()
 	if await _port_open("127.0.0.1", port, 600):
 		print("[Backend] already listening on :%d — skip autostart" % port)
+		_ensuring = false
 		return
 	await _spawn(port)
+	_ensuring = false
 
 
 # --- 内部 --------------------------------------------------------------
 func _port() -> int:
 	var u := OS.get_environment("CITYSIM_WS_URL").strip_edges()
 	if u == "":
-		u = "ws://127.0.0.1:8765/ws"
+		u = str(Settings.get_value("network", "ws_url", "ws://127.0.0.1:8765/ws"))
 	var no_scheme := u.trim_prefix("ws://").trim_prefix("wss://")
 	var host_port := no_scheme.split("/")[0]
 	var parts := host_port.split(":")
@@ -56,6 +65,8 @@ func _repo_root() -> String:
 func _candidates() -> Array:
 	var out: Array = []
 	var explicit := OS.get_environment("CITYSIM_PYTHON").strip_edges()
+	if explicit == "":
+		explicit = str(Settings.get_value("backend", "python", ""))
 	if explicit != "":
 		out.append({"exe": explicit, "pre": PackedStringArray()})
 	var venv := _venv_python()
@@ -104,6 +115,8 @@ func _spawn(port: int) -> void:
 	var root := _repo_root()
 	OS.set_environment("PYTHONPATH", root.path_join("src"))
 	var open_console := OS.get_environment("CITYSIM_BACKEND_CONSOLE") != "0"
+	if OS.get_environment("CITYSIM_BACKEND_CONSOLE") == "":
+		open_console = bool(Settings.get_value("backend", "console", true))
 	var tried: Array = []
 	for cand in _candidates() as Array:
 		var exe: String = cand["exe"]

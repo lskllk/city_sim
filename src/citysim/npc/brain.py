@@ -9,12 +9,14 @@ from typing import Mapping
 
 from citysim.core.config import REFLEX_SIGNALS, SimConfig
 from citysim.core.types import (
+    BACKPACK,
     DecisionTrace,
     Idle,
     Intent,
     Interact,
     MoveTo,
     Percept,
+    Take,
 )
 from citysim.npc.memory import MemBase, MemItem
 
@@ -36,12 +38,14 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
             mem.set(MemItem(
                 item_id=v.entity_id, located=v.location_id,
                 owner=v.owner, claimed=claimed, afford=afford, value=float(value),
+                carryable=v.carryable, item_type=v.item_type,
                 price=v.price, believe=1.0, remember=1.0, last_seen=tick))
         else:
             mem.update(
                 v.entity_id, located=v.location_id, owner=v.owner,
                 claimed=claimed, afford=afford or row.afford,
                 value=float(value) if value else row.value,
+                carryable=v.carryable, item_type=v.item_type,
                 price=v.price, believe=1.0, remember=1.0, last_seen=tick)
 
 
@@ -89,7 +93,10 @@ def decide(
     cands = _gather_candidates(mem, signals, cfg, now_tick)
     scored, ranked, relevant = _score_candidates(
         cands, personality, location_id, cfg)
-    return _choose(scored, ranked, relevant, cfg, self_id, location_id)
+    held_types = {r.item_type for r in mem.items()
+                  if r.located == BACKPACK and r.item_type}
+    return _choose(scored, ranked, relevant, cfg, self_id, location_id,
+                   held_types)
 
 
 def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
@@ -140,7 +147,7 @@ def _score_candidates(cands, personality: Mapping[str, float],
 
 
 def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
-            location_id: str) -> Intent:
+            location_id: str, held_types: set[str]) -> Intent:
     """[阶段4] 选优分流 —— 只凭记忆行字段, 不看现场。全不够格则 Idle。
 
     不判断"是否本地": 异地成本已在 _score_candidates 乘过 move_penalty。
@@ -151,19 +158,39 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
     for item_id, sig, eff, loc, row in scored:
         if eff <= thresh:
             continue
-        # 能不能用: 自己的 or 免费公共; 否则(在售/他人所有)跳过
+        # 能不能用: 自己的 / 免费公共 / 已在自己背包
         mine = bool(self_id) and row.owner == self_id
+        held = loc == BACKPACK
         free_public = row.owner == "" and row.price <= 0
-        if not (mine or free_public):
+        if not (mine or free_public or held):
             continue
         if not loc:                       # 无地点信息 → 不可达
             continue
-        if loc != location_id:            # 异地 → 前往(成本已入分)
+        if held:                          # 在背包里 → 任何地方直接交互自身
+            return Interact(
+                target_id=item_id,
+                trace=DecisionTrace(
+                    ranked=ranked,
+                    reason=f"随身物品 {item_id} (score={eff:.3f})",
+                    used_fact_ids=(),
+                    relevant_signals=relevant))
+        carryable = bool(getattr(row, "carryable", False))
+        if carryable and row.item_type in held_types:
+            continue                      # 已持有同类 → 用背包里的, 不重复 take
+        if loc != location_id:            # 异地 → 前往(到地方下一 tick 再 take/interact)
             return MoveTo(
                 dest=loc,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"记忆: {item_id} 能解 {sig} → 去 {loc}",
+                    used_fact_ids=(),
+                    relevant_signals=relevant))
+        if carryable:                     # 同地且可携带 → 先 take
+            return Take(
+                target_id=item_id,
+                trace=DecisionTrace(
+                    ranked=ranked,
+                    reason=f"拿起 {item_id} (score={eff:.3f})",
                     used_fact_ids=(),
                     relevant_signals=relevant))
         return Interact(

@@ -52,6 +52,7 @@ class Entity:
     affordances: dict[str, float] = field(default_factory=dict)  # 信号效果
     duration_ticks: int = 30
     location_id: str = ""
+    holder_id: str = ""                   # NPC 背包持有者(m5); 与 location_id 互斥
     claimed_by: str | None = None         # 占用者 npc_id
     stock: int = 1                        # 容器/消耗品库存; -1=无限
     attrs: dict[str, Any] = field(default_factory=dict)  # 如 bladder_load
@@ -62,6 +63,7 @@ class Entity:
     owner: str = ""                         # 归属(""=无主/商店; npc_id=某人拥有)
     item_type: str = ""                     # 物品类型 id(合并同类容器/购买送货用)
     persist_empty: bool = False             # stock 归 0 不被回收(容器/货架)
+    carryable: bool = False                  # 可携带(可 take 进背包)
     # elm_lane 开放时段: None=全天; []=永久关闭; [[start,end],...]分钟-of-day
     open_hours: list | None = None
     position: tuple[float, float] | None = None  # TASK001 空间锚点(scene 单位; None=未布置)
@@ -106,7 +108,13 @@ class Entity:
 
     def claimable_by(self, npc_id: str | None) -> bool:
         return (self.claimed_by is None or self.claimed_by == npc_id) \
-            and self.stock != 0
+            and self.stock != 0 \
+            and (self.holder_id == "" or self.holder_id == npc_id)
+
+    @property
+    def is_held(self) -> bool:
+        """是否在某个 NPC 背包里。"""
+        return self.holder_id != ""
 
 
 # ----------------------------------------------------------------------
@@ -121,7 +129,7 @@ def entity_from_def(d: ItemDef, location_id: str) -> Entity:
         interruptible=d.interruptible,
         on_start=list(d.on_start), on_complete=list(d.on_complete),
         price=d.price, item_type=d.item_type,
-        persist_empty=d.persist_empty,
+        persist_empty=d.persist_empty, carryable=d.carryable,
     )
 
 
@@ -150,7 +158,11 @@ class World:
 
     def entities_at(self, location_id: str) -> list[Entity]:
         return [e for e in self.entities.values()
-                if e.location_id == location_id]
+                if e.location_id == location_id and e.holder_id == ""]
+
+    def entities_held_by(self, npc_id: str) -> list[Entity]:
+        """某 NPC 背包里的物品实例(每堆叠 1 个占位)。"""
+        return [e for e in self.entities.values() if e.holder_id == npc_id]
 
     # --- 建筑进入权限(owner/open_to/capacity) --------------------------
     def occupants(self, location_id: str) -> int:

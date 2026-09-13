@@ -1,11 +1,24 @@
 {
   "item_type": "meal_simple",
   "name": "简餐",
-  "tags": ["edible", "consumable"],
-  "affordances": {"hunger": 0.5, "thirst": 0.1},
+  "tags": [
+    "edible",
+    "consumable"
+  ],
+  "affordances": {
+    "hunger": 0.5,
+    "thirst": 0.1
+  },
   "duration_ticks": 20,
-  "on_start": [{"op": "add_pending", "field": "bladder_pending", "amount": 0.3}],
+  "on_start": [
+    {
+      "op": "add_pending",
+      "field": "bladder_pending",
+      "amount": 0.3
+    }
+  ],
   "on_complete": [],
   "attrs": {},
-  "stock": 1
+  "stock": 1,
+  "carryable": true
 }

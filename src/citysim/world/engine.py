@@ -10,10 +10,13 @@ from typing import Any
 
 from citysim.core.config import SimConfig
 from citysim.core.types import (
+    BACKPACK,
     Buy,
     Idle,
     Interact,
     MoveTo,
+    Place,
+    Take,
     intent_kind,
     intent_target,
 )
@@ -22,7 +25,7 @@ from citysim.world.itemdefs import load_item_defs
 from citysim.world.pulses import apply as apply_pulses
 from citysim.world.perception import build_percept
 from citysim.world.travel import Travel
-from citysim.world.world import entity_from_def
+from citysim.world.world import Entity, entity_from_def
 
 
 def _travel_cost(systems, cfg: SimConfig, a: str, b: str) -> int:
@@ -135,6 +138,142 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
     npc.on_interaction_done(intent.item_id, world.clock_tick)
 
 
+# ---------------------------------------------------------------
+# 背包: take / place(瞬时原子操作, 不进交互进度条)
+# ---------------------------------------------------------------
+def _fail_action(world, npc, target: str, why: str) -> None:
+    """瞬时动作失败: 发 intent_failed + 记失败(证伪/冷却)。"""
+    world.bus.publish(world.bus.make(
+        world.clock_tick, "intent_failed", npc.person_id,
+        {"target": target, "why": why}))
+    if target:
+        npc.on_failure(target, why, world.clock_tick)
+
+
+def _held_stack(world, pid: str, item_type: str):
+    """背包里同类型堆叠(用于合并; 缺省 None)。"""
+    for e in world.entities_held_by(pid):
+        if e.item_type == item_type:
+            return e
+    return None
+
+
+def _clone_held(src: Entity, pid: str, amount: int) -> Entity:
+    """从世界实体拆一份到 NPC 背包(新实例, 1 堆叠 = 1 占位)。"""
+    return Entity(
+        entity_id="", name=src.name, tags=set(src.tags),
+        affordances=dict(src.affordances), duration_ticks=src.duration_ticks,
+        location_id="", holder_id=pid, stock=amount, attrs=dict(src.attrs),
+        interruptible=src.interruptible,
+        on_start=[dict(x) for x in src.on_start],
+        on_complete=[dict(x) for x in src.on_complete],
+        price=0.0, owner=pid, item_type=src.item_type,
+        persist_empty=False, carryable=src.carryable,
+    )
+
+
+def _clone_world(src: Entity, dest_loc: str, amount: int) -> Entity:
+    """把背包堆叠放回世界(新实例)。"""
+    return Entity(
+        entity_id="", name=src.name, tags=set(src.tags),
+        affordances=dict(src.affordances), duration_ticks=src.duration_ticks,
+        location_id=dest_loc, holder_id="", stock=amount, attrs=dict(src.attrs),
+        interruptible=src.interruptible,
+        on_start=[dict(x) for x in src.on_start],
+        on_complete=[dict(x) for x in src.on_complete],
+        price=src.price, owner=src.owner, item_type=src.item_type,
+        persist_empty=src.persist_empty, carryable=src.carryable,
+    )
+
+
+def _execute_take(world, systems, cfg, pid: str, npc, intent: Take) -> None:
+    """把世界上的物品收一份进背包(同类型合并; 占位满则失败)。"""
+    src = world.entities.get(intent.target_id)
+    qty = max(1, int(intent.qty))
+    why = ""
+    if src is None:
+        why = "目标不存在"
+    elif src.holder_id != "":
+        why = "已被持有"
+    elif src.location_id != world.loc_of(pid):
+        why = "目标不在此地"
+    elif src.stock == 0:
+        why = "已空(stock=0)"
+    elif src.claimed_by not in (None, pid):
+        why = "已被他人占用"
+    if why:
+        _fail_action(world, npc, intent.target_id, why)
+        return
+    amount = qty if src.stock < 0 else min(qty, src.stock)
+    held = _held_stack(world, pid, src.item_type)
+    if held is None:
+        if len(world.entities_held_by(pid)) >= cfg.inventory_limit:
+            _fail_action(world, npc, intent.target_id, "背包已满")
+            return
+        held = _clone_held(src, pid, amount)
+        world.spawn_entity(held)
+    else:
+        held.stock += amount
+    if src.stock > 0:
+        src.stock -= amount
+        if src.stock == 0 and not src.persist_empty and src.is_consumable:
+            world.entities.pop(src.entity_id, None)
+            npc.forget_item(src.entity_id)
+    _afford, _value = next(iter(src.affordances.items()), ("", 0.0))
+    npc.note(held.entity_id, tick=world.clock_tick, located=BACKPACK,
+             owner=pid, stock=held.stock, carryable=True,
+             item_type=src.item_type, afford=_afford, value=float(_value),
+             believe=1.0)
+    world.bus.publish(world.bus.make(
+        world.clock_tick, "taken", pid,
+        {"entity": held.entity_id, "from": src.entity_id,
+         "item_type": src.item_type, "qty": amount}))
+    # 瞬时动作完成 → 结束对应 goal(否则每 tick 会重复 take)
+    npc.on_interaction_done(intent.target_id, world.clock_tick)
+
+
+def _execute_place(world, systems, cfg, pid: str, npc, intent: Place) -> None:
+    """把背包里的堆叠放回世界(region 或容器实体)。"""
+    held = world.entities.get(intent.target_id)
+    if held is None or held.holder_id != pid:
+        _fail_action(world, npc, intent.target_id, "不在背包里")
+        return
+    dest = intent.dest
+    container = world.entities.get(dest) if dest else None
+    if container is not None:
+        dest_loc = container.location_id
+    elif dest in world.locations:
+        dest_loc = dest
+        container = None
+    else:
+        _fail_action(world, npc, intent.target_id, "目的地不存在")
+        return
+    qty = max(1, int(intent.qty))
+    amount = qty if held.stock < 0 else min(qty, held.stock)
+    target = container
+    if target is None:
+        target = next((e for e in world.entities_at(dest_loc)
+                       if e.item_type == held.item_type
+                       and e.owner in ("", pid)), None)
+    if target is None:
+        target = _clone_world(held, dest_loc, amount)
+        world.spawn_entity(target)
+    else:
+        target.stock = amount if target.stock < 0 else target.stock + amount
+    if held.stock > 0:
+        held.stock -= amount
+        if held.stock == 0:
+            world.entities.pop(held.entity_id, None)
+            npc.forget_item(held.entity_id)
+    npc.note(target.entity_id, tick=world.clock_tick,
+             located=target.location_id, owner=target.owner, stock=target.stock,
+             item_type=target.item_type, believe=1.0)
+    world.bus.publish(world.bus.make(
+        world.clock_tick, "placed", pid,
+        {"entity": target.entity_id, "dest": dest, "qty": amount}))
+    npc.on_interaction_done(intent.target_id, world.clock_tick)
+
+
 def _can_preempt(world, systems, pid, source) -> bool:
     """计划只能硬中止可打断的交互; reflex(致命)始终可。"""
     if source == "reflex":
@@ -191,6 +330,14 @@ def _apply(world, systems, cfg, pid, npc, decision) -> None:
                 return
             _preempt(world, systems, pid, decision.source)
         _execute_buy(world, systems, cfg, pid, npc, intent)
+        return
+
+    if isinstance(intent, Take):
+        _execute_take(world, systems, cfg, pid, npc, intent)
+        return
+
+    if isinstance(intent, Place):
+        _execute_place(world, systems, cfg, pid, npc, intent)
         return
 
     if isinstance(intent, Interact):

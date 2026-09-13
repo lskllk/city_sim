@@ -6,8 +6,13 @@
 
 ## 运行
 
+启动后先进入**主菜单**(`scenes/launcher.tscn`)：列出 `config/scenes/` 下的场景，
+选一个点「开始观察」进入；游戏内 `Esc` → 暂停菜单可打开设置或返回主菜单。
+（详见 [APP.md](APP.md)）
+
 **后端会自动拉起**：Godot 启动时若发现 `ws` 端口没在监听，会自己
 `OS.create_process` 起 `python -m uvicorn ...`，退出时自动收掉。
+`CITYSIM_SCENE` 仍可指定默认场景（主菜单选场景会覆盖它）。
 
 ```bash
 # 直接跑 Godot 即可(自动起后端)

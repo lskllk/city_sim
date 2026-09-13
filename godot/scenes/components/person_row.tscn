@@ -1,0 +1,68 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/components/person_row.gd" id="1_person"]
+
+[node name="PersonRow" type="Button"]
+custom_minimum_size = Vector2(0, 26)
+script = ExtResource("1_person")
+
+[node name="Box" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 6.0
+offset_right = -6.0
+mouse_filter = 2
+theme_override_constants/separation = 10
+
+[node name="Name" type="Label" parent="Box"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+clip_text = true
+text = "姓名"
+
+[node name="Age" type="Label" parent="Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+horizontal_alignment = 2
+text = "0"
+
+[node name="Role" type="Label" parent="Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+text = "角色"
+
+[node name="Behavior" type="Label" parent="Box"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+clip_text = true
+text_overrun_behavior = 3
+text = "行为"
+
+[node name="Hp" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+custom_minimum_size = Vector2(84, 0)
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="Bar" type="ProgressBar" parent="Box/Hp"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+custom_minimum_size = Vector2(40, 8)
+max_value = 1.0
+step = 0.0
+show_percentage = false
+
+[node name="Pct" type="Label" parent="Box/Hp"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "0%"

@@ -7,10 +7,11 @@
 """
 from __future__ import annotations
 
-from citysim.core.types import EntityView, Percept
+from citysim.core.types import BACKPACK, EntityView, Percept
 
 
-def _view_for(world, npc, e, closed: bool) -> EntityView:
+def _view_for(world, npc, e, closed: bool,
+              location_id: str | None = None) -> EntityView:
     return EntityView(
         entity_id=e.entity_id,
         name=e.name,
@@ -20,9 +21,11 @@ def _view_for(world, npc, e, closed: bool) -> EntityView:
         distance=0.0,
         claimable=e.claimable_by(npc.person_id) and not closed,
         stock_zero=(e.stock == 0) or closed,
-        location_id=e.location_id,
+        location_id=e.location_id if location_id is None else location_id,
         price=e.price,
         owner=e.owner,
+        carryable=e.carryable,
+        item_type=e.item_type,
     )
 
 
@@ -38,6 +41,9 @@ def build_percept(world, npc) -> Percept:
     for e in world.entities_at(loc):
         closed = not e.is_open_now(world.hour_f())   # 停业=空且不可claim
         views.append(_view_for(world, npc, e, closed))
+    # 背包里的物品: 无论 NPC 身在何处都可见/可交互(located=@self)
+    for e in world.entities_held_by(npc.person_id):
+        views.append(_view_for(world, npc, e, False, BACKPACK))
     events = world.bus.drain_for(npc.person_id)
     return Percept(
         tick=world.clock_tick,

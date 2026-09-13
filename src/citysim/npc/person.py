@@ -310,7 +310,9 @@ class Person:
     def note(self, item_id: str, tick: int = 0, *, located: str | None = None,
              owner: str | None = None, afford: str | None = None,
              value: float | None = None, price: float | None = None,
-             stock: int | None = None, believe: float | None = None) -> None:
+             stock: int | None = None, believe: float | None = None,
+             carryable: bool | None = None,
+             item_type: str | None = None) -> None:
         """往记忆 upsert 一行(增/改; 部分字段可省略)。供成交/事件等记记忆用。"""
         row = self._mem.get(item_id)
         if row is None:
@@ -331,6 +333,10 @@ class Person:
             fields["stock"] = int(stock)
         if believe is not None:
             fields["believe"] = float(believe)
+        if carryable is not None:
+            fields["carryable"] = bool(carryable)
+        if item_type is not None:
+            fields["item_type"] = str(item_type)
         fields.setdefault("remember", 1.0)
         fields.setdefault("last_seen", tick)
         self._mem.update(item_id, **fields)
@@ -338,6 +344,10 @@ class Person:
     def memory_dicts(self) -> list:
         """观测: 记忆库只读快照(不对外暴露可写对象)。"""
         return self._mem.to_dicts()
+
+    def forget_item(self, item_id: str) -> None:
+        """删除一条记忆(物品已不存在/已交出/已消耗)。"""
+        self._mem.delete(item_id)
 
     def plan_snapshot(self) -> list[dict]:
         """观测: 当天计划表只读快照(供前端时间线渲染)。"""

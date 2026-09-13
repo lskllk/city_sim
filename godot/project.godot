@@ -12,16 +12,19 @@ config_version=5
 
 config/name="CitySim Observatory"
 config/description="只读观察器: 连接 citysim.gateway WS, 渲染世界 + Inspector。"
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/launcher.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [autoload]
 
+Settings="*res://scripts/app/app_settings.gd"
+SceneCatalog="*res://scripts/app/scene_catalog.gd"
 Store="*res://scripts/state/store.gd"
 Commands="*res://scripts/net/commands.gd"
 Net="*res://scripts/net/ws_client.gd"
 Backend="*res://scripts/net/backend.gd"
+App="*res://scripts/app/app.gd"
 MapDoc="*res://scripts/editor/map_doc.gd"
 
 [display]

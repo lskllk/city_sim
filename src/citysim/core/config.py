@@ -36,6 +36,7 @@ class SimConfig:
     hp_regen: float = 0.0005       # 两者满足时 hp 回升最大速率(×均值)
     move_penalty: float = 0.6      # 异地(MoveTo)候选效用折扣(移动耗时/精力成本)
     fallback_need: float = 0.9     # 兜底触发下限: 仅 need>=此值才纳入候选(信号<=10%)
+    inventory_limit: int = 10      # 背包占位数上限(一堆 x100 也算 1 格)
 
     @classmethod
     def from_toml(cls, data: dict[str, Any]) -> "SimConfig":
@@ -54,6 +55,7 @@ class SimConfig:
             hp_regen=float(health.get("hp_regen", health.get("regen", 0.0005))),
             move_penalty=float(data.get("utility", {}).get("move_penalty", 0.6)),
             fallback_need=float(data.get("utility", {}).get("fallback_need", 0.9)),
+            inventory_limit=int(data.get("inventory", {}).get("limit", 10)),
         )
 
 

@@ -27,6 +27,8 @@ class MemItem:
     claimed: bool = False        # 我以为是否被占用(易变)
     afford: str = ""             # 它能提供什么信号(obs/told 填)
     value: float = 0.0           # 提供多少
+    carryable: bool = False      # 能不能装进背包(take)
+    item_type: str = ""          # 物品类型 id(去重/合并用)
     price: float = 0.0           # 我以为的现价(易变)
     stock: int = 0               # 我以为的库存(-1=无限; 易变)
     attrs: dict[str, Any] = field(default_factory=dict)
@@ -41,9 +43,9 @@ class MemBase:
     """每 NPC 的记忆库 = 薄 CRUD(增删改查), 无策略。"""
 
     _FIELDS = frozenset({
-        "located", "owner", "claimed", "afford", "value",
-        "price", "stock", "attrs", "believe", "remember", "last_seen",
-        "cool_until",
+        "located", "owner", "claimed", "afford", "value", "carryable",
+        "item_type", "price", "stock", "attrs", "believe", "remember",
+        "last_seen", "cool_until",
     })
 
     def __init__(self) -> None:
@@ -111,6 +113,7 @@ class MemBase:
         return [
             {"item_id": r.item_id, "located": r.located, "owner": r.owner,
              "claimed": r.claimed, "afford": r.afford, "value": r.value,
+             "carryable": r.carryable, "item_type": r.item_type,
              "price": r.price, "stock": r.stock,
              "believe": round(r.believe, 3),
              "remember": round(r.remember, 3), "last_seen": r.last_seen,

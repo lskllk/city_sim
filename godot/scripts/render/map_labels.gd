@@ -10,8 +10,6 @@ extends Control
 const BuildingStyle := preload("res://scripts/shared/building_style.gd")
 
 const BG := BuildingStyle.BG
-const C_NPC_M := Color("4aa3ff")     # 男性
-const C_NPC_F := Color("ff7ab8")     # 女性
 const C_ITEM := Color("9ad36b")
 
 var camera: WorldCamera = null
@@ -52,7 +50,6 @@ func _draw() -> void:
 				continue
 			_draw_room(font, id, r, rect, int(occ.get(id, 0)))
 	_draw_item_badges(font)
-	_draw_npc_markers(font)
 	_draw_selection()
 
 
@@ -147,35 +144,8 @@ func _draw_doors_for(id: String, room: Dictionary) -> void:
 
 
 # ---------------------------------------------------------------------------
-# 人物 / 物件(编辑器同款标记)
+# 物件标记
 # ---------------------------------------------------------------------------
-func _draw_npc_markers(font: Font) -> void:
-	var by_loc := {}
-	for pid in Store.npcs:
-		var loc := Protocol.s(Store.npcs[pid].get("loc", ""))
-		if loc != "":
-			by_loc[loc] = by_loc.get(loc, [])
-			(by_loc[loc] as Array).append(pid)
-	for loc in by_loc:
-		var ids: Array = by_loc[loc]
-		ids.sort()
-		var center: Variant = _loc_center(String(loc))
-		if center == null:
-			continue
-		var base_pos := camera.world_to_screen(center)
-		for i in ids.size():
-			var pid := String(ids[i])
-			var n := Store.npc(pid)
-			var pos := BuildingGeom.npc_marker_pos(base_pos, i, ids.size(), 18.0, 16.0)
-			var col: Color = C_NPC_F if Protocol.s(n.get("gender", "")) == "female" \
-				else C_NPC_M
-			draw_circle(pos, 7.0, col)
-			draw_arc(pos, 7.0, 0.0, TAU, 20, Color("0b0e13"), 1.5)
-			var label := Protocol.s(n.get("name", pid), pid)
-			BuildingStyle.draw_centered(self, font, label,
-				pos + Vector2(0, -13), 11, Color("dfe8f5"))
-
-
 func _draw_item_badges(font: Font) -> void:
 	var counts := {}
 	for eid in Store.entities:

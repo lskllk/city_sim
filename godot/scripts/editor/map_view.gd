@@ -27,6 +27,7 @@ const C_DOOR_NODE := Color("ffcf5a")   # 建筑门节点(与普通路口区分)
 const C_SNAP_NODE := Color("e8c07d")
 const C_SNAP_DOOR := Color("ffcf5a")
 const C_SNAP_ROAD := Color("7fe3a0")
+const C_SNAP_FREE := Color("8fa6c4")   # 自由落点(未吸附到任何东西)
 const C_ERR := Color("e05252")
 const C_WARN := Color("e8a34d")
 const C_GHOST := Color(0.45, 0.8, 1.0, 0.35)
@@ -262,19 +263,37 @@ func _draw_nodes() -> void:
 			draw_rect(Rect2(p - Vector2(7, 7), Vector2(14, 14)), base, false, 1.5)
 
 
-## 吸附预览: 十字准星 + 外圈, 颜色区分吸附到了什么。
-func _draw_snap_marker(p: Vector2, snap: Dictionary) -> void:
+## 吸附标记。landed=true 表示是【已落下的起点】—— 实心+外圈, 与“待落”的准星区分。
+func _draw_snap_marker(p: Vector2, snap: Dictionary, landed: bool = false) -> void:
 	var kind := String(snap.get("kind", "free"))
-	if kind == "free":
-		return
+	if kind == "free" and not landed:
+		return                                  # 未吸附的光标: 不画标记, 只看预览线
 	var col := C_SNAP_ROAD
 	if kind == "node":
 		col = C_SNAP_NODE
 	elif kind == "door":
 		col = C_SNAP_DOOR
+	elif kind == "free":
+		col = C_SNAP_FREE
+	if landed:
+		draw_circle(p, 5.0, col)
+		draw_arc(p, 9.0, 0.0, TAU, 24, col, 2.0)
+		return
 	draw_arc(p, 9.0, 0.0, TAU, 24, col, 2.0)
 	draw_line(p + Vector2(-13, 0), p + Vector2(13, 0), col, 1.0)
 	draw_line(p + Vector2(0, -13), p + Vector2(0, 13), col, 1.0)
+
+
+## 起点(已落下的那个点)的吸附信息: 已确定的节点, 或首点待定时的快照。
+func _start_snap() -> Dictionary:
+	if _road_from != "" and MapDoc.nodes.has(_road_from):
+		var n: Dictionary = MapDoc.nodes[_road_from]
+		return {
+			"kind": "door" if String(n.get("door_of", "")) != "" else "node",
+			"point": n["xy"], "id": _road_from}
+	if _road_pending and not _road_pending_snap.is_empty():
+		return _road_pending_snap
+	return {}
 
 
 func _snap_label(snap: Dictionary) -> String:
@@ -327,20 +346,15 @@ func _draw_ghost() -> void:
 			w2s(c + Vector2(-h.x, -h.y))])
 		draw_polyline(pts, C_GHOST, 2.0, true)
 	elif tool == Tool.ROAD:
-		var snap := MapDoc.resolve_snap(_mouse_world, _node_at(_mouse))
-		var a := Vector2.ZERO
-		var has := false
-		if _road_from != "" and MapDoc.nodes.has(_road_from):
-			a = w2s(MapDoc.nodes[_road_from]["xy"])
-			has = true
-		elif _road_pending and not _road_pending_snap.is_empty():
-			a = w2s(_road_pending_snap["point"] as Vector2)
-			has = true
-		var target := w2s(snap["point"] as Vector2)
+		var target_snap := MapDoc.resolve_snap(_mouse_world, _node_at(_mouse))
+		var start_snap := _start_snap()
+		var has := not start_snap.is_empty()
+		var target := w2s(target_snap["point"] as Vector2)
 		if has:
+			var a := w2s(start_snap["point"] as Vector2)
 			draw_line(a, target, C_GHOST, 2.0)
-			draw_circle(a, 4.0, C_GHOST)
-		_draw_snap_marker(target, snap)
+			_draw_snap_marker(a, start_snap, true)      # 起点落脚点(实心)
+		_draw_snap_marker(target, target_snap)
 
 
 # --- 交互 ----------------------------------------------------------------

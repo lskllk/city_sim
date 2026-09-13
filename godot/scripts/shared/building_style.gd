@@ -46,7 +46,6 @@ static func kind_color(kind: String) -> Color:
 
 
 ## 道路折线: 粗线 + 每个顶点补半径=半宽的实心圆 → 圆角接头, 修补 T/十字"破边"。
-## 编辑器与观察器共用(屏幕坐标, width_px = 路宽 × zoom)。
 static func draw_road(ci: CanvasItem, pts: PackedVector2Array, width_px: float,
 		color: Color = ROAD_COLOR) -> void:
 	if pts.size() < 2:
@@ -56,6 +55,99 @@ static func draw_road(ci: CanvasItem, pts: PackedVector2Array, width_px: float,
 		ci.draw_line(pts[i], pts[i + 1], color, w, true)
 	for p in pts:
 		ci.draw_circle(p, w * 0.5, color)
+
+
+# ---------------------------------------------------------------------------
+# 路网: 通用 N 叉路口圆角(填凹角)
+#
+# 关键: 十字/T 字路口的**外角是凹角(270°)** —— 是两股路之间缺了一块的"缺口",
+# 所以要**填**上而不是切掉。给每个缺口补一块"两边相切 + 圆弧收口"的填充:
+#   路宽 w → 半宽 a=w/2; 圆角半径 r = fillet_of_width × a
+#   (缺省 fillet_of_width=0.5 → 圆角直径 = w/2, 半径 = w/4)
+# 对 3/4/5/6 … 叉完全通用: 按极角排完序, 逐个"相邻方向对"的缺口各填一块。
+# 夹角 >= 180°(直行) 或 < JUNCTION_EPS(近平行) 的缺口不填。
+# 坐标全为**屏幕坐标**(与 draw_road 一致)。
+# ---------------------------------------------------------------------------
+const JUNCTION_EPS := 0.15
+const FLAT_EPS := 0.05
+
+
+## nodes: {id: Vector2}; edges: {id: {a, b, pts: PackedVector2Array, width_px}}。
+## 返回 {node_id: Array[PackedVector2Array]} —— 每个路口要补的填充块。
+static func build_junctions(nodes: Dictionary, edges: Dictionary,
+		fillet_of_width: float = 0.5) -> Dictionary:
+	var inc := {}                     # nid -> [{dir, half}]
+	for eid in edges:
+		var e: Dictionary = edges[eid]
+		var pts: PackedVector2Array = e["pts"]
+		if pts.size() < 2:
+			continue
+		var half := maxf(float(e.get("width_px", 2.0)), 2.0) * 0.5
+		var na := String(e.get("a", ""))
+		var nb := String(e.get("b", ""))
+		if nodes.has(na):
+			_inc_add(inc, na, pts[0].direction_to(pts[1]), half)
+		if nodes.has(nb):
+			_inc_add(inc, nb,
+				pts[pts.size() - 1].direction_to(pts[pts.size() - 2]), half)
+
+	var out := {}
+	for nid in inc:
+		var list: Array = inc[nid]
+		if list.size() < 2:
+			continue                   # 尽头: 没有缺口
+		var pos: Vector2 = nodes[nid]
+		var half := 0.0
+		for it in list:
+			half = maxf(half, float(it["half"]))
+		var r := half * fillet_of_width
+		var reach := half + r               # 圆心距 = (a+r)/sin(φ/2) 的分子
+		list.sort_custom(func(p, q):
+			return atan2(p["dir"].y, p["dir"].x) < atan2(q["dir"].y, q["dir"].x))
+		var n := list.size()
+		var blocks: Array = []
+		for i in range(n):
+			var d0: Vector2 = list[i]["dir"]
+			var d1: Vector2 = list[(i + 1) % n]["dir"]
+			var phi := d0.angle_to(d1)
+			if phi <= 0.0:
+				phi += TAU
+			if phi < JUNCTION_EPS or phi > PI - FLAT_EPS:
+				continue               # 近平行 / 直行: 没有缺口
+			var cot_h := 1.0 / tan(phi * 0.5)
+			var tang := reach * cot_h
+			var cc := pos + d0.rotated(phi * 0.5) * (reach / sin(phi * 0.5))
+			var t1 := pos + d0 * tang + d0.rotated(PI * 0.5) * half
+			var t2 := pos + d1 * tang + d1.rotated(-PI * 0.5) * half
+			var a0 := (t1 - cc).angle()
+			var sweep := -(PI - phi)
+			var steps := maxi(2, int(absf(sweep) / 0.18) + 1)
+			var poly := PackedVector2Array([pos, t1])
+			for k in range(1, steps):
+				poly.append(cc + Vector2(r, 0.0).rotated(
+					a0 + sweep * float(k) / float(steps)))
+			poly.append(t2)
+			blocks.append(poly)
+		if not blocks.is_empty():
+			out[nid] = blocks
+	return out
+
+
+static func _inc_add(inc: Dictionary, nid: String, dir: Vector2, half: float) -> void:
+	if dir.length_squared() < 0.000001:
+		return
+	if not inc.has(nid):
+		inc[nid] = []
+	inc[nid].append({"dir": dir.normalized(), "half": half})
+
+
+## 把路口圆角块填上(在路段画完之后调, 同色叠加)。
+static func draw_junctions(ci: CanvasItem, junc: Dictionary,
+		color: Color = ROAD_COLOR) -> void:
+	for nid in junc:
+		for poly in junc[nid]:
+			if (poly as PackedVector2Array).size() >= 3:
+				ci.draw_colored_polygon(poly, color)
 
 
 static func side_normal(side: String) -> Vector2:

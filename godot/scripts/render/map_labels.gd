@@ -57,14 +57,27 @@ func _draw() -> void:
 # 道路(编辑器同款: 粗线 + 顶点圆角接头)
 # ---------------------------------------------------------------------------
 func _draw_roads() -> void:
-	var edges := Protocol.as_dict(Store.map.get("edges", {}))
-	for eid in edges:
-		var e := Protocol.as_dict(edges[eid])
-		var w := maxf(Protocol.num(e.get("width"), 4.0) * camera.zoom, 2.0)
+	var raw_nodes := Protocol.as_dict(Store.map.get("nodes", {}))
+	var raw_edges := Protocol.as_dict(Store.map.get("edges", {}))
+	var nodes_s := {}
+	for nid in raw_nodes:
+		nodes_s[nid] = camera.world_to_screen(
+			_pt(Protocol.as_dict(raw_nodes[nid]).get("xy")))
+	var edges_s := {}
+	for eid in raw_edges:
+		var e := Protocol.as_dict(raw_edges[eid])
 		var pts := PackedVector2Array()
 		for p in Protocol.as_array(e.get("geom", [])):
 			pts.append(camera.world_to_screen(_pt(p)))
-		BuildingStyle.draw_road(self, pts, w)
+		BuildingStyle.draw_road(self, pts,
+			maxf(Protocol.num(e.get("width"), 4.0) * camera.zoom, 2.0))
+		edges_s[eid] = {
+			"a": Protocol.s(e.get("a", "")), "b": Protocol.s(e.get("b", "")),
+			"pts": pts,
+			"width_px": maxf(Protocol.num(e.get("width"), 4.0) * camera.zoom, 2.0)}
+	# 路口: 与编辑器同一套几何(通用 N 叉圆角)
+	BuildingStyle.draw_junctions(self,
+		BuildingStyle.build_junctions(nodes_s, edges_s), BuildingStyle.ROAD_COLOR)
 
 
 # ---------------------------------------------------------------------------

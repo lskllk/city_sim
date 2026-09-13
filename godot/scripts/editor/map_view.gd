@@ -192,11 +192,29 @@ func _draw_bounds() -> void:
 	draw_rect(Rect2(tl, br - tl), C_AXIS, false, 2.0)
 
 
+## 路网几何(屏幕坐标) → nodes/edges, 供共享路口圆角使用。
+func _road_geometry() -> Dictionary:
+	var nodes_s := {}
+	for id in MapDoc.nodes:
+		nodes_s[id] = w2s(MapDoc.nodes[id]["xy"])
+	var edges_s := {}
+	for id in MapDoc.edges:
+		var e: Dictionary = MapDoc.edges[id]
+		var pts := PackedVector2Array()
+		for p in e["geom"]:
+			pts.append(w2s(p))
+		edges_s[id] = {"a": e["a"], "b": e["b"], "pts": pts,
+			"width_px": maxf(float(e["width"]) * zoom, 2.0)}
+	return {"nodes": nodes_s, "edges": edges_s}
+
+
 func _draw_edges() -> void:
-	# 道路是带宽度的矩形条, 在折角 / T字 / 十字接头处会露出"破边"。
-	# 统一在每条路的每个节点补一个半径=半宽的实心圆(圆角接头), 修补破边并实现转角圆角。
+	var geo := _road_geometry()
 	for id in MapDoc.edges:
 		_draw_edge_road(MapDoc.edges[id], C_ROAD)
+	# 路口: 把 3/4/5/6 叉的凹角缺口填成圆弧(共享实现)
+	BuildingStyle.draw_junctions(self,
+		BuildingStyle.build_junctions(geo["nodes"], geo["edges"]), C_ROAD)
 	if sel_kind == "edge" and MapDoc.edges.has(sel_id):
 		var e: Dictionary = MapDoc.edges[sel_id]
 		_draw_edge_road(e, C_ROAD_SEL)

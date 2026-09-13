@@ -245,26 +245,23 @@ class Person:
                   sleep: bool = False, busy: bool = False) -> bool:
         """身体每 tick 演化(世界广播心跳, Person 内部自己做, 上帝不改 signals)。
 
-        顺序 = 代谢(睡眠冻结 energy / 忙碌冻结 fun) → hp(饿渴死/恢复) → 排泄(pending→膀胱)。
+        顺序 = 代谢(睡眠冻结 energy; busy 暂不对任何信号生效) → hp(饿死/恢复) → 排泄(pending→膀胱)。
         返回是否仍存活(死则不再往下)。
         """
         amul: dict[str, float] = {}
         if sleep:
             amul["energy"] = 0.0
-        if busy:
-            amul["fun"] = 0.0
         apply_metabolism(self._signals, cfg.metabolism,
                          personality_mul=self._personality,
                          activity_mul=amul or None)
-        # hp: 饥饿/口渴/精力任一为 0 → 降; 三者都满足 → 越大回升越快
+        # hp: 饥饿/精力任一为 0 → 降; 两者都满足 → 越大回升越快
         hunger = self._signals.get("hunger", 1.0)
-        thirst = self._signals.get("thirst", 1.0)
         energy = self._signals.get("energy", 1.0)
         hp = self._signals.get("hp", 1.0)
-        if hunger <= 0.0 or thirst <= 0.0 or energy <= 0.0:
+        if hunger <= 0.0 or energy <= 0.0:
             self._signals["hp"] = max(0.0, hp - cfg.hp_decay)
         else:
-            rate = (hunger + thirst + energy) / 3.0
+            rate = (hunger + energy) / 2.0
             self._signals["hp"] = min(1.0, hp + cfg.hp_regen * rate)
         if self._signals.get("hp", 1.0) <= 0.0:
             return False

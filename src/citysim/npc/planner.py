@@ -94,9 +94,6 @@ def _at_minute(item: Mapping[str, Any]) -> int | None:
 _MEALS: tuple[tuple[int, str], ...] = (
     (7 * 60, "hunger"), (12 * 60, "hunger"), (18 * 60, "hunger"),
 )
-_DRINKS: tuple[tuple[int, str], ...] = (
-    (7 * 60, "thirst"), (12 * 60, "thirst"), (18 * 60, "thirst"),
-)
 _SLEEP: tuple[tuple[int, str], ...] = ((22 * 60, "energy"),)
 
 
@@ -110,10 +107,10 @@ def _pick(inp: PlannerInput, signal: str) -> KnownItem | None:
 
 
 def template_plan(inp: PlannerInput) -> list[PlanEntry]:
-    """规则模板: 三餐吃喝 + 晚上睡觉。缺失的目标直接跳过(交给 reflex 兜底)。"""
+    """规则模板: 三餐 + 晚上睡觉。缺失的目标直接跳过(交给 reflex 兜底)。"""
     entries: list[PlanEntry] = []
     seq = 0
-    for minute, signal in (*_MEALS, *_DRINKS, *_SLEEP):
+    for minute, signal in (*_MEALS, *_SLEEP):
         item = _pick(inp, signal)
         if item is None:
             continue

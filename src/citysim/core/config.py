@@ -15,12 +15,12 @@ except ModuleNotFoundError:  # Python 3.10
 
 # 信号全集（0..1 float, 1=充足/健康, 0=耗尽）。唯一表示, 禁 0..100 int 存储。
 SIGNALS: tuple[str, ...] = (
-    "energy", "hunger", "thirst", "bladder", "fun", "hp",
+    "energy", "hunger", "bladder", "hp",
 )
 
-# 兜底 reflex 只覆盏"致命/强生理"信号; fun 等非致命需求交给计划(LLM)。
+# 兜底 reflex 只覆盖"致命/强生理"信号; 非致命需求交给计划表系统。
 # 见 2026-09-11 讨论（计划表 + 中断系统）。
-REFLEX_SIGNALS: tuple[str, ...] = ("energy", "hunger", "thirst", "bladder")
+REFLEX_SIGNALS: tuple[str, ...] = ("energy", "hunger", "bladder")
 
 
 @dataclass(frozen=True)

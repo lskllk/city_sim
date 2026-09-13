@@ -5,8 +5,8 @@ class_name Zh
 extends RefCounted
 
 const SIGNAL := {
-	"energy": "精力", "hunger": "饥饿", "thirst": "口渴",
-	"bladder": "如厕", "fun": "娱乐", "hp": "生命",
+	"energy": "精力", "hunger": "饥饿",
+	"bladder": "如厕", "hp": "生命",
 }
 
 const ROOM_KIND := {
@@ -15,8 +15,8 @@ const ROOM_KIND := {
 }
 
 const TAG := {
-	"edible": "食物", "sleepable": "床铺", "toilet": "卫生间", "drink": "饮水",
-	"entertain": "娱乐", "consumable": "消耗品", "fun": "娱乐", "work": "工作台",
+	"edible": "食物", "sleepable": "床铺", "toilet": "卫生间",
+	"consumable": "消耗品", "work": "工作台",
 }
 
 const EVENT := {
@@ -42,15 +42,14 @@ const ROLE := {
 # 货物/item_type -> 中文(前端语义解释层; 优先用实体自带的 name)
 const ITEM := {
 	"meal_simple": "简餐", "food_apple": "苹果", "food_pear": "梨",
-	"media_tv": "电视", "bed_basic": "床", "toilet_basic": "马桶",
-	"drink_dispenser": "饮水机", "seat_bench": "长椅", "game_mahjong": "麻将",
+	"bed_basic": "床", "toilet_basic": "马桶",
 	"station_workbench": "工位",
 }
 
 # item_type 的类别(第一段) -> 语义动词(按“用什么”解释: 吃/睡/用…)
 const VERB := {
-	"bed": "睡", "meal": "吃", "food": "吃", "drink": "喝",
-	"toilet": "上厕所", "media": "看", "game": "玩", "seat": "坐",
+	"bed": "睡", "meal": "吃", "food": "吃",
+	"toilet": "上厕所",
 	"station": "工作", "shop": "买",
 }
 

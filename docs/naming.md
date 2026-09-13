@@ -15,7 +15,7 @@
 | 对象 | 结构 | 例 |
 |---|---|---|
 | 地点 | `<slug>_<NNN>` | `apt_001`、`apt_002`、`market_001`、`plaza_001`、`site_001` |
-| 世界实体 | `<itemtype>_<NNN>` | `bed_basic_001`、`meal_simple_003`、`media_tv_002` |
+| 世界实体 | `<itemtype>_<NNN>` | `bed_basic_001`、`meal_simple_003`、`station_workbench_001` |
 | NPC | `npc_<姓拼音>_<名拼音>` | `npc_wang_er`、`npc_li_si` |
 | 计划条目 | `plan_<npc>_<序号>` | `plan_npc_wang_er_01` |
 | 组织(未来) | `org_<kind>_<slug>` | `org_shop_dongcheng` |
@@ -28,10 +28,10 @@
 
 ## 2. 类型 id（`category_variant`）
 
-**物品类别**：`food / meal / drink / bed / toilet / seat / game / media / station / shop`
+**物品类别**：`food / meal / bed / toilet / station`
 ```
-meal_simple   bed_basic   drink_dispenser   toilet_basic
-media_tv      seat_bench  game_mahjong      station_workbench
+meal_simple   bed_basic      toilet_basic
+station_workbench
 food_apple    food_pear
 ```
 **建筑类别**：`home / shop / work / public / school / clinic / farm`（kind）

@@ -6,8 +6,7 @@
     "consumable"
   ],
   "affordances": {
-    "hunger": 0.35,
-    "thirst": 0.05
+    "hunger": 0.35
   },
   "duration_ticks": 12,
   "on_start": [],

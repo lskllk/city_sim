@@ -43,7 +43,7 @@ def test_plan_move_then_interact_same_tick() -> None:
     """同刻两条: 先 MoveTo(work), 到达后再 Interact(bench)——串行。"""
     w, s, rng = make_runtime(CFG, log=True)
     add_entity(w, "bench", location="work", tags=("work",),
-               affordances={"fun": 0.5}, duration_ticks=5)
+               affordances={"energy": 0.5}, duration_ticks=5)
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng)
     npc.set_plan([PlanEntry("e0", 1, MoveTo(dest="work")),
                   PlanEntry("e1", 1, Interact("bench"))])
@@ -58,10 +58,10 @@ def test_plan_deadline_aborts_and_fires_on_complete() -> None:
     """下一条到点 → 硬中止当前交互, 但仍触发 on_complete。"""
     w, s, rng = make_runtime(CFG, log=True)
     add_entity(w, "bench", location="work", tags=("work",),
-               affordances={"fun": 0.5}, duration_ticks=100,
-               on_complete=[{"op": "add_signal", "signal": "fun", "delta": 0.5}])
+               affordances={"energy": 0.5}, duration_ticks=100,
+               on_complete=[{"op": "add_signal", "signal": "energy", "delta": 0.5}])
     npc = add_npc(w, s, "npc", location="work", rng_pool=rng)
-    npc.set_signals(fun=0.4)
+    npc.set_signals(energy=0.4)
     npc.set_plan([PlanEntry("e0", 1, Interact("bench")),
                   PlanEntry("e1", 10, MoveTo(dest="home"))])
     _run(w, s, rng, 2)
@@ -70,14 +70,14 @@ def test_plan_deadline_aborts_and_fires_on_complete() -> None:
     evs = _events(s)
     assert any(k == "interaction_aborted" and p.get("entity") == "bench"
                for k, _, p in evs), "未见 interaction_aborted"
-    assert npc.signal("fun") >= 0.9, "硬中止未触发 on_complete(+0.5)"
+    assert npc.signal("energy") >= 0.85, "硬中止未触发 on_complete(+0.5)"
 
 
 def test_reflex_suspends_and_resumes_high_fidelity() -> None:
     """reflex 抢占计划交互 → 软挂起; reflex 完 → 恢复剩余进度, 非硬中止。"""
     w, s, rng = make_runtime(CFG, log=True)
     add_entity(w, "bench", location="work", tags=("work",),
-               affordances={"fun": 0.5}, duration_ticks=20)
+               affordances={"energy": 0.5}, duration_ticks=20)
     add_entity(w, "wc", location="work", tags=("toilet",),
                affordances={"bladder": 0.6}, duration_ticks=3)
     npc = add_npc(w, s, "npc", location="work", rng_pool=rng, bladder=1.0)
@@ -126,7 +126,7 @@ def test_interact_only_plan_auto_navigates() -> None:
     """计划只写交互物体(不写 MoveTo): 执行器自动先走到该物体的所在地。"""
     w, s, rng = make_runtime(CFG, log=True)
     add_entity(w, "bench", location="work", tags=("work",),
-               affordances={"fun": 0.5}, duration_ticks=5)
+               affordances={"energy": 0.5}, duration_ticks=5)
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng)
     # 模拟“已知”: 记忆里知道 bench 在 work(如场景 kb_extra)
     npc.note("bench", located="work", believe=1.0)

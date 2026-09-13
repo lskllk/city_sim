@@ -37,7 +37,6 @@ var _f_role: OptionButton
 var _f_money: SpinBox
 var _f_hunger: SpinBox
 var _f_energy: SpinBox
-var _f_fun: SpinBox
 var _f_traits: LineEdit
 var _f_bname: LineEdit
 var _f_item_type: OptionButton
@@ -501,9 +500,6 @@ func _build_person(pid: String) -> void:
 	_f_energy = _spin(0.5, 2.0, 0.1)
 	_f_energy.value = float(p.get("energy", 1.0))
 	pers.add_child(_lrow("精力", _f_energy))
-	_f_fun = _spin(0.5, 2.0, 0.1)
-	_f_fun.value = float(p.get("fun", 1.0))
-	pers.add_child(_lrow("娱乐", _f_fun))
 	_f_traits = LineEdit.new()
 	_f_traits.text = ",".join((n.get("traits", {}) as Dictionary).keys())
 	_f_traits.placeholder_text = "特质, 逗号分隔"
@@ -544,8 +540,7 @@ func _save_person(pid: String) -> void:
 		"birthday": birthday,
 		"role": String(MapDoc.ROLES[_f_role.selected]),
 		"money": _f_money.value,
-		"personality": {"hunger": _f_hunger.value, "energy": _f_energy.value,
-			"fun": _f_fun.value},
+		"personality": {"hunger": _f_hunger.value, "energy": _f_energy.value},
 		"traits": traits})
 	_refresh_status("已保存 %s" % pid)
 

@@ -23,7 +23,7 @@ ALLOWED_OPS = {"set_signal", "add_signal",
 def _ctx():
     world = World()
     npc = Person(identity=Identity(person_id="p", name="p"))
-    ent = world.spawn_item_type("media_tv", "home")
+    ent = world.spawn_item_type("meal_simple", "home")
     return world, npc, ent
 
 
@@ -48,13 +48,13 @@ def test_set_signal_clamped() -> None:
 
 def test_add_signal_clamp_edges() -> None:
     w, npc, ent = _ctx()
-    npc.set_signals(fun=0.95)
+    npc.set_signals(energy=0.95)
     apply_effects(w, npc, ent,
-                  [{"op": "add_signal", "signal": "fun", "delta": 0.5}])
-    assert npc.signal("fun") == 1.0
+                  [{"op": "add_signal", "signal": "energy", "delta": 0.5}])
+    assert npc.signal("energy") == 1.0
     apply_effects(w, npc, ent,
-                  [{"op": "add_signal", "signal": "fun", "delta": -3.0}])
-    assert npc.signal("fun") == 0.0
+                  [{"op": "add_signal", "signal": "energy", "delta": -3.0}])
+    assert npc.signal("energy") == 0.0
 
 
 def test_add_pending_ok_and_whitelist() -> None:
@@ -98,7 +98,7 @@ def test_consume_self_stock_only_no_pop() -> None:
     assert meal.stock == 0
     assert meal.entity_id in w.entities        # 不在此处 pop
     # 无限(-1)不被消耗
-    disp = w.spawn_item_type("drink_dispenser", "home")
+    disp = w.spawn_item_type("station_workbench", "home")
     apply_effects(w, npc, disp, [{"op": "consume_self"}])
     assert disp.entity_id in w.entities and disp.stock == -1
 

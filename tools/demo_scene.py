@@ -56,11 +56,6 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
     for i in range(max(2, n_npc)):
         _entity(world, f"bed_{i}", "床", {"sleepable"},
                 {"energy": 0.7}, duration_ticks=480)
-    for i in range(max(4, n_npc)):
-        _entity(world, f"water_{i}", "饮水机", {"drink", "consumable"},
-                {"thirst": 0.6}, duration_ticks=10, stock=5000,
-                on_start=[{"op": "add_pending",
-                           "field": "bladder_pending", "amount": 0.15}])
     _entity(world, "toilet_1", "马桶", {"toilet"},
             {"bladder": 0.6}, duration_ticks=5)
 
@@ -73,8 +68,7 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
                                      name=names[i % len(names)]),
                    home="home")
         base = {"energy": r.uniform(0.4, 0.9), "hunger": r.uniform(0.3, 0.9),
-                "thirst": r.uniform(0.3, 0.9), "bladder": 1.0,
-                "fun": 0.6, "hp": 1.0}
+                "bladder": 1.0, "hp": 1.0}
         if noise:
             base = {s: max(0.0, min(1.0, v + r.uniform(-noise, noise)))
                     for s, v in base.items()}
@@ -90,7 +84,7 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
                  names: list[str] | None = None):
     """稀缺场景(testM0~M3 疑点 2): 4 NPC 抢 1 厕所 + 1 餐盘(stock=2, 有限)。
 
-    床/水按人数足额(避免无关卡点), 把竞争集中在 厕所/餐盘 —— 让 claim 冲突与
+    床按人数足额(避免无关卡点), 把竞争集中在 厕所/餐盘 —— 让 claim 冲突与
     失败重选路径被真实压到。NPC 同初始状态 → 需求同步 → 高并发争抢。
     """
     world = World()
@@ -106,10 +100,6 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
                        "field": "bladder_pending", "amount": 0.3}])
     _entity(world, "toilet_1", "马桶", {"toilet"},
             {"bladder": 0.6}, duration_ticks=5)
-    _entity(world, "water_0", "饮水机", {"drink", "consumable"},
-            {"thirst": 0.6}, duration_ticks=10, stock=1000,
-            on_start=[{"op": "add_pending",
-                       "field": "bladder_pending", "amount": 0.15}])
     for i in range(n_npc):
         _entity(world, f"bed_{i}", "床", {"sleepable"},
                 {"energy": 0.7}, duration_ticks=480)
@@ -120,8 +110,7 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
         p = Person(identity=Identity(person_id=pid,
                                      name=names[i % len(names)]),
                    home="home")
-        p.set_signals(energy=0.6, hunger=0.25, thirst=0.6, bladder=0.9,
-                    fun=0.5, hp=1.0)
+        p.set_signals(energy=0.6, hunger=0.25, bladder=0.9, hp=1.0)
         world.npcs[pid] = p
         world.place_npc(pid, "home")
         rng_pool[pid] = random.Random(seed + i)

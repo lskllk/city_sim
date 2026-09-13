@@ -444,7 +444,6 @@ func random_person(rng: RandomNumberGenerator = null) -> Dictionary:
 		"personality": {
 			"hunger": snappedf(r.randf_range(0.8, 1.3), 0.1),
 			"energy": snappedf(r.randf_range(0.8, 1.3), 0.1),
-			"fun": snappedf(r.randf_range(0.7, 1.3), 0.1),
 		},
 		"init": {}, "traits": {}, "tell_bias": 1.0,
 	}

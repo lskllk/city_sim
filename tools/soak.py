@@ -16,7 +16,7 @@ THRESH_FAIL_RATIO = 0.15
 REPEAT_WINDOW = 60
 REPEAT_MAX = 5
 
-NEED_SIGNALS = ("energy", "hunger", "thirst", "bladder")
+NEED_SIGNALS = ("energy", "hunger", "bladder")
 
 
 def parse_decisions(log_lines: list[str]):

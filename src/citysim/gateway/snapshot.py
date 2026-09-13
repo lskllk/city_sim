@@ -39,9 +39,8 @@ def encode_event(ev: dict) -> dict:
 
 # tag -> 语义 key; 字形统一取自 citysim.emojis(由 emojis_by_category 生成)
 _ICON_KEYS = {"sleepable": "bed", "toilet": "toilet", "edible": "food",
-              "entertain": "tv", "drink": "water", "consumable": "meal"}
-_TAG_PRIORITY = ("sleepable", "toilet", "edible",
-                 "entertain", "drink", "consumable")
+              "consumable": "meal"}
+_TAG_PRIORITY = ("sleepable", "toilet", "edible", "consumable")
 _EVENT_KINDS = ("interaction_done", "intent_failed", "decision", "perceived",
                 "bought", "stock_changed", "npc_died", "interaction_aborted")
 
@@ -104,10 +103,6 @@ def act_class_of(world, systems, pid: str) -> str:
         return "sleep"
     if "toilet" in t:
         return "toilet"
-    if "drink" in t:
-        return "drink"
-    if "entertain" in t:
-        return "fun"
     if "edible" in t:
         return "eat"
     return "idle"

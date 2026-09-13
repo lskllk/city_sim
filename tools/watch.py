@@ -47,7 +47,7 @@ def _row(world, systems, pid: str) -> str:
     move = (f"→{trv.to_loc}@{trv.arrive_tick - world.clock_tick}"
             if trv is not None else "")
     return (f"{npc.name:<4} E:{pct['energy']:>3} H:{pct['hunger']:>3} "
-            f"T:{pct['thirst']:>3} B:{pct['bladder']:>3} | {li:<6} {act:<22} "
+            f"B:{pct['bladder']:>3} | {li:<6} {act:<22} "
             f"{move}")
 
 

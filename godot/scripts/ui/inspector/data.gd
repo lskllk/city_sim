@@ -5,7 +5,7 @@
 class_name InspData
 extends RefCounted
 
-const SIGNAL_ORDER := ["energy", "hunger", "thirst", "bladder", "fun", "hp"]
+const SIGNAL_ORDER := ["energy", "hunger", "bladder", "hp"]
 
 
 static func activity_text(n: Dictionary) -> String:
@@ -21,10 +21,6 @@ static func activity_text(n: Dictionary) -> String:
 			return act_with("睡觉", act)
 		"toilet":
 			return "上厕所"
-		"drink":
-			return "喝水"
-		"fun":
-			return act_with("娱乐", act)
 		_:
 			return "空闲"
 

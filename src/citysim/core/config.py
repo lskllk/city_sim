@@ -18,9 +18,11 @@ SIGNALS: tuple[str, ...] = (
     "energy", "hunger", "bladder", "hp",
 )
 
-# 兜底 reflex 只覆盖"致命/强生理"信号; 非致命需求交给计划表系统。
-# 见 2026-09-11 讨论（计划表 + 中断系统）。
-REFLEX_SIGNALS: tuple[str, ...] = ("energy", "hunger", "bladder")
+# 注: REFLEX_SIGNALS(致命信号白名单)已在 2026-09-14 删除。
+# 它原本用于“哪些信号能产生候选 / 哪些需求能抢占计划” —— 现在两者都不需要:
+#   - 候选不再过滤(记忆里的行全部参与打分), 阀值只落在得分上(utility.threshold)
+#   - 抢占只看得分比(preempt_ratio), 不看信号白名单
+# 详见 docs/20260914/plan.md §3.1/§3.2。
 
 
 @dataclass(frozen=True)

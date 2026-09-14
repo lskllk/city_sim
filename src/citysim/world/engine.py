@@ -149,6 +149,14 @@ def _notify_due(world, systems, npc) -> None:
                    price=row.get("price", 0.0), item_type=row.get("item_type", ""),
                    believe=float(row["believe"]) * trust,
                    source=npc.person_id)
+        # 气泡挂在【听者】头上 —— 内容是“他刚学到的事实”(支柱 B 的出口)
+        ent = world.entities.get(row["item_id"])
+        nm = ent.name if ent is not None else str(row["item_id"])
+        price = float(row.get("price", 0.0))
+        text = ("听说%s %g 块" % (nm, price) if price > 0
+                else "听说有%s" % nm)
+        ttl = int(getattr(systems, "bubble_ttl", 40) or 40)
+        other.set_bubble(text, world.clock_tick + ttl, "told")
         world.bus.publish(world.bus.make(
             world.clock_tick, "told", npc.person_id,
             {"audience": [other_id], "item_id": row["item_id"],
@@ -227,8 +235,8 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
 
 
 def _can_preempt(world, systems, pid, source) -> bool:
-    """计划只能硬中止可打断的交互; reflex(致命)始终可。"""
-    if source == "reflex":
+    """计划只能硬中止可打断的交互; 需求轨(need)始终可。"""
+    if source == "need":
         return True
     act = systems.interaction.active.get(pid)
     if act is None:
@@ -238,8 +246,8 @@ def _can_preempt(world, systems, pid, source) -> bool:
 
 
 def _preempt(world, systems, pid, source) -> None:
-    """抢占当前交互: reflex=软挂起(可恢复), plan=硬中止(触发 on_complete)。"""
-    if source == "reflex":
+    """抢占当前交互: need=软挂起(可恢复), plan=硬中止(触发 on_complete)。"""
+    if source == "need":
         systems.interaction.suspend(world, pid)
     else:
         systems.interaction.abort(world, pid)

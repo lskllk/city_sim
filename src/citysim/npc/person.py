@@ -70,13 +70,20 @@ class Identity:
 
 @dataclass
 class _Goal:
-    """正在执行的一个目标(计划的当前条目 / 一个 reflex)。
+    """正在执行的【唯一】目标。
+
+    —— 2026-09-14 删双轨 ——
+    以前是 _reflex_goal / _plan_goal 两条轨 + 固定优先级抢占; 现在只有一个。
+    source 只用来区分“谁在维持它”:
+      "need" —— 需求(utility)驱动的, 可以不讲道理地抢(命比规矩大)
+      "plan" —— 日程/承诺驱动的, 到点会被下一条硬中止, 也尊重 can_preempt
 
     phase: to_dest=还没到目标地(异地), doing=已在目标地/正在交互。
     """
-    source: str                               # "plan" | "reflex"
+    source: str                               # "need" | "plan"
     intent: "Intent"
     phase: str = "to_dest"
+    score: float = 0.0      # 启动时的效用分(供迟滞抢占比较)
 
 
 # ----------------------------------------------------------------------
@@ -138,10 +145,9 @@ class Person:
         self._last_percept: "PerceptionRecord | None" = None
         self._mem = MemBase()
         self._perceived_loc: str = ""   # 最近一次感知到自己在哪(自身认知, 不长期维护坐标)
-        self._schedule = Schedule()     # 当天计划表(空 = 纯 reflex 模式)
-        self._plan_goal: "_Goal | None" = None
-        self._reflex_score: float = 0.0   # 当前需求目标的得分(迟滞抢占用)
-        self._reflex_goal: "_Goal | None" = None
+        self._schedule = Schedule()     # 当天计划表(空 = 纯需求驱动)
+        self._goal: "_Goal | None" = None   # 唯一在执行的标的
+        self._bubble: tuple[str, int, str] | None = None   # (文字, 到期的 tick, 类型)
         self._failures: list[dict] = []  # 失败日志(0:00 交 LLM)
         if signals:
             self.set_signals(**dict(signals))
@@ -302,6 +308,21 @@ class Person:
     def set_home(self, home: str) -> None:
         self._home = home
 
+    # --- 气泡(显示态) --------------------------------------------------
+    def set_bubble(self, text: str, until_tick: int, kind: str) -> None:
+        """头顶冒一句话(瞬时事件, 不是“当前在做什么”的状态)。
+
+        渲染层只负责画和到点消失; 台词由后端从真实内部状态长出(铁律)。
+        """
+        self._bubble = (str(text), int(until_tick), str(kind))
+
+    @property
+    def bubble(self) -> tuple[str, int, str] | None:
+        return self._bubble
+
+    def clear_bubble(self) -> None:
+        self._bubble = None
+
     def set_travel_costs(self, costs: dict[str, int]) -> None:
         """装配: 注入位移成本矩阵(engine/场景侧提供, 这里只存不用)。"""
         self._travel_costs = dict(costs or {})
@@ -387,7 +408,7 @@ class Person:
     def set_plan(self, entries: "Sequence[PlanEntry]") -> None:
         """装配: 灌入当天计划(LLM 产物)。覆盖旧计划与执行指针。"""
         self._schedule = Schedule(entries)
-        self._plan_goal = None
+        self._goal = None
 
     def _reflex_intent(self, cfg: "SimConfig", now_tick: int) -> "Intent | None":
         """需求决策(复用 brain.decide); Idle → None。"""
@@ -408,56 +429,58 @@ class Person:
 
     def decide(self, cfg: "SimConfig", now_tick: int,
                can_preempt: bool = True) -> Decision:
-        """决策仲裁: 致命 reflex > 计划 > idle。只读记忆+自身, 不看环境。
+        """单轨决策: **需求(utility) > 日程(plan) > idle**。只读记忆+自身。
 
-        can_preempt: 世界告知"当前交互能否被计划抢占"(不可打断的睡觉等);
-                     reflex(致命)不受此限, 始终可抢占。
+        —— 2026-09-14 删双轨 ——
+        旧版是“reflex 轨 / plan 轨”两条并行 + 固定优先级抢占。现在只有一条:
+        每 tick 算一次“我此刻最想做什么(utility)”, 有就做它; 没有才看日程。
+        所以计划不再是“指令”, 而是【没别的事可做时的安排】。
+
+        can_preempt: 世界告知“当前交互能不能被打断”(睡觉等)。
+                     需求轨不受此限(命比规矩大); 计划轨尊重它。
         """
         while True:
-            # 1. 需求目标执行中 → 先看有没有【明显更好的事】
-            #    每 tick 重算一次效用。只有新事的分 > 当前事的分 × preempt_ratio
-            #    才改主意(迟滞) —— 否则会在两个差不多好的目标之间反复横跳;
-            #    而不设防又会导致“快饿死了还在睡”。
-            #    注: 这里不看 can_preempt —— 需求(旧称 reflex)轨本来就是
-            #    “命比规矩大”的那一类, 与不可打断的交互也允许抢占。
-            if self._reflex_goal is not None:
-                cand, eff = self._intent_scored(cfg, now_tick)
-                bar = max(self._reflex_score, cfg.utility_threshold) \
+            cand, eff = self._intent_scored(cfg, now_tick)   # 此刻最想做的事
+
+            # 1) 手上正做着事
+            if self._goal is not None:
+                # 1a) 有了【明显更好的事】→ 改主意(迟滞: 好 preempt_ratio 倍)
+                #     需求轨不尊重 can_preempt: 快饿死时该把人从被窝里拽起来。
+                bar = max(self._goal.score, cfg.utility_threshold) \
                     * cfg.preempt_ratio
                 if cand is not None and eff > bar:
-                    self._reflex_goal = None      # 放弃当前, 重新评估
+                    self._abandon()
                     continue
-                d = self._advance(self._reflex_goal)
+                # 1b) 日程条目的窗口到期(下一条已到点) → 硬中止当前条目
+                if self._goal.source == "plan" and can_preempt:
+                    dl = self._schedule.deadline()
+                    if dl is not None and now_tick >= dl:
+                        self._schedule.drop()
+                        self._goal = None
+                        continue
+                d = self._advance(self._goal)
                 if d is not None:
                     return self._record(d)
                 continue
-            # 2. 启动需求目标(在途不打断: 先到站)
-            traveling = (self._plan_goal is not None
-                         and self._plan_goal.phase == "to_dest")
-            if not traveling:
-                r, eff = self._intent_scored(cfg, now_tick)
-                if r is not None:
-                    self._reflex_goal = _Goal("reflex", r)
-                    self._reflex_score = eff
-                    continue
-            # 3. 计划执行中 → 截止/推进
-            if self._plan_goal is not None:
-                dl = self._schedule.deadline()
-                if dl is not None and now_tick >= dl and can_preempt:
-                    self._schedule.drop()          # 硬中止当前条目
-                    self._plan_goal = None
-                    continue
-                d = self._advance(self._plan_goal)
-                if d is not None:
-                    return self._record(d)
+
+            # 2) 有事可做 → 做需求(不再有任何“阈值层”, 能不能行动看 eff)
+            if cand is not None:
+                self._goal = _Goal("need", cand, score=eff)
                 continue
-            # 4. 取下一计划条目
+
+            # 3) 没事可做 → 看日程(承诺/模板计划)
             e = self._schedule.current()
             if e is None or now_tick < e.at_tick:
                 return self._record(Decision(Idle(), "idle"))
             self._schedule.commit()
-            self._plan_goal = _Goal("plan", e.intent)
+            self._goal = _Goal("plan", e.intent)
             continue
+
+    def _abandon(self) -> None:
+        """放弃当前目标: 计划来源的把该条标 dropped, 只清目标。"""
+        if self._goal is not None and self._goal.source == "plan":
+            self._schedule.drop()
+        self._goal = None
 
     def _advance(self, goal: "_Goal") -> "Decision | None":
         """推进一个 goal: 异地先 MoveTo; 到达/无需移动后返回实际 Intent。"""
@@ -485,11 +508,8 @@ class Person:
     def _finish_goal(self, goal: "_Goal") -> None:
         if goal.source == "plan":
             self._schedule.complete()
-            if self._plan_goal is goal:
-                self._plan_goal = None
-        elif self._reflex_goal is goal:
-            self._reflex_goal = None
-            self._reflex_score = 0.0
+        if self._goal is goal:
+            self._goal = None
 
     def _record(self, decision: Decision) -> Decision:
         self._last_intent = decision.intent
@@ -497,10 +517,9 @@ class Person:
 
     def on_interaction_done(self, entity_id: str, tick: int = 0) -> None:
         """窄协议: 世界告知某交互自然完成 → 结束对应 goal(计划推进下一条)。"""
-        for g in (self._reflex_goal, self._plan_goal):
-            if g is not None and intent_target(g.intent) == entity_id:
-                self._finish_goal(g)
-                return
+        g = self._goal
+        if g is not None and intent_target(g.intent) == entity_id:
+            self._finish_goal(g)
 
     def failure_log(self) -> list[dict]:
         """观测: 失败日志只读快照(0:00 交 LLM 用)。"""
@@ -530,14 +549,10 @@ class Person:
                 until = now_tick + (retry_ticks
                                     if retry_ticks is not None else 120)
                 self._mem.update(target_id, cool_until=until)
-        # 该目标失败 → 清 reflex / skip 计划条
-        if self._reflex_goal is not None \
-                and intent_target(self._reflex_goal.intent) == target_id:
-            self._reflex_goal = None
-        elif self._plan_goal is not None \
-                and intent_target(self._plan_goal.intent) == target_id:
-            self._schedule.drop()
-            self._plan_goal = None
+        # 该目标失败 → 放弃当前目标(计划来源的跳过该条)
+        g = self._goal
+        if g is not None and intent_target(g.intent) == target_id:
+            self._abandon()
 
     def process(self, percept: "Percept", cfg: "SimConfig",
                 can_preempt: bool = True) -> Decision:

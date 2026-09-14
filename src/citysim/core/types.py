@@ -100,12 +100,12 @@ class Decision:
     """Person 的一次决策(供 engine 仲裁): intent + 来源。
 
     source 决定抢占语义:
-      "reflex" → 软挂起当前交互(reflex 完后恢复)
+      "need"   → 软挂起当前交互(需求完成后恢复)
       "plan"   → 硬中止当前交互(触发 on_complete, 不恢复)
       "idle"   → 无事可做
     """
     intent: Intent
-    source: str = "idle"          # "plan" | "reflex" | "idle"
+    source: str = "idle"          # "need" | "plan" | "idle"
 
 
 def intent_kind(intent: Intent) -> str:

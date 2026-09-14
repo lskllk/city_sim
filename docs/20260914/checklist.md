@@ -44,11 +44,21 @@
 - [x] **删除 F2 自由块**
 - [x] 承诺以「**时间派生的紧迫度**」参与打分（不是指令），**可以被打败**
 
-### 3.2 架构简化
-- [x] **删除 `REFLEX_SIGNALS`** + **双轨仲裁**
-      （`_reflex_goal` / `_plan_goal`、`_can_preempt` / `_preempt`、`suspend` / `resume`）
+### 3.2 架构简化（✅ 已实现）
+
+- [x] **删掉候选筛选层**：`REFLEX_SIGNALS` 白名单与 `fallback_need` **都已删除**，
+      `SIGNALS` 只剩 `energy/hunger/bladder/hp`
+- [x] **阈值只落在得分上**：`utility.threshold = 0.05`
+      （它同时承担“琐碎需求别动”与“别为了小事跑一趟”）
+- [x] **删双轨仲裁**：`_reflex_goal` / `_plan_goal` → **单个 `_goal`**，
+      `source ∈ {need, plan}`；`Person.decide` 变成单轨：**需求 > 日程 > idle**
+- [x] **迟滞抢占**（新增 `preempt_ratio = 1.5`）：需求每 tick 复评，
+      只有 **明显更好**才改主意 —— 否则会在两个差不多好的目标间抽风，
+      而不设防则会“快饿死了还在睡”。需求轨不看 `can_preempt`（命比规矩大）
 - [x] **保留** 交互的 `interruptible`（正交，别一起删）
-- [x] **候选收集放开**：`need_floor ≈ 0.15`（**最高风险参数**，先 soak 校准）
+- [x] **`suspend` / `resume` 保留但语义变了**：不再由计划轨强制恢复，
+      而是“那个目标仍值得做 → 重新被选中时 engine 自动 resume 挂起进度”
+- [x] **删 `move_penalty`**：异地成本只由**真实行走 tick** 表达
 
 ### 3.3 打分与成本
 - [x] `eff = (urgency^power × value × personality × believe) / (1 + λ × cost)`

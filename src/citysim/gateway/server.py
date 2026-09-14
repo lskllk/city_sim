@@ -217,10 +217,16 @@ class SimRunner:
         """本帧要下发的 NPC = 渲染状态变了的 ∪ {选中的}。"""
         sig_now: dict[str, tuple] = {}
         dirty: set[str] = set()
-        for pid in self.world.npcs:
+        tick = self.world.clock_tick
+        for pid, p in self.world.npcs.items():
             s = self._render_sig(pid)
             sig_now[pid] = s
             if self._npc_sig.get(pid) != s:
+                dirty.add(pid)
+            # 正在冒泡的人也要推 —— 气泡是【事件】, 不改渲染签名。
+            # (推完就不脏了: 下次靠 until 过期, 前端自己收尾)
+            b = getattr(p, "bubble", None)
+            if b is not None and int(b[1]) > tick:
                 dirty.add(pid)
         self._npc_sig = sig_now
         dirty |= self._watched()        # 选中的 + 选中建筑里的人(实时信号)

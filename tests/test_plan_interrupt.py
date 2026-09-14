@@ -80,13 +80,19 @@ def test_plan_deadline_aborts_and_fires_on_complete() -> None:
 
 
 def test_reflex_suspends_and_resumes_high_fidelity() -> None:
-    """reflex 抢占计划交互 → 软挂起; reflex 完 → 恢复剩余进度, 非硬中止。"""
+    """需求抢占另一个交互 → 软挂起; 那个需求完了 → 回去继续做, 非硬中止。
+
+    注(2026-09-14 删双轨后): 只剩一条轨 —— “回去继续”不再是计划轨强制的,
+    而是【那个目标仍然值得做】时被重新选中(engine 这时会 resume 挂起进度)。
+    所以这里让 bench 一直有吸引力(energy 低), 恢复才会发生; 这正是单轨的语义。
+    """
     w, s, rng = make_runtime(CFG, log=True)
     add_entity(w, "bench", location="work", tags=("work",),
                affordances={"energy": 0.5}, duration_ticks=20)
     add_entity(w, "wc", location="work", tags=("toilet",),
                affordances={"bladder": 0.6}, duration_ticks=3)
-    npc = add_npc(w, s, "npc", location="work", rng_pool=rng, bladder=1.0)
+    npc = add_npc(w, s, "npc", location="work", rng_pool=rng,
+                  bladder=1.0, energy=0.2)   # 累 → bench 值得做完
     npc.set_plan([PlanEntry("e0", 1, Interact("bench"))])
     _run(w, s, rng, 5)
     assert s.interaction.active["npc"].entity_id == "bench"

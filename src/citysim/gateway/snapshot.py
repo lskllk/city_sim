@@ -169,7 +169,18 @@ def _npc_core(world, systems, pid: str, p) -> dict:
             "waypoints": [[round(x, 2), round(y, 2)]
                           for x, y in tv.waypoints]},
         "plan": p.plan_snapshot(),      # 当天计划表(时间线 viz; 每天才变)
+        # 气泡: 瞬时事件(~40 tick)。前端自己按 until 决定何时消失,
+        # 所以过期不需要再推一帧“空气泡”。
+        "bubble": _bubble_of(p),
     }
+
+
+def _bubble_of(p) -> dict | None:
+    b = getattr(p, "bubble", None)
+    if b is None:
+        return None
+    text, until, kind = b
+    return {"text": text, "until": int(until), "kind": kind}
 
 
 def _npc_base(world, systems, pid: str, p) -> dict:

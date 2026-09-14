@@ -29,7 +29,9 @@ class MemItem:
     value: float = 0.0           # 提供多少
     item_type: str = ""          # 物品类型 id(去重/合并用)
     price: float = 0.0           # 我以为的现价(易变)
-    stock: int = 0               # 我以为的库存(-1=无限; 易变)
+    # 库存。**默认 -1(不知道/无限)** —— 场景种的记忆、注入的认知通常不写 stock,
+    # 若默认 0 会被当成“空的”而永远不出现在候选里。
+    stock: int = -1
     shelf_life_ticks: int = 0    # 我以为的保质期(0=不坏) —— 决定“该囤几份”
     expires_tick: int = 0        # 我以为的到期刻(0=不过期)
     attrs: dict[str, Any] = field(default_factory=dict)

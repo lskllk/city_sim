@@ -30,14 +30,14 @@ class _Client:
 
 
 # --- 规则模板 ---------------------------------------------------------
-def test_template_picks_known_home_items() -> None:
+def test_template_only_emits_commitments() -> None:
+    """2026-09-14: 模板【删掉了三餐+睡觉】—— 那是需求, 归 utility。
+
+    计划表只留【有事在等人】的承诺(上班/上学)。roles.json 还没做 →
+    没有工作锚点 → 模板返回空(纯 utility 驱动)。
+    """
     entries = template_plan(_inp(known=[HOME_FOOD, HOME_BED]))
-    meals = [e for e in entries if isinstance(e.intent, Interact)
-             and e.intent.target_id == "food"]
-    sleep = [e for e in entries if isinstance(e.intent, Interact)
-             and e.intent.target_id == "bed"]
-    assert len(meals) == 3                      # 三餐
-    assert len(sleep) == 1 and sleep[0].at_tick == 22 * 60
+    assert entries == []
 
 
 def test_template_empty_when_no_known() -> None:
@@ -111,7 +111,7 @@ def test_llm_path_and_cache() -> None:
 def test_llm_failure_falls_back_to_template() -> None:
     pl = Planner(client=_Client(RuntimeError("boom")))
     res = pl.plan_day(_inp(known=[HOME_FOOD]))
-    assert res.source == "template" and res.entries
+    assert res.source == "template"             # 降级到模板(现在是空计划)
 
 
 def test_no_client_uses_template() -> None:

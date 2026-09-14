@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import zlib
 
-from typing import Any
+from citysim.npc import semantic as _sem
+
+from typing import Any, Mapping
 
 from citysim.core.config import SimConfig
 from citysim.core.types import (
@@ -86,6 +88,7 @@ def _kill(world, systems, pid: str) -> None:
 # 注意: 这里**不做** trust 的演化(mind.md 的 verify) —— 那是后续插件。
 
 BELIEF_FLOOR = 0.3      # 低于此就不值得再传了
+SAY_COOLDOWN = 240      # 同一话题这么 tick 内不重复说(4 小时)
 TRUST_SAME_HOME = (0.9, 1.0)
 TRUST_OTHER = (0.4, 0.7)
 
@@ -104,33 +107,34 @@ def trust_between(a, b) -> float:
     return lo + (hi - lo) * _unit_hash("%s|%s" % (k, j))
 
 
-def _pick_tell(speaker, other) -> object | None:
-    """挑一条“对方不知道、也不是他说的、且我比较信”的记忆。
+def _notify_due(world, systems, npc, ev) -> None:
+    """空闲时: 把【刚才那句值得说的话】说给同地的人听。
 
-    确定性: 按 item_id 排序后取 believe 最大的那条。
+    —— 2026-09-14 语义层 ——
+    旧版是“抄一行对方不知道的记忆”(于是张嘴就是自家马桶)。
+    现在 **说什么由语义层决定**: `ev` 是 Person 已经攒好的 SemanticEvent
+    (DOUBT > SURPRISE > INTENT > STATE), 没话可说就不说 —— 不硬造话题。
+
+    传播规则(不变): 说给谁随机 · believe = 说话人自己信几分 × 他对听者的信任 ·
+    溯源写进听者记忆的 source。
     """
-    best = None
-    for row in sorted(speaker.memory_dicts(), key=lambda r: r["item_id"]):
-        if row.get("source") == other.person_id:
-            continue                      # 别把他刚告诉我的再告诉他
-        if float(row.get("believe", 0.0)) < BELIEF_FLOOR:
-            continue
-        if other.remembers(row["item_id"]):
-            continue                      # 对方已经知道了 → 不说
-        if other.home and row.get("located") == other.home:
-            continue                      # “告诉他他自己家里有什么”是噪声
-        if speaker.home and row.get("located") == speaker.home:
-            # 同理: 我自己家里的东西(床/马桶)也不是新闻 —— 没人跟邻居介绍自家马桶。
-            # 注: 这里只是堵住最刺眼的一种。真正“该说什么”归 semantic_event.md
-            # 的语义层(SURPRISE/DOUBT/REPORT); MVP 这条是“抄一行记忆”的降级形态。
-            continue
-        if best is None or float(row["believe"]) > float(best["believe"]):
-            best = row
-    return best
-
-
-def _notify_due(world, systems, npc) -> None:
-    """空闲时: 跟同地的某人说一件他不知道的事(带信任折扣 + 溯源)。"""
+    fact: dict = {}
+    if ev is not None:
+        fact = dict(ev.slots or {})
+    item_id = str(fact.get("item_id", ""))
+    if not item_id:
+        # 刚发生的意外已经冒过泡了 —— 但【新闻要能带走】:
+        # 退一步从记忆里挑一件“值得转述”的(语义层过滤: 不是自家东西/对方不知道)
+        # 注意: “对方是否已知”交给下面逐个听者的 remembers() 判断 ——
+        # 这里不能提前用“任何人已知”过滤, 否则一个人知道就没人能听到了。
+        picked = _sem.pick_retellable(npc.memory_dicts(), home=npc.home,
+                                      knows=lambda _i: False)
+        if picked is None:
+            return                  # 没话可说就不说(旧版是“硬抄一行记忆”)
+        fact = dict(picked)
+        item_id = str(picked.get("item_id", ""))
+        fact["item"] = _item_name(world, item_id)
+        fact["now"] = _price_word(fact)
     tell_p = float(getattr(systems, "tell_p", 0.0))
     if tell_p <= 0.0:
         return
@@ -144,28 +148,80 @@ def _notify_due(world, systems, npc) -> None:
         other = world.npcs[other_id]
         if rng.random() >= tell_p * npc.tell_bias:
             continue                      # 说不说, 随机
-        row = _pick_tell(npc, other)
-        if row is None:
-            continue
+        if not _may_tell(world, systems, npc, other, fact):
+            continue                      # ← 六条传播规则都在这里
+        npc.mark_said("item.%s" % item_id, world.clock_tick)
         trust = trust_between(npc, other)
-        other.note(row["item_id"], tick=world.clock_tick,
-                   located=row.get("located", ""),
-                   afford=row.get("afford", ""), value=row.get("value", 0.0),
-                   price=row.get("price", 0.0), item_type=row.get("item_type", ""),
-                   believe=float(row["believe"]) * trust,
+        other.note(item_id, tick=world.clock_tick,
+                   located=str(fact.get("located", "")),
+                   afford=str(fact.get("afford", "")),
+                   value=float(fact.get("value", 0.0)),
+                   price=float(fact.get("price", 0.0)),
+                   item_type=str(fact.get("item_type", "")),
+                   stock=int(fact.get("stock", -1)),
+                   shelf_life_ticks=int(fact.get("shelf_life_ticks", 0)),
+                   believe=float(fact.get("believe", 1.0)) * trust,
                    source=npc.person_id)
-        # 气泡挂在【听者】头上 —— 内容是“他刚学到的事实”(支柱 B 的出口)
-        ent = world.entities.get(row["item_id"])
-        nm = ent.name if ent is not None else str(row["item_id"])
-        price = float(row.get("price", 0.0))
-        text = ("听说%s %g 块" % (nm, price) if price > 0
-                else "听说有%s" % nm)
-        ttl = int(getattr(systems, "bubble_ttl", 40) or 40)
-        other.set_bubble(text, world.clock_tick + ttl, "told")
+        # 听者头上的气泡 = 他刚学到的事实(转述)
+        rep = _sem.report(world.clock_tick, npc.person_id, item_id,
+                          str(fact.get("item", item_id)),
+                          str(fact.get("now", "")), who=npc.name)
+        _set_bubble(systems, other, _sem.render(rep), "told",
+                    world.clock_tick)
         world.bus.publish(world.bus.make(
             world.clock_tick, "told", npc.person_id,
-            {"audience": [other_id], "item_id": row["item_id"],
+            {"audience": [other_id], "item_id": item_id,
              "from": npc.person_id, "believe": round(trust, 3)}))
+
+
+def _may_tell(world, systems, npc, other, fact: Mapping[str, Any]) -> bool:
+    """允许把这条事实说给 other 吗? —— 传播的硬规则**集中在这里**。
+
+    ① 对方已经知道 → 不说。**这条本身就是天然的衰减器**: 传开后能说的人
+       越来越少, 链条自己停(所以不需要 hops 计数器)。
+    ② 别把“他刚告诉我的”再告诉他 —— 靠记忆行的 source 认人。
+    ③ 告诉他他自己家里有什么 = 废话。
+    ④ 我自己家里的东西也不是新闻(没人跟邻居介绍自家马桶)。
+    ⑤ 我自己都不太信的（believe < BELIEF_FLOOR）, 不值得传。
+    ⑥ 话题冷却: 同一件事短时间内不复读 —— **对不同人也算**, NPC 不是复读机。
+    """
+    item_id = str(fact.get("item_id", ""))
+    if not item_id:
+        return False
+    if other.remembers(item_id):                      # ①
+        return False
+    src = str(fact.get("source", ""))
+    if src and src == other.person_id:                # ②
+        return False
+    located = str(fact.get("located", ""))
+    if other.home and located == other.home:          # ③
+        return False
+    if npc.home and located == npc.home:              # ④
+        return False
+    if float(fact.get("believe", 1.0)) < BELIEF_FLOOR:  # ⑤
+        return False
+    topic = "item.%s" % item_id
+    if world.clock_tick - npc.said_at(topic) < SAY_COOLDOWN:   # ⑥
+        return False
+    return True
+
+
+def _item_name(world, item_id: str) -> str:
+    e = world.entities.get(item_id)
+    return e.name if e is not None else item_id
+
+
+def _price_word(fact: Mapping[str, Any]) -> str:
+    price = float(fact.get("price", 0.0))
+    return _sem.money_word(price) if price > 0 else "有货"
+
+
+def _set_bubble(systems, npc, text: str, kind: str, now_tick: int) -> None:
+    """给某人头顶挂一句话(瞬时, 到点自己消失)。"""
+    if not text:
+        return
+    ttl = int(getattr(systems, "bubble_ttl", 40) or 40)
+    npc.set_bubble(text, int(now_tick) + ttl, kind)
 
 
 def _expiry(world, shelf_life: int) -> int:
@@ -417,11 +473,19 @@ def tick(world, systems, cfg: SimConfig) -> None:
             can_preempt = bool(aent is not None and aent.interruptible)
         percept = build_percept(world, npc)
         decision = npc.process(percept, cfg, can_preempt)
+        # 语义层: 攒下的“值得说的话”变成头顶气泡。
+        # 放在 process 之后 —— 感知(预期 vs 观察)就在 process 里发生,
+        # 同一 tick 冒出来才跟得上画面。【谁都可能冒】, 不看闲不闲。
+        said = npc.pending_speech(world.clock_tick, SAY_COOLDOWN)
+        if said is not None:
+            _set_bubble(systems, npc,
+                        _sem.render(said, speaker_name=npc.name), said.act,
+                        world.clock_tick)
         intent = decision.intent
         kind = intent_kind(intent)
         target = intent_target(intent)
         if isinstance(intent, Idle):
-            _notify_due(world, systems, npc)      # TODO(notify) 通用通知骨架
+            _notify_due(world, systems, npc, said)   # 空闲才把这话说给别人听
         # 观测去重: 只在【任务变更】时记一条; 持续同一任务/空闲不刷屏。
         # 签名始终更新(含 idle), 否则"吃→空闲→再吃同一个"会被吞掉。
         sig = f"{decision.source}:{kind}:{target or ''}"

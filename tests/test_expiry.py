@@ -113,12 +113,13 @@ def test_target_stock_derived_from_shelf_life() -> None:
     —— 这就是“把保质期加进购买决策”: 不是限制买多少,
        而是“在它坏掉之前我吃得完多少”。
     """
-    # 简餐: value 0.5, 保质期 1 天 → 目标 ≈ 0.67 份/天 × 1 天 × 0.8 = 0.53
-    short = brain._future_need(CFG, 1.0, "hunger", 0.5, 1440, 1.0)
-    # 苹果: value 0.35, 保质期 3 天 → 目标 ≈ 0.95 × 3 × 0.8 = 2.29
-    long_ = brain._future_need(CFG, 1.0, "hunger", 0.35, 4320, 1.0)
-    assert short == 0.0, short          # 已经够了(再囤就要坏)
-    assert long_ > 0.4, long_           # 明显还缺口
+    # 目标份数本身就是“保质期内吃得完的量” → 短保的目标更小
+    t_short = brain._stock_target(CFG, "hunger", 0.5, 1440, 1.0)     # 简餐 1 天
+    t_long = brain._stock_target(CFG, "hunger", 0.35, 4320, 1.0)     # 苹果 3 天
+    assert t_short < t_long, (t_short, t_long)
+    # 家里同样剩 3.5 份: 短保的已经够了(再囤就要坏), 长保的还想补
+    assert brain._future_need(CFG, 3.5, "hunger", 0.5, 1440, 1.0) == 0.0
+    assert brain._future_need(CFG, 3.5, "hunger", 0.35, 4320, 1.0) > 0.5
 
     # 家里空的 → 两者都要补
     assert brain._future_need(CFG, 0.0, "hunger", 0.5, 1440, 1.0) == 1.0

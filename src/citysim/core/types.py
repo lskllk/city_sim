@@ -100,6 +100,27 @@ class Buy:
 Intent = Idle | MoveTo | Interact | Buy
 
 
+# ---------------------------------------------------------------------------
+# 语义层契约(docs/20260913/semantic_event.md §2)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class SemanticEvent:
+    """NPC 要把内部状态说成的一句话(结构化, 还没措辞)。
+
+    铁律: 这里全是【真值】。谁说的 / 什么行为 / 什么强度 / 涉及谁 —— 一个都不许编。
+    随机只发生在【渲染措辞】那一步(见 npc/semantic.render)。
+    """
+    event_id: str                     # sem<N>
+    tick: int
+    speaker: str                      # npc_id
+    act: str                          # STATE/INTENT/SURPRISE/DOUBT/REPORT
+    topic: str                        # 冷却 / 去重键 ^[a-z][a-z0-9_.]*$
+    slots: Mapping[str, Any] = field(default_factory=dict)   # 只放真值
+    source: str = ""                  # "" = 自身; 否则 fact_id / 来源 npc_id
+    intensity: float = 0.0            # 0..1 → 渲染时映射为强度档
+    listeners: tuple[str, ...] = ()   # 听到的人(同 location)
+
+
 @dataclass(frozen=True, slots=True)
 class Decision:
     """Person 的一次决策(供 engine 仲裁): intent + 来源。

@@ -20,6 +20,8 @@ const RATE_BY_NODE := {
 @onready var entity_layer: EntityLayer = %EntityLayer
 @onready var overlay_layer: OverlayLayer = %OverlayLayer
 @onready var map_labels: MapLabels = %MapLabels
+@onready var bubble_layer: Control = %BubbleLayer   # 不写 class_name 类型:
+                                                           # 免依赖类注册表缓存
 
 @onready var _reset_button: Button = %ResetButton
 @onready var _sel_label: Label = %SelLabel
@@ -46,6 +48,7 @@ func _ready() -> void:
 	camera.resize(size.x, size.y)
 	map_labels.setup(camera)      # 建筑矢量层跟随相机投影(屏幕坐标, 不受缩放影响)
 	entity_layer.setup(camera)    # NPC 圆点层同坐标系, 但画在建筑之上
+	bubble_layer.setup(camera, entity_layer)   # 气泡: 要沿路点取在途位置
 
 	_reset_button.pressed.connect(reset_view)
 	for node_name in RATE_BY_NODE:

@@ -30,7 +30,7 @@ from citysim.core.types import (
     intent_kind,
     intent_target,
 )
-from citysim.npc import brain
+from citysim.npc import brain, semantic
 from citysim.npc.memory import MemBase, MemItem
 from citysim.npc.schedule import PlanEntry, Schedule
 
@@ -157,6 +157,10 @@ class Person:
         self._schedule = Schedule()     # 当天计划表(空 = 纯需求驱动)
         self._goal: "_Goal | None" = None   # 唯一在执行的标的
         self._bubble: tuple[str, int, str] | None = None   # (文字, 到期的 tick, 类型)
+        # —— 语义层(M-S1): 值得说的草稿 + 话题冷却 ——
+        self._say_queue: list = []          # [SemanticEvent](未措辞的结构化真值)
+        self._said_at: dict[str, int] = {}  # topic -> 上次说的 tick(别复读自己)
+        self._name_of = None                # 注入: npc_id -> 名字(渲染“王哥说…”用)
         self._failures: list[dict] = []  # 失败日志(0:00 交 LLM)
         if signals:
             self.set_signals(**dict(signals))
@@ -330,6 +334,102 @@ class Person:
     def set_home(self, home: str) -> None:
         self._home = home
 
+    # --- 语义层(M-S1): 攒“值得说的事”, 按优先级取 ---------------------
+    def set_name_lookup(self, fn) -> None:
+        """装配: 注入 npc_id -> 名字(世界侧提供, 本层只存不查)。"""
+        self._name_of = fn
+
+    def said_at(self, topic: str, default: int = -(10 ** 9)) -> int:
+        """这个话题上次是什么时候说的(默认很久以前)。"""
+        return self._said_at.get(topic, default)
+
+    def mark_said(self, topic: str, now_tick: int) -> None:
+        self._said_at[topic] = int(now_tick)
+
+    def _push_speech(self, ev) -> None:
+        self._say_queue.append(ev)
+        if len(self._say_queue) > 12:        # 只留最近的一小把
+            self._say_queue = self._say_queue[-12:]
+
+    def pending_speech(self, now_tick: int, cooldown: int = 600):
+        """取一件【值得说】的事(优先级最高 + 不在话题冷却里); 没有则 None。
+
+        优先级(§8): DOUBT > SURPRISE > INTENT > STATE。说完记冷却 ——
+        NPC 不会短时间复读自己(上下文决定论 C 的 said_recently)。
+        """
+        best, best_rank, best_i = None, -1, -1
+        for i, ev in enumerate(self._say_queue):
+            if now_tick - self._said_at.get(ev.topic, -(10 ** 9)) < cooldown:
+                continue                       # 这个话题刚说过
+            r = semantic.PRIORITY.get(ev.act, 0)
+            if r > best_rank:
+                best, best_rank, best_i = ev, r, i
+        if best is None:
+            # 剩下的都说过/过时了 → 丢掉太旧的, 别让它堆着
+            self._say_queue = [e for e in self._say_queue
+                               if now_tick - e.tick < cooldown]
+            return None
+        self._say_queue.pop(best_i)
+        self._said_at[best.topic] = now_tick
+        return best
+
+    def _spot_surprises(self, percept, tick: int) -> list:
+        """【预期 vs 观察】—— 语义层最值钱的两个 act 就长在这儿。
+
+        · 现场与记忆不符 → SURPRISE(单纯意外)
+        · 不符的那条记忆本来是【别人说的】→ DOUBT(信念被推翻; 优先级更高)
+        第一次见到的东西没有“预期”, 谈不上落差, 不说。
+        """
+        out = []
+        for v in percept.visible:
+            row = self._mem.get(v.entity_id)
+            if row is None:
+                continue
+            fact = {"item_id": v.entity_id, "located": v.location_id,
+                    "afford": row.afford, "value": row.value,
+                    "price": float(v.price), "item_type": v.item_type,
+                    "stock": int(v.stock),
+                    # 这是【刚亲眼看到】的事实 → 我自己信满(不是旧记忆里那个分)
+                    "believe": 1.0, "source": ""}
+            if abs(float(v.price) - float(row.price)) > 0.005:
+                was = semantic.money_word(row.price)
+                now = semantic.money_word(v.price)
+                inten = min(1.0, abs(v.price - row.price)
+                            / max(1.0, float(row.price)))
+                who = row.source
+                if who and who != self.person_id and not who.startswith("ad:"):
+                    name = ""
+                    if self._name_of is not None:
+                        name = str(self._name_of(who) or "")
+                    if name:
+                        out.append(semantic.doubt(
+                            tick, self.person_id, v.entity_id, v.name, name,
+                            was, now, fact=fact, source=who, intensity=inten))
+                        continue
+                out.append(semantic.surprise(
+                    tick, self.person_id, v.entity_id, v.name,
+                    was, now, fact=fact, intensity=inten))
+            elif int(row.stock) > 0 and int(v.stock) == 0:
+                out.append(semantic.surprise(
+                    tick, self.person_id, v.entity_id, v.name,
+                    "还有货", "卖光了", fact=dict(fact, stock=0),
+                    intensity=0.6))
+        return out
+
+    def _queue_intent_speech(self, tick: int, intent) -> None:
+        """打算干什么 → 一条 INTENT(只在真的开始新动作时排一次)。"""
+        tid = intent_target(intent)
+        row = self._mem.get(tid) if tid else None
+        if row is None:
+            return
+        words = semantic.GOAL_WORDS.get(row.afford)
+        if words is None:
+            return
+        goal, why = words
+        self._push_speech(semantic.intent(
+            tick, self.person_id, goal, why,
+            topic=f"intent.{row.afford}", intensity=0.3))
+
     # --- 气泡(显示态) --------------------------------------------------
     def set_bubble(self, text: str, until_tick: int, kind: str) -> None:
         """头顶冒一句话(瞬时事件, 不是“当前在做什么”的状态)。
@@ -424,8 +524,13 @@ class Person:
         } for e in self._schedule.entries()]
 
     def perceive(self, percept: "Percept", tick: int) -> None:
-        """现场 → 记忆(写入)。非纯函数。感知即知道自己当前在哪。"""
+        """现场 → 记忆(写入)。非纯函数。感知即知道自己当前在哪。
+
+        注意顺序: **先拿“预期 vs 观察”**, 再写记忆 —— 写完就没落差了。
+        """
         self._perceived_loc = percept.location_id
+        for ev in self._spot_surprises(percept, tick):
+            self._push_speech(ev)
         brain.perceive_into(self._mem, percept, tick)
         self._last_percept = PerceptionRecord(
             tick=tick, npc_id=self.person_id,
@@ -498,6 +603,7 @@ class Person:
             # 2) 有事可做 → 做需求(不再有任何“阈值层”, 能不能行动看 eff)
             if cand is not None:
                 self._goal = _Goal("need", cand, score=eff)
+                self._queue_intent_speech(now_tick, cand)   # 语义层: “我去买点吃的”
                 continue
 
             # 3) 没事可做 → 看日程(承诺/模板计划)

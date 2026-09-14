@@ -51,7 +51,8 @@ def test_consumable_stock() -> None:
     _run(world, systems, rng_pool, 40)
     assert food.stock == 0
     assert "food_1" not in world.entities       # 空消耗品已回收
-    assert npc.signal("hunger") > 0.5           # 吃了 → 饱了
+    # 注: 饥饿现在半天见底(掉得快) → 吃完立刻掉一点点, 不写死 0.5
+    assert npc.signal("hunger") > 0.45          # 吃了 → 饱了
     # 再多跑一段, 不会再吃同一个已空/已回收食物
     _run(world, systems, rng_pool, 30)
     assert food.stock == 0

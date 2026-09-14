@@ -40,9 +40,11 @@ def test_plan_buy_deducts_money_and_merges_stock() -> None:
     npc.set_plan([PlanEntry("e0", 1, Buy("market_1", qty=3))])
     _run(w, s, rng, 80)
 
-    assert npc.money == 100.0 - 9.0          # 3 件 × 3 元
-    assert shop.stock == 47                  # 店库存减少(同类只此一个实体)
-    assert pantry.stock == 4                 # 1 + 3, 合并到同一个家容器
+    # 注(2026-09-14): 现在一次买【缺口】(不是固定 3 件) → 不锁死具体金额,
+    # 只验不变量: 钱少了 / 店里少了 / 合并进了家里的同一个容器。
+    assert npc.money < 100.0
+    assert shop.stock < 50
+    assert pantry.stock > 1
     assert w.loc_of("npc") == "market"       # 自动走位到店
 
 

@@ -133,6 +133,11 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
         world.npcs[pid] = p
         rng_pool[pid] = random.Random(seed * 100 + idx)
 
+    # ---- 语义层: 注入“npc_id -> 名字”(渲染“王哥说…”用; npc 层不许 import world) ----
+    _names = {pid: _p.name for pid, _p in world.npcs.items()}
+    for _p in world.npcs.values():
+        _p.set_name_lookup(lambda pid, _n=_names: _n.get(str(pid), ""))
+
     # ---- 初始认知(场景级): 让一批人“知道”某处的货(超市/广告/邻居说的) ----
     _seed_knowledge(world, data)
 

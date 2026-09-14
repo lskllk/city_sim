@@ -49,7 +49,7 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
     world.map = data.get("map") or {}
 
     systems = make_systems(log=True,
-                           tell_p=float(data.get("tell_p", 0.0)),
+                           tell_p=float(data.get("tell_p", CFG.tell_p)),
                            roads=RoadGraph(world.map, CFG.move_m_per_tick),
                            seed=int(seed))
     attach_replay(world, systems)      # 让 bus 事件(intent_failed/bought/…) 进 ui_events
@@ -62,6 +62,9 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
         costs[f"{a}|{b}"] = int(n)
         costs[f"{b}|{a}"] = int(n)
     systems.travel_costs = costs
+    # 注入给每个人: 决策打分要靠它算“走这一趟的代价”
+    for p in world.npcs.values():
+        p.set_travel_costs(costs)
     # 场景脉冲(世界侧定时)
     systems.pulses = _norm_pulses(data.get("pulses", []), CFG.ticks_per_day)
 

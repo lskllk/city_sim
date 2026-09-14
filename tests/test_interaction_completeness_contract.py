@@ -51,8 +51,11 @@ def test_consume_self_not_double_deduct_and_recycles_at_zero() -> None:
     """m5-rectify 03: consumable tag + on_complete consume_self 只扣一次;
     归零回收只发生在 interaction_done 之后。"""
     world, systems, rng_pool = make_runtime(CFG)
+    # 注(2026-09-14 utility 主导后): 候选不再有门槛, 但【得分】有阀值
+    # (cfg.utility_threshold)。value=0.04 的零食饿死也不够分 → 不会去吃。
+    # 这里要测的是 consume_self 的账, 所以给一个现实的满足了。
     add_entity(world, "snack_1", tags=("edible", "consumable"),
-               affordances={"hunger": 0.04}, duration_ticks=3, stock=2,
+               affordances={"hunger": 0.5}, duration_ticks=3, stock=2,
                on_complete=[{"op": "consume_self"}])
     seen_at_event: list[int] = []
     dones = []

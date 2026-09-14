@@ -55,13 +55,19 @@ def test_plan_move_then_interact_same_tick() -> None:
 
 
 def test_plan_deadline_aborts_and_fires_on_complete() -> None:
-    """下一条到点 → 硬中止当前交互, 但仍触发 on_complete。"""
+    """下一条到点 → 硬中止当前交互, 但仍触发 on_complete。
+
+    注(2026-09-14 utility 主导后): 若 NPC 自己就有需求, 需求轨会先把活儿抢走,
+    根本走不到“计划截止”。所以要测【计划路径】, 得让他没别的事想做 ——
+    这里把 energy 填满(bench 的唯一 afford 就是 energy → 对他没吸引力)。
+    on_complete 改成加 hunger(不会像 energy 那样被封顶), 断言才有意义。
+    """
     w, s, rng = make_runtime(CFG, log=True)
     add_entity(w, "bench", location="work", tags=("work",),
                affordances={"energy": 0.5}, duration_ticks=100,
-               on_complete=[{"op": "add_signal", "signal": "energy", "delta": 0.5}])
+               on_complete=[{"op": "add_signal", "signal": "hunger", "delta": 0.5}])
     npc = add_npc(w, s, "npc", location="work", rng_pool=rng)
-    npc.set_signals(energy=0.4)
+    npc.set_signals(energy=1.0, hunger=0.2)
     npc.set_plan([PlanEntry("e0", 1, Interact("bench")),
                   PlanEntry("e1", 10, MoveTo(dest="home"))])
     _run(w, s, rng, 2)
@@ -70,7 +76,7 @@ def test_plan_deadline_aborts_and_fires_on_complete() -> None:
     evs = _events(s)
     assert any(k == "interaction_aborted" and p.get("entity") == "bench"
                for k, _, p in evs), "未见 interaction_aborted"
-    assert npc.signal("energy") >= 0.85, "硬中止未触发 on_complete(+0.5)"
+    assert npc.signal("hunger") >= 0.6, "硬中止未触发 on_complete(+0.5)"
 
 
 def test_reflex_suspends_and_resumes_high_fidelity() -> None:
@@ -112,6 +118,7 @@ def test_fatal_reflex_wakes_non_interruptible_sleep() -> None:
                affordances={"hunger": 0.5}, duration_ticks=3, stock=1)
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng,
                   energy=0.5, hunger=0.9)
+    # 饿到 0 时 food 的分远高于床(0.5 vs 0.09), 越过迟滞比 → 需求轨改主意
     npc.set_plan([PlanEntry("e0", 1, Interact("bed"))])
     _run(w, s, rng, 5)
     assert s.interaction.active["npc"].entity_id == "bed"

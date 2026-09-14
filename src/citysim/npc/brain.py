@@ -7,8 +7,9 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from citysim.core.config import REFLEX_SIGNALS, SimConfig
+from citysim.core.config import SimConfig
 from citysim.core.types import (
+    Buy,
     DecisionTrace,
     Idle,
     Intent,
@@ -49,8 +50,10 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
                 price=v.price, believe=1.0, remember=1.0, last_seen=tick)
 
 
-BELIEF_MIN = 0.3   # 记忆行 believe 低于此 → 不作为决策候选
 FORGET_DEFAULT = 0.1  # remember 低于此 → 遗忘删除(默认阈值)
+
+# 默认的位移成本(无路网/无成本矩阵时的降级): 固定 tick。
+DEFAULT_TRAVEL_TICKS = 30
 
 
 def forget(mem: MemBase, now_tick: int, half_life_ticks: int,
@@ -81,6 +84,8 @@ def decide(
     cfg: SimConfig,
     now_tick: int,                # 当前 tick(过滤失败冷却 cool_until)
     self_id: str = "",            # 自身身份 id(判定"自己的"用品)
+    travel_ticks: Mapping[str, int] | None = None,   # "a|b" -> tick(可选)
+    money: float = float("inf"),  # 买不起的就不作为候选(否则反复失败刷屏)
 ) -> Intent:
     """决策主算法。纯函数。铁律:
 
@@ -88,22 +93,47 @@ def decide(
       绝不看环境/现场(percept/world)。现场真值只在感知写入(observe)与执行失败
       反证时进入记忆; decide 自己永远不查现场。
 
-    流程: 候选收集 → 评分(异地乘移动折扣) → 排序 → 选优分流(只凭记忆行字段)。
+    流程: 候选收集(无门槛) → 评分(需求 ÷ 成本) → 排序 → 选优分流。
+
+    注: 这里**不再有 fallback_need / REFLEX_SIGNALS 筛选层** —— 记忆里的行
+    全部参与打分, 唯一的阀值在得分上(cfg.utility_threshold)。
     """
-    cands = _gather_candidates(mem, signals, cfg, now_tick)
+    intent, _eff = decide_scored(signals, personality, mem, location_id, cfg,
+                                 now_tick, self_id, travel_ticks, money)
+    return intent
+
+
+def decide_scored(
+    signals: Mapping[str, float],
+    personality: Mapping[str, float],
+    mem: MemBase,
+    location_id: str,
+    cfg: SimConfig,
+    now_tick: int,
+    self_id: str = "",
+    travel_ticks: Mapping[str, int] | None = None,
+    money: float = float("inf"),
+) -> tuple[Intent, float]:
+    """同 decide, 但多返回【得分】。
+
+    得分是“这件事现在值多少分”。用来回答“值不值得打断我正在做的事”:
+    每 tick 重算一次, 只有新事的分明显高于当前事(迟滞)才换 —— 否则会在两个
+    差不多好的目标之间反复横跳。
+    """
+    cands = _gather_candidates(mem, signals, now_tick)
     scored, ranked, relevant = _score_candidates(
-        cands, personality, location_id, cfg)
+        cands, personality, location_id, cfg, travel_ticks, money, self_id)
     return _choose(scored, ranked, relevant, cfg, self_id, location_id)
 
 
 def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
-                       cfg: SimConfig, now_tick: int):
-    """[阶段1] 候选收集: 记忆行 → 有缺口的需求候选。
+                       now_tick: int):
+    """[阶段1] 候选收集 —— **不过滤**。
 
-    取 afford∈REFLEX_SIGNALS(致命/强生理) 且 value>0 且 believe>=BELIEF_MIN,
-    且未被失败冷却屏蔽
-    (cool_until<=now), 并且 need=1-signal 达「兜底下限」cfg.fallback_need
-    (默认 0.9 → 信号掉到 10% 以下才纳入; 平时不产生任何候选, 交给计划表系统)。
+    只要能提供点什么(afford 非空 且 value>0)就是候选。
+    “值不值得做”全部交给后面的得分与阀值; 这里只看两个硬事实:
+      - afford/value 缺失 → 这条记忆没告诉我能得到什么;
+      - cool_until: 刚失败过的别马上再试(防重试死循环)。
     返回 [(row, sig, need), ...]。
     """
     out = []
@@ -111,31 +141,50 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
         if row.cool_until and row.cool_until > now_tick:
             continue          # 失败冷却中(如厕所刚被占), 稍后再看
         sig = row.afford
-        if sig not in REFLEX_SIGNALS or row.value <= 0 or row.believe < BELIEF_MIN:
+        if not sig or row.value <= 0:
             continue
-        need = 1.0 - float(signals.get(sig, 1.0))
-        if need < cfg.fallback_need:
-            continue          # 未到兜底线: 不行动(正常行为应由计划驱动)
-        out.append((row, sig, need))
+        out.append((row, sig, 1.0 - float(signals.get(sig, 1.0))))
     return out
 
 
-def _score_candidates(cands, personality: Mapping[str, float],
-                      location_id: str, cfg: SimConfig):
-    """[阶段2+3] 评分+排序: eff=need^power×value×personality×believe;
+def _travel_key(a: str, b: str) -> str:
+    return "%s|%s" % (a, b) if a <= b else "%s|%s" % (b, a)
 
-    异地(row.located≠location_id)乘 move_penalty。返回 (scored, ranked, relevant)。
-    """
+
+def _score_candidates(cands, personality: Mapping[str, float],
+                      location_id: str, cfg: SimConfig,
+                      travel_ticks: Mapping[str, int] | None = None,
+                      money: float = float("inf"),
+                      self_id: str = ""):
+    """[阶段2+3] 评分 + 排序。
+
+        eff = (need^power × value × personality × believe) / (1 + λ × cost)
+        cost = price×qty + time_value×travel_ticks + price×(1−believe)
+
+     成本里同时放了【钱】和【时间】 → 比价 / 比距离 / 顺路 都是同一个式子的结果。
+     believe 项: “听说便宜”不如“亲眼看到便宜”可靠(κ = 1)。
+     """
     power = cfg.utility_power
     needs: dict[str, float] = {}
     scored = []
     for row, sig, need in cands:
         needs[sig] = need
-        eff = (need ** power) * row.value \
+        base = (need ** power) * row.value \
             * float(personality.get(sig, 1.0)) * row.believe
-        # 异地(MoveTo)成本直接在此乘折扣; 不为"是否本地"单独留分支
-        if row.located and row.located != location_id:
-            eff *= cfg.move_penalty
+        # 买不起的货不当候选: 否则会反复提交→失败→冷却→再提交(刷爆事件环)。
+        if row.price > 0 and row.owner != self_id and float(row.price) > money:
+            continue
+        # —— 成本 ——
+        cost = float(row.price)                      # 单价×1 件(囤货在后继迭代)
+        if row.located and location_id and row.located != location_id:
+            ticks = DEFAULT_TRAVEL_TICKS
+            if travel_ticks:
+                ticks = int(travel_ticks.get(
+                    _travel_key(location_id, row.located),
+                    DEFAULT_TRAVEL_TICKS))
+            cost += cfg.time_value * ticks            # 走路的时间成本
+        cost += float(row.price) * (1.0 - row.believe)   # 不确定的便宜要打折
+        eff = base / (1.0 + cfg.cost_lambda * cost)
         scored.append((row.item_id, sig, eff, row.located, row))
     scored.sort(key=lambda x: (-x[2], x[0]))
     ranked = tuple((s[0], round(s[2], 4)) for s in scored)
@@ -144,43 +193,52 @@ def _score_candidates(cands, personality: Mapping[str, float],
 
 
 def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
-            location_id: str) -> Intent:
+            location_id: str) -> tuple[Intent, float]:
     """[阶段4] 选优分流 —— 只凭记忆行字段, 不看现场。全不够格则 Idle。
 
-    不判断"是否本地": 异地成本已在 _score_candidates 乘过 move_penalty。
-    统一先过"能不能用"(自己的 owner==self_id / 免费公共 owner=="" 且 price<=0);
-    能用者: 在异地 → MoveTo, 否则 → Interact。在售/他人所有的跳过。
+    返回 (intent, score): Idle 时 score = 0。
+    不判断"是否本地": 异地成本已算进 cost(真实行走 tick)。
+    自己的/免费公共 → Interact; **在售 → Buy**(要付钱)。
     """
     thresh = cfg.utility_threshold
     for item_id, sig, eff, loc, row in scored:
         if eff <= thresh:
             continue
-        # 能不能用: 自己的 / 免费公共
+        # 能不能用: 自己的 / 免费公共; 【在售】→ 买
         mine = bool(self_id) and row.owner == self_id
         free_public = row.owner == "" and row.price <= 0
-        if not (mine or free_public):
+        for_sale = row.price > 0 and row.owner != self_id
+        if not (mine or free_public or for_sale):
             continue
         if not loc:                       # 无地点信息 → 不可达
             continue
-        if loc != location_id:            # 异地 → 前往(到地方下一 tick 再 interact)
+        if loc != location_id:            # 异地 → 前往(到地方下一 tick 再动手)
             return MoveTo(
                 dest=loc,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"记忆: {item_id} 能解 {sig} → 去 {loc}",
                     used_fact_ids=(),
-                    relevant_signals=relevant))
+                    relevant_signals=relevant)), eff
+        if for_sale:                      # 在店里 → 付钱买(不再白拿)
+            return Buy(
+                item_id=item_id,
+                trace=DecisionTrace(
+                    ranked=ranked,
+                    reason=f"买 {item_id} (¥{row.price:g}, score={eff:.3f})",
+                    used_fact_ids=(),
+                    relevant_signals=relevant)), eff
         return Interact(
             target_id=item_id,
             trace=DecisionTrace(
                 ranked=ranked,
                 reason=f"目标 {item_id} (score={eff:.3f})",
                 used_fact_ids=(),
-                relevant_signals=relevant))
+                relevant_signals=relevant)), eff
     return Idle(
         trace=DecisionTrace(
             ranked=ranked,
             reason="信号充足或没有值得做的目标",
             used_fact_ids=(),
-            relevant_signals=relevant))
+            relevant_signals=relevant)), 0.0
 

@@ -128,6 +128,9 @@ class Person:
         self._current_activity: str = current_activity
         self._home: str = home
         self._tell_bias: float = tell_bias
+        # 位移成本矩阵("a|b" -> tick): 由装配层从场景/路网注入。
+        # 纯数据, 不 import world —— 决定“顺路值多少”的就是它。
+        self._travel_costs: dict[str, int] = {}
         self._money: float = money
         self._age: int | None = self._age_from_birthday(0)   # 每天 on_day 重算
         self._bladder_pending: float = 0.0
@@ -137,6 +140,7 @@ class Person:
         self._perceived_loc: str = ""   # 最近一次感知到自己在哪(自身认知, 不长期维护坐标)
         self._schedule = Schedule()     # 当天计划表(空 = 纯 reflex 模式)
         self._plan_goal: "_Goal | None" = None
+        self._reflex_score: float = 0.0   # 当前需求目标的得分(迟滞抢占用)
         self._reflex_goal: "_Goal | None" = None
         self._failures: list[dict] = []  # 失败日志(0:00 交 LLM)
         if signals:
@@ -298,6 +302,10 @@ class Person:
     def set_home(self, home: str) -> None:
         self._home = home
 
+    def set_travel_costs(self, costs: dict[str, int]) -> None:
+        """装配: 注入位移成本矩阵(engine/场景侧提供, 这里只存不用)。"""
+        self._travel_costs = dict(costs or {})
+
     @property
     def tell_bias(self) -> float:
         """爱不爱说话(乘在传播概率上): <1 寡言, >1 八卦。"""
@@ -382,11 +390,21 @@ class Person:
         self._plan_goal = None
 
     def _reflex_intent(self, cfg: "SimConfig", now_tick: int) -> "Intent | None":
-        """兜底决策(高危需求): 复用 brain.decide; Idle → None。"""
-        intent = brain.decide(
+        """需求决策(复用 brain.decide); Idle → None。"""
+        intent, _eff = self._intent_scored(cfg, now_tick)
+        return intent
+
+    def _intent_scored(self, cfg: "SimConfig",
+                       now_tick: int) -> "tuple[Intent | None, float]":
+        """当前最想做的事 + 它的得分(Idle → (None, 0.0))。
+
+        每 tick 重算 —— 用来回答“值不值得打断我正在做的事”。
+        """
+        intent, eff = brain.decide_scored(
             self._signals, self._personality, self._mem,
-            self._perceived_loc, cfg, now_tick, self.person_id)
-        return None if isinstance(intent, Idle) else intent
+            self._perceived_loc, cfg, now_tick, self.person_id,
+            self._travel_costs or None, self._money)
+        return (None if isinstance(intent, Idle) else intent), eff
 
     def decide(self, cfg: "SimConfig", now_tick: int,
                can_preempt: bool = True) -> Decision:
@@ -396,19 +414,31 @@ class Person:
                      reflex(致命)不受此限, 始终可抢占。
         """
         while True:
-            # 1. reflex 执行中 → 继续
+            # 1. 需求目标执行中 → 先看有没有【明显更好的事】
+            #    每 tick 重算一次效用。只有新事的分 > 当前事的分 × preempt_ratio
+            #    才改主意(迟滞) —— 否则会在两个差不多好的目标之间反复横跳;
+            #    而不设防又会导致“快饿死了还在睡”。
+            #    注: 这里不看 can_preempt —— 需求(旧称 reflex)轨本来就是
+            #    “命比规矩大”的那一类, 与不可打断的交互也允许抢占。
             if self._reflex_goal is not None:
+                cand, eff = self._intent_scored(cfg, now_tick)
+                bar = max(self._reflex_score, cfg.utility_threshold) \
+                    * cfg.preempt_ratio
+                if cand is not None and eff > bar:
+                    self._reflex_goal = None      # 放弃当前, 重新评估
+                    continue
                 d = self._advance(self._reflex_goal)
                 if d is not None:
                     return self._record(d)
                 continue
-            # 2. 启动 reflex(在途不打断: 先到站)
+            # 2. 启动需求目标(在途不打断: 先到站)
             traveling = (self._plan_goal is not None
                          and self._plan_goal.phase == "to_dest")
             if not traveling:
-                r = self._reflex_intent(cfg, now_tick)
+                r, eff = self._intent_scored(cfg, now_tick)
                 if r is not None:
                     self._reflex_goal = _Goal("reflex", r)
+                    self._reflex_score = eff
                     continue
             # 3. 计划执行中 → 截止/推进
             if self._plan_goal is not None:
@@ -459,6 +489,7 @@ class Person:
                 self._plan_goal = None
         elif self._reflex_goal is goal:
             self._reflex_goal = None
+            self._reflex_score = 0.0
 
     def _record(self, decision: Decision) -> Decision:
         self._last_intent = decision.intent

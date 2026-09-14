@@ -196,6 +196,7 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
     elif shop.stock != -1 and shop.stock < qty:
         why = "库存不足"
     elif npc.money < shop.price * qty:
+        # 理论上到不了: brain 已经按钱跳过了买不起的候选(这里只是兵库)。
         why = "钱不够"
     if why:
         world.bus.publish(world.bus.make(
@@ -214,8 +215,13 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
          "home": home, "money": round(npc.money, 2),
          "container": container.entity_id if container else ""}))
     if container is not None:
+        # 送货进家: 写记忆时**必须带 afford/value** —— 否则他不知道家里
+        # 这堆东西能吃, 就永远不会回家吃(买了也饿死)。
+        cafford, cvalue = next(iter(container.affordances.items()), ("", 0.0))
         npc.note(container.entity_id, tick=world.clock_tick,
-                 located=home, owner=pid, stock=container.stock)
+                 located=home, owner=pid, stock=container.stock,
+                 afford=cafford, value=float(cvalue),
+                 item_type=container.item_type, source="")
     npc.on_interaction_done(intent.item_id, world.clock_tick)
 
 

@@ -17,12 +17,17 @@ half_life_ticks = 2880        # 2 天(知识半衰期)
 
 [utility]                      # 决策打分
 power = 3.0                    # weight = need**power(幂>1 放大真缺口)
-threshold = 0.0                # 效用最低分(置 0): 是否行动由 fallback_need 决定,
-                               # eff 仍用于在多个候选中排序选优。
-move_penalty = 0.6             # 异地(MoveTo)候选效用折扣(移动有耗时/精力成本)
-fallback_need = 0.9            # 兜底触发下限: 仅 need>=此值才纳入候选
-                               # 0.9 = 信号掉到 10% 以下(接近致命)才动手;
-                               # 平时应由计划表系统驱动, 此处只当安全网。
+# —— 候选收集不再有门槛: 记忆里的行全部参与打分, 阈值只留在得分上 ——
+threshold = 0.05               # 【唯一阈值】低于此分就不行动。
+                               # 同时承担“琐碎需求别动”与“别为了小事跑一趟”。
+                               # 调大 → 更懒/更少出门; 调小 → 草木皆兵。
+
+# —— 成本模型(比价 / 比距离 / 顺路) ——
+# eff = (need^power × value × personality × believe) / (1 + cost_lambda × cost)
+# cost = price×qty + time_value×travel_ticks + price×(1−believe)
+# 注: move_penalty 已删 —— 异地成本由【真实移动 tick】表达。
+cost_lambda = 0.02             # λ: 成本权重(越大越抠)
+time_value  = 0.05             # 走 1 tick 折合多少钱(决定“顺路”值多少)
 
 [motion]                       # 跨地点移动(m5-rectify 13; M7 日程/距离前先入 config)
 move_ticks = 30                # 无路网时的固定耗时(MoveTo 降级)
@@ -31,3 +36,10 @@ move_m_per_tick = 10.0         # 有路网时: 每 tick 可走米数(等价编�
 [health]                       # 生命: 饥饿/口渴/精力任一为 0 时下降, 三者满足时回升
 hp_decay = 0.00034722222222222222   # 1/2880: 关键信号归零后约 2 天掉光 hp
 hp_regen = 0.00034722222222222222   # 三者满足时 hp 回升最大速率(×均值)
+
+[social]                       # 传播(传闻)
+# 空闲时开口告诉同地别人一件事的概率(再乘各自的 tell_bias)。
+# 0 = 不说话(纯感知社会); 太大 = 全城瞬间都知道。
+# 结构上: 同址(同一 home)的人常同处 → 家庭内部消息很快对齐;
+#         跨家庭只能靠出门偶遇 → 城市自然分成若干“认知不同的家”。
+tell_p = 0.3

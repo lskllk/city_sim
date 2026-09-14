@@ -208,11 +208,18 @@ def _seed_knowledge(world, data: dict) -> int:
 
     scene JSON:
       "knowledge": [
-        {"who": "all" | ["npc_a", ...],   // 给谁
-         "from": "bld_003",               // 哪个地点(必须是已存在的 location)
+        {"who": "all" | "unit" | ["npc_a", ...],
+         "unit": "bld_008_f1",            // who="unit" 时: 住在这个地址的人
+         "from": "bld_004",               // 关于哪个地点的货(必须是已存在的 location)
          "items": [],                     // 空 = 该地点全部实体; 否则按 item_type / entity_id 过滤
          "believe": 0.8}                  // 这是“听说”而不是亲眼所见 → 打折
       ]
+
+    who 三种写法:
+      "all"    —— 所有人(商铺打广告)
+      "unit"   —— **住在 unit 这个地址的人**(编辑器里“让这一家人知道”):
+                  按 home 展开 → 住户改了也不用改数据
+      [id,...] —— 显式名单
 
     语义: 写的是【他们的知识】而不是世界真值(与 P8 一致) —— believe < 1 时
     他们会拿这条记忆当参考, 但不如亲眼所见那么笃定。
@@ -225,8 +232,14 @@ def _seed_knowledge(world, data: dict) -> int:
         if not isinstance(rule, dict):
             continue
         who = rule.get("who", "all")
-        ids = (sorted(world.npcs) if who in ("all", None, "")
-               else [str(x) for x in who])
+        if who == "unit":
+            unit = str(rule.get("unit", rule.get("from", "")))
+            ids = sorted(pid for pid, p in world.npcs.items()
+                         if p.home == unit)
+        elif who in ("all", None, ""):
+            ids = sorted(world.npcs)
+        else:
+            ids = [str(x) for x in who]
         loc = str(rule.get("from", ""))
         want = {str(x) for x in (rule.get("items") or [])}
         believe = float(rule.get("believe", 0.8))

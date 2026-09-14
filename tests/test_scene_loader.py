@@ -176,3 +176,36 @@ def test_knowledge_can_target_subset(tmp_path) -> None:
     world, _s, _r = load_scene(_write(tmp_path, data))
     assert "meal_simple_1" in {r["item_id"] for r in world.npcs["npc_a"].memory_dicts()}
     assert "meal_simple_1" not in {r["item_id"] for r in world.npcs["npc_b"].memory_dicts()}
+
+
+def test_knowledge_who_unit_only_that_household(tmp_path) -> None:
+    """who="unit": 只让【住在那个地址的人】知道 —— 编辑器“让这一家人知道”。"""
+    data = {
+        "canvas": {"w": 800, "h": 600},
+        "locations": {
+            "shop_1": {"type": "shop_small", "name": "超市",
+                       "x": 0.0, "y": 0.0, "w": 10.0, "h": 10.0},
+            "home_1": {"type": "home_small", "name": "1 号",
+                       "x": 20.0, "y": 0.0, "w": 10.0, "h": 10.0},
+            "home_1_f1": {"type": "home_small", "name": "1 号 · 1层",
+                          "part_of": "home_1",
+                          "x": 20.0, "y": 0.0, "w": 10.0, "h": 10.0},
+            "home_1_f2": {"type": "home_small", "name": "1 号 · 2层",
+                          "part_of": "home_1",
+                          "x": 20.0, "y": 0.0, "w": 10.0, "h": 10.0},
+        },
+        "entities": [{"id": "meal_1", "type": "meal_simple", "at": "shop_1",
+                      "price": 8, "stock": 10}],
+        "npcs": [
+            {"id": "npc_f1", "name": "一层的人", "birthday": "1990-01-01",
+             "home": "home_1_f1"},
+            {"id": "npc_f2", "name": "二层的人", "birthday": "1991-01-01",
+             "home": "home_1_f2"},
+        ],
+        "knowledge": [{"who": "unit", "unit": "home_1_f1",
+                       "from": "shop_1", "believe": 0.9}],
+    }
+    world, _s, _r = load_scene(_write(tmp_path, data))
+    # 只有一层的这家人知道超市的货
+    assert "meal_1" in {r["item_id"] for r in world.npcs["npc_f1"].memory_dicts()}
+    assert "meal_1" not in {r["item_id"] for r in world.npcs["npc_f2"].memory_dicts()}

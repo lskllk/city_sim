@@ -523,17 +523,25 @@ func _build_building(bid: String) -> void:
 
 	# 认知: 场景级初始记忆 —— 一次让一批人“知道”这里的货
 	var ksec := _section("认知")
-	ksec.add_child(_muted("让 NPC 一开始就知道这里的货(= 广告/听人说)"))
+	ksec.add_child(_muted("让 NPC 一开始就知道这里的货(= 广告 / 听人说)
+作用范围 = 当前编辑层"))
 	var kbel := _spin(0.1, 1.0, 0.05)
 	kbel.value = 0.8
 	ksec.add_child(_lrow("相信度", kbel))
+	# 作用范围 = 当前编辑层: 有住户 → 只告诉这一家; 没住户(商铺) → 等于打广告
+	var kunit := MapDoc.target_unit(bid)
+	var kwho_all := MapDoc.npcs_at_unit(kunit).is_empty()
 	var kadd := Button.new()
-	kadd.text = "让所有人知道这里的货"
-	kadd.tooltip_text = "所有 NPC 初始就知道这栋楼卖什么; 相信度 <1 = “听说”而非亲眼所见"
+	kadd.text = ("让所有人知道这里的货" if kwho_all
+		else "让这一家人知道这里的货")
+	kadd.tooltip_text = ("该层没有住户 → 相当于打广告: 全城 NPC 初始就知道。"
+		if kwho_all else
+		"只让【这一层这一家人】初始知道他们这里有什么(不吵到别人)。")
 	kadd.pressed.connect(func() -> void:
 		MapDoc.add_knowledge(bid, kbel.value)
-		_refresh_status("已让所有人知道 %s 的货 (相信度 %.2f)" % [
-			MapDoc.building_name(bid), kbel.value]))
+		_refresh_status("已记录认知: %s (%s, 相信度 %.2f)" % [
+			MapDoc.unit_display(kunit),
+			("所有人" if kwho_all else "这一家人"), kbel.value]))
 	ksec.add_child(kadd)
 	var krules := MapDoc.knowledge_at(bid)
 	if krules.is_empty():
@@ -543,8 +551,7 @@ func _build_building(bid: String) -> void:
 			var kr: Dictionary = MapDoc.knowledge[ki]
 			var krow := HBoxContainer.new()
 			var klb := Label.new()
-			klb.text = "%s · 相信度 %.2f" % [
-				String(kr.get("who", "all")), float(kr.get("believe", 0.8))]
+			klb.text = MapDoc.knowledge_label(kr)
 			klb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			krow.add_child(klb)
 			var kdel := Button.new()

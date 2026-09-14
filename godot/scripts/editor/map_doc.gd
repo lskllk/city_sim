@@ -37,7 +37,12 @@ var scene_display := ""            # 场景展示名(导入时记住, 不在文�
 var nodes: Dictionary = {}        # id -> {xy:Vector2, kind:String}
 var edges: Dictionary = {}        # id -> {a,b,class,width,speed,oneway,geom:Array[Vector2]}
 var buildings: Dictionary = {}    # id -> {type,center:Vector2,size:Vector2,rot:float,doors:Array[Vector2],floors:int}
-var npcs: Dictionary = {}         # id -> {name,gender,birthday,role,money,home,personality,init,traits,tell_bias}
+var npcs: Dictionary = {}         # id -> {name,gender,birthday,role,money,home,
+                                  #        personality,init,traits,tell_bias,memory}
+# memory: item_id -> {located/afford/value/price/stock/owner/believe}
+# = 【这个人额外的记忆】。后端 scenarios 的 spec["memory"] 直接读它。
+# 与 knowledge 段的区别: knowledge 是【批量】(所有人 / 一整户),
+# memory 是【点名给某一个人】—— P8: 只写他的知识, 不碰世界真值。
 var items: Dictionary = {}        # id -> {type,at,owner,stock,price,persist_empty}
 var building_types: Dictionary = {}
 var name_pool: Dictionary = {}    # config/names/names.json
@@ -602,6 +607,7 @@ func random_person(rng: RandomNumberGenerator = null) -> Dictionary:
 			"energy": snappedf(r.randf_range(0.8, 1.3), 0.1),
 		},
 		"init": {}, "traits": {}, "tell_bias": 1.0,
+		"memory": {},
 	}
 
 
@@ -658,6 +664,79 @@ func remove_npc(id: String) -> void:
 	changed.emit()
 
 
+# --- 某个人的额外记忆(逐条增删改) --------------------------------------
+
+## 这个人身上的额外记忆: item_id -> {…}。
+func memory_of(pid: String) -> Dictionary:
+	var n: Dictionary = npcs.get(pid, {})
+	if not n.has("memory"):
+		n["memory"] = {}
+	return n["memory"] as Dictionary
+
+
+## 从场景里的一个物件推出【默认记忆字段】—— 免得让人手填一堆。
+## 语义: “他见过/听说过这个东西” → 它是什么、能解什么、多少钱、还剩几件。
+func memory_defaults(iid: String) -> Dictionary:
+	var it: Dictionary = items.get(iid, {})
+	var d: Dictionary = item_types.get(String(it.get("type", "")), {})
+	var aff: Dictionary = d.get("affordances", {}) as Dictionary
+	var out := {"located": String(it.get("at", "")),
+		"price": float(it.get("price", 0.0)),
+		"stock": int(it.get("stock", 1))}
+	var own := String(it.get("owner", ""))
+	if own != "":
+		out["owner"] = own
+	for k in aff:
+		out["afford"] = String(k)
+		out["value"] = float(aff[k])
+		break
+	return out
+
+
+## 加一条(已存在则【覆盖】= 修改)。believe = 他有多信这条。
+func add_memory(pid: String, iid: String, believe: float,
+		extra: Dictionary = {}) -> void:
+	if not npcs.has(pid) or iid == "":
+		return
+	var rec := memory_defaults(iid)
+	for k in extra:
+		rec[k] = extra[k]
+	rec["believe"] = clampf(believe, 0.0, 1.0)
+	memory_of(pid)[iid] = rec
+	errors = validate()
+	changed.emit()
+
+
+func remove_memory(pid: String, iid: String) -> void:
+	var m := memory_of(pid)
+	if m.has(iid):
+		m.erase(iid)
+		errors = validate()
+		changed.emit()
+
+
+func clear_memory(pid: String) -> void:
+	memory_of(pid).clear()
+	errors = validate()
+	changed.emit()
+
+
+## 一行记忆的中文描述(面板显示用)。
+func memory_label(iid: String, rec: Dictionary) -> String:
+	var nm := item_display(String(items.get(iid, {}).get("type", "")))
+	var bits: Array = ["%s · %s" % [nm, unit_display(String(rec.get("located", "")))]]
+	if float(rec.get("price", 0.0)) > 0.0:
+		bits.append("¥%d" % int(rec.get("price", 0.0)))
+	var aff := String(rec.get("afford", ""))
+	if aff != "":
+		bits.append("%s +%.2f" % [aff, float(rec.get("value", 0.0))])
+	var st := int(rec.get("stock", -1))
+	if st >= 0:
+		bits.append("存 %d" % st)
+	bits.append("信 %.2f" % float(rec.get("believe", 1.0)))
+	return " ".join(bits)
+
+
 func npc_display(id: String) -> String:
 	var n: Dictionary = npcs.get(id, {})
 	return "%s (%s)" % [String(n.get("name", id)), id]
@@ -693,6 +772,9 @@ func update_item(id: String, patch: Dictionary) -> void:
 
 func remove_item(id: String) -> void:
 	items.erase(id)
+	# 指向它的记忆变成悬空引用 → 一起清掉(否则后端拿不到 afford 就永远用不上)
+	for pid in npcs:
+		(memory_of(pid) as Dictionary).erase(id)
 	changed.emit()
 
 
@@ -814,6 +896,11 @@ func purge_invalid_refs() -> Dictionary:
 	for iid in kill:
 		items.erase(iid)
 		n_item += 1
+	# 悬空的记忆条目也一起清(指向已删物件 → 后端起不来 / 永远用不上)
+	for pid in npcs:
+		for mid in (memory_of(pid) as Dictionary).keys():
+			if not items.has(String(mid)):
+				(memory_of(pid) as Dictionary).erase(mid)
 	if n_npc > 0 or n_item > 0:
 		errors = validate()
 		changed.emit()
@@ -1280,7 +1367,8 @@ func to_scene_dict(scene_name_arg: String = "") -> Dictionary:
 			"personality": p.get("personality", {}),
 			"init": p.get("init", {}),
 			"traits": p.get("traits", {}),
-			"tell_bias": float(p.get("tell_bias", 1.0))})
+			"tell_bias": float(p.get("tell_bias", 1.0)),
+			"memory": (p.get("memory", {}) as Dictionary).duplicate(true)})
 	# 旅行成本: 建筑中心直线距离 / 10 粗估(缺省 20; 无路网时的降级)
 	var pairs := {}
 	var bids: Array = buildings.keys()
@@ -1401,4 +1489,5 @@ func _load_npcs(d: Dictionary) -> void:
 			"personality": p.get("personality", {}),
 			"init": p.get("init", {}),
 			"traits": p.get("traits", {}),
-			"tell_bias": float(p.get("tell_bias", 1.0))}
+			"tell_bias": float(p.get("tell_bias", 1.0)),
+			"memory": (p.get("memory", {}) as Dictionary).duplicate(true)}

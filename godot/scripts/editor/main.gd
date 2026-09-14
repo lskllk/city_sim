@@ -44,6 +44,9 @@ var _f_stock: SpinBox
 var _f_price: SpinBox
 var _f_owner: OptionButton
 var _f_owner_ids: Array = []
+var _f_mem_item: OptionButton      # 额外记忆: 选一个场景里的物件
+var _f_mem_believe: SpinBox        # 他有多信这条
+var _mem_item_ids: Array = []      # 与 _f_mem_item 的条目一一对应
 
 
 func _ready() -> void:
@@ -521,8 +524,10 @@ func _build_building(bid: String) -> void:
 				func() -> void: _view.select("item", String(iid))))
 	_inspector.add_child(isec)
 
-	# 认知: 场景级初始记忆 —— “让这一家知道那家店在卖什么”
-	var ksec := _section("认知")
+	# 认知(批量): “让所有人 / 让这一家知道那家店在卖什么”
+	# 想【只给某一个人】注入 → 点住户进人物详情 → 「额外记忆」
+	var ksec := _section("认知（批量）")
+	ksec.add_child(_muted("只给某一个人注入 → 点住户进他的详情, 用「额外记忆」"))
 	var kunit := MapDoc.target_unit(bid)
 	var kpeople := MapDoc.npcs_at_unit(kunit)
 	var shop_ids: Array = MapDoc.shops()
@@ -645,6 +650,74 @@ func _build_person(pid: String) -> void:
 	pers.add_child(_lrow("特质", _f_traits))
 	_inspector.add_child(pers)
 
+	# —— 额外记忆: 只给【这个人】注入认知(别人不知道) ——
+	# P8: 玩家的手只碰世界真值; 但编辑器是【作者态】, 可以写某个 NPC 的知识
+	# (出生时是空白记忆, 其余靠感知/传闻 —— 这里只是给他一条初始认知)。
+	var msec := _section("额外记忆")
+	msec.add_child(_muted("只写【他一个人的知识】: 他知道哪个地方在卖什么、多少钱。"
+		+ "
+这是他的记忆, 不是世界真值 —— 也不会同步给同屋的人。"))
+	var mem := MapDoc.memory_of(pid)
+	if mem.is_empty():
+		msec.add_child(_muted("（暂无 —— 出生是空白记忆, 靠感知自己学）"))
+	else:
+		var mids: Array = mem.keys()
+		mids.sort()
+		for iid in mids:
+			var rec: Dictionary = mem[String(iid)]
+			var mrow := HBoxContainer.new()
+			var mlb := Label.new()
+			mlb.text = MapDoc.memory_label(String(iid), rec)
+			mlb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			mlb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			mrow.add_child(mlb)
+			var medit := Button.new()
+			medit.text = "改"
+			medit.tooltip_text = "把这一条载入下面的表单, 改完点「添加 / 更新」"
+			medit.pressed.connect(func() -> void:
+				_load_memory_form(String(iid), rec))
+			mrow.add_child(medit)
+			var mdel := Button.new()
+			mdel.text = "删"
+			mdel.pressed.connect(func() -> void:
+				MapDoc.remove_memory(pid, String(iid))
+				_refresh_status("已删除一条记忆: %s" % iid))
+			mrow.add_child(mdel)
+			msec.add_child(mrow)
+	# 新增 / 覆盖
+	_f_mem_item = OptionButton.new()
+	_mem_item_ids.clear()
+	var iids: Array = MapDoc.items.keys()
+	iids.sort()
+	for iid in iids:
+		var it: Dictionary = MapDoc.items[iid]
+		_f_mem_item.add_item("%s @ %s" % [
+			MapDoc.item_display(String(it.get("type", ""))),
+			MapDoc.unit_display(String(it.get("at", "")))])
+		_mem_item_ids.append(String(iid))
+	if _mem_item_ids.is_empty():
+		_f_mem_item.add_item("（场景里还没有物件）")
+	msec.add_child(_lrow("物件", _f_mem_item))
+	_f_mem_believe = _spin(0.1, 1.0, 0.05)
+	_f_mem_believe.value = 0.8
+	_f_mem_believe.tooltip_text = ("他有多信这条: 1.0 = 亲眼见过; "
+		+ "0.6~0.8 = 听说的(和 knowledge 段一个意思)")
+	msec.add_child(_lrow("相信度", _f_mem_believe))
+	var madd := Button.new()
+	madd.text = "添加 / 更新这条记忆"
+	madd.tooltip_text = ("自动带上该物件能解什么/在哪/价钱/库存 —— "
+		+ "只由你定他信不信。同一条再写一次就是改。")
+	madd.pressed.connect(func() -> void: _save_memory(pid))
+	msec.add_child(madd)
+	if not mem.is_empty():
+		var mclr := Button.new()
+		mclr.text = "清空他的记忆 (%d 条)" % mem.size()
+		mclr.pressed.connect(func() -> void:
+			MapDoc.clear_memory(pid)
+			_refresh_status("已清空 %s 的额外记忆" % pid))
+		msec.add_child(mclr)
+	_inspector.add_child(msec)
+
 	var btns := HBoxContainer.new()
 	var save := Button.new()
 	save.text = "保存"
@@ -663,6 +736,28 @@ func _build_person(pid: String) -> void:
 	btns.add_child(rnd)
 	btns.add_child(del)
 	_inspector.add_child(btns)
+
+
+## 把某条记忆载入下面的表单(改它就是改这一条 —— item_id 是键)。
+func _load_memory_form(iid: String, rec: Dictionary) -> void:
+	var idx := _mem_item_ids.find(iid)
+	if idx >= 0 and _f_mem_item != null:
+		_f_mem_item.selected = idx
+	if _f_mem_believe != null:
+		_f_mem_believe.value = float(rec.get("believe", 0.8))
+	_refresh_status("已载入 %s —— 改完点「添加 / 更新」" % iid)
+
+
+func _save_memory(pid: String) -> void:
+	if _f_mem_item == null or _mem_item_ids.is_empty():
+		_refresh_status("场景里还没有物件可注入")
+		return
+	var idx := _f_mem_item.selected
+	if idx < 0 or idx >= _mem_item_ids.size():
+		return
+	var iid := String(_mem_item_ids[idx])
+	MapDoc.add_memory(pid, iid, _f_mem_believe.value)
+	_refresh_status("已写入 %s 的记忆: %s" % [MapDoc.npc_display(pid), iid])
 
 
 func _save_person(pid: String) -> void:

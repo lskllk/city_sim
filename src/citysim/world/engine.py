@@ -119,6 +119,11 @@ def _pick_tell(speaker, other) -> object | None:
             continue                      # 对方已经知道了 → 不说
         if other.home and row.get("located") == other.home:
             continue                      # “告诉他他自己家里有什么”是噪声
+        if speaker.home and row.get("located") == speaker.home:
+            # 同理: 我自己家里的东西(床/马桶)也不是新闻 —— 没人跟邻居介绍自家马桶。
+            # 注: 这里只是堵住最刺眼的一种。真正“该说什么”归 semantic_event.md
+            # 的语义层(SURPRISE/DOUBT/REPORT); MVP 这条是“抄一行记忆”的降级形态。
+            continue
         if best is None or float(row["believe"]) > float(best["believe"]):
             best = row
     return best

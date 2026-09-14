@@ -163,15 +163,27 @@ def _notify_due(world, systems, npc) -> None:
              "from": npc.person_id, "believe": round(trust, 3)}))
 
 
+def _expiry(world, shelf_life: int) -> int:
+    """新货的到期刻。0 = 不会坏。"""
+    return (world.clock_tick + int(shelf_life)) if shelf_life > 0 else 0
+
+
 def _deliver(world, pid: str, npc, shop, qty: int, home: str):
     """把 qty 件送进家中的同类容器(合并到 stock); 无则新建一个。
 
     "商店一种货物不要重叠" → 同类只保留一个实体, 数量记在 stock 上。
+
+    保质期取【最早到期】(方案 A): 一格只要有一份旧了, 整格算旧。
+    代价是略微低估保质期; 好处是不用给每份建档(实体数不膨胀)。
     """
+    shelf = int(getattr(shop, "shelf_life_ticks", 0))
     for e in sorted(world.entities.values(), key=lambda x: x.entity_id):
         if (e.item_type == shop.item_type and e.location_id == home
                 and e.owner == pid and e.stock != -1):
             e.stock += qty
+            exp = _expiry(world, shelf)
+            if exp and (e.expires_tick == 0 or exp < e.expires_tick):
+                e.expires_tick = exp          # 合并取最早到期
             world.layout_location(home)
             return e
     d = load_item_defs().get(shop.item_type)
@@ -181,6 +193,10 @@ def _deliver(world, pid: str, npc, shop, qty: int, home: str):
     e.owner = pid
     e.stock = qty
     e.persist_empty = True
+    # 以【实际卖出那件货】的保质期为准(shop 的 shelf_life 本就是从 itemdef 带入的),
+    # 这样两分支口径一致; 也让测试/场景可以改单件货的保质期。
+    e.shelf_life_ticks = shelf
+    e.expires_tick = _expiry(world, shelf)
     world.spawn_entity(e)
     world.layout_location(home)
     return e
@@ -229,7 +245,9 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
         npc.note(container.entity_id, tick=world.clock_tick,
                  located=home, owner=pid, stock=container.stock,
                  afford=cafford, value=float(cvalue),
-                 item_type=container.item_type, source="")
+                 item_type=container.item_type, source="",
+                 shelf_life_ticks=int(container.shelf_life_ticks),
+                 expires_tick=int(container.expires_tick))
     npc.on_interaction_done(intent.item_id, world.clock_tick)
 
 
@@ -331,6 +349,16 @@ def tick(world, systems, cfg: SimConfig) -> None:
     # 0. 场景脉冲(世界脚本): 在 NPC 感知前改库存/停业
     if systems.pulses:
         apply_pulses(world, systems.pulses, world.clock_tick, cfg.ticks_per_day)
+
+    # 0b. 过期变质: 到点的食物 stock 归 0(壳留着 —— 货架/容器可能 persist_empty)。
+    #     只在【从有到无】的那一刻发一条事件, 不每 tick 刷。
+    for eid in sorted(world.entities):
+        e = world.entities[eid]
+        if e.expires_tick and e.expires_tick <= world.clock_tick and e.stock != 0:
+            e.stock = 0
+            world.bus.publish(world.bus.make(
+                world.clock_tick, "spoiled", eid,
+                {"item_type": e.item_type, "loc": e.location_id}))
 
 
     # 1. 心跳(身体演化收进 Person; 世界只广播, 不改 signals): 代谢+hp+排泄

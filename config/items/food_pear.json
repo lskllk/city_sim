@@ -12,5 +12,6 @@
   "on_start": [],
   "on_complete": [],
   "attrs": {},
-  "stock": 1
+  "stock": 1,
+  "shelf_life_ticks": 4320
 }

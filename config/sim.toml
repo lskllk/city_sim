@@ -79,6 +79,12 @@ tell_p = 0.3
 # 刻意不做“home 有需求 → 发任务”: 那会造出一个“有需求的组”,
 # 而且需要“派给谁”的调度。这里谁最想买谁去。
 future_weight = 1.0          # 预期需求在 urgency 里的权重 w
+fill = 0.8                   # 囤到“保质期内吃得完的量”的几成
+                             #   1.0 = 一直在临期边缘(激进); 小 → 勤买少量新鲜
+default_days = 3.0           # 不会坏的东西按几天量囤
 
-[stock.targets]              # 家里应该常备几个(没列的信号不囤: 床/马桶不是存货)
-hunger = 3.0                 # 例: 常备 3 份吃的; 个人差异 = 此值 × personality.thrift
+# 注意: 【没有 “每种东西囤几个” 的配置】。
+# 目标存量 = 每天消耗份数 × 保质期天数 × fill × personality.thrift
+#   每天消耗份数 = (-metabolism[sig] × ticks_per_day) / item.value
+#   保质期天数   = item.shelf_life_ticks / ticks_per_day
+# => 简餐(1 天)只囤 ~0.5 份; 苹果(3 天)囤 ~2.3 份。短保自然囤得少。

@@ -30,6 +30,8 @@ class MemItem:
     item_type: str = ""          # 物品类型 id(去重/合并用)
     price: float = 0.0           # 我以为的现价(易变)
     stock: int = 0               # 我以为的库存(-1=无限; 易变)
+    shelf_life_ticks: int = 0    # 我以为的保质期(0=不坏) —— 决定“该囤几份”
+    expires_tick: int = 0        # 我以为的到期刻(0=不过期)
     attrs: dict[str, Any] = field(default_factory=dict)
     # 来源: "" = 自己亲眼看到的; 否则是 npc_id(谁告诉我的) / "ad:<bid>"(广告招牌)…
     # 没有它就说不清“这话谁说的”, 也做不了溯源与应验(verify)。
@@ -47,7 +49,7 @@ class MemBase:
     _FIELDS = frozenset({
         "located", "owner", "claimed", "afford", "value",
         "item_type", "price", "stock", "attrs", "believe", "remember",
-        "last_seen", "cool_until", "source",
+        "last_seen", "cool_until", "source", "shelf_life_ticks", "expires_tick",
     })
 
     def __init__(self) -> None:
@@ -117,6 +119,8 @@ class MemBase:
              "claimed": r.claimed, "afford": r.afford, "value": r.value,
              "item_type": r.item_type, "source": r.source,
              "price": r.price, "stock": r.stock,
+             "shelf_life_ticks": r.shelf_life_ticks,
+             "expires_tick": r.expires_tick,
              "believe": round(r.believe, 3),
              "remember": round(r.remember, 3), "last_seen": r.last_seen,
              "cool_until": r.cool_until}

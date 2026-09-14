@@ -62,6 +62,8 @@ class Entity:
     owner: str = ""                         # 归属(""=无主/商店; npc_id=某人拥有)
     item_type: str = ""                     # 物品类型 id(合并同类容器/购买送货用)
     persist_empty: bool = False             # stock 归 0 不被回收(容器/货架)
+    shelf_life_ticks: int = 0               # 保质期(0=不坏); 由 itemdef 带入
+    expires_tick: int = 0                   # 到点变质(0=不过期); 送货/生成时打戳
     # elm_lane 开放时段: None=全天; []=永久关闭; [[start,end],...]分钟-of-day
     open_hours: list | None = None
     position: tuple[float, float] | None = None  # TASK001 空间锚点(scene 单位; None=未布置)
@@ -122,6 +124,7 @@ def entity_from_def(d: ItemDef, location_id: str) -> Entity:
         on_start=list(d.on_start), on_complete=list(d.on_complete),
         price=d.price, item_type=d.item_type,
         persist_empty=d.persist_empty,
+        shelf_life_ticks=d.shelf_life_ticks,
     )
 
 

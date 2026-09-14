@@ -41,6 +41,8 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
                 owner=v.owner, claimed=claimed, afford=afford, value=float(value),
                 item_type=v.item_type, source="",
                 price=v.price, stock=int(v.stock),
+                shelf_life_ticks=int(v.shelf_life_ticks),
+                expires_tick=int(v.expires_tick),
                 believe=1.0, remember=1.0, last_seen=tick))
         else:
             mem.update(
@@ -49,6 +51,8 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
                 value=float(value) if value else row.value,
                 item_type=v.item_type, source="",
                 price=v.price, stock=int(v.stock),
+                shelf_life_ticks=int(v.shelf_life_ticks),
+                expires_tick=int(v.expires_tick),
                 believe=1.0, remember=1.0, last_seen=tick)
 
 
@@ -125,8 +129,7 @@ def decide_scored(
     差不多好的目标之间反复横跳。
     """
     cands = _gather_candidates(
-        mem, signals, now_tick, home=home,
-        stock_targets=cfg.stock_targets,
+        mem, signals, now_tick, home=home, cfg=cfg,
         future_weight=cfg.stock_future_weight,
         thrift=float(personality.get("thrift", 1.0)))
     scored, ranked, relevant = _score_candidates(
@@ -149,23 +152,35 @@ def _home_stock(mem: MemBase, home: str) -> dict[str, float]:
     return out
 
 
-def _future_need(targets: Mapping[str, float], stock: Mapping[str, float],
-                 sig: str, thrift: float) -> float:
+def _future_need(cfg: SimConfig, have: float, sig: str, value: float,
+                 shelf_life: int, thrift: float) -> float:
     """【预期需求】= 家里缺口 / 目标存量(0..1)。
 
     这就是“囤货”: 不是“饿了才去买”, 而是“家里快没存货了 → 提前补”。
-    目标存量 = 配置 × personality.thrift(抠门的人囤得多)。
+
+    目标存量【不是魔法数字】, 而是从保质期推导出来的:
+        每天消耗份数 = (-metabolism[sig] × ticks_per_day) / value
+        目标 = 每天消耗份数 × 保质期天数 × stock_fill × thrift
+    —— 即“在它坏掉之前我吃得完多少”。所以**短保的东西自然囤得少**。
+    不会坏的东西(无保质期)按 stock_default_days 算。
     """
-    target = float(targets.get(sig, 0.0)) * max(0.0, float(thrift))
+    if value <= 0.0:
+        return 0.0
+    daily_drain = -min(0.0, float(cfg.metabolism.get(sig, 0.0)))         * float(cfg.ticks_per_day)
+    if daily_drain <= 0.0:
+        return 0.0
+    per_day = daily_drain / value                     # 每天吃几份
+    days = (float(shelf_life) / float(cfg.ticks_per_day)
+            if shelf_life > 0 else cfg.stock_default_days)
+    target = per_day * days * cfg.stock_fill * max(0.0, float(thrift))
     if target <= 0.0:
         return 0.0
-    have = float(stock.get(sig, 0.0))
     return min(1.0, max(0.0, (target - have) / target))
 
 
 def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
                        now_tick: int,  *, home: str = "",
-                       stock_targets: Mapping[str, float] | None = None,
+                       cfg: SimConfig | None = None,
                        future_weight: float = 0.0, thrift: float = 1.0):
     """[阶段1] 候选收集 —— **不过滤**。
 
@@ -179,8 +194,8 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
       · 未来的缺口 = 囤货(家里存货相对目标还有多少缺口)
     返回 [(row, sig, need), ...]。
     """
-    targets = stock_targets or {}
-    stock = _home_stock(mem, home) if (targets and future_weight > 0.0) else {}
+    stock = (_home_stock(mem, home)
+             if (cfg is not None and future_weight > 0.0) else {})
     out = []
     for row in mem.items():
         if row.cool_until and row.cool_until > now_tick:
@@ -191,8 +206,10 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
         need = 1.0 - float(signals.get(sig, 1.0))
         # 缺口只驱动【补货】(出门/买), 不驱动“把家里最后一点吃掉”
         # —— 后者只会把存货变得更少。所以只在不位于本家时才加预期需求。
-        if stock and row.located != home:
-            fut = _future_need(targets, stock, sig, thrift)
+        if stock and cfg is not None and row.located != home:
+            fut = _future_need(cfg, stock.get(sig, 0.0), sig, row.value,
+                               int(getattr(row, "shelf_life_ticks", 0)),
+                               thrift)
             if fut > 0.0:
                 need = max(need, future_weight * fut)
         out.append((row, sig, need))

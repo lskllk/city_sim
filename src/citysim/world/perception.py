@@ -21,6 +21,8 @@ def _view_for(world, npc, e, closed: bool, site_owner: str = "") -> EntityView:
         claimable=e.claimable_by(npc.person_id) and not closed,
         stock_zero=(e.stock == 0) or closed,
         stock=e.stock,
+        shelf_life_ticks=e.shelf_life_ticks,
+        expires_tick=e.expires_tick,
         location_id=e.location_id,
         price=e.price,
         owner=e.owner or site_owner,

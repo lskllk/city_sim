@@ -72,11 +72,16 @@
 - [x] 迟到复用同一机制；`conscientiousness` 调 `breach_cost`
 
 ### 3.5 囤货 = 目标存量模型（✅ 已实现）
-- [x] 容器实际存量 ∈ **家**（共享事实）；目标存量 ∈ **个人**（`[stock.targets]` × `personality.thrift`）
+- [x] **目标存量由保质期推导**（`[stock.targets]` 魔法数字**已删**）：
+      `目标 = 每天消耗份数 × 保质期天数 × stock_fill × personality.thrift`
+      —— 即"在它坏掉之前我吃得完多少"。短保的（简餐 1 天）只囤 ~0.5 份，
+      长保的（苹果 3 天）囤 ~2.3 份。
 - [x] 缺口 → `need_future`；`need = max(眼前缺口, w × 未来缺口)`（**与睡觉同一条公式**）
 - [x] **缺口只驱动补货**（`row.located != home` 的候选），
       不驱动"把家里最后一点吃掉"（那只会让存货更少）
 - [x] **不做** "home 有需求 → 发任务"；重复购买**接受**（自限、lumpy）
+- [x] **食物会过期**：`ItemDef.shelf_life_ticks`(数据) → `Entity.expires_tick`
+      （送货时打戳；合并库存取**最早到期**，方案 A）→ 到点 `stock=0` + `spoiled` 事件
 - [x] 顺带修两个真 bug：
       ① **记忆不记库存** —— `EntityView` 根本没有 `stock` 字段，
          于是"家里还剩几个"永远是 0 → 囤货永远拉满。已补 `stock` 并接入感知。

@@ -62,9 +62,11 @@ class SimConfig:
     energy_rhythm: tuple[tuple[float, float], ...] = ()
     busy_energy_mul: float = 1.8  # 在做事(交互/赶路)时额外消耗倍数
     # —— 囤货 = 目标存量模型(plan.md §6) ——
-    # 家里应该常备多少(按信号)。没列的信号不囤(床/马桶不是“存货”)。
-    # 个人差异: 实际目标 = 这里 × personality.thrift(缺省 1.0)
-    stock_targets: dict[str, float] = field(default_factory=dict)
+    # 【没有“每种东西囤几个”的魔法数字】: 目标存量由【保质期】推导 ——
+    #     目标 = 每天消耗份数 × 保质期天数 × stock_fill × thrift
+    # 也就是“在坏掉之前我吃得完多少”。短保的东西自然囤得少。
+    stock_fill: float = 0.8            # 囤到保质期的几成(1.0 = 一直在临期边缘)
+    stock_default_days: float = 3.0    # 不会坏的东西(无保质期)按几天囤
     stock_future_weight: float = 1.0   # 预期需求在 urgency 里的权重(w)
     # 计划(承诺)的【基础拉力】: 它参与打分, 不是一个“指令”。
     # 需求要超过 plan_pull × preempt_ratio 才能把日程顶掉 ——
@@ -117,8 +119,9 @@ class SimConfig:
                 for m, v in data.get("energy_rhythm", {}).get("points", [])),
             busy_energy_mul=float(
                 data.get("activity", {}).get("busy_energy_mul", 1.8)),
-            stock_targets={str(k): float(v) for k, v in
-                           data.get("stock", {}).get("targets", {}).items()},
+            stock_fill=float(data.get("stock", {}).get("fill", 0.8)),
+            stock_default_days=float(
+                data.get("stock", {}).get("default_days", 3.0)),
             stock_future_weight=float(
                 data.get("stock", {}).get("future_weight", 1.0)),
             plan_pull=float(util.get("plan_pull", 0.15)),

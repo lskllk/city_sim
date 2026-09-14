@@ -365,7 +365,9 @@ class Person:
              value: float | None = None, price: float | None = None,
              stock: int | None = None, believe: float | None = None,
              item_type: str | None = None,
-             source: str | None = None) -> None:
+             source: str | None = None,
+             shelf_life_ticks: int | None = None,
+             expires_tick: int | None = None) -> None:
         """往记忆 upsert 一行(增/改; 部分字段可省略)。供成交/事件/传闻用。
 
         source: "" = 亲眼所见; npc_id = 他说的; "ad:<bid>" = 广告招牌。
@@ -393,6 +395,10 @@ class Person:
             fields["item_type"] = str(item_type)
         if source is not None:
             fields["source"] = str(source)
+        if shelf_life_ticks is not None:
+            fields["shelf_life_ticks"] = int(shelf_life_ticks)
+        if expires_tick is not None:
+            fields["expires_tick"] = int(expires_tick)
         fields.setdefault("remember", 1.0)
         fields.setdefault("last_seen", tick)
         self._mem.update(item_id, **fields)

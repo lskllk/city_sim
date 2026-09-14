@@ -46,6 +46,7 @@ class ItemDef:
     stock: int = 1
     price: float = 0.0
     persist_empty: bool = False   # stock 归 0 不被回收(容器/货架持续存在)
+    shelf_life_ticks: int = 0     # 保质期(0 = 不会坏)。到点变质 → stock 归 0
 
 
 def _parse(data: dict) -> ItemDef:
@@ -62,6 +63,7 @@ def _parse(data: dict) -> ItemDef:
         stock=int(data.get("stock", 1)),
         price=float(data.get("price", 0.0)),
         persist_empty=bool(data.get("persist_empty", False)),
+        shelf_life_ticks=int(data.get("shelf_life_ticks", 0)),
     )
 
 

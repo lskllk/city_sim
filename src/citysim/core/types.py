@@ -22,6 +22,8 @@ class EntityView:
     claimable: bool = True                # True=当前无人占用
     stock_zero: bool = False              # True=stock==0(真空), 区别于被占用
     stock: int = -1                       # 存量(-1=无限); 囤货要靠它算“家里还剩几个”
+    shelf_life_ticks: int = 0             # 保质期(0=不坏) —— 目标存量由它推导
+    expires_tick: int = 0                 # 到点变质(0=不过期)
     location_id: str = ""
     price: float = 0.0                    # 价格(0=免费)
     owner: str = ""                       # 归属(""=无主/商店)

@@ -446,7 +446,7 @@ class Person:
         intent, eff = brain.decide_scored(
             self._signals, self._personality, self._mem,
             self._perceived_loc, cfg, now_tick, self.person_id,
-            self._travel_costs or None, self._money)
+            self._travel_costs or None, self._money, self._home)
         return (None if isinstance(intent, Idle) else intent), eff
 
     def decide(self, cfg: "SimConfig", now_tick: int,
@@ -511,7 +511,8 @@ class Person:
                 self._schedule.drop()
                 continue
             self._schedule.commit()
-            self._goal = _Goal("plan", e.intent)
+            # 承诺也有拉力(参与打分), 不是“指令”: 见 SimConfig.plan_pull
+            self._goal = _Goal("plan", e.intent, score=cfg.plan_pull)
             continue
 
     def _hp_low(self, cfg: "SimConfig") -> bool:

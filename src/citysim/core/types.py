@@ -21,9 +21,12 @@ class EntityView:
     distance: float = 0.0                 # 到 NPC 的距离(M2 先全 0.0)
     claimable: bool = True                # True=当前无人占用
     stock_zero: bool = False              # True=stock==0(真空), 区别于被占用
+    stock: int = -1                       # 存量(-1=无限); 囤货要靠它算“家里还剩几个”
     location_id: str = ""
     price: float = 0.0                    # 价格(0=免费)
     owner: str = ""                       # 归属(""=无主/商店)
+    site_owner: str = ""                  # 所在地的主人(家是谁的) —— 私有家里
+                                          # 无主的东西要继承它, 否则全城都能来用
     item_type: str = ""                   # 物品类型 id(去重/合并用)
 
 

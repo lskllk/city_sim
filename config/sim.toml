@@ -45,6 +45,10 @@ threshold = 0.05               # 【唯一阈值】低于此分就不行动。
 # eff = (need^power × value × personality × believe) / (1 + cost_lambda × cost)
 # cost = price×qty + time_value×travel_ticks + price×(1−believe)
 # 注: move_penalty 已删 —— 异地成本由【真实移动 tick】表达。
+plan_pull = 0.15               # 计划(承诺)的基础拉力: 需求要超过
+                               # plan_pull × preempt_ratio 才能顶掉日程。
+                               # 太小 → 计划被琐碎需求踢开(等于没用);
+                               # 太大 → 饿着也硬按日程走。
 cost_lambda = 0.02             # λ: 成本权重(越大越抠)
 time_value  = 0.05             # 走 1 tick 折合多少钱(决定“顺路”值多少)
 
@@ -68,3 +72,13 @@ hp_override = 0.5                        # hp 低于此 → 日程失去拉力(�
 # 结构上: 同址(同一 home)的人常同处 → 家庭内部消息很快对齐;
 #         跨家庭只能靠出门偶遇 → 城市自然分成若干“认知不同的家”。
 tell_p = 0.3
+
+[stock]                      # 囤货 = 目标存量模型(plan.md §6)
+# 语义: 容器【实际存量】属于“家”(共享事实, 会消耗);
+#       目标存量属于【个人】(偏好) —— 缺口 → 预期需求 → 提前补货。
+# 刻意不做“home 有需求 → 发任务”: 那会造出一个“有需求的组”,
+# 而且需要“派给谁”的调度。这里谁最想买谁去。
+future_weight = 1.0          # 预期需求在 urgency 里的权重 w
+
+[stock.targets]              # 家里应该常备几个(没列的信号不囤: 床/马桶不是存货)
+hunger = 3.0                 # 例: 常备 3 份吃的; 个人差异 = 此值 × personality.thrift

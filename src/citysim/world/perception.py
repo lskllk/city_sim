@@ -10,7 +10,7 @@ from __future__ import annotations
 from citysim.core.types import EntityView, Percept
 
 
-def _view_for(world, npc, e, closed: bool) -> EntityView:
+def _view_for(world, npc, e, closed: bool, site_owner: str = "") -> EntityView:
     return EntityView(
         entity_id=e.entity_id,
         name=e.name,
@@ -20,9 +20,11 @@ def _view_for(world, npc, e, closed: bool) -> EntityView:
         distance=0.0,
         claimable=e.claimable_by(npc.person_id) and not closed,
         stock_zero=(e.stock == 0) or closed,
+        stock=e.stock,
         location_id=e.location_id,
         price=e.price,
-        owner=e.owner,
+        owner=e.owner or site_owner,
+        site_owner=site_owner,
         item_type=e.item_type,
     )
 
@@ -35,10 +37,11 @@ def build_percept(world, npc) -> Percept:
     结果要不要记进记忆, 由 Person.perceive 决定(此处不管)。
     """
     loc = world.loc_of(npc.person_id)
+    site_owner = str((world.locations.get(loc) or {}).get("owner", ""))
     views = []
     for e in world.entities_at(loc):
         closed = not e.is_open_now(world.hour_f())   # 停业=空且不可claim
-        views.append(_view_for(world, npc, e, closed))
+        views.append(_view_for(world, npc, e, closed, site_owner))
     events = world.bus.drain_for(npc.person_id)
     return Percept(
         tick=world.clock_tick,

@@ -71,10 +71,19 @@
 - [x] **`breach_cost` 随 `hp` 衰减**：`hp < 0.5` 时 `plan_mult = breach_cost = 0`
 - [x] 迟到复用同一机制；`conscientiousness` 调 `breach_cost`
 
-### 3.5 囤货 = 目标存量模型
-- [x] 容器实际存量 ∈ **家**（共享事实）；目标存量 ∈ **个人**（由 `thrift`）
-- [x] 缺口 → `need_future`（**与睡觉同一条公式**）
+### 3.5 囤货 = 目标存量模型（✅ 已实现）
+- [x] 容器实际存量 ∈ **家**（共享事实）；目标存量 ∈ **个人**（`[stock.targets]` × `personality.thrift`）
+- [x] 缺口 → `need_future`；`need = max(眼前缺口, w × 未来缺口)`（**与睡觉同一条公式**）
+- [x] **缺口只驱动补货**（`row.located != home` 的候选），
+      不驱动"把家里最后一点吃掉"（那只会让存货更少）
 - [x] **不做** "home 有需求 → 发任务"；重复购买**接受**（自限、lumpy）
+- [x] 顺带修两个真 bug：
+      ① **记忆不记库存** —— `EntityView` 根本没有 `stock` 字段，
+         于是"家里还剩几个"永远是 0 → 囤货永远拉满。已补 `stock` 并接入感知。
+      ② **能睡到别人家床上** —— 家里的家具在场景里没写 `owner`，
+         `free_public = owner=="" and price<=0` 把全城的床都算成"公共免费"。
+         修法：① 感知时无主物品**继承所在地主人**（`site_owner`）；
+         ② `_choose` 增 `my_home`（自己家里的东西，同住者共享）
 
 ### 3.6 睡眠 = 单信号 `energy` + 昼夜衰减（✅ 已实现）
 - [x] **不拆 `alertness`**（拆的理由随 `REFLEX_SIGNALS` 一起消失）

@@ -61,6 +61,15 @@ class SimConfig:
     # 控制点 [(当天分钟, 倍率)], 线性插值; 空 = 恒 1.0。
     energy_rhythm: tuple[tuple[float, float], ...] = ()
     busy_energy_mul: float = 1.8  # 在做事(交互/赶路)时额外消耗倍数
+    # —— 囤货 = 目标存量模型(plan.md §6) ——
+    # 家里应该常备多少(按信号)。没列的信号不囤(床/马桶不是“存货”)。
+    # 个人差异: 实际目标 = 这里 × personality.thrift(缺省 1.0)
+    stock_targets: dict[str, float] = field(default_factory=dict)
+    stock_future_weight: float = 1.0   # 预期需求在 urgency 里的权重(w)
+    # 计划(承诺)的【基础拉力】: 它参与打分, 不是一个“指令”。
+    # 需求要超过 plan_pull × preempt_ratio 才能把日程顶掉 ——
+    # 否则任何琐碎需求都会把计划踢开(计划表就等于没用)。
+    plan_pull: float = 0.15
 
     def rhythm_at(self, hour_f: float) -> float:
         """hour_f(0..24) → energy 消耗倍率。纯函数, 供 heartbeat 每 tick 调用。"""
@@ -108,6 +117,11 @@ class SimConfig:
                 for m, v in data.get("energy_rhythm", {}).get("points", [])),
             busy_energy_mul=float(
                 data.get("activity", {}).get("busy_energy_mul", 1.8)),
+            stock_targets={str(k): float(v) for k, v in
+                           data.get("stock", {}).get("targets", {}).items()},
+            stock_future_weight=float(
+                data.get("stock", {}).get("future_weight", 1.0)),
+            plan_pull=float(util.get("plan_pull", 0.15)),
         )
 
 

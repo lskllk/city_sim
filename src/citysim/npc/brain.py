@@ -40,14 +40,16 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
                 item_id=v.entity_id, located=v.location_id,
                 owner=v.owner, claimed=claimed, afford=afford, value=float(value),
                 item_type=v.item_type, source="",
-                price=v.price, believe=1.0, remember=1.0, last_seen=tick))
+                price=v.price, stock=int(v.stock),
+                believe=1.0, remember=1.0, last_seen=tick))
         else:
             mem.update(
                 v.entity_id, located=v.location_id, owner=v.owner,
                 claimed=claimed, afford=afford or row.afford,
                 value=float(value) if value else row.value,
                 item_type=v.item_type, source="",
-                price=v.price, believe=1.0, remember=1.0, last_seen=tick)
+                price=v.price, stock=int(v.stock),
+                believe=1.0, remember=1.0, last_seen=tick)
 
 
 FORGET_DEFAULT = 0.1  # remember 低于此 → 遗忘删除(默认阈值)
@@ -86,6 +88,7 @@ def decide(
     self_id: str = "",            # 自身身份 id(判定"自己的"用品)
     travel_ticks: Mapping[str, int] | None = None,   # "a|b" -> tick(可选)
     money: float = float("inf"),  # 买不起的就不作为候选(否则反复失败刷屏)
+    home: str = "",               # 住址(囤货要看“我家还剩几个”)
 ) -> Intent:
     """决策主算法。纯函数。铁律:
 
@@ -99,7 +102,7 @@ def decide(
     全部参与打分, 唯一的阀值在得分上(cfg.utility_threshold)。
     """
     intent, _eff = decide_scored(signals, personality, mem, location_id, cfg,
-                                 now_tick, self_id, travel_ticks, money)
+                                 now_tick, self_id, travel_ticks, money, home)
     return intent
 
 
@@ -113,6 +116,7 @@ def decide_scored(
     self_id: str = "",
     travel_ticks: Mapping[str, int] | None = None,
     money: float = float("inf"),
+    home: str = "",
 ) -> tuple[Intent, float]:
     """同 decide, 但多返回【得分】。
 
@@ -120,22 +124,63 @@ def decide_scored(
     每 tick 重算一次, 只有新事的分明显高于当前事(迟滞)才换 —— 否则会在两个
     差不多好的目标之间反复横跳。
     """
-    cands = _gather_candidates(mem, signals, now_tick)
+    cands = _gather_candidates(
+        mem, signals, now_tick, home=home,
+        stock_targets=cfg.stock_targets,
+        future_weight=cfg.stock_future_weight,
+        thrift=float(personality.get("thrift", 1.0)))
     scored, ranked, relevant = _score_candidates(
         cands, personality, location_id, cfg, travel_ticks, money, self_id)
-    return _choose(scored, ranked, relevant, cfg, self_id, location_id)
+    return _choose(scored, ranked, relevant, cfg, self_id, location_id, home)
+
+
+def _home_stock(mem: MemBase, home: str) -> dict[str, float]:
+    """我家里每种“能提供什么”还剩几个(按 afford 汇总 stock)。
+
+    只看 located == home 的行 —— 店里的货不算“我家的存货”。
+    """
+    out: dict[str, float] = {}
+    if not home:
+        return out
+    for row in mem.items():
+        if row.located != home or not row.afford:
+            continue
+        out[row.afford] = out.get(row.afford, 0.0) + max(0.0, float(row.stock))
+    return out
+
+
+def _future_need(targets: Mapping[str, float], stock: Mapping[str, float],
+                 sig: str, thrift: float) -> float:
+    """【预期需求】= 家里缺口 / 目标存量(0..1)。
+
+    这就是“囤货”: 不是“饿了才去买”, 而是“家里快没存货了 → 提前补”。
+    目标存量 = 配置 × personality.thrift(抠门的人囤得多)。
+    """
+    target = float(targets.get(sig, 0.0)) * max(0.0, float(thrift))
+    if target <= 0.0:
+        return 0.0
+    have = float(stock.get(sig, 0.0))
+    return min(1.0, max(0.0, (target - have) / target))
 
 
 def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
-                       now_tick: int):
+                       now_tick: int,  *, home: str = "",
+                       stock_targets: Mapping[str, float] | None = None,
+                       future_weight: float = 0.0, thrift: float = 1.0):
     """[阶段1] 候选收集 —— **不过滤**。
 
     只要能提供点什么(afford 非空 且 value>0)就是候选。
     “值不值得做”全部交给后面的得分与阀值; 这里只看两个硬事实:
       - afford/value 缺失 → 这条记忆没告诉我能得到什么;
       - cool_until: 刚失败过的别马上再试(防重试死循环)。
+
+    need = max(眼前的缺口, w × 未来的缺口)
+      · 眼前的缺口 = 1 − signal
+      · 未来的缺口 = 囤货(家里存货相对目标还有多少缺口)
     返回 [(row, sig, need), ...]。
     """
+    targets = stock_targets or {}
+    stock = _home_stock(mem, home) if (targets and future_weight > 0.0) else {}
     out = []
     for row in mem.items():
         if row.cool_until and row.cool_until > now_tick:
@@ -143,7 +188,14 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
         sig = row.afford
         if not sig or row.value <= 0:
             continue
-        out.append((row, sig, 1.0 - float(signals.get(sig, 1.0))))
+        need = 1.0 - float(signals.get(sig, 1.0))
+        # 缺口只驱动【补货】(出门/买), 不驱动“把家里最后一点吃掉”
+        # —— 后者只会把存货变得更少。所以只在不位于本家时才加预期需求。
+        if stock and row.located != home:
+            fut = _future_need(targets, stock, sig, thrift)
+            if fut > 0.0:
+                need = max(need, future_weight * fut)
+        out.append((row, sig, need))
     return out
 
 
@@ -193,7 +245,7 @@ def _score_candidates(cands, personality: Mapping[str, float],
 
 
 def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
-            location_id: str) -> tuple[Intent, float]:
+            location_id: str, home: str = "") -> tuple[Intent, float]:
     """[阶段4] 选优分流 —— 只凭记忆行字段, 不看现场。全不够格则 Idle。
 
     返回 (intent, score): Idle 时 score = 0。
@@ -204,11 +256,13 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
     for item_id, sig, eff, loc, row in scored:
         if eff <= thresh:
             continue
-        # 能不能用: 自己的 / 免费公共; 【在售】→ 买
+        # 能不能用: 自己的 / 自己家里的(共享) / 无主免费公共; 【在售】→ 买
+        # “自己家里的”很关键: 一张床只写在不同住户名下, 但同住的人都能用。
         mine = bool(self_id) and row.owner == self_id
+        my_home = bool(home) and row.located == home
         free_public = row.owner == "" and row.price <= 0
         for_sale = row.price > 0 and row.owner != self_id
-        if not (mine or free_public or for_sale):
+        if not (mine or my_home or free_public or for_sale):
             continue
         if not loc:                       # 无地点信息 → 不可达
             continue

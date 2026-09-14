@@ -109,14 +109,28 @@
   "knowledge": [
     {
       "believe": 0.8,
-      "from": "bld_008_f1",
+      "from": "bld_004",
       "items": [],
       "unit": "bld_008_f1",
       "who": "unit"
     },
     {
       "believe": 0.8,
-      "from": "bld_008_f2",
+      "from": "bld_004",
+      "items": [],
+      "unit": "bld_008_f1",
+      "who": "unit"
+    },
+    {
+      "believe": 0.8,
+      "from": "bld_004",
+      "items": [],
+      "unit": "bld_008_f2",
+      "who": "unit"
+    },
+    {
+      "believe": 0.8,
+      "from": "bld_004",
       "items": [],
       "unit": "bld_008_f2",
       "who": "unit"

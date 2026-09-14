@@ -15,6 +15,7 @@ const DOT_MIN_PX := 4.0       # 屏幕最小直径(否则缩放后看不见)
 const DOT_MAX_PX := 9.0
 const PICK_MIN_PX := 9.0      # 命中半径(像素)
 const SYNC_SNAP := 3.0        # 与快照 tick 偏差超过此值 → 硬同步
+const LOOKAHEAD := 1.0        # 允许最多超前服务端这么多 tick(只为平滑)
 const FOLLOW_K := 8.0         # tick 软纠偏速率
 
 const C_MOVING := Color("ffb347")
@@ -45,14 +46,18 @@ func _process(delta: float) -> void:
 # 时钟: 帧间推进 + 快照纠偏
 # ---------------------------------------------------------------------------
 func _advance_clock(delta: float) -> void:
+	var target := float(Store.tick)
 	if Store.tps <= 0.0:                     # 暂停 → 直接对齐真值
-		_tick_f = float(Store.tick)
+		_tick_f = target
 		return
-	var diff := float(Store.tick) - _tick_f
-	if absf(diff) > SYNC_SNAP:               # 首帧 / 切场景 / 严重漂移
-		_tick_f = float(Store.tick)
+	if absf(target - _tick_f) > SYNC_SNAP:   # 首帧 / 切场景 / 严重漂移
+		_tick_f = target
 		return
-	_tick_f += delta * Store.tps + diff * Interp.frame_alpha(delta, FOLLOW_K)
+	# 按标称速度外推, 但【不允许超前服务端太多】。
+	# 高倍率下服务端往往跑不到标称 tps, 客户端却按标称外推 →
+	# 每帧都被纠偏拽回来 = 走在路上疯狂前后抖动。
+	# 宁可停在服务端已推进的位置上等一等。
+	_tick_f = minf(_tick_f + delta * Store.tps, target + LOOKAHEAD)
 
 
 # ---------------------------------------------------------------------------

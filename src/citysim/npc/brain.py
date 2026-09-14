@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import math
+
 from typing import Mapping
 
 from citysim.core.config import SimConfig
@@ -60,6 +62,7 @@ FORGET_DEFAULT = 0.1  # remember 低于此 → 遗忘删除(默认阈值)
 
 # 默认的位移成本(无路网/无成本矩阵时的降级): 固定 tick。
 DEFAULT_TRAVEL_TICKS = 30
+MAX_BUY_QTY = 30      # 单次购买上限(只是防手滑; 真正的量由目标存量决定)
 
 
 def forget(mem: MemBase, now_tick: int, half_life_ticks: int,
@@ -152,6 +155,27 @@ def _home_stock(mem: MemBase, home: str) -> dict[str, float]:
     return out
 
 
+def _stock_target(cfg: SimConfig, sig: str, value: float,
+                  shelf_life: int, thrift: float) -> float:
+    """我该囤多少【份】(不是 0..1, 就是份数)。
+
+        每天消耗份数 = (-metabolism[sig] × ticks_per_day) / value
+        目标 = 每天消耗份数 × 保质期天数 × stock_fill × thrift
+
+    —— “在它坏掉之前我吃得完多少”。短保的东西自然囤得少。
+    不会坏的东西(无保质期)按 stock_default_days 算。
+    """
+    if value <= 0.0:
+        return 0.0
+    daily_drain = -min(0.0, float(cfg.metabolism.get(sig, 0.0)))         * float(cfg.ticks_per_day)
+    if daily_drain <= 0.0:
+        return 0.0
+    per_day = daily_drain / value                     # 每天吃几份
+    days = (float(shelf_life) / float(cfg.ticks_per_day)
+            if shelf_life > 0 else cfg.stock_default_days)
+    return per_day * days * cfg.stock_fill * max(0.0, float(thrift))
+
+
 def _future_need(cfg: SimConfig, have: float, sig: str, value: float,
                  shelf_life: int, thrift: float) -> float:
     """【预期需求】= 家里缺口 / 目标存量(0..1)。
@@ -164,15 +188,7 @@ def _future_need(cfg: SimConfig, have: float, sig: str, value: float,
     —— 即“在它坏掉之前我吃得完多少”。所以**短保的东西自然囤得少**。
     不会坏的东西(无保质期)按 stock_default_days 算。
     """
-    if value <= 0.0:
-        return 0.0
-    daily_drain = -min(0.0, float(cfg.metabolism.get(sig, 0.0)))         * float(cfg.ticks_per_day)
-    if daily_drain <= 0.0:
-        return 0.0
-    per_day = daily_drain / value                     # 每天吃几份
-    days = (float(shelf_life) / float(cfg.ticks_per_day)
-            if shelf_life > 0 else cfg.stock_default_days)
-    target = per_day * days * cfg.stock_fill * max(0.0, float(thrift))
+    target = _stock_target(cfg, sig, value, shelf_life, thrift)
     if target <= 0.0:
         return 0.0
     return min(1.0, max(0.0, (target - have) / target))
@@ -187,6 +203,7 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
     只要能提供点什么(afford 非空 且 value>0)就是候选。
     “值不值得做”全部交给后面的得分与阀值; 这里只看两个硬事实:
       - afford/value 缺失 → 这条记忆没告诉我能得到什么;
+      - stock == 0: 空的东西不值得跑一趟(-1 = 无限, 不算空);
       - cool_until: 刚失败过的别马上再试(防重试死循环)。
 
     need = max(眼前的缺口, w × 未来的缺口)
@@ -203,16 +220,26 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
         sig = row.afford
         if not sig or row.value <= 0:
             continue
+        if int(getattr(row, "stock", -1)) == 0:
+            continue          # 空的(已消耗/已变质) —— 别去
         need = 1.0 - float(signals.get(sig, 1.0))
         # 缺口只驱动【补货】(出门/买), 不驱动“把家里最后一点吃掉”
         # —— 后者只会把存货变得更少。所以只在不位于本家时才加预期需求。
+        # 该买几份: 补到目标存量为止(不再是“一次只买一个”)
+        want = 1
         if stock and cfg is not None and row.located != home:
-            fut = _future_need(cfg, stock.get(sig, 0.0), sig, row.value,
+            have = float(stock.get(sig, 0.0))
+            target = _stock_target(cfg, sig, row.value,
+                                   int(getattr(row, "shelf_life_ticks", 0)),
+                                   thrift)
+            fut = _future_need(cfg, have, sig, row.value,
                                int(getattr(row, "shelf_life_ticks", 0)),
                                thrift)
             if fut > 0.0:
                 need = max(need, future_weight * fut)
-        out.append((row, sig, need))
+            if target > 0.0:
+                want = max(1, int(math.ceil(target - have)))
+        out.append((row, sig, need, want))
     return out
 
 
@@ -236,7 +263,7 @@ def _score_candidates(cands, personality: Mapping[str, float],
     power = cfg.utility_power
     needs: dict[str, float] = {}
     scored = []
-    for row, sig, need in cands:
+    for row, sig, need, want in cands:
         needs[sig] = need
         base = (need ** power) * row.value \
             * float(personality.get(sig, 1.0)) * row.believe
@@ -254,7 +281,7 @@ def _score_candidates(cands, personality: Mapping[str, float],
             cost += cfg.time_value * ticks            # 走路的时间成本
         cost += float(row.price) * (1.0 - row.believe)   # 不确定的便宜要打折
         eff = base / (1.0 + cfg.cost_lambda * cost)
-        scored.append((row.item_id, sig, eff, row.located, row))
+        scored.append((row.item_id, sig, eff, row.located, row, want))
     scored.sort(key=lambda x: (-x[2], x[0]))
     ranked = tuple((s[0], round(s[2], 4)) for s in scored)
     relevant = tuple(sorted(needs.items(), key=lambda kv: (-kv[1], kv[0])))
@@ -270,7 +297,7 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
     自己的/免费公共 → Interact; **在售 → Buy**(要付钱)。
     """
     thresh = cfg.utility_threshold
-    for item_id, sig, eff, loc, row in scored:
+    for item_id, sig, eff, loc, row, want in scored:
         if eff <= thresh:
             continue
         # 能不能用: 自己的 / 自己家里的(共享) / 无主免费公共; 【在售】→ 买
@@ -292,11 +319,12 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
                     used_fact_ids=(),
                     relevant_signals=relevant)), eff
         if for_sale:                      # 在店里 → 付钱买(不再白拿)
+            qty = max(1, min(int(want), MAX_BUY_QTY))   # 一次补到目标存量
             return Buy(
-                item_id=item_id,
+                item_id=item_id, qty=qty,
                 trace=DecisionTrace(
                     ranked=ranked,
-                    reason=f"买 {item_id} (¥{row.price:g}, score={eff:.3f})",
+                    reason=f"买 {item_id} ×{qty} (¥{row.price:g}, score={eff:.3f})",
                     used_fact_ids=(),
                     relevant_signals=relevant)), eff
         return Interact(

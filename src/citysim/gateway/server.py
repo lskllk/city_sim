@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import time
 import json
 import sys
 from pathlib import Path
@@ -247,21 +248,37 @@ class SimRunner:
         return out
 
     async def loop(self) -> None:
+        """固定 60Hz 推送 (PUSH_HZ), 与倍率无关。
+
+        关键: 给【推进】设时间预算 —— 一轮最多花 70% 的间隔在算 tick 上,
+        剩下的时间一定留给推送。否则 1000x 会把单轮拖到几十毫秒,
+        推送频率掉到 20~30Hz, 前端就看不到 60Hz 的帧了。
+        推进不完的 tick 留到下一轮(但设上限, 不许无限积压)。
+        """
         interval = 1.0 / PUSH_HZ
+        budget = interval * 0.7
         acc = 0.0                      # 分数 tick 累加器, 精确实现 1x=1tick/s
         while True:
+            t0 = time.perf_counter()
             tps = SPEED_TPS[self.speed]
             if tps == 0:
                 acc = 0.0
-                await asyncio.sleep(interval)
             else:
                 acc += tps * interval
                 n = int(acc)
-                if n > 0:
-                    self.advance(n)
-                    acc -= n
-                await asyncio.sleep(interval)
+                done = 0
+                while done < n:
+                    self.advance(1)
+                    done += 1
+                    if time.perf_counter() - t0 >= budget:
+                        break
+                acc -= done
+                # 防雪球: 最多积压两个间隔的量(跑不动就认了, 不拖垮推送)
+                acc = min(acc, max(1.0, tps * interval * 2.0))
             await self.push()
+            rest = interval - (time.perf_counter() - t0)
+            if rest > 0:
+                await asyncio.sleep(rest)
 
     async def push(self) -> None:
         if not self.clients:

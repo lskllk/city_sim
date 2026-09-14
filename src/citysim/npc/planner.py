@@ -89,56 +89,18 @@ def _at_minute(item: Mapping[str, Any]) -> int | None:
 
 
 # ----------------------------------------------------------------------
-# 规则模板(降级路径)—— 只用已知目标, 保证能跑
+# 规则模板(降级路径) —— 只产出【工作/上学】这类承诺
 # ----------------------------------------------------------------------
-_MEALS: tuple[tuple[int, str], ...] = (
-    (7 * 60, "hunger"), (12 * 60, "hunger"), (18 * 60, "hunger"),
-)
-_SLEEP: tuple[tuple[int, str], ...] = ((22 * 60, "energy"),)
-
-
-def _usable(inp: PlannerInput, k: KnownItem) -> bool:
-    """这个目标我能【免费用】吗: 自己的, 或 无主且不卖钱。"""
-    if k.owner:
-        return k.owner == inp.person_id
-    return k.price <= 0.0
-
-
-def _pick(inp: PlannerInput, signal: str) -> tuple[KnownItem, bool] | None:
-    """按需求选一个已知目标。
-
-    返回 (目标, 能不能免费用):
-      1) 优先【能免费用】的(自己的 / 无主免费), 且优先在家;
-      2) 家里没有的才退而挑【可买的】(店里的货) —— 那就得付钱。
-    保持输入顺序 → 确定性。
-    """
-    live = [k for k in inp.known if k.afford == signal and k.value > 0]
-    ok = [k for k in live if _usable(inp, k)]
-    pick = ok or [k for k in live if k.price > 0]
-    if not pick:
-        return None
-    home = [k for k in pick if k.located == inp.home]
-    return ((home or pick)[0], bool(ok))
-
+# 2026-09-14: 删掉“三餐 + 睡觉”。
+#   吃饭/睡觉是【需求】, 由 utility 主导(energy 到点自然去睡) ——
+#   写进计划表等于用时钟驱动行为, 违反“数据里不出现 时刻→行为”。
+#   计划表只留【有事在等人】的承诺: 上班 / 上学 / 约会。
+# 现状: roles.json 还没做 → 没有工作锚点 → 模板返回空(纯 utility 驱动)。
+# TODO(roles): 读 config/roles.json, 按 role/@affiliation 编译工作锚点。
 
 def template_plan(inp: PlannerInput) -> list[PlanEntry]:
-    """规则模板: 三餐 + 晚上睡觉。缺失的目标直接跳过(交给 reflex 兜底)。
-
-    家里有饭 → Interact(在家吃); 家里没有但知道哪有卖的 → **Buy(出门买, 付钱)**。
-    **不会把“店里的苹果”当成“在家吃饭”的目标** —— 那是白拿。
-    """
-    entries: list[PlanEntry] = []
-    seq = 0
-    for minute, signal in (*_MEALS, *_SLEEP):
-        got = _pick(inp, signal)
-        if got is None:
-            continue
-        item, usable = got
-        seq += 1
-        intent = Interact(item.item_id) if usable else Buy(item.item_id, qty=1)
-        entries.append(PlanEntry(f"t{seq}", inp.day_start_tick + minute, intent))
-    entries.sort(key=lambda e: e.at_tick)      # 稳定: 同刻保持生成顺序
-    return entries
+    """规则模板: 只出【工作锚点】。没有工作的角色 → 空计划(交给 utility)。"""
+    return []
 
 
 # ----------------------------------------------------------------------

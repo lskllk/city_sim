@@ -192,7 +192,8 @@ def _deliver(world, pid: str, npc, shop, qty: int, home: str):
     e = entity_from_def(d, home)
     e.owner = pid
     e.stock = qty
-    e.persist_empty = True
+    # 不设 persist_empty: 食物是消耗品 —— 吃光/坏掉就该销毁
+    # (货架那种“空着也要留着”的才在 itemdef 里写 persist_empty=true)
     # 以【实际卖出那件货】的保质期为准(shop 的 shelf_life 本就是从 itemdef 带入的),
     # 这样两分支口径一致; 也让测试/场景可以改单件货的保质期。
     e.shelf_life_ticks = shelf
@@ -359,6 +360,11 @@ def tick(world, systems, cfg: SimConfig) -> None:
             world.bus.publish(world.bus.make(
                 world.clock_tick, "spoiled", eid,
                 {"item_type": e.item_type, "loc": e.location_id}))
+            # 【数量为 0 就销毁】: 除非它是货架/容器(persist_empty)
+            if not e.persist_empty:
+                world.entities.pop(eid, None)
+                for other in world.npcs.values():
+                    other.forget_item(eid)     # 别人脑子里的那行也清掉
 
 
     # 1. 心跳(身体演化收进 Person; 世界只广播, 不改 signals): 代谢+hp+排泄

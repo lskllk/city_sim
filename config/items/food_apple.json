@@ -9,7 +9,13 @@
     "hunger": 0.35
   },
   "duration_ticks": 12,
-  "on_start": [],
+  "on_start": [
+    {
+      "op": "add_pending",
+      "field": "bladder_pending",
+      "amount": 0.15
+    }
+  ],
   "on_complete": [],
   "attrs": {},
   "stock": 1,

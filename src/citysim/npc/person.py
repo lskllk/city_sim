@@ -264,15 +264,19 @@ class Person:
         apply_metabolism(self._signals, cfg.metabolism,
                          personality_mul=self._personality,
                          activity_mul=amul or None)
-        # hp: 饥饿/精力任一为 0 → 降; 两者都满足 → 越大回升越快
+        # hp 三态(plan.md §3.7):
+        #   0 或 energy == 0 → 降;  两者都 ≥ floor → 升;  中间带 → 不动
+        # 注: bladder 不参与(憋不住不致命)。
         hunger = self._signals.get("hunger", 1.0)
         energy = self._signals.get("energy", 1.0)
         hp = self._signals.get("hp", 1.0)
+        floor = cfg.hp_regen_floor
         if hunger <= 0.0 or energy <= 0.0:
             self._signals["hp"] = max(0.0, hp - cfg.hp_decay)
-        else:
+        elif hunger >= floor and energy >= floor:
             rate = (hunger + energy) / 2.0
             self._signals["hp"] = min(1.0, hp + cfg.hp_regen * rate)
+        # else: 中间带 —— 不动
         if self._signals.get("hp", 1.0) <= 0.0:
             return False
         # 排泄: pending → 膀胱
@@ -444,14 +448,18 @@ class Person:
 
             # 1) 手上正做着事
             if self._goal is not None:
-                # 1a) 有了【明显更好的事】→ 改主意(迟滞: 好 preempt_ratio 倍)
+                # 1a) 【命比日程大】: hp 见底 → 日程立即失去拉力(不看迟滞)
+                if self._goal.source == "plan" and self._hp_low(cfg):
+                    self._abandon()
+                    continue
+                # 1b) 有了【明显更好的事】→ 改主意(迟滞: 好 preempt_ratio 倍)
                 #     需求轨不尊重 can_preempt: 快饿死时该把人从被窝里拽起来。
                 bar = max(self._goal.score, cfg.utility_threshold) \
                     * cfg.preempt_ratio
                 if cand is not None and eff > bar:
                     self._abandon()
                     continue
-                # 1b) 日程条目的窗口到期(下一条已到点) → 硬中止当前条目
+                # 1c) 日程条目的窗口到期(下一条已到点) → 硬中止当前条目
                 if self._goal.source == "plan" and can_preempt:
                     dl = self._schedule.deadline()
                     if dl is not None and now_tick >= dl:
@@ -469,12 +477,28 @@ class Person:
                 continue
 
             # 3) 没事可做 → 看日程(承诺/模板计划)
+            #    但 hp 见底时【不给日程】: 计划暂时挂起(不提交也不丢弃),
+            #    等 hp 回来再接着走 —— 否则会“放弃→重新选中→再放弃”转圈。
+            if self._hp_low(cfg):
+                return self._record(Decision(Idle(), "idle"))
             e = self._schedule.current()
             if e is None or now_tick < e.at_tick:
                 return self._record(Decision(Idle(), "idle"))
+            # D3: 这条的窗口已经过去了 → 跳过, 不补做。
+            # 窗口边界与 Schedule.deadline() 同一口径: **严格更晚**的下一条才构成截止;
+            # 同刻多条是同一组串行任务(如 MoveTo + Interact), 不能互相跳掉。
+            nxt = self._schedule.peek_next()
+            if (nxt is not None and nxt.at_tick > e.at_tick
+                    and nxt.at_tick <= now_tick):
+                self._schedule.drop()
+                continue
             self._schedule.commit()
             self._goal = _Goal("plan", e.intent)
             continue
+
+    def _hp_low(self, cfg: "SimConfig") -> bool:
+        """命快没了 → 日程失去拉力(先顾命)。"""
+        return self._signals.get("hp", 1.0) < cfg.hp_override
 
     def _abandon(self) -> None:
         """放弃当前目标: 计划来源的把该条标 dropped, 只清目标。"""

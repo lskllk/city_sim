@@ -33,9 +33,15 @@ time_value  = 0.05             # 走 1 tick 折合多少钱(决定“顺路”�
 move_ticks = 30                # 无路网时的固定耗时(MoveTo 降级)
 move_m_per_tick = 10.0         # 有路网时: 每 tick 可走米数(等价编辑器 travel 降级的 距离/10)
 
-[health]                       # 生命: 饥饿/口渴/精力任一为 0 时下降, 三者满足时回升
-hp_decay = 0.00034722222222222222   # 1/2880: 关键信号归零后约 2 天掉光 hp
-hp_regen = 0.00034722222222222222   # 三者满足时 hp 回升最大速率(×均值)
+[health]                       # 生命【三态】
+#   ↓  hunger==0 或 energy==0
+#   ↑  hunger ≥ hp_regen_floor 且 energy ≥ hp_regen_floor
+#   不动  中间带(否则咬一口饭 hp 就开始涨 => “饿死”永远发生不了)
+# 注: bladder 不参与 hp(憋不住不致命)。
+hp_decay = 0.00034722222222222222        # 1/2880: 归零后约 2 天掉光 hp
+hp_regen = 0.00034722222222222222        # 回升最大速率(× 饱食/精力的均值)
+hp_regen_floor = 0.5                     # “吃饱/睡够”的阀值
+hp_override = 0.5                        # hp 低于此 → 日程失去拉力(命比钱大)
 
 [social]                       # 传播(传闻)
 # 空闲时开口告诉同地别人一件事的概率(再乘各自的 tell_bias)。

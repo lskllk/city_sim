@@ -267,11 +267,12 @@ def _score_candidates(cands, personality: Mapping[str, float],
      成本里同时放了【钱】和【时间】 → 比价 / 比距离 / 顺路 都是同一个式子的结果。
      believe 项: “听说便宜”不如“亲眼看到便宜”可靠(κ = 1)。
      """
-    power = cfg.utility_power
     needs: dict[str, float] = {}
     scored = []
     for row, sig, need, want, driver in cands:
         needs[sig] = need
+        # 每种需求可以有自己的幂次(精力要钝: 不太困就别去躺)
+        power = cfg.power_by_signal.get(sig, cfg.utility_power)
         base = (need ** power) * row.value \
             * float(personality.get(sig, 1.0)) * row.believe
         # 买得起吗 —— 要按【打算买几件】算, 不是按单价!

@@ -32,6 +32,9 @@ class SimConfig:
     bladder_convert: float
     half_life_ticks: int = 2880   # M5 知识半衰期(tick; 2 天)
     utility_power: float = 3.0     # 需求急迫度幂次(m5-rectify 13)
+    # 每种需求可以有自己的幂次 —— power 越大, “不太困/不太饿”时分数越低,
+    # 于是【不到真难受就不去】。精力尤其需要钝一点: 否则一累就去躺。
+    power_by_signal: dict[str, float] = field(default_factory=dict)
     # 【唯一阈值】就设在这里(得分上), 不再有"候选收集门槛"那一层。
     # 低于此分什么都不做 —— 它同时承担了"琐碎需求别动"与"别乱走"两件事。
     utility_threshold: float = 0.05
@@ -103,6 +106,8 @@ class SimConfig:
             bladder_convert=float(data["bladder"]["convert_per_tick"]),
             half_life_ticks=int(data.get("knowledge", {}).get("half_life_ticks", 2880)),
             utility_power=float(util.get("power", 3.0)),
+            power_by_signal={str(k): float(v) for k, v in
+                             (util.get("power_by_signal") or {}).items()},
             utility_threshold=float(util.get("threshold", 0.05)),
             move_ticks=int(data.get("motion", {}).get("move_ticks", 30)),
             move_m_per_tick=float(data.get("motion", {}).get("move_m_per_tick", 10.0)),

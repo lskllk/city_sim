@@ -104,14 +104,23 @@ def apply_metabolism(
     deltas: Mapping[str, float],
     personality_mul: Mapping[str, float] | None = None,
     activity_mul: Mapping[str, float] | None = None,
+    rhythm_mul: Mapping[str, float] | None = None,
 ) -> None:
-    """原位应用一 tick 基础消耗, clamp 0..1。deltas 来自 SimConfig.metabolism。"""
+    """原位应用一 tick 基础消耗, clamp 0..1。deltas 来自 SimConfig.metabolism。
+
+    总系数 = personality × activity × rhythm
+      · personality —— 个体差异(吃得快/累得快)
+      · activity    —— 在做什么(睡觉冻结 energy; 干活掉得快)
+      · rhythm      —— 昼夜倍率(夜里 energy 掉得快 → 困 → 去睡)
+    """
     pers = personality_mul or {}
     act = activity_mul or {}
+    rhy = rhythm_mul or {}
     for s, d in deltas.items():
         if d == 0.0 or s not in signals:
             continue
-        mul = float(pers.get(s, 1.0)) * float(act.get(s, 1.0))
+        mul = (float(pers.get(s, 1.0)) * float(act.get(s, 1.0))
+               * float(rhy.get(s, 1.0)))
         signals[s] = _clamp(signals[s] + d * mul)
 
 
@@ -245,11 +254,13 @@ class Person:
         self._personality = dict(mapping)
 
     def apply_metabolism(self, deltas: Mapping[str, float],
-                         activity_mul: Mapping[str, float] | None = None) -> None:
+                         activity_mul: Mapping[str, float] | None = None,
+                         rhythm_mul: Mapping[str, float] | None = None) -> None:
         """一 tick 基础消耗(内部走模块 apply_metabolism + 自身 personality)。"""
         apply_metabolism(self._signals, deltas,
                          personality_mul=self._personality,
-                         activity_mul=activity_mul)
+                         activity_mul=activity_mul,
+                         rhythm_mul=rhythm_mul)
 
     def heartbeat(self, now_tick: int, cfg: "SimConfig", *,
                   sleep: bool = False, busy: bool = False) -> bool:
@@ -258,12 +269,19 @@ class Person:
         顺序 = 代谢(睡眠冻结 energy; busy 暂不对任何信号生效) → hp(饿死/恢复) → 排泄(pending→膀胱)。
         返回是否仍存活(死则不再往下)。
         """
+        # 活动系数: 睡着冻结 energy; 在做事(交互/赶路)掉得更快; 空闲就是基准
         amul: dict[str, float] = {}
         if sleep:
             amul["energy"] = 0.0
+        elif busy:
+            amul["energy"] = cfg.busy_energy_mul
+        # 昼夜系数: 夜里 energy 掉得快 → 困 → 去睡(不是“到点睡觉”)
+        hour_f = (now_tick % max(1, cfg.ticks_per_day)) / 60.0
+        rmul: dict[str, float] = {"energy": cfg.rhythm_at(hour_f)}
         apply_metabolism(self._signals, cfg.metabolism,
                          personality_mul=self._personality,
-                         activity_mul=amul or None)
+                         activity_mul=amul or None,
+                         rhythm_mul=rmul)
         # hp 三态(plan.md §3.7):
         #   0 或 energy == 0 → 降;  两者都 ≥ floor → 升;  中间带 → 不动
         # 注: bladder 不参与(憋不住不致命)。

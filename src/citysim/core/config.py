@@ -56,6 +56,29 @@ class SimConfig:
     # 1.0 = 随时见异思迁(会抽风); 太大 = 快饿死了还在睡。
     preempt_ratio: float = 1.5
     tell_p: float = 0.3          # 传播概率(场景可覆盖; 0 = 不传谣)
+    # —— energy 的【昼夜倍率】(乘在 metabolism.energy 的基准消耗上) ——
+    # 白天慢、夜里快: 夜里掉得快 → 困 → 去睡(不是“到点睡觉”的脚本)。
+    # 控制点 [(当天分钟, 倍率)], 线性插值; 空 = 恒 1.0。
+    energy_rhythm: tuple[tuple[float, float], ...] = ()
+    busy_energy_mul: float = 1.8  # 在做事(交互/赶路)时额外消耗倍数
+
+    def rhythm_at(self, hour_f: float) -> float:
+        """hour_f(0..24) → energy 消耗倍率。纯函数, 供 heartbeat 每 tick 调用。"""
+        pts = self.energy_rhythm
+        if not pts:
+            return 1.0
+        minute = (float(hour_f) % 24.0) * 60.0
+        prev_m, prev_v = pts[0]
+        if minute <= prev_m:
+            return prev_v
+        for m, v in pts[1:]:
+            if minute <= m:
+                span = m - prev_m
+                if span <= 0.0:
+                    return v
+                return prev_v + (v - prev_v) * (minute - prev_m) / span
+            prev_m, prev_v = m, v
+        return prev_v
 
     @classmethod
     def from_toml(cls, data: dict[str, Any]) -> "SimConfig":
@@ -80,6 +103,11 @@ class SimConfig:
             time_value=float(util.get("time_value", 0.05)),
             preempt_ratio=float(util.get("preempt_ratio", 1.5)),
             tell_p=float(data.get("social", {}).get("tell_p", 0.3)),
+            energy_rhythm=tuple(
+                (float(m), float(v))
+                for m, v in data.get("energy_rhythm", {}).get("points", [])),
+            busy_energy_mul=float(
+                data.get("activity", {}).get("busy_energy_mul", 1.8)),
         )
 
 

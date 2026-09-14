@@ -108,16 +108,18 @@
   ],
   "knowledge": [
     {
-      "who": "all",
-      "from": "bld_004",
+      "believe": 0.8,
+      "from": "bld_008_f1",
       "items": [],
-      "believe": 0.8
+      "unit": "bld_008_f1",
+      "who": "unit"
     },
     {
-      "who": "all",
-      "from": "bld_007",
+      "believe": 0.8,
+      "from": "bld_008_f2",
       "items": [],
-      "believe": 0.8
+      "unit": "bld_008_f2",
+      "who": "unit"
     }
   ],
   "locations": {

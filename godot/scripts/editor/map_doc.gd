@@ -834,18 +834,43 @@ func total_capacity(bid: String) -> int:
 
 
 # --- 初始认知(场景级 knowledge) ----------------------------------------
+## 【有东西在卖的楼】= 至少一个实体的 price>0。数据驱动, 不看 kind。
+func shops() -> Array:
+	var out: Array = []
+	for bid in buildings:
+		var found := false
+		for u in unit_ids(bid):
+			for iid in items_at_unit(String(u)):
+				if float(items[iid].get("price", 0.0)) > 0.0:
+					found = true
+					break
+			if found:
+				break
+		if found:
+			out.append(String(bid))
+	out.sort()
+	return out
+
+
 ## 让一批人“知道”某处的货。
 ##
-## 作用范围是【当前编辑的那一层】(target_unit):
-##   · 该层住着人(住宅) → who="unit" —— 只有【这一家】知道, 不吵到别人;
-##   · 该层没人(商铺/公共) → who="all" —— 相当于“打广告, 全城都知道”。
-## from 也写单元 id: 货就放在那个单元里(bld_008_f1 / bld_004)。
-func add_knowledge(bid: String, believe: float) -> void:
+## 作用范围(first 参数 bid)是【当前编辑的那一层】(target_unit):
+##   · 该层住着人(住宅) → who="unit" —— 只让【这一家】知道;
+##     这时 from 应该是【一家卖东西的店】(由 from_bid 指定),
+##     语义 = “告诉这一家: 那家店在卖吃的”。
+##   · 该层没人(商铺/公共) → who="all", from = 它自己 —— 相当于“打广告”。
+func add_knowledge(bid: String, believe: float, from_bid: String = "") -> void:
 	if not buildings.has(bid):
 		return
 	var unit := target_unit(bid)
-	var who := "unit" if not npcs_at_unit(unit).is_empty() else "all"
-	knowledge.append({"who": who, "unit": unit, "from": unit, "items": [],
+	var has_people := not npcs_at_unit(unit).is_empty()
+	var src := String(from_bid) if from_bid != "" else unit
+	if not buildings.has(src):
+		src = unit
+	knowledge.append({
+		"who": "unit" if has_people else "all",
+		"unit": unit if has_people else "",
+		"from": src, "items": [],
 		"believe": clampf(believe, 0.05, 1.0)})
 	errors = validate()
 	changed.emit()
@@ -871,11 +896,13 @@ func knowledge_at(bid: String) -> Array:
 
 ## 规则的人类可读说明: “谁” + “关于哪里的货”。
 func knowledge_label(rule: Dictionary) -> String:
-	var unit := String(rule.get("unit", rule.get("from", "")))
 	var who := String(rule.get("who", "all"))
-	var who_txt := "所有人" if who == "all" else "这一家人(%s)" % (
-		unit if unit != "" else "?")
-	return "%s ← %s · 相信度 %.2f" % [who_txt, unit_display(unit),
+	var src := String(rule.get("from", ""))
+	var who_txt := "所有人"
+	if who == "unit":
+		var u := String(rule.get("unit", ""))
+		who_txt = "这一家人(%s)" % (unit_display(u) if u != "" else "?")
+	return "%s ← 知道 %s 的货 · %.2f" % [who_txt, unit_display(src),
 		float(rule.get("believe", 0.8))]
 
 

@@ -521,27 +521,47 @@ func _build_building(bid: String) -> void:
 				func() -> void: _view.select("item", String(iid))))
 	_inspector.add_child(isec)
 
-	# 认知: 场景级初始记忆 —— 一次让一批人“知道”这里的货
+	# 认知: 场景级初始记忆 —— “让这一家知道那家店在卖什么”
 	var ksec := _section("认知")
-	ksec.add_child(_muted("让 NPC 一开始就知道这里的货(= 广告 / 听人说)
-作用范围 = 当前编辑层"))
+	var kunit := MapDoc.target_unit(bid)
+	var kpeople := MapDoc.npcs_at_unit(kunit)
+	var shop_ids: Array = MapDoc.shops()
+	# 有住户 → 告诉“这一家”；没住户(商铺/公共) → 等于打广告
+	var kwho_all := kpeople.is_empty()
+	if kwho_all:
+		ksec.add_child(_muted("让 NPC 一开始就知道这里的货(= 广告 / 听人说)"))
+	else:
+		ksec.add_child(_muted("让【这一家】一开始就知道某家店的货(= 告诉他去哪买)"))
 	var kbel := _spin(0.1, 1.0, 0.05)
 	kbel.value = 0.8
 	ksec.add_child(_lrow("相信度", kbel))
-	# 作用范围 = 当前编辑层: 有住户 → 只告诉这一家; 没住户(商铺) → 等于打广告
-	var kunit := MapDoc.target_unit(bid)
-	var kwho_all := MapDoc.npcs_at_unit(kunit).is_empty()
+	var kshop_sel: OptionButton = null
+	var kshop_ids: Array = []
+	if kwho_all:
+		kshop_ids = [String(bid)]
+	else:
+		kshop_ids = shop_ids.duplicate()
+		if kshop_ids.is_empty():
+			kshop_ids = [String(bid)]          # 场景里还没有卖东西的楼
+		kshop_sel = OptionButton.new()
+		for sid in kshop_ids:
+			kshop_sel.add_item("%s (在卖)" % MapDoc.building_name(String(sid)))
+		kshop_sel.selected = 0
+		ksec.add_child(_lrow("哪家店", kshop_sel))
 	var kadd := Button.new()
 	kadd.text = ("让所有人知道这里的货" if kwho_all
-		else "让这一家人知道这里的货")
+		else "让这一家人知道这家店的货")
 	kadd.tooltip_text = ("该层没有住户 → 相当于打广告: 全城 NPC 初始就知道。"
 		if kwho_all else
-		"只让【这一层这一家人】初始知道他们这里有什么(不吵到别人)。")
+		"只让【这一层这一家人】知道那家店在卖什么(不吵到别人)。")
 	kadd.pressed.connect(func() -> void:
-		MapDoc.add_knowledge(bid, kbel.value)
-		_refresh_status("已记录认知: %s (%s, 相信度 %.2f)" % [
-			MapDoc.unit_display(kunit),
-			("所有人" if kwho_all else "这一家人"), kbel.value]))
+		var src := String(bid)
+		if kshop_sel != null and kshop_sel.selected >= 0 and kshop_sel.selected < kshop_ids.size():
+			src = String(kshop_ids[kshop_sel.selected])
+		MapDoc.add_knowledge(bid, kbel.value, src)
+		_refresh_status("已记录认知: %s ← 知道 %s 的货 (%.2f)" % [
+			("所有人" if kwho_all else MapDoc.unit_display(kunit)),
+			MapDoc.unit_display(src), kbel.value]))
 	ksec.add_child(kadd)
 	var krules := MapDoc.knowledge_at(bid)
 	if krules.is_empty():

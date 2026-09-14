@@ -1,7 +1,7 @@
 # backend.gd —— 可选: Godot 启动时自动拉起 Python 后端(autoload 名 `Backend`)。
 #
 # 行为:
-#   1. 先探测 ws 端口是否已在监听(如 run.cmd 已起后端) → 在跑就不重复启动。
+#   1. 先探测 ws 端口是否已在监听(如手动起的后端) → 在跑就不重复启动。
 #   2. 没在跑 → 按候选解释器依次拉起 uvicorn, 拉起后等端口就绪才算成功;
 #      失败的候选(如 Windows Store 的 python 占位符 / 缺依赖)会被跳过并试下一个。
 #   3. Godot 退出时 OS.kill 收掉自己拉起的进程(不影响外部已存在的后端)。
@@ -10,7 +10,8 @@
 #   CITYSIM_NO_AUTOSTART=1     关闭自动启动
 #   CITYSIM_PYTHON=...         python 可执行文件(显式指定, 最高优先)
 #   CITYSIM_WS_URL=ws://...    后端端点(默认 ws://127.0.0.1:8765/ws)
-#   CITYSIM_BACKEND_CONSOLE=0  不弹后端控制台窗口(默认弹, 便于看日志)
+#   CITYSIM_BACKEND_CONSOLE=1  弹后端控制台窗口(默认【不弹】, 后台隐藏运行)
+#        不弹时日志写在仓库根的 .logs/backend.log(后端自己落盘)。
 extends Node
 
 const READY_TIMEOUT_MS := 8000
@@ -114,9 +115,14 @@ func _discover_windows_pythons() -> PackedStringArray:
 func _spawn(port: int) -> void:
 	var root := _repo_root()
 	OS.set_environment("PYTHONPATH", root.path_join("src"))
-	var open_console := OS.get_environment("CITYSIM_BACKEND_CONSOLE") != "0"
-	if OS.get_environment("CITYSIM_BACKEND_CONSOLE") == "":
-		open_console = bool(Settings.get_value("backend", "console", true))
+	# 默认【不弹】控制台窗口(后台静默); 日志见 .logs/backend.log。
+	# 要实时看日志: CITYSIM_BACKEND_CONSOLE=1 或设置 backend/console=true。
+	var console_env := OS.get_environment("CITYSIM_BACKEND_CONSOLE").strip_edges()
+	var open_console := false
+	if console_env == "1":
+		open_console = true
+	elif console_env == "":
+		open_console = bool(Settings.get_value("backend", "console", false))
 	var tried: Array = []
 	for cand in _candidates() as Array:
 		var exe: String = cand["exe"]
@@ -138,7 +144,8 @@ func _spawn(port: int) -> void:
 		push_warning("[Backend] '%s' 拉起后端口 %d 未就绪, 尝试下一个解释器" % [exe, port])
 	push_warning("[Backend] 自动启动失败(已尝试: %s)。请确认已安装 viz 依赖 "
 		% ", ".join(tried)
-		+ "(python -m pip install -e \".[viz]\"), 或手动运行 run.cmd")
+		+ "(python -m pip install -e \".[viz]\"); 也可自己开终端跑 "
+		+ "python -m uvicorn citysim.gateway.server:app")
 
 
 func _port_open(host: String, port: int, timeout_ms: int) -> bool:

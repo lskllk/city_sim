@@ -14,6 +14,7 @@ enum Tool { SELECT, PLACE, ROAD, NPC, ITEM }
 const C_NPC_M := Color("4aa3ff")     # 男性
 const C_NPC_F := Color("ff7ab8")     # 女性
 const C_ITEM := Color("9ad36b")
+const C_FLOOR := Color("c9a4ff")    # 楼层角标
 
 const C_BG := Color("0f1319")
 const C_GRID := Color("1b232d")
@@ -118,50 +119,41 @@ func _draw() -> void:
 	_draw_bounds()
 	_draw_edges()
 	_draw_buildings()
-	_draw_items()
-	_draw_npcs()
+	_draw_badges()
 	_draw_nodes()
 	_draw_errors()
 	_draw_ghost()
 
 
-func _draw_npcs() -> void:
-	var font := get_theme_default_font()
-	for pid in MapDoc.npcs:
-		var n: Dictionary = MapDoc.npcs[pid]
-		var home := String(n.get("home", ""))
-		if home == "" or not MapDoc.buildings.has(home):
-			continue
-		var mates: Array = MapDoc.npcs_at(home)
-		var idx := mates.find(pid)
-		var c := w2s(MapDoc.buildings[home]["center"])
-		var pos := BuildingGeom.npc_marker_pos(c, idx, mates.size(), 20.0, 20.0)
-		var sel: bool = sel_kind == "npc" and sel_id == pid
-		var col: Color = C_NPC_F if String(n.get("gender", "")) == "female" else C_NPC_M
-		draw_circle(pos, 8.0, col)
-		draw_arc(pos, 8.0, 0.0, TAU, 20, Color.WHITE if sel else Color("0f1319"), 2.0)
-		if font != null:
-			var label := String(n.get("name", pid))
-			var sz := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11)
-			draw_string(font, pos + Vector2(-sz.x * 0.5, -13.0), label,
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("dfe8f5"))
-
-
-func _draw_items() -> void:
+## 建筑角标(不画人/不画姓名, 只看三个数): 人 N · 物 N · 共 N 层。
+## 格子固定: 0=人(恒显) 1=物(恒显) 2=层(仅 floors>1) → 无缺口。
+func _draw_badges() -> void:
 	for bid in MapDoc.buildings:
-		var ids: Array = MapDoc.items_at(bid)
-		if ids.is_empty():
-			continue
 		var b: Dictionary = MapDoc.buildings[bid]
 		var s: Vector2 = b["size"]
-		var top_left := w2s((b["center"] as Vector2) - s * 0.5)
-		var badge := BuildingGeom.item_badge_rect(top_left)
-		draw_rect(badge, Color(C_ITEM.r, C_ITEM.g, C_ITEM.b, 0.92), true)
-		draw_rect(badge, Color(1, 1, 1, 0.35), false, 1.0)
-		var font := get_theme_default_font()
-		if font != null:
-			draw_string(font, badge.position + Vector2(4, 12), "物 %d" % ids.size(),
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("12200a"))
+		var tl := w2s((b["center"] as Vector2) - s * 0.5)
+		# 角标贴合建筑框 + LOD: 楼太小就不画(字必糊)
+		var k := BuildingGeom.badge_scale(Rect2(tl, s * zoom))
+		if k < BuildingGeom.LOD_DETAIL:
+			continue
+		_count_badge(BuildingGeom.badge_rect(tl, 0, 36.0, 16.0, k),
+			"人 %d" % MapDoc.npcs_at(bid).size(), C_NPC_M, k)
+		_count_badge(BuildingGeom.badge_rect(tl, 1, 36.0, 16.0, k),
+			"物 %d" % MapDoc.items_at(bid).size(), C_ITEM, k)
+		var nf: int = MapDoc.unit_ids(bid).size()
+		if nf > 1:
+			_count_badge(BuildingGeom.badge_rect(tl, 2, 34.0, 16.0, k),
+				"共 %d 层" % nf, C_FLOOR, k)
+
+
+func _count_badge(rect: Rect2, text: String, col: Color, k: float = 1.0) -> void:
+	draw_rect(rect, Color(col.r, col.g, col.b, 0.92), true)
+	draw_rect(rect, Color(1, 1, 1, 0.35), false, 1.0)
+	var font := get_theme_default_font()
+	if font != null:
+		draw_string(font, rect.position + Vector2(4.0 * k, rect.size.y * 0.75), text,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, maxi(8, int(round(10.0 * k))),
+			Color("101820"))
 
 
 func _draw_grid() -> void:
@@ -474,10 +466,15 @@ func _on_left_press(pos: Vector2) -> void:
 			if bid == "":
 				status_message.emit("点一个建筑, 在此安置人物")
 				return
-			var pid := MapDoc.add_npc(bid)
-			if pid != "":
-				select("npc", pid)
-				status_message.emit("已新增人物 %s @ %s" % [pid, bid])
+			var r: Dictionary = MapDoc.add_resident(bid)
+			if not bool(r.get("ok", false)):
+				status_message.emit("%s %s" % [
+					MapDoc.unit_display(String(r.get("unit", bid))),
+					r.get("reason", "新增失败")])
+				return
+			var pid := String(r["pid"])
+			# 不进人物编辑页(留在原地); 人物在建筑的【人员】列表里
+			status_message.emit("已新增人物 %s @ %s" % [pid, MapDoc.unit_display(String(r["unit"]))])
 		Tool.ITEM:
 			var bid2 := _building_at(s2w(pos))
 			if placing_item_type == "":
@@ -486,10 +483,11 @@ func _on_left_press(pos: Vector2) -> void:
 			if bid2 == "":
 				status_message.emit("点一个建筑, 把物件放进去")
 				return
-			var iid := MapDoc.add_item(placing_item_type, bid2)
+			var unit := MapDoc.target_unit(bid2)
+			var iid := MapDoc.add_item(placing_item_type, unit)
 			if iid != "":
-				select("item", iid)
-				status_message.emit("已放置 %s @ %s" % [iid, bid2])
+				# 不进物件编辑页(留在原地)
+				status_message.emit("已放置 %s @ %s" % [iid, MapDoc.unit_display(unit)])
 		Tool.ROAD:
 			_road_click(pos)
 			queue_redraw()
@@ -583,18 +581,7 @@ func _building_at(wp: Vector2) -> String:
 	return ""
 
 
-func _npc_at(pos: Vector2) -> String:
-	for pid in MapDoc.npcs:
-		var home := String(MapDoc.npcs[pid].get("home", ""))
-		if home == "" or not MapDoc.buildings.has(home):
-			continue
-		var mates: Array = MapDoc.npcs_at(home)
-		var idx := mates.find(pid)
-		var c := w2s(MapDoc.buildings[home]["center"])
-		var p := BuildingGeom.npc_marker_pos(c, idx, mates.size(), 20.0, 20.0)
-		if p.distance_to(pos) <= 10.0:
-			return pid
-	return ""
+## 编辑器不在图上画人 → 也不在图上点选人(从右侧【人员】列表进详情)。
 
 
 func _item_at(pos: Vector2) -> String:
@@ -605,15 +592,16 @@ func _item_at(pos: Vector2) -> String:
 		var b: Dictionary = MapDoc.buildings[bid]
 		var s: Vector2 = b["size"]
 		var tl := w2s((b["center"] as Vector2) - s * 0.5)
-		if BuildingGeom.item_badge_rect(tl).has_point(pos):
+		# 与 _draw_badges 同一缩放/LOD, 否则点不中(或点中看不见的)
+		var k := BuildingGeom.badge_scale(Rect2(tl, s * zoom))
+		if k < BuildingGeom.LOD_DETAIL:
+			continue
+		if BuildingGeom.badge_rect(tl, 1, 36.0, 16.0, k).has_point(pos):
 			return String(ids[0])
 	return ""
 
 
 func _hit(pos: Vector2) -> Dictionary:
-	var npc := _npc_at(pos)
-	if npc != "":
-		return {"kind": "npc", "id": npc}
 	var it := _item_at(pos)
 	if it != "":
 		return {"kind": "item", "id": it}
@@ -672,7 +660,7 @@ func _tool_hint() -> String:
 		Tool.ROAD:
 			return "连线模式: 点落点(自动吸附 节点/门口/路中); 连续点成路; 右键/Esc 结束"
 		Tool.NPC:
-			return "人物模式: 点建筑 → 新增随机人物"
+			return "人物模式: 点建筑 → 在当前层加随机人物(住满则不加)"
 		Tool.ITEM:
 			return "物件模式: 选好物件类型后点建筑放入"
 		_:

@@ -160,6 +160,17 @@ mouse_filter = 2
 text = "Day 1 · 00:00"
 horizontal_alignment = 2
 
+[node name="NetLabel" type="Label" parent="Root/Left/WorldCanvas/HUD"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.501961, 0.627451, 0.717647, 1)
+theme_override_font_sizes/font_size = 12
+text = "↓ — · ↑ —"
+horizontal_alignment = 2
+tooltip_text = "前后端数据吞吐(WebSocket 载荷, 每秒)"
+
 [node name="RateBar" type="HBoxContainer" parent="Root/Left/WorldCanvas/HUD"]
 unique_name_in_owner = true
 layout_mode = 2

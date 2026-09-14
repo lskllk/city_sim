@@ -25,6 +25,7 @@ const RATE_BY_NODE := {
 @onready var _sel_label: Label = %SelLabel
 @onready var _money_label: Label = %MoneyLabel
 @onready var _clock_label: Label = %ClockLabel
+@onready var _net_label: Label = %NetLabel
 @onready var _rate_bar: HBoxContainer = %RateBar
 @onready var _conn_banner: Label = %ConnBanner
 @onready var _hover_tip: PanelContainer = %HoverTip
@@ -53,6 +54,7 @@ func _ready() -> void:
 		_rate_buttons[spd] = btn
 		btn.pressed.connect(func(): Commands.cmd("set_speed", {"speed": spd}))
 
+	Net.rate_changed.connect(_refresh_net)      # 前后端吞吐率(HUD)
 	Store.hello_received.connect(_refresh_world)
 	Store.snapshot_applied.connect(_on_snapshot)
 	Store.selection_changed.connect(_on_selection)
@@ -61,6 +63,21 @@ func _ready() -> void:
 
 	_refresh_world()
 	_refresh_hud()
+	_refresh_net()
+
+
+## HUD: 前后端数据吞吐率(WS 载荷字节/秒)。
+func _refresh_net() -> void:
+	_net_label.text = "↓ %s/s · ↑ %s/s" % [_fmt_bytes(Net.rx_rate()),
+		_fmt_bytes(Net.tx_rate())]
+
+
+static func _fmt_bytes(v: float) -> String:
+	if v >= 1048576.0:
+		return "%.2f MB" % (v / 1048576.0)
+	if v >= 1024.0:
+		return "%.1f KB" % (v / 1024.0)
+	return "%d B" % int(v)
 
 
 func _notification(what: int) -> void:

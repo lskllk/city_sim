@@ -143,6 +143,14 @@ func _build_right_panel() -> VBoxContainer:
 		tools.add_child(b)
 	_base_page.add_child(tools)
 
+	# --- 人口: 一键填满(所有住宅的每一层) ---
+	_base_page.add_child(_header("人口"))
+	var fill := Button.new()
+	fill.text = "填满住户 (所有住宅)"
+	fill.tooltip_text = "给每栋住宅的每一层补满随机居民(到每层容量; 已有住户不重复填)"
+	fill.pressed.connect(_on_fill_residents)
+	_base_page.add_child(fill)
+
 	_base_page.add_child(_header("选中"))
 	_del_selected_btn = Button.new()
 	_del_selected_btn.text = "删除选中 (Del)"
@@ -361,9 +369,15 @@ func _header_row(text: String) -> Label:
 
 func _build_building(bid: String) -> void:
 	var b: Dictionary = MapDoc.buildings[bid]
-	var people: Array = MapDoc.npcs_at(bid)
-	var items: Array = MapDoc.items_at(bid)
 	var kind := String(MapDoc.building_types.get(String(b["type"]), {}).get("kind", ""))
+	# 楼层: 先夹取当前编辑层(换建筑 → 回 1 层), 再按【当前层】取人员/物件。
+	MapDoc.clamp_cur_floor(bid)
+	var floors: int = MapDoc.unit_ids(bid).size()
+	var cur_unit := MapDoc.unit_of(bid, MapDoc.cur_floor)
+	var people: Array = MapDoc.npcs_at_unit(cur_unit) if floors > 1 else MapDoc.npcs_at(bid)
+	var items: Array = MapDoc.items_at_unit(cur_unit) if floors > 1 else MapDoc.items_at(bid)
+	var all_people: Array = MapDoc.npcs_at(bid)
+	var all_items: Array = MapDoc.items_at(bid)
 
 	_inspector.add_child(_to_base_button())
 	var title := Label.new()
@@ -371,7 +385,11 @@ func _build_building(bid: String) -> void:
 	title.add_theme_font_size_override("font_size", 16)
 	_inspector.add_child(title)
 	var sub := Label.new()
-	sub.text = "%s · %d 人 · %d 物件" % [Zh.kind_zh(kind), people.size(), items.size()]
+	if floors > 1:
+		sub.text = "%s · 共 %d 层 (第 %d 层 %d 人 · %d 物件)" % [
+			Zh.kind_zh(kind), floors, MapDoc.cur_floor, people.size(), items.size()]
+	else:
+		sub.text = "%s · %d 人 · %d 物件" % [Zh.kind_zh(kind), people.size(), items.size()]
 	sub.add_theme_color_override("font_color", MUTED)
 	_inspector.add_child(sub)
 
@@ -398,6 +416,39 @@ func _build_building(bid: String) -> void:
 	_kv(nsec, "尺寸", "%.1f × %.1f m" % [s.x, s.y])
 	_inspector.add_child(nsec)
 
+	# 楼层(多住户单元: 导出为 bld_007_f1..fN 子地点)
+	var fsec := _section("楼层")
+	var fnum := _spin(1, MapDoc.MAX_FLOORS, 1)
+	fnum.value = int(b.get("floors", 1))
+	fnum.value_changed.connect(func(v: float) -> void: MapDoc.set_floors(bid, int(v)))
+	fsec.add_child(_lrow("楼层数", fnum))
+	if floors > 1:
+		var fsel := OptionButton.new()
+		for i in range(1, floors + 1):
+			fsel.add_item("第 %d 层" % i)
+		fsel.selected = MapDoc.cur_floor - 1
+		fsel.item_selected.connect(func(i: int) -> void: MapDoc.set_cur_floor(bid, i + 1))
+		fsec.add_child(_lrow("编辑层", fsel))
+		_kv(fsec, "容量", "每层 %d 人 · 共 %d 人" % [
+			MapDoc.unit_capacity(bid), MapDoc.total_capacity(bid)])
+		_kv(fsec, "已住", "%d 人 · %d 物件" % [all_people.size(), all_items.size()])
+		var cp := Button.new()
+		cp.text = "复制本层物件 → 其它层"
+		cp.tooltip_text = "把当前编辑层的物件复制到该栋其它楼层(owner 改为目标层户主)"
+		cp.pressed.connect(func() -> void:
+			var n := MapDoc.copy_floor_items(bid, MapDoc.cur_floor)
+			_refresh_status("已复制第 %d 层 %d 件物件到其它层" % [MapDoc.cur_floor, n]))
+		fsec.add_child(cp)
+	var purge := Button.new()
+	purge.text = "清理无效引用"
+	purge.tooltip_text = "清掉指向已不存在地点的住所/物件(减层、导入旧数据后遗留)"
+	purge.pressed.connect(func() -> void:
+		var r: Dictionary = MapDoc.purge_invalid_refs()
+		_refresh_status("清理: %d 人解除住所 / 删除 %d 件物件" % [
+			r.get("npcs", 0), r.get("items", 0)]))
+	fsec.add_child(purge)
+	_inspector.add_child(fsec)
+
 	# 权限(由此居住的人决定: 首个=户主, 其余=同住)
 	var acc := _section("权限")
 	var owner := ""
@@ -411,8 +462,11 @@ func _build_building(bid: String) -> void:
 	if people.size() > 0:
 		access = owner + (" 及 " + "、".join(mates) if not mates.is_empty() else " (户主)")
 	_kv(acc, "进入权限", access)
-	_kv(acc, "容量", "%d 人" % int(MapDoc.building_types.get(
-		String(b["type"]), {}).get("capacity", 0)))
+	if floors > 1:
+		_kv(acc, "容量", "共 %d 人 (每层 %d)" % [
+			MapDoc.total_capacity(bid), MapDoc.unit_capacity(bid)])
+	else:
+		_kv(acc, "容量", "%d 人" % MapDoc.unit_capacity(bid))
 	_inspector.add_child(acc)
 
 	# 人员
@@ -421,6 +475,10 @@ func _build_building(bid: String) -> void:
 	var add_p := Button.new()
 	add_p.text = "＋ 新增随机"
 	add_p.pressed.connect(func() -> void: _add_person(bid))
+	# 到上限就不允许再加(每层容量 = 该类型单层容量)
+	var cap_u := MapDoc.unit_capacity(bid)
+	add_p.disabled = people.size() >= cap_u
+	add_p.tooltip_text = "本层 %d/%d 人" % [people.size(), cap_u]
 	ph.add_child(add_p)
 	psec.add_child(ph)
 	psec.add_child(_header_row("姓名            年龄   角色"))
@@ -463,6 +521,41 @@ func _build_building(bid: String) -> void:
 				func() -> void: _view.select("item", String(iid))))
 	_inspector.add_child(isec)
 
+	# 认知: 场景级初始记忆 —— 一次让一批人“知道”这里的货
+	var ksec := _section("认知")
+	ksec.add_child(_muted("让 NPC 一开始就知道这里的货(= 广告/听人说)"))
+	var kbel := _spin(0.1, 1.0, 0.05)
+	kbel.value = 0.8
+	ksec.add_child(_lrow("相信度", kbel))
+	var kadd := Button.new()
+	kadd.text = "让所有人知道这里的货"
+	kadd.tooltip_text = "所有 NPC 初始就知道这栋楼卖什么; 相信度 <1 = “听说”而非亲眼所见"
+	kadd.pressed.connect(func() -> void:
+		MapDoc.add_knowledge(bid, kbel.value)
+		_refresh_status("已让所有人知道 %s 的货 (相信度 %.2f)" % [
+			MapDoc.building_name(bid), kbel.value]))
+	ksec.add_child(kadd)
+	var krules := MapDoc.knowledge_at(bid)
+	if krules.is_empty():
+		ksec.add_child(_muted("尚未告诉任何人"))
+	else:
+		for ki in krules:
+			var kr: Dictionary = MapDoc.knowledge[ki]
+			var krow := HBoxContainer.new()
+			var klb := Label.new()
+			klb.text = "%s · 相信度 %.2f" % [
+				String(kr.get("who", "all")), float(kr.get("believe", 0.8))]
+			klb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			krow.add_child(klb)
+			var kdel := Button.new()
+			kdel.text = "删除"
+			kdel.pressed.connect(func() -> void:
+				MapDoc.remove_knowledge(ki)
+				_refresh_status("已删除一条认知规则"))
+			krow.add_child(kdel)
+			ksec.add_child(krow)
+	_inspector.add_child(ksec)
+
 
 ## 小工具: 给容器追加一个已构造的控件(避免嵌套表达式过长)。
 func psec_append(parent: Control, c: Control) -> void:
@@ -502,9 +595,9 @@ func _build_person(pid: String) -> void:
 	_f_age.value = MapDoc.age_of(n)
 	basic.add_child(_lrow("年龄", _f_age))
 	_f_role = OptionButton.new()
-	for r in MapDoc.ROLES:
-		_f_role.add_item(Zh.role_zh(r))
-	_f_role.selected = maxi(0, MapDoc.ROLES.find(String(n.get("role", ""))))
+	for r in MapDoc.role_options():
+		_f_role.add_item("无" if r == "" else Zh.role_zh(String(r)))
+	_f_role.selected = maxi(0, MapDoc.role_options().find(String(n.get("role", ""))))
 	basic.add_child(_lrow("角色", _f_role))
 	_f_money = _spin(0, 1000000, 10)
 	_f_money.value = float(n.get("money", 0.0))
@@ -557,7 +650,7 @@ func _save_person(pid: String) -> void:
 		"name": _f_name.text,
 		"gender": "female" if _f_gender.selected == 1 else "male",
 		"birthday": birthday,
-		"role": String(MapDoc.ROLES[_f_role.selected]),
+		"role": String(MapDoc.role_options()[_f_role.selected]),
 		"money": _f_money.value,
 		"personality": {"hunger": _f_hunger.value, "energy": _f_energy.value},
 		"traits": traits})
@@ -579,7 +672,7 @@ func _build_item(iid: String) -> void:
 
 	var sec := _section("属性")
 	_kv(sec, "类型", String(it.get("type", "")))
-	_kv(sec, "所在", MapDoc.building_name(String(it.get("at", ""))))
+	_kv(sec, "所在", MapDoc.unit_display(String(it.get("at", ""))))
 	_f_stock = _spin(-1, 1000000, 1)
 	_f_stock.value = int(it.get("stock", 1))
 	sec.add_child(_lrow("库存", _f_stock))
@@ -621,20 +714,32 @@ func _save_item(iid: String) -> void:
 
 # --- 新增 / 返回 ---------------------------------------------------------
 func _add_person(bid: String) -> void:
-	var pid := MapDoc.add_npc(bid)
-	if pid != "":
-		_view.select("npc", pid)
-		_refresh_status("已在 %s 新增 %s (自动开放权限)" % [bid, pid])
+	var r: Dictionary = MapDoc.add_resident(bid)
+	if not bool(r.get("ok", false)):
+		_refresh_status("%s %s" % [MapDoc.unit_display(String(r.get("unit", bid))),
+			r.get("reason", "新增失败")])
+		return
+	var pid := String(r["pid"])
+	# 新增不进人物编辑页: 留在建筑页, 新人在【人员】列表里
+	_refresh_status("已在 %s 新增 %s" % [MapDoc.unit_display(String(r["unit"])), pid])
 
 
 func _add_item(bid: String) -> void:
 	var idx := _f_item_type.selected
 	if idx < 0 or idx >= _item_type_keys.size():
 		return
-	var iid := MapDoc.add_item(String(_item_type_keys[idx]), bid)
+	var unit := MapDoc.target_unit(bid)
+	var iid := MapDoc.add_item(String(_item_type_keys[idx]), unit)
 	if iid != "":
-		_view.select("item", iid)
-		_refresh_status("已在 %s 新增 %s" % [bid, iid])
+		# 新增不进物件编辑页: 留在建筑页, 新物件在【物件】列表里
+		_refresh_status("已在 %s 新增 %s" % [MapDoc.unit_display(unit), iid])
+
+
+## 一键填满: 所有住宅的每一层补满随机居民。
+func _on_fill_residents() -> void:
+	var r: Dictionary = MapDoc.fill_residents()
+	_refresh_status("填满住户: %d 栋住宅 / %d 个单元, 新增 %d 人" % [
+		r.get("homes", 0), r.get("units", 0), r.get("added", 0)])
 
 
 func _to_base_button() -> Button:

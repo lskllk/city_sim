@@ -5,7 +5,7 @@ class_name WorldCamera
 extends RefCounted
 
 const MIN_ZOOM := 0.15
-const MAX_ZOOM := 8.0
+const MAX_ZOOM := 24.0   # 放大上限(旧的 8 看建筑细节不够; 角标 LOD 会自动分居)
 const PAD := 24.0
 
 var root: Node2D

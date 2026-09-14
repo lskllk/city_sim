@@ -65,7 +65,7 @@ func _draw() -> void:
 	var font := get_theme_default_font()
 	for pid in Store.npcs:
 		if not _traveling(pid):
-			continue                          # 在建筑里 → 不画
+			continue                          # 在建筑里(含已到站) → 不画
 		var sp := camera.world_to_screen(world_pos_of(pid))
 		if sp.x < -32.0 or sp.y < -32.0 or sp.x > size.x + 32.0 or sp.y > size.y + 32.0:
 			continue
@@ -87,8 +87,14 @@ func _dot_radius() -> float:
 # 位置: 只在途中有意义
 # ---------------------------------------------------------------------------
 func _traveling(pid: String) -> bool:
+	if not Store.npcs.has(pid):
+		return false
 	var tv := Protocol.as_dict(Store.npc(pid).get("travel", null))
-	return Protocol.as_array(tv.get("waypoints", [])).size() >= 2
+	if Protocol.as_array(tv.get("waypoints", [])).size() < 2:
+		return false
+	# 到站即不再画: 观察驱动下可能丢帧, 客户端自己收尾
+	# (否则到站帧被丢会留下一个永远在走的幽灵圆点)。
+	return float(Store.tick) < Protocol.num(tv.get("arrive"))
 
 
 ## 沿 waypoints 按 (now - depart) / (arrive - depart) 插值(世界坐标)。

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import random
 from pathlib import Path
@@ -23,6 +24,8 @@ from citysim.world.pulses import normalize as _norm_pulses
 from citysim.world.roads import RoadGraph
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.world import Entity, World, entity_from_def
+
+log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[3]          # → d:\...\npc_cognition
 DEFAULT_SCENE = ROOT / "config" / "scenes" / "elm_lane.json"
@@ -39,6 +42,7 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
     world = World()
     # 建筑: 类型库(config/buildings) + 显式几何或 面积∝容量 自动布局
     world.locations = build_locations(data)
+    _materialize_missing_units(world.locations, data)
     # 画布尺寸随场景下发(编辑器导出的地图可能不是 1280x800)
     world.canvas = dict(data.get("canvas", {}))
     # 编辑器导出的原始路网/建筑(含 rot/doors), 供观察器按编辑器思路渲染
@@ -46,7 +50,8 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
 
     systems = make_systems(log=True,
                            tell_p=float(data.get("tell_p", 0.0)),
-                           roads=RoadGraph(world.map, CFG.move_m_per_tick))
+                           roads=RoadGraph(world.map, CFG.move_m_per_tick),
+                           seed=int(seed))
     attach_replay(world, systems)      # 让 bus 事件(intent_failed/bought/…) 进 ui_events
     rng_pool: dict[str, random.Random] = {}
 
@@ -101,7 +106,7 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
     # ---- NPC: 人设 + 初始记忆(memory 段, 出生空白, 单层靠 obs 学) ------
     for idx, spec in enumerate(data.get("npcs", [])):
         pid = spec["id"]
-        home_region = spec.get("home", "")
+        home_region = _resolve_home(spec.get("home", ""), world.locations)
         extra_traits = spec.get("traits") or {}
         p = Person(identity=Identity(person_id=pid, name=spec["name"],
                                      gender=str(spec.get("gender", "")),
@@ -124,6 +129,9 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
                    believe=float(rec.get("believe", 1.0)), **fields)
         world.npcs[pid] = p
         rng_pool[pid] = random.Random(seed * 100 + idx)
+
+    # ---- 初始认知(场景级): 让一批人“知道”某处的货(超市/广告/邻居说的) ----
+    _seed_knowledge(world, data)
 
     # ---- 住所归属: NPC.home → 建筑 owner/open_to, 再封口 public ----
     # 场景未显式写 owner 时, 首个住进该房的人成为户主, 其余入 open_to。
@@ -152,6 +160,109 @@ def _resolve_scene_path(raw: str) -> Path | None:
         return p
     alt = ROOT / raw
     return alt if alt.is_file() else None
+
+
+def _materialize_missing_units(locations: dict, data: dict) -> int:
+    """补出【场景引用了、但 locations 里没导出】的楼层单元。
+
+    典型来源: 编辑器里先把楼层数调到 10 点了「填满住户」, 又把楼层数减回 6 再导出 ——
+    楼上那几层的人还在 npc.home 里, 对应的地点却没了。
+    直接让他们落在幽灵地点上会: 没床没饭 / 占用统计数不到人。
+    这里按父建筑补出该单元(几何/容量/类型照搬, part_of 指向父建筑),
+    比“硬塞进父建筑”更忠于数据意图(每层仍是一个独立的家)。
+    """
+    wanted: set[str] = set()
+    for spec in data.get("npcs", []):
+        if isinstance(spec, dict):
+            wanted.add(str(spec.get("home", "")))
+    for ent in data.get("entities", []):
+        if isinstance(ent, dict):
+            wanted.add(str(ent.get("at", "")))
+    made = 0
+    for ref in sorted(wanted):
+        if not ref or ref in locations:
+            continue
+        head, sep, tail = ref.rpartition("_f")
+        if not (sep and tail.isdigit() and head in locations):
+            continue
+        parent = locations[head]
+        loc = dict(parent)
+        loc["part_of"] = head
+        loc["name"] = "%s · %s层" % (parent.get("name", head), tail)
+        loc["owner"] = ""          # 每层独立成户: 不继承父建筑的归属
+        loc["open_to"] = []
+        loc["public"] = None       # 由 resolve_access 按“有无人”重新判定
+        locations[ref] = loc
+        made += 1
+        log.warning("补出缺失的楼层地点: %s (父 %s)", ref, head)
+    return made
+
+
+def _seed_knowledge(world, data: dict) -> int:
+    """场景级【初始认知】: 一次让一批 NPC 知道某个地点里的货。
+
+    没有这个的话, 只能逐个 NPC 手写 memory —— 百人场景不现实。
+
+    scene JSON:
+      "knowledge": [
+        {"who": "all" | ["npc_a", ...],   // 给谁
+         "from": "bld_003",               // 哪个地点(必须是已存在的 location)
+         "items": [],                     // 空 = 该地点全部实体; 否则按 item_type / entity_id 过滤
+         "believe": 0.8}                  // 这是“听说”而不是亲眼所见 → 打折
+      ]
+
+    语义: 写的是【他们的知识】而不是世界真值(与 P8 一致) —— believe < 1 时
+    他们会拿这条记忆当参考, 但不如亲眼所见那么笃定。
+    """
+    rules = data.get("knowledge") or []
+    if not isinstance(rules, list):
+        return 0
+    seeded = 0
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        who = rule.get("who", "all")
+        ids = (sorted(world.npcs) if who in ("all", None, "")
+               else [str(x) for x in who])
+        loc = str(rule.get("from", ""))
+        want = {str(x) for x in (rule.get("items") or [])}
+        believe = float(rule.get("believe", 0.8))
+        ents = [e for e in sorted(world.entities.values(), key=lambda x: x.entity_id)
+                if e.location_id == loc
+                and (not want or e.item_type in want or e.entity_id in want)]
+        if not ents:
+            log.warning("knowledge: 地点 %r 没有可告知的物件, 跳过", loc)
+            continue
+        for pid in ids:
+            p = world.npcs.get(pid)
+            if p is None:
+                continue
+            src = "ad:%s" % loc       # 来源可追溯: 将来“到店发现不对”能追到是哪块招牌说的
+            for e in ents:
+                afford, value = next(iter(e.affordances.items()), ("", 0.0))
+                p.note(e.entity_id, tick=0, located=e.location_id,
+                       owner=e.owner, afford=afford, value=float(value),
+                       price=e.price, stock=e.stock,
+                       item_type=e.item_type, believe=believe, source=src)
+                seeded += 1
+    if seeded:
+        log.info("knowledge: 注入 %d 条初始记忆", seeded)
+    return seeded
+
+
+def _resolve_home(home: str, locations: dict) -> str:
+    """把 npc.home 解析成一个【真实存在】的地点(补不出单元时的兜底)。
+
+    父建筑存在 → 回退到父建筑; 都没有 → ""(无住所, 但至少是诚实的)。
+    """
+    if not home or home in locations:
+        return home
+    head, sep, tail = home.rpartition("_f")
+    if sep and tail.isdigit() and head in locations:
+        log.warning("住所楼层不存在: %s → 回退到父建筑 %s", home, head)
+        return head
+    log.warning("住所不存在: %s → 置为空住所", home)
+    return ""
 
 
 def build_scenario(scenario: str | None = None, seed: int = 3,

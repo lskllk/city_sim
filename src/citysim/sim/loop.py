@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass, field
 
 from citysim.core.config import SimConfig
@@ -23,7 +24,10 @@ class Systems:
     travel: dict[str, Travel] = field(default_factory=dict)  # npc_id -> Travel
     log_lines: list[str] | None = None   # 录制/回放(非 None 即开启)
     ui_events: RingBuffer = field(default_factory=RingBuffer)  # 事件环形缓冲(定长)
-    tell_p: float = 0.0                  # (预留)通知概率, 待 _notify_due 用
+    tell_p: float = 0.0                  # 空闲时开口告诉别人的概率(乘 tell_bias)
+    rng: random.Random = field(default_factory=lambda: random.Random(0))
+    #     ↑ 传播用的随机源。【必须来自 systems】: 用全局 random 会让回放飘。
+    bubble_ttl: int = 40                 # 气泡存活 tick(冒一下就走)
     log_attached: bool = False           # attach_replay 幂等标记
     travel_costs: dict[str, int] | None = None
     pulses: list = field(default_factory=list)
@@ -33,11 +37,12 @@ class Systems:
 
 
 def make_systems(*, log: bool = False, tell_p: float = 0.0,
-                 roads: object | None = None) -> Systems:
+                 roads: object | None = None,
+                 seed: int = 0) -> Systems:
     return Systems(interaction=InteractionSystem(),
                    planner=Planner(),
                    log_lines=[] if log else None, tell_p=tell_p,
-                   roads=roads)
+                   roads=roads, rng=random.Random(seed))
 
 
 def attach_replay(world: World, systems: Systems) -> None:

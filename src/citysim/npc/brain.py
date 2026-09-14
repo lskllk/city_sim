@@ -24,6 +24,8 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
 
     同地 re-obs: 现场为准, 整行覆盖(located/owner/claimed/afford/price/…)并刷新
     believe/remember/last_seen。只 upsert 可见实体, 不做证伪删行(由上层策略定)。
+
+    现场看到的 → source=""(亲眼) 且 believe=1.0: 不管之前听谁说过, 亲眼所见最硬。
     """
     for v in percept.visible:
         # TODO: affordances 多键 dict → 决定单值 or dict(MemItem.afford 现单值)
@@ -36,14 +38,14 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
             mem.set(MemItem(
                 item_id=v.entity_id, located=v.location_id,
                 owner=v.owner, claimed=claimed, afford=afford, value=float(value),
-                item_type=v.item_type,
+                item_type=v.item_type, source="",
                 price=v.price, believe=1.0, remember=1.0, last_seen=tick))
         else:
             mem.update(
                 v.entity_id, located=v.location_id, owner=v.owner,
                 claimed=claimed, afford=afford or row.afford,
                 value=float(value) if value else row.value,
-                item_type=v.item_type,
+                item_type=v.item_type, source="",
                 price=v.price, believe=1.0, remember=1.0, last_seen=tick)
 
 

@@ -198,6 +198,10 @@ def build_locations(data: dict) -> dict[str, dict]:
                 "open_to": open_to,
                 "public": spec.get("public"),
             }
+            # 楼层单元(编辑器导出): part_of 指向父建筑。后端只需透传 ——
+            # 它不参与寻路/归属(那些走 doors/region_center 兜底), 仅用于观测/前端识别。
+            if spec.get("part_of"):
+                resolved[loc_id]["part_of"] = str(spec["part_of"])
             # 显式几何(编辑器导出的地图)优先: 带 x/y/w/h 就原样保留, 不参与自动布局。
             for gk in ("x", "y", "w", "h"):
                 if gk in spec:

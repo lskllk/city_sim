@@ -7,7 +7,9 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
+import sys
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -24,8 +26,13 @@ from citysim.gateway.snapshot import (
 from citysim.sim.loop import attach_replay, run_tick
 
 SPEED_TPS = {"pause": 0, "1x": 1, "10x": 10, "100x": 100, "1000x": 1000}
-PUSH_HZ = 60
-# 单个客户端的单条发送最长等待秒数。超时 → 判为卡死并断开, 绝不阻塞模拟主循环。
+PUSH_HZ = 60          # 状态快照推送频率。
+                      # 60Hz 之所以安全, 靠的是【观察驱动】: 只推渲染状态变了的 NPC
+                      # + 选中的那个; 静止时一帧 0 个 NPC(实测 ~6.6KB/帧)。
+                      # 若退回全量推送, 60Hz × 百人快照会拖成长超时断线。
+# 单个客户端的单条发送最长等待秒数。超时 → 【丢这一帧】(不断线):
+# 快照是全量状态, 丢了下一帧会补齐; 断开只会引发客户端无限重连。
+# 真正的断开/协议错误仍走 except → 清掉该客户端。
 CLIENT_SEND_TIMEOUT = 1.5
 
 # 仓库根(src/citysim/gateway/server.py → parents[3]); 配置用绝对路径,
@@ -34,6 +41,52 @@ _ROOT = Path(__file__).resolve().parents[3]
 
 # TASK004-ext: legacy gateway/static 观察器已删除; server 只作 WS 推流端点。
 # UI 由独立 Godot 观察器 godot/ 提供(见 godot/README.md)。
+
+
+class _Tee(io.TextIOBase):
+    """把 stdout/stderr 同时写向原流与日志文件(原流不可写时静默跳过)。"""
+
+    def __init__(self, *streams) -> None:
+        self._streams = streams
+
+    def write(self, text: str) -> int:  # noqa: D102
+        for st in self._streams:
+            try:
+                st.write(text)
+            except Exception:  # noqa: BLE001  (无控制台时 stdout 可能不可写)
+                pass
+        return len(text)
+
+    def flush(self) -> None:  # noqa: D102
+        for st in self._streams:
+            try:
+                st.flush()
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def _tee_to_log_file() -> Path | None:
+    """后端默认【无控制台窗口】后台运行 → 日志改落 .logs/backend.log。
+
+    在 import 期间接管 stdout/stderr: uvicorn 的日志 handler 绑定的是当时的
+    sys.stderr, 所以这样能连 uvicorn 自己的日志一起收。
+    超过 8MB 时启动前轮转为 .1(只保留一份备份, 不无限长)。
+    """
+    logdir = _ROOT / ".logs"
+    try:
+        logdir.mkdir(exist_ok=True)
+        path = logdir / "backend.log"
+        if path.exists() and path.stat().st_size > 8_000_000:
+            path.replace(logdir / "backend.1.log")
+        f = open(path, "a", encoding="utf-8", buffering=1)
+    except OSError:
+        return None
+    sys.stdout = _Tee(sys.stdout, f)   # type: ignore[assignment]
+    sys.stderr = _Tee(sys.stderr, f)   # type: ignore[assignment]
+    return path
+
+
+LOG_PATH = _tee_to_log_file()
 
 
 def _real_tps(speed: str) -> int:
@@ -52,12 +105,126 @@ class SimRunner:
         self.event_seq = 0            # drain 兜底 event_id 序号
         self.params = dict(scenario="elm_lane", seed=3, n_npc=6,
                            tell_p=0.1)
+        self._pushed_tick: int | None = None   # 上次推送时的 tick(None=需重推)
+        # 观察驱动: 只下发「渲染状态变了」的 NPC + 当前选中的那个。
+        self._npc_sig: dict[str, tuple] = {}   # pid -> 上次推送时的渲染签名
+        # 【观察集】: 客户端正在看谁 / 看哪栋楼 —— 这些每帧全量下发。
+        # 为什么必须要: signals 每 tick 都在变(进度条/生命条), 但它不属于
+        # “渲染签名”(否则所有人都每帧脏)。所以静止的 NPC 靠“被看见”而刷新。
+        self.focus_npc: str = ""
+        self.focus_loc: str = ""
+        self.watch_limit: int = 64             # 单处最多盯多少人(建筑可能很大)
+        # 上帧世界里还存在哪些 id → 用来算 gone(死亡/消耗), 供客户端删除镜像
+        self._seen_npcs: set[str] = set()
+        self._seen_entities: set[str] = set()
+        # 物品几乎不变 → 变了才推(否则每帧白带 ~8KB)
+        self._ent_sig: dict[str, tuple] = {}
+        # 观察集【轮转分批】: 1000x 下变化很大, 一次全推会顶爆单帧,
+        # 拆成多批每帧一批 → 每个人的进度条 ~watch_hz 刷新一次。
+        self.watch_per_frame: int = 24
+        self._watch_cursor: int = 0
+        # 详情(memory/events/intent)推送间隔: Inspector 自己就是 10Hz 刷新
+        # (UiPage.bind ~100ms), 60Hz 重发只是白烧带宽。
+        # 客户端是 merge —— 不推的帧保留上次值, 不会缺。
+        self.rich_every: int = 6          # 60Hz / 6 = 10Hz
+        self._push_seq: int = 0
         self._build()
+
+    def note_client_joined(self) -> None:
+        """新客户端接入 → 下一帧强制推一份完整快照(全部 NPC 重算为 dirty)。"""
+        self._pushed_tick = None
+        self._npc_sig.clear()
+        self._ent_sig.clear()
+        self._watch_cursor = 0
+        self._push_seq = 0
+        self._seen_npcs.clear()     # 新客户端脑子里什么都没有 → 不发 tombstone
+        self._seen_entities.clear()
 
     def _build(self) -> None:
         self.world, self.systems, self.rng_pool = build_scenario(**self.params)
         attach_replay(self.world, self.systems)   # log_lines 承载 D/E 行
         self.log_cursor = 0
+        self._pushed_tick = None
+        self._npc_sig.clear()
+        self._ent_sig.clear()
+        self._watch_cursor = 0
+        self._push_seq = 0
+        self._seen_npcs.clear()
+        self._seen_entities.clear()
+        self.focus_npc = ""
+        self.focus_loc = ""
+
+    def _watched(self) -> set[str]:
+        """客户端正在看的 NPC。
+
+        - **选中的那个**: 每帧全量(带 memory/events, Inspector 要实时)。
+        - **选中建筑里的人**: 只负责让进度条动 —— 轮转分批, 每帧一批,
+          所以单帧不会因为“盯着一整栋百人大楼”而爆。
+        """
+        out: set[str] = set()
+        if self.focus_npc and self.focus_npc in self.world.npcs:
+            out.add(self.focus_npc)
+        loc = self.focus_loc
+        if not loc:
+            return out
+        pref = loc + "_f"
+        here: list[str] = []
+        for pid in self.world.npcs:
+            at = self.world.loc_of(pid)
+            if at == loc or at.startswith(pref):
+                here.append(pid)
+        here.sort()
+        here = here[:self.watch_limit]
+        if not here:
+            return out
+        n = max(1, min(self.watch_per_frame, len(here)))
+        for i in range(n):
+            out.add(here[(self._watch_cursor + i) % len(here)])
+        self._watch_cursor = (self._watch_cursor + n) % len(here)
+        return out
+
+    def _ent_sig_of(self, e) -> tuple:
+        return (e.location_id, e.stock, round(float(e.price), 4), e.owner,
+                e.claimed_by, e.position, bool(e.persist_empty))
+
+    def _dirty_entities(self) -> set[str]:
+        """物品很少变 → 变了才推。客户端 merge + gone 删除, 不会错。"""
+        now: dict[str, tuple] = {}
+        out: set[str] = set()
+        for eid, e in self.world.entities.items():
+            s = self._ent_sig_of(e)
+            now[eid] = s
+            if self._ent_sig.get(eid) != s:
+                out.add(eid)
+        self._ent_sig = now
+        return out
+
+    def _render_sig(self, pid: str) -> tuple:
+        """NPC 的【渲染状态】签名: 地点 / 活动 / 是否在途(目的地+出发到达刻)。
+
+        刻意不含 signals/memory/events —— 它们只有「选中的那个」才需要,
+        且每 tick 都在变; 放进签名会让每个 NPC 每帧都算「变了」。
+        在家静止的人签名恒定 → 不推位置。
+        """
+        tv = self.systems.travel.get(pid)
+        return (
+            self.world.loc_of(pid),
+            self.world.npcs[pid].current_activity,
+            None if tv is None else (tv.to_loc, tv.depart_tick, tv.arrive_tick),
+        )
+
+    def _dirty_npcs(self) -> set[str]:
+        """本帧要下发的 NPC = 渲染状态变了的 ∪ {选中的}。"""
+        sig_now: dict[str, tuple] = {}
+        dirty: set[str] = set()
+        for pid in self.world.npcs:
+            s = self._render_sig(pid)
+            sig_now[pid] = s
+            if self._npc_sig.get(pid) != s:
+                dirty.add(pid)
+        self._npc_sig = sig_now
+        dirty |= self._watched()        # 选中的 + 选中建筑里的人(实时信号)
+        return dirty
 
     def advance(self, n: int) -> None:
         for _ in range(n):
@@ -95,11 +262,36 @@ class SimRunner:
             self.drain_log()          # 无人观看也要推进游标, 防积压
             return
         evs = self.drain_log()
+        tick = self.world.clock_tick
+        dirty = self._dirty_npcs()
+        # 状态未变(暂停/无人移动且无事件) → 不重复推: 省掉暂停时的全量空转。
+        # 新客户端接入/重置/步进 会把 _pushed_tick 置 None 或推进 tick。
+        if self._pushed_tick == tick and not evs and not dirty:
+            return
+        self._pushed_tick = tick
+        self._push_seq += 1
+        # 被选中的那个: 每帧在观察集里(信号实时), 但详情每 rich_every 帧才带一次
+        rich: set[str] = set()
+        if self.focus_npc in self.world.npcs:
+            dirty.add(self.focus_npc)
+            if self._push_seq % max(1, self.rich_every) == 0:
+                rich.add(self.focus_npc)
+        dirty_ents = self._dirty_entities()
+        # 消失的 id(死亡/消耗): 客户端是合并式更新, 必须显式告诉它删
+        cur_npcs = set(self.world.npcs)
+        cur_ents = set(self.world.entities)
+        gone = {"npcs": sorted(self._seen_npcs - cur_npcs),
+                "entities": sorted(self._seen_entities - cur_ents)}
+        self._seen_npcs = cur_npcs
+        self._seen_entities = cur_ents
         # TASK002: Snapshot 与 Event 走独立消息; snapshot 不再内嵌事件流
+        # 观察驱动: 只带 dirty 的 NPC(在家不动的座位不上车)
         msgs = [json.dumps(envelope(
             "snapshot",
             build_snapshot(self.world, self.systems, self.cfg,
-                           self.speed, [], tps=_real_tps(self.speed))),
+                           self.speed, [], tps=_real_tps(self.speed),
+                           only=dirty, gone=gone, rich=rich,
+                           entities_only=dirty_ents)),
             ensure_ascii=False)]
         msgs += [json.dumps(envelope("event", encode_event(ev)),
                             ensure_ascii=False) for ev in evs]
@@ -107,11 +299,13 @@ class SimRunner:
         for ws in list(self.clients):
             try:
                 for m in msgs:
-                    # 一个慢/卡住的客户端不能拖死整个模拟:
-                    # 发送超时即断开(观察器会自动重连)。
                     await asyncio.wait_for(ws.send_text(m),
                                            timeout=CLIENT_SEND_TIMEOUT)
-            except Exception:  # noqa: BLE001  (超时/断开/协议错误)
+            except asyncio.TimeoutError:
+                # 客户端只是慢(解析大快照没跟上) —— 【丢这一帧】, 但不断线:
+                # 下一帧仍是完整状态, 丢了不会错。断开反而会引发疯狂重连。
+                continue
+            except Exception:  # noqa: BLE001  (断开/协议错误)
                 dead.append(ws)
         for ws in dead:
             self.clients.discard(ws)
@@ -139,6 +333,7 @@ async def _start() -> None:
 async def ws_endpoint(ws: WebSocket) -> None:
     await ws.accept()
     runner.clients.add(ws)
+    runner.note_client_joined()          # 让下一帧带一份完整快照
     await _send(ws, {"kind": "hello", **hello_payload(runner)})
     try:
         while True:
@@ -174,6 +369,10 @@ async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
                          "ok": data is not None,
                          "data": data,
                          "why": None if data is not None else "not found"})
+    elif name == "select":
+        # 观察驱动: 客户端告知“我在看谁 / 看哪栋楼” → 这些每帧全量下发。
+        r.focus_npc = str(args.get("npc", ""))
+        r.focus_loc = str(args.get("location", ""))
     elif name == "ping":
         await _send(ws, {"kind": "pong", "type": "pong", "req_id": rid})
     # 未知指令静默忽略

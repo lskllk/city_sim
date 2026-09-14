@@ -16,6 +16,22 @@ var state: int = State.LAUNCHER
 var current_scene_rel: String = ""
 var _pending_scene: String = ""
 
+# 断线自愈: 后端可能挂了/被手动杀了, 而 Godot 只在启动时拉过一次。
+# 连不上超过 REENSURE_SEC 就再叫一次 Backend.ensure()(幂等: 端口在就跳过)。
+const REENSURE_SEC := 8.0
+var _down_for := 0.0
+
+
+func _process(delta: float) -> void:
+	if Net.status() == "open":
+		_down_for = 0.0
+		return
+	_down_for += delta
+	if _down_for >= REENSURE_SEC:
+		_down_for = 0.0
+		if OS.get_environment("CITYSIM_NO_AUTOSTART") != "1":
+			Backend.call_deferred("ensure")
+
 
 func _ready() -> void:
 	Net.message_received.connect(_on_message)
@@ -99,7 +115,10 @@ func _on_message(envelope: Variant) -> void:
 			var snap := Protocol.as_dict(payload)
 			if snap.has("tick"):
 				Store.apply_snapshot(snap)
-		"event", "reply", "pong":
-			pass  # 事件流不在观察器布局内; 应答可忽略
+		"event":
+			# 事件流: 死亡等要反映到镜像上(npcs/entities 的删除)
+			Store.apply_event(Protocol.as_dict(payload))
+		"reply", "pong":
+			pass  # 应答可忽略
 		_:
 			push_warning("[App] unknown message kind: %s" % kind)

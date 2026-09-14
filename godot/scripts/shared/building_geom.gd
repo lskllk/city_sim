@@ -80,6 +80,49 @@ static func npc_marker_pos(center: Vector2, idx: int, count: int,
 	return center + Vector2((idx - (count - 1) * 0.5) * spacing, -lift)
 
 
+# --- 角标缩放 / LOD ------------------------------------------------------
+#
+# 角标【贴合建筑框】: 尺寸不再固定像素, 而是随建筑在屏幕上的大小缩放 ——
+# 放大时角标跟着长、缩小时跟着收, 看起来是"贴在楼上的标签"。
+#
+# 同时做【LOD 分层】: 楼太小的时候字必然糊, 那就干脆不画;
+# 只有放到字能看清了才逐级显示更多东西。
+#
+#   scale = 建筑屏幕短边 / BADGE_REF_PX   (夹在 MIN~MAX)
+#
+# 层级(按 scale):
+#   LOD_NAME   建筑名
+#   LOD_EMBLEM 徽记
+#   LOD_BADGE  占用角标 (人/容量)
+#   LOD_DETAIL 物 N / 共 N 层
+
+const BADGE_REF_PX := 60.0       # 建筑屏幕短边 = 此值 → scale = 1.0
+const BADGE_MIN_SCALE := 0.75
+const BADGE_MAX_SCALE := 2.4
+
+const LOD_NAME := 0.62
+const LOD_EMBLEM := 1.05
+const LOD_BADGE := 0.85
+const LOD_DETAIL := 1.15
+
+
+## 角标缩放系数: 由建筑屏幕短边推出。
+static func badge_scale(rect: Rect2) -> float:
+	return clampf(minf(rect.size.x, rect.size.y) / BADGE_REF_PX,
+		BADGE_MIN_SCALE, BADGE_MAX_SCALE)
+
+
 ## "物 N" 角标矩形(屏幕坐标, 以建筑左上角为锚)。
-static func item_badge_rect(top_left: Vector2, size := Vector2(34.0, 16.0)) -> Rect2:
-	return Rect2(top_left + Vector2(2.0, 2.0), size)
+static func item_badge_rect(top_left: Vector2, size := Vector2(34.0, 16.0),
+		scale := 1.0) -> Rect2:
+	return Rect2(top_left + Vector2(2.0, 2.0) * scale, size * scale)
+
+
+## 建筑角标排(屏幕坐标, 以建筑左上角为锚): 第 i 格。
+## 约定 i: 0=人 N, 1=物 N, 2=共 N 层。
+static func badge_rect(top_left: Vector2, i: int, width := 36.0,
+		height := 16.0, scale := 1.0) -> Rect2:
+	var gap := 2.0 * scale
+	var w := width * scale
+	return Rect2(top_left + Vector2(2.0 * scale + i * (w + gap), 2.0 * scale),
+		Vector2(w, height * scale))

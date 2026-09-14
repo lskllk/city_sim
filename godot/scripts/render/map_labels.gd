@@ -11,6 +11,7 @@ const BuildingStyle := preload("res://scripts/shared/building_style.gd")
 
 const BG := BuildingStyle.BG
 const C_ITEM := Color("9ad36b")
+const C_FLOOR := Color("c9a4ff")    # 楼层角标
 
 var camera: WorldCamera = null
 
@@ -104,6 +105,10 @@ func _draw_map_building(font: Font, id: String, occ: Dictionary) -> void:
 	var kind := Protocol.s(room.get("kind", ""))
 	var base := BuildingStyle.kind_color(kind)
 	var cap := maxi(1, int(Protocol.num(room.get("capacity"), 10.0)))
+	# 分过单元的: 父地点的 capacity 是【单层】容量 → 总容量 = 单层 × 层数
+	# (不乘的话 9 个人住 3 层楼会显示成 9/3 超员)
+	if Store.is_multi(id):
+		cap *= Store.floor_units(id)
 	var n := int(occ.get(id, 0))
 	var fill := clampf(float(n) / float(cap), 0.0, 1.0)
 	var body := base.lerp(BuildingStyle.HOT, fill * 0.75)
@@ -111,13 +116,19 @@ func _draw_map_building(font: Font, id: String, occ: Dictionary) -> void:
 	var outline := pts.duplicate()
 	outline.append(pts[0])
 	draw_polyline(outline, base.lightened(0.35).lerp(BuildingStyle.HOT_EDGE, fill), 2.0, true)
-	if rect.size.x >= 52.0 and rect.size.y >= 52.0:
-		BuildingStyle.draw_emblem(self, rect.get_center() + Vector2(0, -24), kind, base)
-	var name := Protocol.s(room.get("name", id), id)
-	var fsize := int(clampf(minf(rect.size.x, rect.size.y) / 8.0, 11.0, 18.0))
-	BuildingStyle.draw_centered(self, font, name, rect.get_center(), fsize,
-		Color.WHITE if n > 0 else BuildingStyle.NAME_COLOR)
-	BuildingStyle.draw_badge(self, font, rect, "%d/%d" % [n, cap], base, fill)
+	# LOD 分层: 角标/名称/徽记随建筑【屏幕大小】缩放并分级; 字看不清就不画。
+	# (k=1.0 对应建筑屏幕短边 60px)
+	var k := BuildingGeom.badge_scale(rect)
+	if k >= BuildingGeom.LOD_EMBLEM:
+		BuildingStyle.draw_emblem_scaled(self,
+			rect.get_center() + Vector2(0, -24.0 * k), kind, base, k)
+	if k >= BuildingGeom.LOD_NAME:
+		BuildingStyle.draw_centered(self, font,
+			Protocol.s(room.get("name", id), id), rect.get_center(),
+			maxi(9, int(round(11.0 * k))),
+			Color.WHITE if n > 0 else BuildingStyle.NAME_COLOR)
+	if k >= BuildingGeom.LOD_BADGE:
+		BuildingStyle.draw_badge(self, font, rect, "%d/%d" % [n, cap], base, fill, k)
 	_draw_doors_for(id, room)
 
 
@@ -125,7 +136,10 @@ func _draw_map_building(font: Font, id: String, occ: Dictionary) -> void:
 func _draw_room(font: Font, id: String, r: Dictionary, rect: Rect2, n: int) -> void:
 	BuildingStyle.draw_room(self, font, rect,
 		Protocol.s(r.get("kind", "")), Protocol.s(r.get("name", id), id),
-		n, int(Protocol.num(r.get("capacity"), 10.0)))
+		n, int(Protocol.num(r.get("capacity"), 10.0)),
+		BuildingGeom.badge_scale(rect),
+		BuildingGeom.LOD_NAME, BuildingGeom.LOD_EMBLEM,
+		BuildingGeom.LOD_BADGE)
 	_draw_doors_for(id, r)
 
 
@@ -162,18 +176,37 @@ func _draw_doors_for(id: String, room: Dictionary) -> void:
 func _draw_item_badges(font: Font) -> void:
 	var counts := {}
 	for eid in Store.entities:
-		var loc := Protocol.s(Store.entities[eid].get("loc", ""))
-		if loc != "":
-			counts[loc] = int(counts.get(loc, 0)) + 1
-	for loc in counts:
-		var rect := _building_screen_rect(String(loc))
+		# 同理: 楼层里的物件也算到整栋
+		var bid := Store.building_of(Protocol.s(Store.entities[eid].get("loc", "")))
+		if bid != "":
+			counts[bid] = int(counts.get(bid, 0)) + 1
+	for bid in counts:
+		var rect := _building_screen_rect(String(bid))
 		if rect.size == Vector2.ZERO:
 			continue
-		var badge := BuildingGeom.item_badge_rect(rect.position)
-		draw_rect(badge, Color(C_ITEM.r, C_ITEM.g, C_ITEM.b, 0.92), true)
-		draw_rect(badge, Color(1, 1, 1, 0.35), false, 1.0)
-		draw_string(font, badge.position + Vector2(4, 12), "物 %d" % int(counts[loc]),
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("12200a"))
+		# LOD: 物/层角标只在字能看清时才画(随建筑缩放贴合)
+		var k := BuildingGeom.badge_scale(rect)
+		if k < BuildingGeom.LOD_DETAIL:
+			continue
+		var fs := maxi(8, int(round(10.0 * k)))
+		var badge := BuildingGeom.item_badge_rect(rect.position,
+			Vector2(34.0, 16.0), k)
+		_badge_box(badge, C_ITEM, "物 %d" % int(counts[bid]), fs)
+		# 多楼层建筑: 附一个 "共 N 层" 角标(仅真正 ≥2 层才加)
+		var n := int(Store.floors.get(String(bid), 0))
+		if n > 1:
+			var fb := BuildingGeom.badge_rect(rect.position, 1, 34.0, 16.0, k)
+			_badge_box(fb, C_FLOOR, "共 %d 层" % n, fs)
+
+
+func _badge_box(box: Rect2, col: Color, text: String, fs: int) -> void:
+	draw_rect(box, Color(col.r, col.g, col.b, 0.92), true)
+	draw_rect(box, Color(1, 1, 1, 0.35), false, 1.0)
+	var font := get_theme_default_font()
+	if font != null:
+		draw_string(font, box.position + Vector2(4.0 * float(fs) / 10.0,
+			box.size.y * 0.75), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
+			Color("101820"))
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +238,8 @@ func _draw_selection() -> void:
 func _frame(loc_id: String, color: Color) -> void:
 	if loc_id == "" or camera == null:
 		return
-	var rect := _building_screen_rect(loc_id)
+	# 选中楼层单元(如 NPC 在 bld_007_f2) → 框整栋楼, 而不是一个看不见的子地点
+	var rect := _building_screen_rect(Store.building_of(loc_id))
 	if rect.size == Vector2.ZERO:
 		return
 	draw_rect(rect, Color(color.r, color.g, color.b, 0.9), false, 2.5)
@@ -217,9 +251,10 @@ func _frame(loc_id: String, color: Color) -> void:
 func _occupancy() -> Dictionary:
 	var out := {}
 	for id in Store.npcs:
-		var loc := Protocol.s(Store.npcs[id].get("loc", ""))
-		if loc != "":
-			out[loc] = int(out.get(loc, 0)) + 1
+		# 楼层单元归到父建筑: 住 bld_007_f2 的人要算到 bld_007 的占用上
+		var bid := Store.building_of(Protocol.s(Store.npcs[id].get("loc", "")))
+		if bid != "":
+			out[bid] = int(out.get(bid, 0)) + 1
 	return out
 
 

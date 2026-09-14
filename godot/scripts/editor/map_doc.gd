@@ -20,6 +20,7 @@ signal changed
 const SCHEMA := "citysim.map"
 const VERSION := 1
 const AREA_PER_CAPACITY := 20.0   # 1 capacity ≈ 20 m²(面积∝容量的起始比例, 可调)
+const MAX_FLOORS := 12            # 楼层上限(编辑器 UI 与导出都用它)
 
 # 进出口(资产逻辑定义): 观察器/后端 config/buildings/*.json 的 doors 段。
 # 缺省南面; 编辑器在摆放时按主门自动朝向最近道路。
@@ -35,17 +36,30 @@ var scene_name := "editor_scene"   # 导入/导出的场景名(导出默认用�
 var scene_display := ""            # 场景展示名(导入时记住, 不在文件对话框里丢)
 var nodes: Dictionary = {}        # id -> {xy:Vector2, kind:String}
 var edges: Dictionary = {}        # id -> {a,b,class,width,speed,oneway,geom:Array[Vector2]}
-var buildings: Dictionary = {}    # id -> {type,center:Vector2,size:Vector2,rot:float,doors:Array[Vector2]}
+var buildings: Dictionary = {}    # id -> {type,center:Vector2,size:Vector2,rot:float,doors:Array[Vector2],floors:int}
 var npcs: Dictionary = {}         # id -> {name,gender,birthday,role,money,home,personality,init,traits,tell_bias}
 var items: Dictionary = {}        # id -> {type,at,owner,stock,price,persist_empty}
 var building_types: Dictionary = {}
 var name_pool: Dictionary = {}    # config/names/names.json
 var item_types: Dictionary = {}    # config/items/*.json
 var errors: Array = []             # validate() 结果: {level,msg,kind,id}
+# 场景级【初始认知】: [{who, from, items, believe}] —— 一次让一批人知道某处的货。
+# 导出到 scene JSON 的 knowledge 段; 后端 scenarios._seed_knowledge 读它。
+var knowledge: Array = []
+var cur_floor := 1                 # 当前编辑楼层(建筑详情页; 地图角标也读它)
+var cur_floor_bid := ""            # cur_floor 所属建筑
 
-# 人物可选角色码(与后端 config/scenes 一致)
+# 人物可选角色码(与后端 config/scenes 一致)。
+# 注意: 随机生成的人一律 role="" (无) —— 只有手动指定才会带上角色。
 const ROLES := ["worker", "student", "engineer", "teacher", "doctor",
 	"shopkeeper", "unemployed", "retired"]
+
+
+## 角色下拉的选项: 第 0 项 ""(= 无), 其后是 ROLES。
+func role_options() -> Array:
+	var out: Array = [""]
+	out.append_array(ROLES)
+	return out
 
 var _seq := {"n": 0, "e": 0, "b": 0, "i": 0}
 
@@ -221,10 +235,13 @@ func new_map() -> void:
 	buildings.clear()
 	npcs.clear()
 	items.clear()
+	knowledge.clear()
 	errors.clear()
 	_seq = {"n": 0, "e": 0, "b": 0, "i": 0}
 	changed.emit()
 
+## 默认占地尺寸: 由【单层】容量算(1 capacity ≈ 20 m²)。
+## 加楼层不改占地 → 密度上升而不是城市铺开, 这正是多层的用途。
 func default_size_for(type_id: String) -> Vector2:
 	var t: Dictionary = building_types.get(type_id, {})
 	var cap := float(t.get("capacity", 6))
@@ -317,7 +334,7 @@ func add_building(type_id: String, world_pos: Vector2) -> String:
 	_seq.b += 1
 	var id := "bld_%03d" % int(_seq.b)
 	buildings[id] = {"type": type_id, "center": world_pos,
-		"size": default_size_for(type_id), "rot": 0.0, "doors": []}
+		"size": default_size_for(type_id), "rot": 0.0, "doors": [], "floors": 1}
 	align_to_road(buildings[id], world_pos)
 	_sync_doors(buildings[id])
 	errors = validate()
@@ -512,18 +529,19 @@ func remove_edge(id: String) -> void:
 
 
 func remove_building(id: String) -> void:
+	var units := unit_ids(id)      # 必须在 erase 之前算(unit_ids 依赖 buildings)
 	buildings.erase(id)
 	# 解绑门节点(节点本身留着, 只是不再是"某建筑的门")
 	for nid in nodes:
 		if String(nodes[nid].get("door_of", "")) == id:
 			nodes[nid].erase("door_of")
 			nodes[nid].erase("door_index")
-	# 解除引用: 人物住所 / 物件所在建筑
+	# 解除引用: 人物住所 / 物件所在建筑(含楼层单元)
 	for iid in items:
-		if String(items[iid].get("at", "")) == id:
+		if units.has(String(items[iid].get("at", ""))):
 			items[iid]["at"] = ""
 	for pid in npcs:
-		if String(npcs[pid].get("home", "")) == id:
+		if units.has(String(npcs[pid].get("home", ""))):
 			npcs[pid]["home"] = ""
 	prune_orphan_nodes()
 	errors = validate()
@@ -576,7 +594,7 @@ func random_person(rng: RandomNumberGenerator = null) -> Dictionary:
 	return {
 		"id": pid, "name": nm, "gender": gender,
 		"birthday": "%04d-%02d-%02d" % [year, month, day],
-		"role": String(_pick(r, ROLES)),
+		"role": "",      # 新生成的居民一律【无角色】—— 岗位要靠后续发展获得
 		"money": float(r.randi_range(0, 500)),
 		"home": "",
 		"personality": {
@@ -652,7 +670,7 @@ func age_of(n: Dictionary) -> int:
 
 # --- 物件编辑 -----------------------------------------------------------
 func add_item(type_id: String, at: String, owner: String = "") -> String:
-	if not item_types.has(type_id) or not buildings.has(at):
+	if not item_types.has(type_id) or not is_valid_at(at):
 		return ""
 	var d: Dictionary = item_types[type_id]
 	_seq.i += 1
@@ -679,19 +697,283 @@ func remove_item(id: String) -> void:
 
 
 func items_at(bid: String) -> Array:
+	var units := unit_ids(bid)
 	var out: Array = []
 	for iid in items:
-		if String(items[iid].get("at", "")) == bid:
+		if units.has(String(items[iid].get("at", ""))):
 			out.append(iid)
 	return out
 
 
 func npcs_at(bid: String) -> Array:
+	var units := unit_ids(bid)
 	var out: Array = []
 	for pid in npcs:
-		if String(npcs[pid].get("home", "")) == bid:
+		if units.has(String(npcs[pid].get("home", ""))):
 			out.append(pid)
 	return out
+
+
+# --- 楼层 / 住户单元 -----------------------------------------------------
+# 楼层是【编辑器编写概念】: 导出时 floors>1 的建筑会额外生成
+# bld_007_f1..fN 这些【子地点】(带 part_of), 后端只当普通地点看。
+# floors<=1 时单元就是建筑本身 id → 单层场景导出结果完全不变。
+
+## 该建筑的住户单元 id 列表。floors<=1 → [bid]; 否则 [bid_f1 .. bid_fN]。
+func unit_ids(bid: String) -> Array:
+	if not buildings.has(bid):
+		return []
+	var n := int(buildings[bid].get("floors", 1))
+	if n <= 1:
+		return [bid]
+	var out: Array = []
+	for i in range(1, n + 1):
+		out.append("%s_f%d" % [bid, i])
+	return out
+
+
+## 第 floor 层(1..N)对应的单元 id。floors<=1 时恒为 bid。
+func unit_of(bid: String, floor: int) -> String:
+	if not buildings.has(bid):
+		return ""
+	var n := int(buildings[bid].get("floors", 1))
+	if n <= 1:
+		return bid
+	return "%s_f%d" % [bid, clampi(floor, 1, n)]
+
+
+## at(建筑本体 或 楼层单元) → 所属建筑 id; 都不属于则 ""。
+func building_of(at: String) -> String:
+	if buildings.has(at):
+		return at
+	for bid in buildings:
+		if unit_ids(bid).has(at):
+			return bid
+	return ""
+
+
+## 这个 at 值是不是合法的地点(建筑本体 或 某建筑的楼层单元)。
+func is_valid_at(at: String) -> bool:
+	return building_of(at) != ""
+
+
+## 地点显示名: 楼层单元 → "建筑名 · N层"; 否则建筑名。
+func unit_display(at: String) -> String:
+	if buildings.has(at):
+		return building_name(at)
+	var bid := building_of(at)
+	if bid != "":
+		var units := unit_ids(bid)
+		var k := units.find(at)
+		if k >= 0:
+			return "%s · %d层" % [building_name(bid), k + 1]
+	return at
+
+
+func set_floors(bid: String, n: int) -> void:
+	if not buildings.has(bid):
+		return
+	var v := clampi(n, 1, MAX_FLOORS)
+	var old := int(buildings[bid].get("floors", 1))
+	if old == v:
+		return                      # 无变化不 emit: 避免与 SpinBox 重建形成无限循环
+	buildings[bid]["floors"] = v
+	if v < old:
+		# 减层: 楼上的人与物指向的单元没了 → 先清引用, 不留幽灵住所
+		purge_invalid_refs()
+	errors = validate()
+	changed.emit()
+
+
+## 所有合法地点(建筑本体 + 楼层单元)的集合, 给批量校验/清理用(避免逐条 O(N×B))。
+func _valid_sites() -> Dictionary:
+	var s := {}
+	for b in buildings:
+		s[String(b)] = true
+		for u in unit_ids(b):
+			s[String(u)] = true
+	return s
+
+
+## 清掉指向【不存在地点】的引用(减层遗留 / 导入旧坏数据 / 删楼遗漏)。
+## 返回 {npcs, items}: 被解除住所的人数 / 被删掉的物件数。
+func purge_invalid_refs() -> Dictionary:
+	var sites := _valid_sites()
+	var n_npc := 0
+	var n_item := 0
+	for pid in npcs:
+		var h := String(npcs[pid].get("home", ""))
+		if h != "" and not sites.has(h):
+			npcs[pid]["home"] = ""
+			n_npc += 1
+	var kill: Array = []
+	for iid in items:
+		var at := String(items[iid].get("at", ""))
+		if at != "" and not sites.has(at):
+			kill.append(iid)
+	for iid in kill:
+		items.erase(iid)
+		n_item += 1
+	if n_npc > 0 or n_item > 0:
+		errors = validate()
+		changed.emit()
+	return {"npcs": n_npc, "items": n_item}
+
+
+## 每层能住几人 = 建筑【单层】容量(类型 capacity 本身)。
+## 多层是【垂直堆叠】: 总容量 = 单层容量 × 楼层数, 占地不变(密度而不是铺开)。
+## 所以 home_small(3) 盖 3 层 = 每层 3 人 / 共 9 人。
+func unit_capacity(bid: String) -> int:
+	var t: Dictionary = building_types.get(String(buildings.get(bid, {}).get("type", "")), {})
+	return maxi(1, int(t.get("capacity", 3)))
+
+
+## 整栋总容量 = 单层容量 × 楼层数。
+func total_capacity(bid: String) -> int:
+	return unit_capacity(bid) * maxi(1, unit_ids(bid).size())
+
+
+# --- 初始认知(场景级 knowledge) ----------------------------------------
+## 让一批人“知道”这栋楼里的货。who="all" = 所有 NPC。
+func add_knowledge(bid: String, believe: float, who: String = "all") -> void:
+	if not buildings.has(bid):
+		return
+	knowledge.append({"who": who, "from": bid, "items": [],
+		"believe": clampf(believe, 0.05, 1.0)})
+	errors = validate()
+	changed.emit()
+
+
+func remove_knowledge(i: int) -> void:
+	if i < 0 or i >= knowledge.size():
+		return
+	knowledge.remove_at(i)
+	errors = validate()
+	changed.emit()
+
+
+## 与该建筑相关的 knowledge 规则下标。
+func knowledge_at(bid: String) -> Array:
+	var out: Array = []
+	for i in knowledge.size():
+		if String((knowledge[i] as Dictionary).get("from", "")) == bid:
+			out.append(i)
+	return out
+
+
+func npcs_at_unit(unit: String) -> Array:
+	var out: Array = []
+	for pid in npcs:
+		if String(npcs[pid].get("home", "")) == unit:
+			out.append(pid)
+	return out
+
+
+func items_at_unit(unit: String) -> Array:
+	var out: Array = []
+	for iid in items:
+		if String(items[iid].get("at", "")) == unit:
+			out.append(iid)
+	return out
+
+
+## 只夹取当前楼层, 不 emit(供检查器构建时调用)。换建筑 → 回到 1 层。
+func clamp_cur_floor(bid: String) -> void:
+	if not buildings.has(bid):
+		return
+	if bid != cur_floor_bid:
+		cur_floor_bid = bid
+		cur_floor = 1
+	cur_floor = clampi(cur_floor, 1, maxi(1, unit_ids(bid).size()))
+
+
+## 切换当前编辑楼层(越界夹取)。变了才 emit changed, 避免与控件重建形成循环。
+func set_cur_floor(bid: String, floor: int) -> void:
+	if not buildings.has(bid):
+		return
+	var f := clampi(floor, 1, maxi(1, unit_ids(bid).size()))
+	if bid == cur_floor_bid and f == cur_floor:
+		return
+	cur_floor_bid = bid
+	cur_floor = f
+	changed.emit()
+
+
+## 点某建筑时“往哪一层放东西”的目标单元:
+## 正是当前编辑的建筑 → 当前层; 其它建筑 → 1 层。
+func target_unit(bid: String) -> String:
+	return unit_of(bid, cur_floor if bid == cur_floor_bid else 1)
+
+
+## 往建筑的【当前编辑层】加 1 个随机居民(非当前建筑则用 1 层)。
+## 到容量上限不加。返回 {ok, unit, pid, reason} —— 调用方只需读 ok/pid/reason。
+func add_resident(bid: String) -> Dictionary:
+	if not buildings.has(bid):
+		return {"ok": false, "reason": "无此建筑"}
+	var unit := target_unit(bid)
+	var cap := unit_capacity(bid)
+	if npcs_at_unit(unit).size() >= cap:
+		return {"ok": false, "unit": unit,
+			"reason": "已住满 (%d 人上限) —— 加楼层或先删人" % cap}
+	var pid := add_npc(unit)
+	return {"ok": pid != "", "unit": unit, "pid": pid, "reason": ""}
+
+
+## 一键: 所有住宅建筑的每个住户单元补满随机居民(到每层容量)。
+## 返回 {homes, units, added}。
+func fill_residents() -> Dictionary:
+	var homes := 0
+	var units_n := 0
+	var added := 0
+	for bid in buildings:
+		var kind := String(building_types.get(String(buildings[bid]["type"]), {}).get("kind", ""))
+		if kind != "home":
+			continue
+		homes += 1
+		var cap := unit_capacity(bid)
+		for u in unit_ids(bid):
+			units_n += 1
+			var have := npcs_at_unit(String(u)).size()
+			for _i in range(have, cap):
+				if add_npc(String(u)) != "":
+					added += 1
+	return {"homes": homes, "units": units_n, "added": added}
+
+
+## 把 bid 第 floor 层的物件复制到该栋其它楼层(不复制整层 NPC)。
+## 复制品的 owner 改为目标层的户主(若有), 否则置空 —— 否则 2 楼的床会归 1 楼的人。
+## 返回复制条数。
+func copy_floor_items(bid: String, floor: int) -> int:
+	var units := unit_ids(bid)
+	if units.size() <= 1:
+		return 0
+	var src := unit_of(bid, floor)
+	if src == "" or not units.has(src):
+		return 0
+	var src_items: Array = []
+	for iid in items:
+		if String(items[iid].get("at", "")) == src:
+			src_items.append(iid)
+	if src_items.is_empty():
+		return 0
+	var n := 0
+	for u in units:
+		var dst := String(u)
+		if dst == src:
+			continue
+		var dwellers := npcs_at_unit(dst)
+		var owner := String(dwellers[0]) if not dwellers.is_empty() else ""
+		for iid in src_items:
+			var it: Dictionary = items[iid]
+			_seq.i += 1
+			var nid := "%s_%03d" % [String(it["type"]), int(_seq.i)]
+			items[nid] = {"type": String(it["type"]), "at": dst, "owner": owner,
+				"stock": int(it.get("stock", 1)), "price": float(it.get("price", 0.0)),
+				"persist_empty": bool(it.get("persist_empty", false))}
+			n += 1
+	errors = validate()
+	changed.emit()
+	return n
 
 
 # --- 校验 (DRC) ----------------------------------------------------------
@@ -722,6 +1004,24 @@ func validate() -> Array:
 		var pb: Vector2 = nodes[e["b"]]["xy"]
 		if pa.distance_to(pb) < 3.0:
 			out.append({"level": "warn", "msg": "路段过短", "kind": "edge", "id": id})
+	# 引用指向不存在的地点(典型: 减层后遗留的 bld_001_f7)
+	var sites := _valid_sites()
+	for pid in npcs:
+		var h := String(npcs[pid].get("home", ""))
+		if h != "" and not sites.has(h):
+			out.append({"level": "error", "msg": "住所不存在: %s" % h,
+				"kind": "npc", "id": pid})
+	for iid in items:
+		var at := String(items[iid].get("at", ""))
+		if at != "" and not sites.has(at):
+			out.append({"level": "error", "msg": "物件所在地不存在: %s" % at,
+				"kind": "item", "id": iid})
+	# 认知规则: 指向的地点必须存在
+	for ki in knowledge.size():
+		var kf := String((knowledge[ki] as Dictionary).get("from", ""))
+		if kf != "" and not sites.has(kf):
+			out.append({"level": "error", "msg": "认知指向不存在的地点: %s" % kf,
+				"kind": "knowledge", "id": str(ki)})
 	# 规则: 必须先画路再摆放建筑
 	if not buildings.is_empty() and edges.is_empty():
 		out.append({"level": "error", "msg": "先画路再摆放建筑",
@@ -805,7 +1105,8 @@ func to_dict() -> Dictionary:
 		for d in b["doors"]:
 			doors.append(_v(d))
 		bd[id] = {"type": b["type"], "center": _v(b["center"]),
-			"size": _v(b["size"]), "rot": b["rot"], "doors": doors}
+			"size": _v(b["size"]), "rot": b["rot"], "doors": doors,
+			"floors": int(b.get("floors", 1))}
 	return {"format": SCHEMA, "version": VERSION,
 		"world": {"unit": "m",
 			"bounds": [bounds.position.x, bounds.position.y, bounds.size.x, bounds.size.y],
@@ -850,7 +1151,8 @@ func from_dict(d: Dictionary) -> void:
 			doors.append(_vec(dd))
 		buildings[String(id)] = {"type": String(b["type"]),
 			"center": _vec(b["center"]), "size": _vec(b["size"]),
-			"rot": float(b.get("rot", 0.0)), "doors": doors}
+			"rot": float(b.get("rot", 0.0)), "doors": doors,
+			"floors": maxi(1, int(b.get("floors", 1)))}
 	_recount()
 	# 已知类型 → 按 doors 定义重算进出口世界点(不信任导入的旧值)
 	for id in buildings:
@@ -888,11 +1190,23 @@ func to_scene_dict(scene_name_arg: String = "") -> Dictionary:
 		for p in cs:
 			minp = Vector2(minf(minp.x, p.x), minf(minp.y, p.y))
 			maxp = Vector2(maxf(maxp.x, p.x), maxf(maxp.y, p.y))
-		locs[bid] = {"type": String(b["type"]),
-			"name": building_name(bid),
-			"x": snappedf(minp.x, 0.01), "y": snappedf(minp.y, 0.01),
+		var geo := {"x": snappedf(minp.x, 0.01), "y": snappedf(minp.y, 0.01),
 			"w": snappedf(maxp.x - minp.x, 0.01),
 			"h": snappedf(maxp.y - minp.y, 0.01)}
+		var base := {"type": String(b["type"]), "name": building_name(bid)}
+		base.merge(geo)
+		locs[bid] = base
+		# floors>1: 每层额外导出一个【子地点】(同 footprint + part_of)。
+		# 后端只当普通地点, ``part_of`` 仅用于编辑器重导入时跳过(不会重复造楼)。
+		var units := unit_ids(bid)
+		if units.size() > 1:
+			for k in units.size():
+				var u := String(units[k])
+				var d := {"type": String(b["type"]),
+					"name": "%s · %d层" % [building_name(bid), k + 1],
+					"part_of": bid}
+				d.merge(geo)
+				locs[u] = d
 	var ents: Array = []
 	for iid in items:
 		var it: Dictionary = items[iid]
@@ -935,6 +1249,7 @@ func to_scene_dict(scene_name_arg: String = "") -> Dictionary:
 		"canvas": {"w": bounds.size.x, "h": bounds.size.y},
 		"locations": locs, "travel": {"default": 20, "pairs": pairs},
 		"entities": ents, "pulses": [], "plans": {}, "npcs": ppl,
+		"knowledge": knowledge.duplicate(true),
 		"map": to_dict()}
 
 
@@ -955,6 +1270,7 @@ func load_scene_dict(d: Dictionary) -> bool:
 	scene_name = String(d.get("scene", "editor_scene"))
 	scene_display = String(d.get("display_name", ""))
 	new_map()
+	knowledge = (d.get("knowledge", []) as Array).duplicate(true)
 	var m: Variant = d.get("map")
 	if m is Dictionary and not (m as Dictionary).is_empty():
 		from_dict(m)
@@ -970,10 +1286,19 @@ func load_scene_dict(d: Dictionary) -> bool:
 ## locations 段 → 建筑: 已有(来自 map)的只补自定义名; 缺的按矩形造一个。
 func _load_buildings_from_locations(d: Dictionary) -> void:
 	var locs: Dictionary = d.get("locations", {})
+	# 先数一遍子地点(楼层单元): 无 map 段的旧场景里, 靠它恢复 floors。
+	var children := {}
+	for lid in locs:
+		var p := String((locs[lid] as Dictionary).get("part_of", ""))
+		if p != "":
+			children[p] = int(children.get(p, 0)) + 1
 	for bid in locs:
 		var loc: Dictionary = locs[bid]
 		var t := String(loc.get("type", ""))
 		if not building_types.has(t):
+			continue
+		# 楼层单元(part_of 指向父建筑): 不是独立建筑, 跳过 —— 否则会重复造楼。
+		if String(loc.get("part_of", "")) != "":
 			continue
 		if buildings.has(bid):
 			var nm0 := String(loc.get("name", ""))
@@ -989,7 +1314,8 @@ func _load_buildings_from_locations(d: Dictionary) -> void:
 		var b := {"type": t,
 			"center": Vector2(float(loc.get("x", 0.0)) + w * 0.5,
 				float(loc.get("y", 0.0)) + h * 0.5),
-			"size": Vector2(w, h), "rot": 0.0, "doors": []}
+			"size": Vector2(w, h), "rot": 0.0, "doors": [],
+			"floors": maxi(1, int(children.get(bid, 0)))}
 		var nm := String(loc.get("name", ""))
 		if nm != "":
 			b["name"] = nm

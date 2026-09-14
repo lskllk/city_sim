@@ -6,6 +6,8 @@ systems 为执行环境(duck: interaction/travel/pulses/日志), 由上层构造
 """
 from __future__ import annotations
 
+import zlib
+
 from typing import Any
 
 from citysim.core.config import SimConfig
@@ -73,13 +75,84 @@ def _kill(world, systems, pid: str) -> None:
         {"name": npc.name, "loc": world.loc_of(pid)}))
 
 
-def _notify_due(world, systems, npc) -> None:
-    """通用事件/社交通知骨架 —— 原 gossip(传闻)已删, 暂不实现。
+# --- 传播(传闻) -----------------------------------------------------------
+#
+# 规则(docs/20260914/mvp.md):
+#   - 信任只有两档: 同址(同一个 home) 0.9~1.0; 否则 0.4~0.7
+#   - 按 (a,b) **确定性派生** —— 每对人一个固定值, 零存储、可回放
+#   - 传出去的 believe = 说话人自己信的程度 × 对听者的信任
+#   - “对方已知就不说” → 消息播完自己就停, 不会全城皆知
+#
+# 注意: 这里**不做** trust 的演化(mind.md 的 verify) —— 那是后续插件。
 
-    TODO(notify): 通用事件通知 —— 谁在 idle 时可广播一条信息给同地他人; 具体
-    (选样 / 置信(TOLD) / 受众判"是否已知" / 溯源)等 mem 模型语义定稳后再实现。
+BELIEF_FLOOR = 0.3      # 低于此就不值得再传了
+TRUST_SAME_HOME = (0.9, 1.0)
+TRUST_OTHER = (0.4, 0.7)
+
+
+def _unit_hash(key: str) -> float:
+    """把字符串稳定地映到 [0,1)。**不用内置 hash()** —— 它每进程随机化, 回放会飘。"""
+    return (zlib.crc32(key.encode("utf-8")) % 10_000) / 10_000.0
+
+
+def trust_between(a, b) -> float:
+    """a 有多信 b 说的话(0..1)。同址(同一个 home) → 高信任档。"""
+    same = bool(a.home) and a.home == b.home
+    lo, hi = TRUST_SAME_HOME if same else TRUST_OTHER
+    k = a.person_id if a.person_id < b.person_id else b.person_id
+    j = b.person_id if a.person_id < b.person_id else a.person_id
+    return lo + (hi - lo) * _unit_hash("%s|%s" % (k, j))
+
+
+def _pick_tell(speaker, other) -> object | None:
+    """挑一条“对方不知道、也不是他说的、且我比较信”的记忆。
+
+    确定性: 按 item_id 排序后取 believe 最大的那条。
     """
-    pass  # TODO(notify): 待实现, 见上
+    best = None
+    for row in sorted(speaker.memory_dicts(), key=lambda r: r["item_id"]):
+        if row.get("source") == other.person_id:
+            continue                      # 别把他刚告诉我的再告诉他
+        if float(row.get("believe", 0.0)) < BELIEF_FLOOR:
+            continue
+        if other.remembers(row["item_id"]):
+            continue                      # 对方已经知道了 → 不说
+        if other.home and row.get("located") == other.home:
+            continue                      # “告诉他他自己家里有什么”是噪声
+        if best is None or float(row["believe"]) > float(best["believe"]):
+            best = row
+    return best
+
+
+def _notify_due(world, systems, npc) -> None:
+    """空闲时: 跟同地的某人说一件他不知道的事(带信任折扣 + 溯源)。"""
+    tell_p = float(getattr(systems, "tell_p", 0.0))
+    if tell_p <= 0.0:
+        return
+    rng = getattr(systems, "rng", None)
+    if rng is None:
+        return
+    loc = world.loc_of(npc.person_id)
+    for other_id in sorted(world.npcs):
+        if other_id == npc.person_id or world.loc_of(other_id) != loc:
+            continue
+        other = world.npcs[other_id]
+        if rng.random() >= tell_p * npc.tell_bias:
+            continue                      # 说不说, 随机
+        row = _pick_tell(npc, other)
+        if row is None:
+            continue
+        trust = trust_between(npc, other)
+        other.note(row["item_id"], tick=world.clock_tick,
+                   located=row.get("located", ""),
+                   afford=row.get("afford", ""), value=row.get("value", 0.0),
+                   price=row.get("price", 0.0), item_type=row.get("item_type", ""),
+                   believe=float(row["believe"]) * trust,
+                   source=npc.person_id)
+        world.bus.publish(world.bus.make(
+            world.clock_tick, "told", npc.person_id,
+            {"audience": [other_id], "item_id": row["item_id"],
+             "from": npc.person_id, "believe": round(trust, 3)}))
 
 
 def _deliver(world, pid: str, npc, shop, qty: int, home: str):
@@ -213,6 +286,16 @@ def _apply(world, systems, cfg, pid, npc, decision) -> None:
 
     if isinstance(intent, Interact):
         tid = intent.target_id
+        # 防御: 在售商品不能拿 Interact “白拿” —— 得走 Buy 付钱。
+        # (模板计划器已不再挑它们; 但 ScriptedPlanner / LLM 计划可能写错。)
+        ent = world.entities.get(tid)
+        if ent is not None and ent.price > 0 and ent.owner != pid:
+            why = "在售商品·需购买"
+            world.bus.publish(world.bus.make(
+                world.clock_tick, "intent_failed", pid,
+                {"target": tid, "why": why}))
+            npc.on_failure(tid, why, world.clock_tick)
+            return
         if active is not None and active.entity_id == tid:
             return                                   # 继续当前交互
         if active is not None:

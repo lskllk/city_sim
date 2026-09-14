@@ -58,7 +58,8 @@ func _compute_input() -> Dictionary:
 func _frame(loc_id: String, color: Color) -> void:
 	if loc_id == "":
 		return
-	var r := Store.room(loc_id)
+	# 楼层单元 → 归到父建筑(几何相同, 但保证与 map 建筑对齐)
+	var r := Store.room(Store.building_of(loc_id))
 	if r.is_empty():
 		return
 	var rect := Rect2(

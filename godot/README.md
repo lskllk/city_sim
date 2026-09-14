@@ -26,9 +26,10 @@ python -m uvicorn citysim.gateway.server:app --port 8765
   - `CITYSIM_NO_AUTOSTART=1` 关闭自动启动
   - `CITYSIM_PYTHON` 指定 python(不设则自动发现 `%LOCALAPPDATA%\Programs\Python\Python3*`,
     再回退 PATH 的 `python` / `py -3`; 拉起后会探测端口, 失败自动换下一个)
-  - `CITYSIM_BACKEND_CONSOLE=0` 不弹后端控制台窗口(默认弹, 便于看日志)
+  - `CITYSIM_BACKEND_CONSOLE=1` 弹后端控制台窗口（**默认不弹**，后台隐藏运行，
+    日志写仓库根 `.logs/backend.log`）
   - 前提：已装 viz 依赖 `python -m pip install -e ".[viz]"`(否则后端起不来,
-    会打印 warning, 可改用仓库根目录 `run.cmd`)
+    会打印 warning；也可自己开一个终端 `python -m uvicorn citysim.gateway.server:app`)
 - WS 端点默认 `ws://127.0.0.1:8765/ws`，可用环境变量 `CITYSIM_WS_URL` 覆盖。
 - 无头集成冒烟：`CITYSIM_SMOKE=1` 时挂载 `scripts/debug/smoke_probe.gd`，
   轮换选中 NPC/实体/地点以走完 Inspector 构建路径。

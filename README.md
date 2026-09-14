@@ -49,19 +49,21 @@ python tools/watch.py --1x          # 真实节拍 2 tick/s
 - 编辑器: `scenes/editor/editor.tscn`(画路网/摆建筑/放人物物件, 导出场景 JSON)
 
 ```bash
-# 一键(见 run.cmd)
-run.cmd              # 后端 + 观察器
-run.cmd editor       # 只打开编辑器(不启动后端)
-run.cmd backend      # 只起后端
-
-# 或手动:
-python -m uvicorn citysim.gateway.server:app --port 8765
+# 观察器(后端由 Godot 自己拉起, 默认【后台隐藏】不弹窗口)
 "D:/Godot_v4.7.2-stable_win64.exe" --path godot
+
+# 编辑器(不启动后端)
 "D:/Godot_v4.7.2-stable_win64.exe" --path godot res://scenes/editor/editor.tscn
+
+# 只想单跑后端(自动化/无头调试)
+python -m uvicorn citysim.gateway.server:app --port 8765
 ```
 
-Godot 观察器启动时会自己拉起后端(见 `godot/scripts/net/backend.gd`), 端口已在监听则跳过；
-退出时收掉自己拉起的进程。后端启动即暂停；点建筑 → 右侧选人 / 看物件。
+**不需要一键启动脚本。** Godot 观察器启动时会自己拉起后端
+(见 `godot/scripts/net/backend.gd`), 端口已在监听则跳过; 退出时收掉自己拉起的进程。
+后端日志写 `.logs/backend.log`（默认不开控制台窗口；
+要看实时日志: `set CITYSIM_BACKEND_CONSOLE=1`）。
+后端启动即暂停；点建筑 → 右侧选人 / 看物件。
 编辑器导出场景后, 用环境变量让观察器加载它: `set CITYSIM_SCENE=godot\samples\scene.json`。
 
 ### 3) 叙事 / 压力工具(可选)

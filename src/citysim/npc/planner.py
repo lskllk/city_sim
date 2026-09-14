@@ -97,26 +97,46 @@ _MEALS: tuple[tuple[int, str], ...] = (
 _SLEEP: tuple[tuple[int, str], ...] = ((22 * 60, "energy"),)
 
 
-def _pick(inp: PlannerInput, signal: str) -> KnownItem | None:
-    """按需求选一个已知目标: 优先在家, 否则任意; 保持输入顺序(确定性)。"""
-    cands = [k for k in inp.known if k.afford == signal and k.value > 0]
-    if not cands:
+def _usable(inp: PlannerInput, k: KnownItem) -> bool:
+    """这个目标我能【免费用】吗: 自己的, 或 无主且不卖钱。"""
+    if k.owner:
+        return k.owner == inp.person_id
+    return k.price <= 0.0
+
+
+def _pick(inp: PlannerInput, signal: str) -> tuple[KnownItem, bool] | None:
+    """按需求选一个已知目标。
+
+    返回 (目标, 能不能免费用):
+      1) 优先【能免费用】的(自己的 / 无主免费), 且优先在家;
+      2) 家里没有的才退而挑【可买的】(店里的货) —— 那就得付钱。
+    保持输入顺序 → 确定性。
+    """
+    live = [k for k in inp.known if k.afford == signal and k.value > 0]
+    ok = [k for k in live if _usable(inp, k)]
+    pick = ok or [k for k in live if k.price > 0]
+    if not pick:
         return None
-    home = [k for k in cands if k.located == inp.home]
-    return (home or cands)[0]
+    home = [k for k in pick if k.located == inp.home]
+    return ((home or pick)[0], bool(ok))
 
 
 def template_plan(inp: PlannerInput) -> list[PlanEntry]:
-    """规则模板: 三餐 + 晚上睡觉。缺失的目标直接跳过(交给 reflex 兜底)。"""
+    """规则模板: 三餐 + 晚上睡觉。缺失的目标直接跳过(交给 reflex 兜底)。
+
+    家里有饭 → Interact(在家吃); 家里没有但知道哪有卖的 → **Buy(出门买, 付钱)**。
+    **不会把“店里的苹果”当成“在家吃饭”的目标** —— 那是白拿。
+    """
     entries: list[PlanEntry] = []
     seq = 0
     for minute, signal in (*_MEALS, *_SLEEP):
-        item = _pick(inp, signal)
-        if item is None:
+        got = _pick(inp, signal)
+        if got is None:
             continue
+        item, usable = got
         seq += 1
-        entries.append(PlanEntry(
-            f"t{seq}", inp.day_start_tick + minute, Interact(item.item_id)))
+        intent = Interact(item.item_id) if usable else Buy(item.item_id, qty=1)
+        entries.append(PlanEntry(f"t{seq}", inp.day_start_tick + minute, intent))
     entries.sort(key=lambda e: e.at_tick)      # 稳定: 同刻保持生成顺序
     return entries
 

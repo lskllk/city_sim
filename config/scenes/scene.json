@@ -3,173 +3,619 @@
     "h": 600.0,
     "w": 800.0
   },
-  "display_name": "editor_scene",
+  "display_name": "scene",
   "entities": [
     {
-      "at": "bld_001",
+      "at": "bld_001_f1",
       "id": "bed_basic_001",
       "type": "bed_basic"
     },
     {
-      "at": "bld_001",
-      "id": "bed_basic_002",
-      "type": "bed_basic"
-    },
-    {
-      "at": "bld_001",
-      "id": "food_apple_003",
-      "type": "food_apple"
-    },
-    {
-      "at": "bld_001",
-      "id": "food_pear_004",
-      "type": "food_pear"
-    },
-    {
-      "at": "bld_001",
-      "id": "toilet_basic_006",
+      "at": "bld_001_f1",
+      "id": "toilet_basic_002",
       "type": "toilet_basic"
     },
     {
-      "at": "bld_001",
-      "id": "station_workbench_007",
-      "stock": -1,
-      "type": "station_workbench"
-    },
-    {
-      "at": "bld_004",
-      "id": "bed_basic_008",
+      "at": "bld_001_f2",
+      "id": "bed_basic_003",
+      "owner": "npc_he_jing",
       "type": "bed_basic"
     },
     {
-      "at": "bld_004",
-      "id": "meal_simple_009",
-      "stock": 10000,
+      "at": "bld_001_f2",
+      "id": "toilet_basic_004",
+      "owner": "npc_he_jing",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_001_f3",
+      "id": "bed_basic_005",
+      "owner": "npc_sun_zhiqiang",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_001_f3",
+      "id": "toilet_basic_006",
+      "owner": "npc_sun_zhiqiang",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_001_f4",
+      "id": "bed_basic_007",
+      "owner": "npc_liu_jun",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_001_f4",
+      "id": "toilet_basic_008",
+      "owner": "npc_liu_jun",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_001_f5",
+      "id": "bed_basic_009",
+      "owner": "npc_zhang_yang",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_001_f5",
+      "id": "toilet_basic_010",
+      "owner": "npc_zhang_yang",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_001_f6",
+      "id": "bed_basic_011",
+      "owner": "npc_wang_wei",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_001_f6",
+      "id": "toilet_basic_012",
+      "owner": "npc_wang_wei",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_001_f7",
+      "id": "bed_basic_013",
+      "owner": "npc_li_min",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_001_f7",
+      "id": "toilet_basic_014",
+      "owner": "npc_li_min",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_001_f8",
+      "id": "bed_basic_015",
+      "owner": "npc_liu_zhiqiang",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_001_f8",
+      "id": "toilet_basic_016",
+      "owner": "npc_liu_zhiqiang",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_001_f9",
+      "id": "bed_basic_017",
+      "owner": "npc_chen_ming",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_001_f9",
+      "id": "toilet_basic_018",
+      "owner": "npc_chen_ming",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_001_f10",
+      "id": "bed_basic_019",
+      "owner": "npc_xu_fang_2",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_001_f10",
+      "id": "toilet_basic_020",
+      "owner": "npc_xu_fang_2",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_002_f1",
+      "id": "bed_basic_021",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_002_f1",
+      "id": "toilet_basic_022",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_007",
+      "id": "meal_simple_023",
+      "price": 8.0,
+      "stock": 1000,
       "type": "meal_simple"
+    },
+    {
+      "at": "bld_004",
+      "id": "food_apple_024",
+      "price": 5.0,
+      "stock": 1000,
+      "type": "food_apple"
     }
   ],
   "locations": {
     "bld_001": {
-      "h": 7.75,
-      "name": "小屋",
-      "type": "home_small",
-      "w": 7.75,
-      "x": 386.13,
-      "y": 290.25
+      "h": 10.95,
+      "name": "住所",
+      "type": "home_standard",
+      "w": 10.95,
+      "x": 344.52,
+      "y": 242.0
+    },
+    "bld_001_f1": {
+      "h": 10.95,
+      "name": "住所 · 1层",
+      "part_of": "bld_001",
+      "type": "home_standard",
+      "w": 10.95,
+      "x": 344.52,
+      "y": 242.0
+    },
+    "bld_001_f2": {
+      "h": 10.95,
+      "name": "住所 · 2层",
+      "part_of": "bld_001",
+      "type": "home_standard",
+      "w": 10.95,
+      "x": 344.52,
+      "y": 242.0
+    },
+    "bld_001_f3": {
+      "h": 10.95,
+      "name": "住所 · 3层",
+      "part_of": "bld_001",
+      "type": "home_standard",
+      "w": 10.95,
+      "x": 344.52,
+      "y": 242.0
+    },
+    "bld_001_f4": {
+      "h": 10.95,
+      "name": "住所 · 4层",
+      "part_of": "bld_001",
+      "type": "home_standard",
+      "w": 10.95,
+      "x": 344.52,
+      "y": 242.0
+    },
+    "bld_001_f5": {
+      "h": 10.95,
+      "name": "住所 · 5层",
+      "part_of": "bld_001",
+      "type": "home_standard",
+      "w": 10.95,
+      "x": 344.52,
+      "y": 242.0
+    },
+    "bld_001_f6": {
+      "h": 10.95,
+      "name": "住所 · 6层",
+      "part_of": "bld_001",
+      "type": "home_standard",
+      "w": 10.95,
+      "x": 344.52,
+      "y": 242.0
     },
     "bld_002": {
-      "h": 7.75,
-      "name": "小屋",
-      "type": "home_small",
-      "w": 7.75,
-      "x": 394.13,
-      "y": 290.25
+      "h": 10.95,
+      "name": "住所",
+      "type": "home_standard",
+      "w": 10.95,
+      "x": 364.52,
+      "y": 242.0
     },
-    "bld_003": {
-      "h": 7.75,
-      "name": "小屋",
-      "type": "home_small",
-      "w": 7.75,
-      "x": 402.13,
-      "y": 290.25
+    "bld_002_f1": {
+      "h": 10.95,
+      "name": "住所 · 1层",
+      "part_of": "bld_002",
+      "type": "home_standard",
+      "w": 10.95,
+      "x": 364.52,
+      "y": 242.0
+    },
+    "bld_002_f2": {
+      "h": 10.95,
+      "name": "住所 · 2层",
+      "part_of": "bld_002",
+      "type": "home_standard",
+      "w": 10.95,
+      "x": 364.52,
+      "y": 242.0
+    },
+    "bld_002_f3": {
+      "h": 10.95,
+      "name": "住所 · 3层",
+      "part_of": "bld_002",
+      "type": "home_standard",
+      "w": 10.95,
+      "x": 364.52,
+      "y": 242.0
+    },
+    "bld_002_f4": {
+      "h": 10.95,
+      "name": "住所 · 4层",
+      "part_of": "bld_002",
+      "type": "home_standard",
+      "w": 10.95,
+      "x": 364.52,
+      "y": 242.0
     },
     "bld_004": {
-      "h": 7.75,
-      "name": "小屋",
-      "type": "home_small",
-      "w": 7.75,
-      "x": 410.13,
-      "y": 290.25
+      "h": 21.91,
+      "name": "店铺",
+      "type": "shop_small",
+      "w": 21.91,
+      "x": 389.05,
+      "y": 456.09
+    },
+    "bld_005": {
+      "h": 57.74,
+      "name": "办公楼",
+      "type": "work_office",
+      "w": 69.28,
+      "x": 418.74,
+      "y": 420.26
+    },
+    "bld_006": {
+      "h": 24.81,
+      "name": "工地",
+      "type": "work_site",
+      "w": 32.25,
+      "x": 207.02,
+      "y": 303.19
+    },
+    "bld_007": {
+      "h": 21.91,
+      "name": "店铺",
+      "type": "shop_small",
+      "w": 21.91,
+      "x": 243.33,
+      "y": 306.09
     }
   },
   "map": {
     "buildings": {
       "bld_001": {
         "center": [
-          390.0,
-          294.127
+          350.0,
+          247.477
         ],
         "doors": [
           [
-            390.0,
-            298.0
+            350.0,
+            242.0
           ]
         ],
-        "rot": 0.0,
+        "floors": 6,
+        "rot": -180.0,
         "size": [
-          7.746,
-          7.746
+          10.954,
+          10.954
         ],
-        "type": "home_small"
+        "type": "home_standard"
       },
       "bld_002": {
         "center": [
-          398.0,
-          294.127
+          370.0,
+          247.477
         ],
         "doors": [
           [
-            398.0,
-            298.0
+            370.0,
+            242.0
           ]
         ],
-        "rot": 0.0,
+        "floors": 4,
+        "rot": -180.0,
         "size": [
-          7.746,
-          7.746
+          10.954,
+          10.954
         ],
-        "type": "home_small"
-      },
-      "bld_003": {
-        "center": [
-          406.0,
-          294.127
-        ],
-        "doors": [
-          [
-            406.0,
-            298.0
-          ]
-        ],
-        "rot": 0.0,
-        "size": [
-          7.746,
-          7.746
-        ],
-        "type": "home_small"
+        "type": "home_standard"
       },
       "bld_004": {
         "center": [
-          414.0,
-          294.127
+          400.0,
+          467.046
         ],
         "doors": [
           [
-            414.0,
-            298.0
+            400.0,
+            478.0
           ]
         ],
+        "floors": 1,
         "rot": 0.0,
         "size": [
-          7.746,
-          7.746
+          21.909,
+          21.909
         ],
-        "type": "home_small"
+        "type": "shop_small"
+      },
+      "bld_005": {
+        "center": [
+          453.382,
+          449.132
+        ],
+        "doors": [
+          [
+            453.382,
+            478.0
+          ]
+        ],
+        "floors": 1,
+        "rot": 0.0,
+        "size": [
+          69.282,
+          57.735
+        ],
+        "type": "work_office"
+      },
+      "bld_006": {
+        "center": [
+          223.143,
+          315.597
+        ],
+        "doors": [
+          [
+            223.143,
+            328.0
+          ]
+        ],
+        "floors": 1,
+        "rot": 0.0,
+        "size": [
+          32.249,
+          24.807
+        ],
+        "type": "work_site"
+      },
+      "bld_007": {
+        "center": [
+          254.284,
+          317.046
+        ],
+        "doors": [
+          [
+            254.284,
+            328.0
+          ]
+        ],
+        "floors": 1,
+        "rot": 0.0,
+        "size": [
+          21.909,
+          21.909
+        ],
+        "type": "shop_small"
       }
     },
     "edges": {
-      "e_001": {
+      "e_002": {
+        "a": "n_001",
+        "b": "n_003",
+        "class": "local",
+        "geom": [
+          [
+            690.0,
+            330.0
+          ],
+          [
+            690.0,
+            480.0
+          ]
+        ],
+        "oneway": false,
+        "speed": 1.3,
+        "width": 4.0
+      },
+      "e_004": {
         "a": "n_002",
+        "b": "n_005",
+        "class": "local",
+        "geom": [
+          [
+            330.0,
+            330.0
+          ],
+          [
+            400.0,
+            330.0
+          ]
+        ],
+        "oneway": false,
+        "speed": 1.3,
+        "width": 4.0
+      },
+      "e_006": {
+        "a": "n_006",
+        "b": "n_005",
+        "class": "local",
+        "geom": [
+          [
+            400.0,
+            240.0
+          ],
+          [
+            400.0,
+            330.0
+          ]
+        ],
+        "oneway": false,
+        "speed": 1.3,
+        "width": 4.0
+      },
+      "e_007": {
+        "a": "n_006",
+        "b": "n_007",
+        "class": "local",
+        "geom": [
+          [
+            400.0,
+            240.0
+          ],
+          [
+            330.0,
+            240.0
+          ]
+        ],
+        "oneway": false,
+        "speed": 1.3,
+        "width": 4.0
+      },
+      "e_008": {
+        "a": "n_007",
+        "b": "n_002",
+        "class": "local",
+        "geom": [
+          [
+            330.0,
+            240.0
+          ],
+          [
+            330.0,
+            330.0
+          ]
+        ],
+        "oneway": false,
+        "speed": 1.3,
+        "width": 4.0
+      },
+      "e_009": {
+        "a": "n_002",
+        "b": "n_008",
+        "class": "local",
+        "geom": [
+          [
+            330.0,
+            330.0
+          ],
+          [
+            200.0,
+            330.0
+          ]
+        ],
+        "oneway": false,
+        "speed": 1.3,
+        "width": 4.0
+      },
+      "e_010": {
+        "a": "n_003",
+        "b": "n_009",
+        "class": "local",
+        "geom": [
+          [
+            690.0,
+            480.0
+          ],
+          [
+            640.0,
+            480.0
+          ]
+        ],
+        "oneway": false,
+        "speed": 1.3,
+        "width": 4.0
+      },
+      "e_011": {
+        "a": "n_009",
+        "b": "n_004",
+        "class": "local",
+        "geom": [
+          [
+            640.0,
+            480.0
+          ],
+          [
+            390.0,
+            480.0
+          ]
+        ],
+        "oneway": false,
+        "speed": 1.3,
+        "width": 4.0
+      },
+      "e_012": {
+        "a": "n_010",
+        "b": "n_009",
+        "class": "local",
+        "geom": [
+          [
+            640.0,
+            380.0
+          ],
+          [
+            640.0,
+            480.0
+          ]
+        ],
+        "oneway": false,
+        "speed": 1.3,
+        "width": 4.0
+      },
+      "e_013": {
+        "a": "n_005",
+        "b": "n_011",
+        "class": "local",
+        "geom": [
+          [
+            400.0,
+            330.0
+          ],
+          [
+            640.0,
+            330.0
+          ]
+        ],
+        "oneway": false,
+        "speed": 1.3,
+        "width": 4.0
+      },
+      "e_014": {
+        "a": "n_011",
         "b": "n_001",
         "class": "local",
         "geom": [
           [
-            350.0,
-            300.0
+            640.0,
+            330.0
           ],
           [
-            479.0,
-            300.0
+            690.0,
+            330.0
+          ]
+        ],
+        "oneway": false,
+        "speed": 1.3,
+        "width": 4.0
+      },
+      "e_015": {
+        "a": "n_010",
+        "b": "n_011",
+        "class": "local",
+        "geom": [
+          [
+            640.0,
+            380.0
+          ],
+          [
+            640.0,
+            330.0
           ]
         ],
         "oneway": false,
@@ -182,15 +628,78 @@
       "n_001": {
         "kind": "junction",
         "xy": [
-          479.0,
-          300.0
+          690.0,
+          330.0
         ]
       },
       "n_002": {
         "kind": "junction",
         "xy": [
-          350.0,
-          300.0
+          330.0,
+          330.0
+        ]
+      },
+      "n_003": {
+        "kind": "junction",
+        "xy": [
+          690.0,
+          480.0
+        ]
+      },
+      "n_004": {
+        "kind": "junction",
+        "xy": [
+          390.0,
+          480.0
+        ]
+      },
+      "n_005": {
+        "kind": "junction",
+        "xy": [
+          400.0,
+          330.0
+        ]
+      },
+      "n_006": {
+        "kind": "junction",
+        "xy": [
+          400.0,
+          240.0
+        ]
+      },
+      "n_007": {
+        "kind": "junction",
+        "xy": [
+          330.0,
+          240.0
+        ]
+      },
+      "n_008": {
+        "kind": "junction",
+        "xy": [
+          200.0,
+          330.0
+        ]
+      },
+      "n_009": {
+        "kind": "junction",
+        "xy": [
+          640.0,
+          480.0
+        ]
+      },
+      "n_010": {
+        "kind": "junction",
+        "xy": [
+          640.0,
+          380.0
+        ]
+      },
+      "n_011": {
+        "kind": "junction",
+        "xy": [
+          640.0,
+          330.0
         ]
       }
     },
@@ -202,184 +711,1777 @@
         800.0,
         600.0
       ],
-      "grid": 1.0,
+      "grid": 10.0,
+      "grid_snap": true,
+      "net_snap": true,
       "unit": "m"
     }
   },
   "npcs": [
     {
-      "birthday": "2008-12-03",
+      "birthday": "1988-05-22",
       "gender": "male",
-      "home": "bld_001",
-      "id": "npc_zhang_jie",
+      "home": "bld_001_f1",
+      "id": "npc_li_tao",
       "init": {},
-      "money": 370.0,
-      "name": "张杰",
+      "money": 397.0,
+      "name": "李涛",
       "personality": {
-        "energy": 1.0,
+        "energy": 0.9,
         "hunger": 1.2
       },
-      "role": "doctor",
+      "role": "",
       "tell_bias": 1.0,
       "traits": {}
     },
     {
-      "birthday": "1999-11-11",
+      "birthday": "1974-10-07",
       "gender": "female",
-      "home": "bld_001",
-      "id": "npc_zhao_min",
+      "home": "bld_001_f1",
+      "id": "npc_xu_fang",
       "init": {},
-      "money": 408.0,
-      "name": "赵敏",
+      "money": 301.0,
+      "name": "徐芳",
       "personality": {
         "energy": 0.9,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1959-05-20",
+      "gender": "male",
+      "home": "bld_001_f1",
+      "id": "npc_zhang_er",
+      "init": {},
+      "money": 148.0,
+      "name": "张二",
+      "personality": {
+        "energy": 1.0,
         "hunger": 1.1
       },
-      "role": "worker",
+      "role": "",
       "tell_bias": 1.0,
       "traits": {}
     },
     {
-      "birthday": "2001-12-09",
+      "birthday": "1957-09-22",
       "gender": "male",
-      "home": "bld_001",
-      "id": "npc_wang_yang",
+      "home": "bld_001_f1",
+      "id": "npc_huang_yang",
       "init": {},
-      "money": 86.0,
-      "name": "王洋",
-      "personality": {
-        "energy": 1.1,
-        "hunger": 0.8
-      },
-      "role": "teacher",
-      "tell_bias": 1.0,
-      "traits": {}
-    },
-    {
-      "birthday": "1964-07-20",
-      "gender": "male",
-      "home": "bld_001",
-      "id": "npc_luo_jie",
-      "init": {},
-      "money": 10.0,
-      "name": "罗杰",
-      "personality": {
-        "energy": 1.1,
-        "hunger": 1.1
-      },
-      "role": "unemployed",
-      "tell_bias": 1.0,
-      "traits": {}
-    },
-    {
-      "birthday": "2006-07-05",
-      "gender": "female",
-      "home": "bld_004",
-      "id": "npc_hu_li",
-      "init": {},
-      "money": 68.0,
-      "name": "胡丽",
+      "money": 344.0,
+      "name": "黄洋",
       "personality": {
         "energy": 0.9,
-        "hunger": 1.1
+        "hunger": 1.2
       },
-      "role": "engineer",
+      "role": "",
       "tell_bias": 1.0,
       "traits": {}
     },
     {
-      "birthday": "1994-06-08",
-      "gender": "male",
-      "home": "bld_004",
-      "id": "npc_sun_yong",
+      "birthday": "1978-01-16",
+      "gender": "female",
+      "home": "bld_001_f1",
+      "id": "npc_gao_yan",
       "init": {},
-      "money": 90.0,
-      "name": "孙勇",
+      "money": 238.0,
+      "name": "高艳",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1998-08-12",
+      "gender": "female",
+      "home": "bld_001_f1",
+      "id": "npc_yang_ling",
+      "init": {},
+      "money": 319.0,
+      "name": "杨玲",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1996-04-21",
+      "gender": "female",
+      "home": "bld_001_f2",
+      "id": "npc_he_jing",
+      "init": {},
+      "money": 136.0,
+      "name": "何静",
       "personality": {
         "energy": 1.0,
         "hunger": 1.0
       },
-      "role": "student",
+      "role": "",
       "tell_bias": 1.0,
       "traits": {}
     },
     {
-      "birthday": "2008-11-13",
+      "birthday": "2004-04-02",
       "gender": "female",
-      "home": "bld_004",
-      "id": "npc_xu_na",
+      "home": "bld_001_f2",
+      "id": "npc_zhou_li",
       "init": {},
-      "money": 314.0,
-      "name": "徐娜",
+      "money": 8.0,
+      "name": "周丽",
       "personality": {
         "energy": 0.9,
-        "hunger": 0.9
+        "hunger": 1.2
       },
-      "role": "retired",
+      "role": "",
       "tell_bias": 1.0,
       "traits": {}
     },
     {
-      "birthday": "1962-08-11",
+      "birthday": "1976-12-05",
       "gender": "female",
-      "home": "bld_004",
-      "id": "npc_he_xiuying",
+      "home": "bld_001_f2",
+      "id": "npc_zhu_fang",
       "init": {},
-      "money": 468.0,
-      "name": "何秀英",
+      "money": 210.0,
+      "name": "朱芳",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1960-01-03",
+      "gender": "female",
+      "home": "bld_001_f2",
+      "id": "npc_gao_na",
+      "init": {},
+      "money": 315.0,
+      "name": "高娜",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1963-04-01",
+      "gender": "male",
+      "home": "bld_001_f2",
+      "id": "npc_hu_jie",
+      "init": {},
+      "money": 150.0,
+      "name": "胡杰",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1990-12-12",
+      "gender": "male",
+      "home": "bld_001_f2",
+      "id": "npc_gao_tao",
+      "init": {},
+      "money": 368.0,
+      "name": "高涛",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2006-02-25",
+      "gender": "male",
+      "home": "bld_001_f3",
+      "id": "npc_sun_zhiqiang",
+      "init": {},
+      "money": 376.0,
+      "name": "孙志强",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1982-07-16",
+      "gender": "female",
+      "home": "bld_001_f3",
+      "id": "npc_liu_yan",
+      "init": {},
+      "money": 184.0,
+      "name": "刘燕",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2004-12-23",
+      "gender": "female",
+      "home": "bld_001_f3",
+      "id": "npc_he_xia",
+      "init": {},
+      "money": 341.0,
+      "name": "何霞",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1956-08-10",
+      "gender": "female",
+      "home": "bld_001_f3",
+      "id": "npc_ma_xia",
+      "init": {},
+      "money": 81.0,
+      "name": "马霞",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1983-05-08",
+      "gender": "female",
+      "home": "bld_001_f3",
+      "id": "npc_wu_min",
+      "init": {},
+      "money": 108.0,
+      "name": "吴敏",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1969-06-12",
+      "gender": "female",
+      "home": "bld_001_f3",
+      "id": "npc_ma_juan",
+      "init": {},
+      "money": 391.0,
+      "name": "马娟",
       "personality": {
         "energy": 1.1,
         "hunger": 1.2
       },
-      "role": "worker",
+      "role": "",
       "tell_bias": 1.0,
       "traits": {}
     },
     {
-      "birthday": "2003-12-05",
-      "gender": "female",
-      "home": "bld_004",
-      "id": "npc_hu_fang",
+      "birthday": "1984-12-14",
+      "gender": "male",
+      "home": "bld_001_f4",
+      "id": "npc_liu_jun",
       "init": {},
-      "money": 14.0,
-      "name": "胡芳",
+      "money": 318.0,
+      "name": "刘军",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 0.8
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1993-10-11",
+      "gender": "male",
+      "home": "bld_001_f4",
+      "id": "npc_li_wei",
+      "init": {},
+      "money": 279.0,
+      "name": "李伟",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1969-10-24",
+      "gender": "male",
+      "home": "bld_001_f4",
+      "id": "npc_yang_san",
+      "init": {},
+      "money": 250.0,
+      "name": "杨三",
       "personality": {
         "energy": 0.9,
-        "hunger": 0.9
+        "hunger": 1.2
       },
-      "role": "worker",
+      "role": "",
       "tell_bias": 1.0,
       "traits": {}
     },
     {
-      "birthday": "1969-06-20",
+      "birthday": "2008-06-28",
       "gender": "male",
-      "home": "bld_004",
-      "id": "npc_zhou_er",
+      "home": "bld_001_f4",
+      "id": "npc_luo_yang",
       "init": {},
-      "money": 446.0,
-      "name": "周二",
+      "money": 164.0,
+      "name": "罗洋",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1982-02-13",
+      "gender": "female",
+      "home": "bld_001_f4",
+      "id": "npc_hu_xiuying",
+      "init": {},
+      "money": 235.0,
+      "name": "胡秀英",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1981-09-23",
+      "gender": "female",
+      "home": "bld_001_f4",
+      "id": "npc_hu_juan",
+      "init": {},
+      "money": 374.0,
+      "name": "胡娟",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1973-01-12",
+      "gender": "male",
+      "home": "bld_001_f5",
+      "id": "npc_zhang_yang",
+      "init": {},
+      "money": 44.0,
+      "name": "张洋",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.3
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1971-04-17",
+      "gender": "male",
+      "home": "bld_001_f5",
+      "id": "npc_he_chao",
+      "init": {},
+      "money": 161.0,
+      "name": "何超",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2005-10-05",
+      "gender": "female",
+      "home": "bld_001_f5",
+      "id": "npc_li_ling",
+      "init": {},
+      "money": 228.0,
+      "name": "李玲",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2001-06-25",
+      "gender": "female",
+      "home": "bld_001_f5",
+      "id": "npc_sun_na",
+      "init": {},
+      "money": 112.0,
+      "name": "孙娜",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1960-11-13",
+      "gender": "female",
+      "home": "bld_001_f5",
+      "id": "npc_lin_yan",
+      "init": {},
+      "money": 150.0,
+      "name": "林艳",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1971-05-14",
+      "gender": "male",
+      "home": "bld_001_f5",
+      "id": "npc_lin_yang",
+      "init": {},
+      "money": 39.0,
+      "name": "林洋",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1979-01-15",
+      "gender": "male",
+      "home": "bld_001_f6",
+      "id": "npc_wang_wei",
+      "init": {},
+      "money": 16.0,
+      "name": "王伟",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1999-02-05",
+      "gender": "female",
+      "home": "bld_001_f6",
+      "id": "npc_luo_xia",
+      "init": {},
+      "money": 15.0,
+      "name": "罗霞",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1966-09-03",
+      "gender": "male",
+      "home": "bld_001_f6",
+      "id": "npc_wang_chao",
+      "init": {},
+      "money": 489.0,
+      "name": "王超",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1982-08-24",
+      "gender": "male",
+      "home": "bld_001_f6",
+      "id": "npc_yang_jianguo",
+      "init": {},
+      "money": 384.0,
+      "name": "杨建国",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.3
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2000-08-21",
+      "gender": "male",
+      "home": "bld_001_f6",
+      "id": "npc_ma_jun",
+      "init": {},
+      "money": 249.0,
+      "name": "马军",
+      "personality": {
+        "energy": 1.3,
+        "hunger": 1.3
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1964-07-05",
+      "gender": "male",
+      "home": "bld_001_f6",
+      "id": "npc_luo_tao",
+      "init": {},
+      "money": 372.0,
+      "name": "罗涛",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1974-08-22",
+      "gender": "female",
+      "home": "bld_001_f7",
+      "id": "npc_li_min",
+      "init": {},
+      "money": 175.0,
+      "name": "李敏",
+      "personality": {
+        "energy": 1.3,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2007-10-08",
+      "gender": "male",
+      "home": "bld_001_f7",
+      "id": "npc_zhao_jie",
+      "init": {},
+      "money": 19.0,
+      "name": "赵杰",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2004-03-18",
+      "gender": "male",
+      "home": "bld_001_f7",
+      "id": "npc_wang_qiang",
+      "init": {},
+      "money": 338.0,
+      "name": "王强",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1984-02-02",
+      "gender": "female",
+      "home": "bld_001_f7",
+      "id": "npc_gao_na_2",
+      "init": {},
+      "money": 234.0,
+      "name": "高娜",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1965-01-04",
+      "gender": "female",
+      "home": "bld_001_f7",
+      "id": "npc_wang_xiuying",
+      "init": {},
+      "money": 100.0,
+      "name": "王秀英",
       "personality": {
         "energy": 1.1,
         "hunger": 0.9
       },
-      "role": "doctor",
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1985-03-14",
+      "gender": "male",
+      "home": "bld_001_f7",
+      "id": "npc_lin_zhiqiang",
+      "init": {},
+      "money": 174.0,
+      "name": "林志强",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1964-03-09",
+      "gender": "male",
+      "home": "bld_001_f8",
+      "id": "npc_liu_zhiqiang",
+      "init": {},
+      "money": 206.0,
+      "name": "刘志强",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.3
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1960-08-07",
+      "gender": "male",
+      "home": "bld_001_f8",
+      "id": "npc_zhou_qiang",
+      "init": {},
+      "money": 226.0,
+      "name": "周强",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1972-11-25",
+      "gender": "male",
+      "home": "bld_001_f8",
+      "id": "npc_zhou_yong",
+      "init": {},
+      "money": 164.0,
+      "name": "周勇",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 1.3
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1986-02-03",
+      "gender": "male",
+      "home": "bld_001_f8",
+      "id": "npc_guo_zhiqiang",
+      "init": {},
+      "money": 485.0,
+      "name": "郭志强",
+      "personality": {
+        "energy": 1.3,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1965-07-03",
+      "gender": "male",
+      "home": "bld_001_f8",
+      "id": "npc_zhang_jun",
+      "init": {},
+      "money": 3.0,
+      "name": "张军",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 0.8
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1977-12-17",
+      "gender": "female",
+      "home": "bld_001_f8",
+      "id": "npc_zhou_li_2",
+      "init": {},
+      "money": 255.0,
+      "name": "周丽",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1970-12-22",
+      "gender": "male",
+      "home": "bld_001_f9",
+      "id": "npc_chen_ming",
+      "init": {},
+      "money": 495.0,
+      "name": "陈明",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1996-04-11",
+      "gender": "male",
+      "home": "bld_001_f9",
+      "id": "npc_li_er",
+      "init": {},
+      "money": 215.0,
+      "name": "李二",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1993-11-24",
+      "gender": "female",
+      "home": "bld_001_f9",
+      "id": "npc_wang_xiaomei",
+      "init": {},
+      "money": 481.0,
+      "name": "王小美",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1989-03-13",
+      "gender": "male",
+      "home": "bld_001_f9",
+      "id": "npc_luo_yong",
+      "init": {},
+      "money": 422.0,
+      "name": "罗勇",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1986-01-05",
+      "gender": "female",
+      "home": "bld_001_f9",
+      "id": "npc_wu_ling",
+      "init": {},
+      "money": 201.0,
+      "name": "吴玲",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1989-02-19",
+      "gender": "female",
+      "home": "bld_001_f9",
+      "id": "npc_he_ling",
+      "init": {},
+      "money": 1.0,
+      "name": "何玲",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1981-06-20",
+      "gender": "female",
+      "home": "bld_001_f10",
+      "id": "npc_xu_fang_2",
+      "init": {},
+      "money": 163.0,
+      "name": "徐芳",
+      "personality": {
+        "energy": 1.3,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2005-08-24",
+      "gender": "female",
+      "home": "bld_001_f10",
+      "id": "npc_guo_juan",
+      "init": {},
+      "money": 299.0,
+      "name": "郭娟",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2003-10-08",
+      "gender": "male",
+      "home": "bld_001_f10",
+      "id": "npc_chen_jianguo",
+      "init": {},
+      "money": 448.0,
+      "name": "陈建国",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1973-08-03",
+      "gender": "male",
+      "home": "bld_001_f10",
+      "id": "npc_lin_tao",
+      "init": {},
+      "money": 362.0,
+      "name": "林涛",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1981-01-05",
+      "gender": "male",
+      "home": "bld_001_f10",
+      "id": "npc_zhu_lei",
+      "init": {},
+      "money": 192.0,
+      "name": "朱磊",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1987-08-05",
+      "gender": "male",
+      "home": "bld_001_f10",
+      "id": "npc_hu_jianguo",
+      "init": {},
+      "money": 136.0,
+      "name": "胡建国",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1995-04-14",
+      "gender": "male",
+      "home": "bld_002_f1",
+      "id": "npc_lin_yong",
+      "init": {},
+      "money": 254.0,
+      "name": "林勇",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1990-12-04",
+      "gender": "female",
+      "home": "bld_002_f1",
+      "id": "npc_zhu_ling",
+      "init": {},
+      "money": 447.0,
+      "name": "朱玲",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1992-08-22",
+      "gender": "female",
+      "home": "bld_002_f1",
+      "id": "npc_sun_min",
+      "init": {},
+      "money": 221.0,
+      "name": "孙敏",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1999-11-04",
+      "gender": "male",
+      "home": "bld_002_f1",
+      "id": "npc_huang_jie",
+      "init": {},
+      "money": 476.0,
+      "name": "黄杰",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.3
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2006-03-03",
+      "gender": "female",
+      "home": "bld_002_f1",
+      "id": "npc_chen_xia",
+      "init": {},
+      "money": 293.0,
+      "name": "陈霞",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2005-08-03",
+      "gender": "male",
+      "home": "bld_002_f1",
+      "id": "npc_sun_san",
+      "init": {},
+      "money": 193.0,
+      "name": "孙三",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1978-06-26",
+      "gender": "female",
+      "home": "bld_002_f2",
+      "id": "npc_zhou_fang",
+      "init": {},
+      "money": 231.0,
+      "name": "周芳",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1969-03-11",
+      "gender": "male",
+      "home": "bld_002_f2",
+      "id": "npc_li_tao_2",
+      "init": {},
+      "money": 68.0,
+      "name": "李涛",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1958-09-13",
+      "gender": "female",
+      "home": "bld_002_f2",
+      "id": "npc_xu_xia",
+      "init": {},
+      "money": 10.0,
+      "name": "徐霞",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1958-01-12",
+      "gender": "female",
+      "home": "bld_002_f2",
+      "id": "npc_guo_jing",
+      "init": {},
+      "money": 317.0,
+      "name": "郭静",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1997-05-14",
+      "gender": "female",
+      "home": "bld_002_f2",
+      "id": "npc_xu_ling",
+      "init": {},
+      "money": 364.0,
+      "name": "徐玲",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.3
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1963-06-05",
+      "gender": "female",
+      "home": "bld_002_f2",
+      "id": "npc_huang_na",
+      "init": {},
+      "money": 56.0,
+      "name": "黄娜",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1993-02-10",
+      "gender": "female",
+      "home": "bld_002_f3",
+      "id": "npc_zhou_juan",
+      "init": {},
+      "money": 50.0,
+      "name": "周娟",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.3
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1957-12-12",
+      "gender": "female",
+      "home": "bld_002_f3",
+      "id": "npc_huang_xiaomei",
+      "init": {},
+      "money": 463.0,
+      "name": "黄小美",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1984-04-22",
+      "gender": "male",
+      "home": "bld_002_f3",
+      "id": "npc_zhu_jie",
+      "init": {},
+      "money": 397.0,
+      "name": "朱杰",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2001-01-21",
+      "gender": "female",
+      "home": "bld_002_f3",
+      "id": "npc_zhang_yan",
+      "init": {},
+      "money": 152.0,
+      "name": "张燕",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 0.8
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1981-03-02",
+      "gender": "female",
+      "home": "bld_002_f3",
+      "id": "npc_zhu_xiuying",
+      "init": {},
+      "money": 244.0,
+      "name": "朱秀英",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1977-02-10",
+      "gender": "female",
+      "home": "bld_002_f3",
+      "id": "npc_he_yan",
+      "init": {},
+      "money": 297.0,
+      "name": "何燕",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1986-01-14",
+      "gender": "female",
+      "home": "bld_002_f4",
+      "id": "npc_li_xiaomei",
+      "init": {},
+      "money": 240.0,
+      "name": "李小美",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1975-09-15",
+      "gender": "female",
+      "home": "bld_002_f4",
+      "id": "npc_luo_juan",
+      "init": {},
+      "money": 301.0,
+      "name": "罗娟",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2001-06-23",
+      "gender": "male",
+      "home": "bld_002_f4",
+      "id": "npc_hu_zhiqiang",
+      "init": {},
+      "money": 489.0,
+      "name": "胡志强",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1999-02-07",
+      "gender": "female",
+      "home": "bld_002_f4",
+      "id": "npc_zhang_fang",
+      "init": {},
+      "money": 165.0,
+      "name": "张芳",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1993-05-11",
+      "gender": "male",
+      "home": "bld_002_f4",
+      "id": "npc_gao_zhiqiang",
+      "init": {},
+      "money": 475.0,
+      "name": "高志强",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1968-10-25",
+      "gender": "female",
+      "home": "bld_002_f4",
+      "id": "npc_he_juan",
+      "init": {},
+      "money": 73.0,
+      "name": "何娟",
+      "personality": {
+        "energy": 1.3,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2000-03-04",
+      "gender": "male",
+      "home": "bld_002_f5",
+      "id": "npc_ma_jie",
+      "init": {},
+      "money": 187.0,
+      "name": "马杰",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 0.8
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1974-11-24",
+      "gender": "female",
+      "home": "bld_002_f5",
+      "id": "npc_zhu_fang_2",
+      "init": {},
+      "money": 247.0,
+      "name": "朱芳",
+      "personality": {
+        "energy": 0.8,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1961-08-17",
+      "gender": "female",
+      "home": "bld_002_f5",
+      "id": "npc_zhu_xiaomei",
+      "init": {},
+      "money": 271.0,
+      "name": "朱小美",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 0.8
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1976-06-28",
+      "gender": "female",
+      "home": "bld_002_f5",
+      "id": "npc_huang_yan",
+      "init": {},
+      "money": 424.0,
+      "name": "黄艳",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1980-01-10",
+      "gender": "male",
+      "home": "bld_002_f5",
+      "id": "npc_zhou_jianguo",
+      "init": {},
+      "money": 408.0,
+      "name": "周建国",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 0.8
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1988-09-16",
+      "gender": "male",
+      "home": "bld_002_f5",
+      "id": "npc_chen_jianguo_2",
+      "init": {},
+      "money": 366.0,
+      "name": "陈建国",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1999-05-18",
+      "gender": "male",
+      "home": "bld_002_f6",
+      "id": "npc_zhu_wei",
+      "init": {},
+      "money": 397.0,
+      "name": "朱伟",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1986-10-13",
+      "gender": "male",
+      "home": "bld_002_f6",
+      "id": "npc_wu_zhiqiang",
+      "init": {},
+      "money": 119.0,
+      "name": "吴志强",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2004-06-24",
+      "gender": "female",
+      "home": "bld_002_f6",
+      "id": "npc_zhang_ling",
+      "init": {},
+      "money": 383.0,
+      "name": "张玲",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2007-01-22",
+      "gender": "female",
+      "home": "bld_002_f6",
+      "id": "npc_wu_juan",
+      "init": {},
+      "money": 147.0,
+      "name": "吴娟",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1966-04-19",
+      "gender": "male",
+      "home": "bld_002_f6",
+      "id": "npc_lin_ming",
+      "init": {},
+      "money": 282.0,
+      "name": "林明",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1976-05-18",
+      "gender": "female",
+      "home": "bld_002_f6",
+      "id": "npc_wang_yan",
+      "init": {},
+      "money": 343.0,
+      "name": "王燕",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 1.3
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1999-06-09",
+      "gender": "male",
+      "home": "bld_002_f7",
+      "id": "npc_wu_wei",
+      "init": {},
+      "money": 90.0,
+      "name": "吴伟",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2000-12-03",
+      "gender": "male",
+      "home": "bld_002_f7",
+      "id": "npc_sun_lei",
+      "init": {},
+      "money": 400.0,
+      "name": "孙磊",
+      "personality": {
+        "energy": 1.1,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1984-10-22",
+      "gender": "female",
+      "home": "bld_002_f7",
+      "id": "npc_zhou_jing",
+      "init": {},
+      "money": 304.0,
+      "name": "周静",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1985-11-06",
+      "gender": "female",
+      "home": "bld_002_f7",
+      "id": "npc_chen_min",
+      "init": {},
+      "money": 66.0,
+      "name": "陈敏",
+      "personality": {
+        "energy": 1.3,
+        "hunger": 0.8
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1998-05-06",
+      "gender": "female",
+      "home": "bld_002_f7",
+      "id": "npc_lin_juan",
+      "init": {},
+      "money": 357.0,
+      "name": "林娟",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1958-05-03",
+      "gender": "female",
+      "home": "bld_002_f7",
+      "id": "npc_zhang_ling_2",
+      "init": {},
+      "money": 352.0,
+      "name": "张玲",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1958-01-15",
+      "gender": "male",
+      "home": "bld_002_f8",
+      "id": "npc_sun_yang",
+      "init": {},
+      "money": 348.0,
+      "name": "孙洋",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 0.8
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1976-04-05",
+      "gender": "male",
+      "home": "bld_002_f8",
+      "id": "npc_lin_yong_2",
+      "init": {},
+      "money": 446.0,
+      "name": "林勇",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1959-08-05",
+      "gender": "female",
+      "home": "bld_002_f8",
+      "id": "npc_lin_xiaomei",
+      "init": {},
+      "money": 112.0,
+      "name": "林小美",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1974-03-26",
+      "gender": "male",
+      "home": "bld_002_f8",
+      "id": "npc_yang_chao",
+      "init": {},
+      "money": 131.0,
+      "name": "杨超",
+      "personality": {
+        "energy": 0.9,
+        "hunger": 1.0
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1982-04-14",
+      "gender": "male",
+      "home": "bld_002_f8",
+      "id": "npc_wang_jianguo",
+      "init": {},
+      "money": 452.0,
+      "name": "王建国",
+      "personality": {
+        "energy": 1.2,
+        "hunger": 1.1
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2008-09-02",
+      "gender": "female",
+      "home": "bld_002_f8",
+      "id": "npc_zhu_xia",
+      "init": {},
+      "money": 126.0,
+      "name": "朱霞",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 0.8
+      },
+      "role": "",
       "tell_bias": 1.0,
       "traits": {}
     }
   ],
   "plans": {},
   "pulses": [],
-  "scene": "editor_scene",
+  "scene": "scene",
   "travel": {
     "default": 20,
     "pairs": {
-      "bld_001|bld_002": 1,
-      "bld_001|bld_003": 1,
-      "bld_001|bld_004": 2,
-      "bld_002|bld_003": 1,
-      "bld_002|bld_004": 1,
-      "bld_003|bld_004": 1
+      "bld_001|bld_002": 2,
+      "bld_001|bld_004": 22,
+      "bld_001|bld_005": 22,
+      "bld_001|bld_006": 14,
+      "bld_001|bld_007": 11,
+      "bld_002|bld_004": 22,
+      "bld_002|bld_005": 21,
+      "bld_002|bld_006": 16,
+      "bld_002|bld_007": 13,
+      "bld_004|bld_005": 5,
+      "bld_004|bld_006": 23,
+      "bld_004|bld_007": 20,
+      "bld_005|bld_006": 26,
+      "bld_005|bld_007": 23,
+      "bld_006|bld_007": 3
     }
-  }
+  },
+  "knowledge": [
+    {
+      "who": "all",
+      "from": "bld_004",
+      "items": [],
+      "believe": 0.8
+    },
+    {
+      "who": "all",
+      "from": "bld_007",
+      "items": [],
+      "believe": 0.8
+    }
+  ]
 }

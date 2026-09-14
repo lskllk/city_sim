@@ -201,23 +201,37 @@ static func draw_centered(ci: CanvasItem, font: Font, text: String,
 		text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
 
+## 占用角标(右上角)。scale 让角标【贴合建筑框】: 字/框/边距一起缩放。
 static func draw_badge(ci: CanvasItem, font: Font, rect: Rect2, text: String,
-		base: Color, fill: float) -> void:
-	var label_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 10)
-	var box := Rect2(rect.position + Vector2(rect.size.x - label_size.x - 14.0, 8.0),
-		Vector2(label_size.x + 10.0, 17.0))
+		base: Color, fill: float, scale := 1.0) -> void:
+	var fs := maxi(8, int(round(10.0 * scale)))
+	var label_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+	var box := Rect2(
+		rect.position + Vector2(rect.size.x - label_size.x - 14.0 * scale,
+			8.0 * scale),
+		Vector2(label_size.x + 10.0 * scale, 17.0 * scale))
 	var bg := base.darkened(0.15).lerp(HOT, fill)
 	ci.draw_rect(box, Color(bg.r, bg.g, bg.b, 0.95), true)
 	ci.draw_rect(box, Color(1, 1, 1, 0.22), false, 1.0)
 	draw_centered(ci, font, text,
 		Vector2(box.position.x + box.size.x * 0.5,
-			box.position.y + box.size.y * 0.5), 10, Color.WHITE)
+			box.position.y + box.size.y * 0.5), fs, Color.WHITE)
+
+
+## 徽记(可缩放): 用 draw_set_transform 缩放后复用 draw_emblem。
+static func draw_emblem_scaled(ci: CanvasItem, center: Vector2, kind: String,
+		base: Color, scale: float) -> void:
+	ci.draw_set_transform(center, 0.0, Vector2(scale, scale))
+	draw_emblem(ci, Vector2.ZERO, kind, base)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## 一座矩形建筑的完整渲染(观察器路径)。编辑器对旋转 OBB 复用底层原语。
 ## n = 当前占用人数, cap = 容量; fill = n/cap 决定红度。
 static func draw_room(ci: CanvasItem, font: Font, rect: Rect2,
-		kind: String, name: String, n: int, cap: int) -> void:
+		kind: String, name: String, n: int, cap: int,
+		scale := 1.0, lod_name := 0.62, lod_emblem := 1.05,
+		lod_badge := 0.85) -> void:
 	var capacity := maxi(1, cap)
 	var fill := clampf(float(n) / float(capacity), 0.0, 1.0)
 	var base := kind_color(kind)
@@ -226,13 +240,16 @@ static func draw_room(ci: CanvasItem, font: Font, rect: Rect2,
 	ci.draw_rect(rect, Color(body.r, body.g, body.b, 0.5 + 0.35 * fill), true)
 	ci.draw_rect(rect, base.lightened(0.35).lerp(HOT_EDGE, fill), false, 2.0)
 
-	if rect.size.x >= 52.0 and rect.size.y >= 52.0:
-		draw_emblem(ci, Vector2(rect.position.x + rect.size.x * 0.5,
-			rect.position.y + rect.size.y * 0.5 - 24.0), kind, base)
+	if scale >= lod_emblem:
+		draw_emblem_scaled(ci, Vector2(rect.position.x + rect.size.x * 0.5,
+			rect.position.y + rect.size.y * 0.5 - 24.0 * scale), kind, base,
+			scale)
 
-	var size := int(clampf(minf(rect.size.x, rect.size.y) / 8.0, 11.0, 18.0))
-	draw_centered(ci, font, name,
-		Vector2(rect.position.x + rect.size.x * 0.5,
-			rect.position.y + rect.size.y * 0.5),
-		size, Color.WHITE if n > 0 else NAME_COLOR)
-	draw_badge(ci, font, rect, "%d/%d" % [n, capacity], base, fill)
+	if scale >= lod_name:
+		draw_centered(ci, font, name,
+			Vector2(rect.position.x + rect.size.x * 0.5,
+				rect.position.y + rect.size.y * 0.5),
+			maxi(9, int(round(11.0 * scale))),
+			Color.WHITE if n > 0 else NAME_COLOR)
+	if scale >= lod_badge:
+		draw_badge(ci, font, rect, "%d/%d" % [n, capacity], base, fill, scale)

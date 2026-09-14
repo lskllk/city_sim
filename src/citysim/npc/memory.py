@@ -31,6 +31,9 @@ class MemItem:
     price: float = 0.0           # 我以为的现价(易变)
     stock: int = 0               # 我以为的库存(-1=无限; 易变)
     attrs: dict[str, Any] = field(default_factory=dict)
+    # 来源: "" = 自己亲眼看到的; 否则是 npc_id(谁告诉我的) / "ad:<bid>"(广告招牌)…
+    # 没有它就说不清“这话谁说的”, 也做不了溯源与应验(verify)。
+    source: str = ""
     # —— 元(本层只存, 不计算)——
     believe: float = 0.0         # 证据强度(0..1): 我信几分
     remember: float = 0.0        # 记忆强度(0..1): 我还记不记得
@@ -44,7 +47,7 @@ class MemBase:
     _FIELDS = frozenset({
         "located", "owner", "claimed", "afford", "value",
         "item_type", "price", "stock", "attrs", "believe", "remember",
-        "last_seen", "cool_until",
+        "last_seen", "cool_until", "source",
     })
 
     def __init__(self) -> None:
@@ -112,7 +115,7 @@ class MemBase:
         return [
             {"item_id": r.item_id, "located": r.located, "owner": r.owner,
              "claimed": r.claimed, "afford": r.afford, "value": r.value,
-             "item_type": r.item_type,
+             "item_type": r.item_type, "source": r.source,
              "price": r.price, "stock": r.stock,
              "believe": round(r.believe, 3),
              "remember": round(r.remember, 3), "last_seen": r.last_seen,

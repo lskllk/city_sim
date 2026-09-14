@@ -298,6 +298,11 @@ class Person:
     def set_home(self, home: str) -> None:
         self._home = home
 
+    @property
+    def tell_bias(self) -> float:
+        """爱不爱说话(乘在传播概率上): <1 寡言, >1 八卦。"""
+        return self._tell_bias
+
     def set_tell_bias(self, v: float) -> None:
         self._tell_bias = v
 
@@ -308,8 +313,12 @@ class Person:
              owner: str | None = None, afford: str | None = None,
              value: float | None = None, price: float | None = None,
              stock: int | None = None, believe: float | None = None,
-             item_type: str | None = None) -> None:
-        """往记忆 upsert 一行(增/改; 部分字段可省略)。供成交/事件等记记忆用。"""
+             item_type: str | None = None,
+             source: str | None = None) -> None:
+        """往记忆 upsert 一行(增/改; 部分字段可省略)。供成交/事件/传闻用。
+
+        source: "" = 亲眼所见; npc_id = 他说的; "ad:<bid>" = 广告招牌。
+        """
         row = self._mem.get(item_id)
         if row is None:
             row = MemItem(item_id=item_id)
@@ -331,9 +340,15 @@ class Person:
             fields["believe"] = float(believe)
         if item_type is not None:
             fields["item_type"] = str(item_type)
+        if source is not None:
+            fields["source"] = str(source)
         fields.setdefault("remember", 1.0)
         fields.setdefault("last_seen", tick)
         self._mem.update(item_id, **fields)
+
+    def remembers(self, item_id: str) -> bool:
+        """我记忆里有没有这一条(供“对方已知就不说”这类判断用)。"""
+        return self._mem.get(item_id) is not None
 
     def memory_dicts(self) -> list:
         """观测: 记忆库只读快照(不对外暴露可写对象)。"""

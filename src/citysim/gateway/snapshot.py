@@ -12,6 +12,8 @@
 """
 from __future__ import annotations
 
+from typing import Collection
+
 from pathlib import Path
 
 from citysim.core.types import intent_kind, intent_target
@@ -138,7 +140,12 @@ def _recent_events(systems, pid: str) -> list:
     return out
 
 
-def _npc_base(world, systems, pid: str, p) -> dict:
+def _npc_core(world, systems, pid: str, p) -> dict:
+    """NPC 的【渲染 + 列表】字段。
+
+    刻意不含 intent/memory/events —— 它们会随时间越滚越大, 每帧发给每个人
+    是长跑时单帧膨胀到上百 KB 的元凶。那三项只给 focus_npc(见 _npc_rich)。
+    """
     act = systems.interaction.active.get(pid)
     tv = systems.travel.get(pid)
     loc = world.loc_of(pid)
@@ -161,23 +168,54 @@ def _npc_base(world, systems, pid: str, p) -> dict:
             "depart": tv.depart_tick, "arrive": tv.arrive_tick,
             "waypoints": [[round(x, 2), round(y, 2)]
                           for x, y in tv.waypoints]},
-        "plan": p.plan_snapshot(),      # 当天计划表(前端时间线 viz 用)
+        "plan": p.plan_snapshot(),      # 当天计划表(时间线 viz; 每天才变)
     }
 
 
+def _npc_base(world, systems, pid: str, p) -> dict:
+    """渲染/列表层(不含 memory/events/intent)。"""
+    return _npc_core(world, systems, pid, p)
+
+
+def _npc_rich(world, systems, pid: str, p) -> dict:
+    """【被选中】的那个: 额外带意图 / 记忆 / 事件(仅供 Inspector)。"""
+    d = _npc_core(world, systems, pid, p)
+    mem = p.memory_dicts()
+    d["intent"] = _intent_detail(p.last_intent)
+    d["memory"] = mem
+    d["memory_counts"] = len(mem)
+    d["events"] = _recent_events(systems, pid)
+    return d
+
+
 def build_snapshot(world, systems, cfg, speed: str,
-                   events: list[dict], tps: int | None = None) -> dict:
+                   events: list[dict], tps: int | None = None,
+                   only: Collection[str] | None = None,
+                   gone: dict | None = None,
+                   rich: Collection[str] | None = None,
+                   entities_only: Collection[str] | None = None) -> dict:
+    """世界 → JSON 快照(纯读)。
+
+    only: 只下发这些 npc_id(观察驱动)。None = 全量。
+    渲染状态未变的 NPC 不出现在帧里 —— 客户端 merge 并保留上次值,
+    所以“在家不动”的 NPC 不需要反复重发位置。
+
+    gone: {"npcs": [...], "entities": [...]} —— 上帧之后【消失】的 id
+    (死亡 / 被消耗 / 被删)。客户端是合并式更新, 不告诉它就会留幽灵。
+
+    rich: 带 memory/events/intent 的 id(只有被选中的那个); 其余只给渲染层。
+
+    entities_only: 只下发这些 entity_id(物品几乎不变 → 变了才推);
+    None = 全量。注意 shelf_index 仍按【全量】算, 所以货架位次不因过滤而错位。
+    """
     tick = world.clock_tick
+    rich_ids = rich or ()
     npcs = []
     for pid, p in sorted(world.npcs.items()):
-        mem = p.memory_dicts()
-        npcs.append({
-            **_npc_base(world, systems, pid, p),
-            "intent": _intent_detail(p.last_intent),
-            "memory": mem,
-            "memory_counts": len(mem),
-            "events": _recent_events(systems, pid),
-        })
+        if only is not None and pid not in only:
+            continue
+        npcs.append(_npc_rich(world, systems, pid, p) if pid in rich_ids
+                    else _npc_base(world, systems, pid, p))
     ents = [{"id": e.entity_id, "name": e.name, "loc": e.location_id,
              "item_type": e.item_type,
              "tags": sorted(e.tags), "stock": e.stock,
@@ -199,13 +237,18 @@ def build_snapshot(world, systems, cfg, speed: str,
             slot_of[eid] = i
     for e in ents:
         e["shelf_index"] = slot_of.get(e["id"], 0)
-    return {"type": "snapshot", "tick": tick,
-            "day": tick // cfg.ticks_per_day + 1,
-            "hour_f": round(world.hour_f(), 4),
-            "clock": fmt_clock(world.hour_f()),
-            "speed": speed, "running": speed != "pause",
-            "tps": tps if tps is not None else 0,
-            "entities": ents, "npcs": npcs, "events": events}
+    if entities_only is not None:
+        ents = [e for e in ents if e["id"] in entities_only]
+    out = {"type": "snapshot", "tick": tick,
+           "day": tick // cfg.ticks_per_day + 1,
+           "hour_f": round(world.hour_f(), 4),
+           "clock": fmt_clock(world.hour_f()),
+           "speed": speed, "running": speed != "pause",
+           "tps": tps if tps is not None else 0,
+           "entities": ents, "npcs": npcs, "events": events}
+    if gone and (gone.get("npcs") or gone.get("entities")):
+        out["gone"] = gone          # 空的时候不占位(绝大多数帧都是空)
+    return out
 
 
 def build_npc_state(world, systems, pid: str) -> dict | None:

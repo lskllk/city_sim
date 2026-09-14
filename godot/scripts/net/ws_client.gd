@@ -7,6 +7,7 @@ extends Node
 
 signal message_received(envelope: Variant)
 signal status_changed(status: String)
+signal rate_changed                      # 吞吐率每秒刷新一次(HUD 用)
 
 const BASE_BACKOFF := 0.5
 const MAX_BACKOFF := 8.0
@@ -20,6 +21,22 @@ var _closed := false
 var _status := "closed"
 var _attempt := 0
 var _reconnect_in := -1.0
+
+# ---- 吞吐统计(观察器 HUD 显示用) ----
+# 只统计 WS 载荷字节(不含 TCP/IP 头), 够用来判断推送量是否健康。
+var _rx_window := 0          # 本秒窗口内收到的字节
+var _tx_window := 0
+var _rx_rate := 0.0          # 上一秒的字节/秒
+var _tx_rate := 0.0
+var _rate_acc := 0.0
+
+
+func rx_rate() -> float:
+	return _rx_rate
+
+
+func tx_rate() -> float:
+	return _tx_rate
 
 
 func _ready() -> void:
@@ -59,6 +76,7 @@ func _process(delta: float) -> void:
 					_set_status("open")
 				while _peer.get_available_packet_count() > 0:
 					var pkt := _peer.get_packet()
+					_rx_window += pkt.size()
 					var msg: Variant = Protocol.parse_message(pkt.get_string_from_utf8())
 					if msg != null:
 						message_received.emit(msg)
@@ -73,6 +91,14 @@ func _process(delta: float) -> void:
 		if _reconnect_in <= 0.0:
 			_reconnect_in = -1.0
 			_open()
+	_rate_acc += delta
+	if _rate_acc >= 1.0:
+		_rate_acc = 0.0
+		_rx_rate = float(_rx_window)
+		_tx_rate = float(_tx_window)
+		_rx_window = 0
+		_tx_window = 0
+		rate_changed.emit()
 
 
 func send(obj: Variant) -> bool:
@@ -80,7 +106,11 @@ func send(obj: Variant) -> bool:
 		return false
 	if _peer.get_ready_state() != WebSocketPeer.STATE_OPEN:
 		return false
-	return _peer.send_text(JSON.stringify(obj)) == OK
+	var text := JSON.stringify(obj)
+	var ok := _peer.send_text(text) == OK
+	if ok:
+		_tx_window += text.to_utf8_buffer().size()
+	return ok
 
 
 func close() -> void:

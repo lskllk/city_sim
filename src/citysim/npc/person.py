@@ -696,6 +696,10 @@ class Person:
         """
         self._failures.append(
             {"tick": now_tick, "target": target_id, "why": why})
+        # 失败也要有语义表达 —— “买不起/没货/被人占着”是玩家最该看见的一刻
+        self._push_speech(semantic.denied(
+            now_tick, self.person_id, semantic.fail_word(why),
+            topic="denied.%s" % target_id))
         row = self._mem.get(target_id)
         if row is not None:
             if "目标不存在" in why or why.startswith("已空"):

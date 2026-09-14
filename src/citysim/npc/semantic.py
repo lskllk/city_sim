@@ -22,9 +22,11 @@ from typing import Any, Mapping, Sequence
 from citysim.core.types import SemanticEvent
 
 # act 集合与说话优先级(docs/20260913/semantic_event.md §8)
-ACTS: tuple[str, ...] = ("STATE", "INTENT", "SURPRISE", "DOUBT", "REPORT")
+ACTS: tuple[str, ...] = ("STATE", "INTENT", "SURPRISE", "DOUBT", "DENIED",
+                         "REPORT")
 PRIORITY: Mapping[str, int] = {
-    "DOUBT": 5,        # 信念被现实推翻 —— 永远最好看, 排最前
+    "DOUBT": 6,        # 信念被现实推翻 —— 永远最好看, 排最前
+    "DENIED": 5,       # 我被拒绝了(没钱/没货/有人占着) —— **玩家最该看见的一刻**
     "SURPRISE": 4,     # 预期与观察有落差
     "INTENT": 3,       # 我打算干什么
     "STATE": 2,        # 我身体怎么样
@@ -60,6 +62,11 @@ _POOLS: Mapping[str, Mapping[str, Sequence[str]]] = {
         "core": ("{item}不是说好{was}吗", "{who}说{item}{was}的呀",
                  "{item}怎么成了{now}"),
         "tail": ("", "？", "，{who}是不是记错了？", "……", ""),
+    },
+    "DENIED": {
+        "opener": ("哎，", "算了，", "", "啧，"),
+        "core": ("{why}", "{why}啊", "白跑一趟——{why}"),
+        "tail": ("", "。", "……"),
     },
     "REPORT": {
         "opener": ("听说", "听{who}说", "他们说"),
@@ -174,6 +181,31 @@ def money_word(v: float) -> str:
     if v <= 0.0:
         return "免费"
     return ("%d块" % int(round(v))) if abs(v - round(v)) < 1e-6 else ("%g块" % v)
+
+
+## 失败原因 → 人话(引擎给的 reason 直接可用, 这里只统一措辞)
+FAIL_WORDS: Mapping[str, str] = {
+    "钱不够": "钱不够", "库存不足": "没货了", "非卖品": "人家不卖",
+    "在售商品·需购买": "得先付钱", "已空(stock=0)": "卖光了",
+    "已被他人占用": "有人占着", "目标不存在": "找不到了",
+    "目标不在此地": "跑错地方了", "目标已达上限": "排不进去",
+}
+
+
+def fail_word(why: str) -> str:
+    """把引擎的失败原因说成人话(带括号的去掉括号部分)。"""
+    why = str(why or "").strip()
+    if why in FAIL_WORDS:
+        return FAIL_WORDS[why]
+    head = why.split("(")[0].strip()
+    return FAIL_WORDS.get(head, head or "没办成")
+
+
+def denied(tick: int, speaker: str, why: str, *, topic: str = "",
+           intensity: float = 0.4) -> SemanticEvent:
+    """我被拒绝了: 没钱 / 没货 / 有人占着 / 白跑一趟。"""
+    return _event(_next_seq(), tick, speaker, "DENIED",
+                  topic or "denied", {"why": why}, intensity=intensity)
 
 
 def state(tick: int, speaker: str, signal: str, need_word: str,

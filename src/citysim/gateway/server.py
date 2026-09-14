@@ -155,6 +155,21 @@ class SimRunner:
         self.focus_npc = ""
         self.focus_loc = ""
 
+    def watch_set(self) -> set[str]:
+        """我关注的人(选中的那个 + 选中建筑里的人)。**无副作用** ——
+        气泡过滤要用它, 不能动 _watched() 的轮转游标。"""
+        out: set[str] = set()
+        if self.focus_npc in self.world.npcs:
+            out.add(self.focus_npc)
+        loc = self.focus_loc
+        if loc:
+            pref = loc + "_f"
+            for pid in self.world.npcs:
+                at = self.world.loc_of(pid)
+                if at == loc or at.startswith(pref):
+                    out.add(pid)
+        return out
+
     def _watched(self) -> set[str]:
         """客户端正在看的 NPC。
 
@@ -234,6 +249,8 @@ class SimRunner:
         return dirty
 
     def advance(self, n: int) -> None:
+        # 气泡只在【我关注的地方】冒: 把观察集喂给 engine(空集 = 一个都不冒)
+        self.systems.bubble_watch = self.watch_set()
         for _ in range(n):
             run_tick(self.world, self.systems, self.cfg, self.rng_pool)
 

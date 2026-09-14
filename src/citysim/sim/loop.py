@@ -28,6 +28,9 @@ class Systems:
     rng: random.Random = field(default_factory=lambda: random.Random(0))
     #     ↑ 传播用的随机源。【必须来自 systems】: 用全局 random 会让回放飘。
     bubble_ttl: int = 40                 # 气泡存活 tick(冒一下就走)
+    # 只在【我关注的人/地方】冒泡, 其余屏蔽(满城同时冒泡等于没信息)。
+    # None = 不限(无头工具/测试用); 空集合 = 一个都不冒。
+    bubble_watch: set[str] | None = None
     log_attached: bool = False           # attach_replay 幂等标记
     travel_costs: dict[str, int] | None = None
     pulses: list = field(default_factory=list)

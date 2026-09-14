@@ -217,8 +217,15 @@ def _price_word(fact: Mapping[str, Any]) -> str:
 
 
 def _set_bubble(systems, npc, text: str, kind: str, now_tick: int) -> None:
-    """给某人头顶挂一句话(瞬时, 到点自己消失)。"""
+    """给某人头顶挂一句话(瞬时, 到点自己消失)。
+
+    【只在我关注的地方冒泡】: bubble_watch = 观察集(选中的那个人 + 选中建筑
+    里的人)。满城同时冒泡 = 没有信息。None = 不限(无头工具/测试)。
+    """
     if not text:
+        return
+    watch = getattr(systems, "bubble_watch", None)
+    if watch is not None and npc.person_id not in watch:
         return
     ttl = int(getattr(systems, "bubble_ttl", 40) or 40)
     npc.set_bubble(text, int(now_tick) + ttl, kind)

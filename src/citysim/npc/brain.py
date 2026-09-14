@@ -267,11 +267,17 @@ def _score_candidates(cands, personality: Mapping[str, float],
         needs[sig] = need
         base = (need ** power) * row.value \
             * float(personality.get(sig, 1.0)) * row.believe
-        # 买不起的货不当候选: 否则会反复提交→失败→冷却→再提交(刷爆事件环)。
-        if row.price > 0 and row.owner != self_id and float(row.price) > money:
-            continue
+        # 买得起吗 —— 要按【打算买几件】算, 不是按单价!
+        # (旧版只看单价: 钱只够 1 件、却按缺口要买 4 件 → 白跑一趟再失败)
+        qty = max(1, int(want))
+        for_sale = row.price > 0 and row.owner != self_id
+        if for_sale:
+            affordable = int(float(money) // float(row.price))
+            if affordable < 1:
+                continue                 # 一件都买不起 → 别白跑
+            qty = min(qty, affordable)   # 钱够几件就买几件
         # —— 成本 ——
-        cost = float(row.price)                      # 单价×1 件(囤货在后继迭代)
+        cost = float(row.price) * qty if for_sale else 0.0
         if row.located and location_id and row.located != location_id:
             ticks = DEFAULT_TRAVEL_TICKS
             if travel_ticks:
@@ -281,7 +287,7 @@ def _score_candidates(cands, personality: Mapping[str, float],
             cost += cfg.time_value * ticks            # 走路的时间成本
         cost += float(row.price) * (1.0 - row.believe)   # 不确定的便宜要打折
         eff = base / (1.0 + cfg.cost_lambda * cost)
-        scored.append((row.item_id, sig, eff, row.located, row, want))
+        scored.append((row.item_id, sig, eff, row.located, row, qty))
     scored.sort(key=lambda x: (-x[2], x[0]))
     ranked = tuple((s[0], round(s[2], 4)) for s in scored)
     relevant = tuple(sorted(needs.items(), key=lambda kv: (-kv[1], kv[0])))
@@ -297,7 +303,7 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
     自己的/免费公共 → Interact; **在售 → Buy**(要付钱)。
     """
     thresh = cfg.utility_threshold
-    for item_id, sig, eff, loc, row, want in scored:
+    for item_id, sig, eff, loc, row, qty in scored:
         if eff <= thresh:
             continue
         # 能不能用: 自己的 / 自己家里的(共享) / 无主免费公共; 【在售】→ 买
@@ -319,9 +325,9 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
                     used_fact_ids=(),
                     relevant_signals=relevant)), eff
         if for_sale:                      # 在店里 → 付钱买(不再白拿)
-            qty = max(1, min(int(want), MAX_BUY_QTY))   # 一次补到目标存量
+            n = max(1, min(int(qty), MAX_BUY_QTY))   # 一次补到目标存量(且钱够)
             return Buy(
-                item_id=item_id, qty=qty,
+                item_id=item_id, qty=n,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"买 {item_id} ×{qty} (¥{row.price:g}, score={eff:.3f})",

@@ -28,6 +28,8 @@ class MemItem:
     afford: str = ""             # 它能提供什么信号(obs/told 填)
     value: float = 0.0           # 提供多少
     item_type: str = ""          # 物品类型 id(去重/合并用)
+    tags: tuple[str, ...] = ()   # 物品标签(edible/consumable/…)
+                                  # “囤货”只对 consumable 生效 —— 床/马桶不该被囤
     price: float = 0.0           # 我以为的现价(易变)
     # 库存。**默认 -1(不知道/无限)** —— 场景种的记忆、注入的认知通常不写 stock,
     # 若默认 0 会被当成“空的”而永远不出现在候选里。
@@ -50,7 +52,7 @@ class MemBase:
 
     _FIELDS = frozenset({
         "located", "owner", "claimed", "afford", "value",
-        "item_type", "price", "stock", "attrs", "believe", "remember",
+        "item_type", "tags", "price", "stock", "attrs", "believe", "remember",
         "last_seen", "cool_until", "source", "shelf_life_ticks", "expires_tick",
     })
 
@@ -119,7 +121,7 @@ class MemBase:
         return [
             {"item_id": r.item_id, "located": r.located, "owner": r.owner,
              "claimed": r.claimed, "afford": r.afford, "value": r.value,
-             "item_type": r.item_type, "source": r.source,
+             "item_type": r.item_type, "tags": list(r.tags), "source": r.source,
              "price": r.price, "stock": r.stock,
              "shelf_life_ticks": r.shelf_life_ticks,
              "expires_tick": r.expires_tick,

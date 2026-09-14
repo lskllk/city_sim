@@ -425,7 +425,12 @@ class Person:
         words = semantic.GOAL_WORDS.get(row.afford)
         if words is None:
             return
-        goal, why = words
+        # 措辞必须跟【真实驱动】一致: 不饿却去补货时说“家里快没吃的了”,
+        # 不许说“有点饿”。driver 由 brain 标注(见 _gather_candidates)。
+        goal = words[0]
+        trace = getattr(intent, "trace", None)
+        feats = getattr(trace, "features", None) or {}
+        why = words[2] if feats.get("driver") == "future" else words[1]
         self._push_speech(semantic.intent(
             tick, self.person_id, goal, why,
             topic=f"intent.{row.afford}", intensity=0.3))
@@ -467,7 +472,8 @@ class Person:
              item_type: str | None = None,
              source: str | None = None,
              shelf_life_ticks: int | None = None,
-             expires_tick: int | None = None) -> None:
+             expires_tick: int | None = None,
+             tags: Sequence[str] | None = None) -> None:
         """往记忆 upsert 一行(增/改; 部分字段可省略)。供成交/事件/传闻用。
 
         source: "" = 亲眼所见; npc_id = 他说的; "ad:<bid>" = 广告招牌。
@@ -495,6 +501,8 @@ class Person:
             fields["item_type"] = str(item_type)
         if source is not None:
             fields["source"] = str(source)
+        if tags is not None:
+            fields["tags"] = tuple(sorted(str(x) for x in tags))
         if shelf_life_ticks is not None:
             fields["shelf_life_ticks"] = int(shelf_life_ticks)
         if expires_tick is not None:

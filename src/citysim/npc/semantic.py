@@ -257,9 +257,10 @@ def report(tick: int, speaker: str, item_id: str, item_name: str,
 NEED_WORDS: Mapping[str, str] = {
     "hunger": "饿", "energy": "困", "bladder": "憋",
 }
-GOAL_WORDS: Mapping[str, tuple[str, str]] = {
-    # signal -> (去干什么, 为什么)
-    "hunger": ("找点吃的", "有点饿"),
-    "energy": ("歇一会儿", "累了"),
-    "bladder": ("去趟厕所", "憋得慌"),
+GOAL_WORDS: Mapping[str, tuple[str, str, str]] = {
+    # signal -> (去干什么, 眼前缺的理由, 未来缺(囤货)的理由)
+    # ★ 措辞必须跟【真实驱动】一致: 不饿却去补货时, 不许说“我有点饿”。
+    "hunger": ("找点吃的", "有点饿", "家里快没吃的了"),
+    "energy": ("歇一会儿", "累了", "得补补觉"),
+    "bladder": ("去趟厕所", "憋得慌", "该去一趟了"),
 }

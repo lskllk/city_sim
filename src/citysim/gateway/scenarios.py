@@ -264,7 +264,8 @@ def _seed_knowledge(world, data: dict) -> int:
                 p.note(e.entity_id, tick=0, located=e.location_id,
                        owner=e.owner, afford=afford, value=float(value),
                        price=e.price, stock=e.stock,
-                       item_type=e.item_type, believe=believe, source=src,
+                       item_type=e.item_type, tags=e.tags,
+                       believe=believe, source=src,
                        shelf_life_ticks=int(e.shelf_life_ticks))
                 seeded += 1
     if seeded:

@@ -41,7 +41,7 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
             mem.set(MemItem(
                 item_id=v.entity_id, located=v.location_id,
                 owner=v.owner, claimed=claimed, afford=afford, value=float(value),
-                item_type=v.item_type, source="",
+                item_type=v.item_type, tags=tuple(sorted(v.tags)), source="",
                 price=v.price, stock=int(v.stock),
                 shelf_life_ticks=int(v.shelf_life_ticks),
                 expires_tick=int(v.expires_tick),
@@ -51,7 +51,7 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
                 v.entity_id, located=v.location_id, owner=v.owner,
                 claimed=claimed, afford=afford or row.afford,
                 value=float(value) if value else row.value,
-                item_type=v.item_type, source="",
+                item_type=v.item_type, tags=tuple(sorted(v.tags)), source="",
                 price=v.price, stock=int(v.stock),
                 shelf_life_ticks=int(v.shelf_life_ticks),
                 expires_tick=int(v.expires_tick),
@@ -227,7 +227,13 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
         # —— 后者只会把存货变得更少。所以只在不位于本家时才加预期需求。
         # 该买几份: 补到目标存量为止(不再是“一次只买一个”)
         want = 1
-        if stock and cfg is not None and row.located != home:
+        # driver: 这次行动到底是【眼前缺】还是【未来缺(囤货)】驱动的 ——
+        # 措辞层必须知道这件事, 否则会说出“好饿, 去买点吃的”这种假话。
+        driver = "now"
+        # 只有【会消耗的东西】才谈得上囤货 —— 床/马桶的 stock 永远 1,
+        # 对它做目标存量会推出“囤 2.5 张床”, 进而把床的分抬到压过吃饭。
+        consumable = "consumable" in tuple(getattr(row, "tags", ()) or ())
+        if stock and cfg is not None and consumable and row.located != home:
             have = float(stock.get(sig, 0.0))
             target = _stock_target(cfg, sig, row.value,
                                    int(getattr(row, "shelf_life_ticks", 0)),
@@ -235,11 +241,12 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
             fut = _future_need(cfg, have, sig, row.value,
                                int(getattr(row, "shelf_life_ticks", 0)),
                                thrift)
-            if fut > 0.0:
-                need = max(need, future_weight * fut)
+            if fut > 0.0 and future_weight * fut > need:
+                need = future_weight * fut
+                driver = "future"          # ← 未来缺口赢了: 不是“我饿了”
             if target > 0.0:
                 want = max(1, int(math.ceil(target - have)))
-        out.append((row, sig, need, want))
+        out.append((row, sig, need, want, driver))
     return out
 
 
@@ -263,7 +270,7 @@ def _score_candidates(cands, personality: Mapping[str, float],
     power = cfg.utility_power
     needs: dict[str, float] = {}
     scored = []
-    for row, sig, need, want in cands:
+    for row, sig, need, want, driver in cands:
         needs[sig] = need
         base = (need ** power) * row.value \
             * float(personality.get(sig, 1.0)) * row.believe
@@ -287,7 +294,7 @@ def _score_candidates(cands, personality: Mapping[str, float],
             cost += cfg.time_value * ticks            # 走路的时间成本
         cost += float(row.price) * (1.0 - row.believe)   # 不确定的便宜要打折
         eff = base / (1.0 + cfg.cost_lambda * cost)
-        scored.append((row.item_id, sig, eff, row.located, row, qty))
+        scored.append((row.item_id, sig, eff, row.located, row, qty, driver))
     scored.sort(key=lambda x: (-x[2], x[0]))
     ranked = tuple((s[0], round(s[2], 4)) for s in scored)
     relevant = tuple(sorted(needs.items(), key=lambda kv: (-kv[1], kv[0])))
@@ -303,7 +310,7 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
     自己的/免费公共 → Interact; **在售 → Buy**(要付钱)。
     """
     thresh = cfg.utility_threshold
-    for item_id, sig, eff, loc, row, qty in scored:
+    for item_id, sig, eff, loc, row, qty, driver in scored:
         if eff <= thresh:
             continue
         # 能不能用: 自己的 / 自己家里的(共享) / 无主免费公共; 【在售】→ 买
@@ -322,7 +329,7 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"记忆: {item_id} 能解 {sig} → 去 {loc}",
-                    used_fact_ids=(),
+                    used_fact_ids=(), features={"driver": driver},
                     relevant_signals=relevant)), eff
         if for_sale:                      # 在店里 → 付钱买(不再白拿)
             n = max(1, min(int(qty), MAX_BUY_QTY))   # 一次补到目标存量(且钱够)
@@ -331,14 +338,14 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"买 {item_id} ×{qty} (¥{row.price:g}, score={eff:.3f})",
-                    used_fact_ids=(),
+                    used_fact_ids=(), features={"driver": driver},
                     relevant_signals=relevant)), eff
         return Interact(
             target_id=item_id,
             trace=DecisionTrace(
                 ranked=ranked,
                 reason=f"目标 {item_id} (score={eff:.3f})",
-                used_fact_ids=(),
+                used_fact_ids=(), features={"driver": driver},
                 relevant_signals=relevant)), eff
     return Idle(
         trace=DecisionTrace(

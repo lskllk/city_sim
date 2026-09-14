@@ -314,7 +314,7 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
         npc.note(container.entity_id, tick=world.clock_tick,
                  located=home, owner=pid, stock=container.stock,
                  afford=cafford, value=float(cvalue),
-                 item_type=container.item_type, source="",
+                 item_type=container.item_type, tags=container.tags, source="",
                  shelf_life_ticks=int(container.shelf_life_ticks),
                  expires_tick=int(container.expires_tick))
     npc.on_interaction_done(intent.item_id, world.clock_tick)

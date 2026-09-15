@@ -38,6 +38,9 @@ def _travel_cost(systems, cfg: SimConfig, a: str, b: str) -> int:
             systems.travel_costs.get(f"{b}|{a}")
         if c is not None:
             return c
+    # 场景自己声明的 travel.default 优先于全局 move_ticks
+    if int(getattr(systems, "travel_default", 0) or 0) > 0:
+        return int(systems.travel_default)
     return cfg.move_ticks
 
 

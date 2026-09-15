@@ -101,6 +101,7 @@ def load_scene(path: str | Path | None = None,
         costs[f"{a}|{b}"] = int(n)
         costs[f"{b}|{a}"] = int(n)
     systems.travel_costs = costs
+    systems.travel_default = int((data.get("travel") or {}).get("default", 0) or 0)
     # 注入给每个人: 决策打分要靠它算“走这一趟的代价”
     for p in world.npcs.values():
         p.set_travel_costs(costs)

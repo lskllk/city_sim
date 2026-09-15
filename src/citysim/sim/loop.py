@@ -42,6 +42,9 @@ class Systems:
     bubble_watch: set[str] | None = None
     log_attached: bool = False           # attach_replay 幂等标记
     travel_costs: dict[str, int] | None = None
+    # 场景顶层 travel.default: 矩阵缺项时的兜底
+    # (以前这个字段【没人读】—— 编辑器每次导出都白写一行, 调它也没有任何反应)
+    travel_default: int = 0
     pulses: list = field(default_factory=list)
     planner: Planner | None = None       # 日计划器(0:00 生成次日计划; 缺省规则模板)
     roads: object | None = None          # world.roads.RoadGraph; 有则 MoveTo 走最短路

@@ -73,7 +73,9 @@ energy = 4.0                   # 精力要钝一点(默认 3.0): 不太困就别
                                # (幂次越大越钝; 6.0 也试过, 阈值附近太陡)
 
 [motion]                       # 跨地点移动(m5-rectify 13; M7 日程/距离前先入 config)
-move_ticks = 30                # 无路网时的固定耗时(MoveTo 降级)
+move_ticks = 30                # ⚠ 基本【不生效】: 只兜底"travel 矩阵里没有这一对";
+                               # 编辑器导出的场景会写全所有 pair → 走不到这个分支。
+                               # 手写老场景才用得上(那时优先用场景的 travel.default)。
 move_m_per_tick = 10.0         # 有路网时: 每 tick 可走米数(等价编辑器 travel 降级的 距离/10)
 
 [health]                       # 生命【三态】

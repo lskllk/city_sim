@@ -102,9 +102,30 @@ def load_scene(path: str | Path | None = None,
         costs[f"{b}|{a}"] = int(n)
     systems.travel_costs = costs
     systems.travel_default = int((data.get("travel") or {}).get("default", 0) or 0)
-    # 注入给每个人: 决策打分要靠它算“走这一趟的代价”
-    for p in world.npcs.values():
-        p.set_travel_costs(costs)
+    # ★ 楼层单元 ↔ 父建筑: 编辑器导出的矩阵只有【建筑级】pair(bld_009|bld_010),
+    #   但人和货常常住在【楼层单元】里(bld_009_f3) → 直接查表查不到 →
+    #   brain 会退化用常量 DEFAULT_TRAVEL_TICKS(30) ✗✗ →
+    #   "哪家店更近"在打分里完全没有区别(用户实测: 又近又便宜的梨不吸引人)。
+    #   这里按父建筑把矩阵展开到【所有地点对】(12 个地点 → 132 对, 可忽略)。
+    units = {uid: str((loc or {}).get("part_of") or uid)
+             for uid, loc in world.locations.items()}
+    resolved: dict[str, int] = {}
+    for a in world.locations:
+        for b in world.locations:
+            if a == b:
+                continue
+            ba, bb = units.get(a, a), units.get(b, b)
+            v = costs.get(f"{ba}|{bb}") or costs.get(f"{bb}|{ba}")
+            if v is None:
+                continue
+            lo, hi = (a, b) if a <= b else (b, a)
+            resolved[f"{lo}|{hi}"] = int(v)
+    if resolved:
+        costs = resolved
+    # 注: 位移成本矩阵要等【NPC 建好之后】才能注入(见文件末尾) ——
+    # 这里 world.npcs 还是空的, 以前那句循环等于什么都没做 ✗。
+    # 后果: 打分里的 time_value × travel_ticks 全是常量 30,
+    #       "哪家店更近"在决策里完全没有区别。
     # 场景脉冲(世界侧定时)
     systems.pulses = _norm_pulses(data.get("pulses", []), CFG.ticks_per_day)
 
@@ -195,6 +216,9 @@ def load_scene(path: str | Path | None = None,
         for pid, p in world.npcs.items():
             res = systems.planner.plan_for_person(p, 0)       # 应用当天计划
             p.set_plan(res.entries)
+    # ---- 位移成本矩阵: 建完所有 NPC 之后再注入(打分要用它算"走这一趟多贵") ----
+    for _p in world.npcs.values():
+        _p.set_travel_costs(costs)
     return world, systems, rng_pool
 
 

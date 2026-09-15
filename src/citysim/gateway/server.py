@@ -536,6 +536,19 @@ async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
         hired = hire_at(r.world, r.systems, r.cfg)
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
                          "ok": True, "data": {"hired": hired}, "why": None})
+    elif name == "set_price":
+        # 价格管理: 改一个在售实体的售价 —— 【只改世界真值】, 顾客要看见/听人才知道
+        ent = r.world.entities.get(str(args.get("entity", "")))
+        if ent is None:
+            await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
+                             "ok": False, "data": None, "why": "没有这个物件"})
+        else:
+            ent.price = max(0.0, float(args.get("price", 0.0)))
+            r.world.layout_location(ent.location_id)
+            await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
+                             "ok": True,
+                             "data": {"entity": ent.entity_id,
+                                      "price": ent.price}, "why": None})
     elif name == "select":
         # 观察驱动: 客户端告知“我在看谁 / 看哪栋楼” → 这些每帧全量下发。
         r.focus_npc = str(args.get("npc", ""))

@@ -1,7 +1,14 @@
-# page_location.gd —— 建筑详情页(常驻, 原地 bind)。
+# page_location.gd —— 建筑详情(观察器)。
 #
-# 多楼层建筑: 顶部一个【楼层下拉】, 页面显示【选中楼层】的权限/人员/物件;
-# 标题写成 "7 号 · 2层"。单层建筑不显示下拉(与以前一致)。
+# 模板【按建筑类型绑定】(用户定的口径, 和编辑器同一套):
+#   商铺 shop → 公司(可进"公司运营"页) + 线路(前台/在岗/排队) + 在店里的人
+#               + 物件(含【在售库存】与【工位/销售前台】—— 交易靠它)
+#   住宅 home → 楼层 + 住户 + 家里的东西
+#   其它      → 权限 + 在场的人 (市场多一行"无限库存 · 只有公司能采购")
+#
+# 招牌信息【已从详情移除】(那是经营手段 → 归公司运营页的"广告", 后续做)。
+#
+# 铁律: 页面常驻; bind() 只改数值, 不重建控件(见 ui_page.gd)。
 class_name InspLocationPage
 extends UiPage
 
@@ -11,9 +18,10 @@ const ITEM_ROW := preload("res://scenes/components/item_row.tscn")
 var _header: Control
 var _floor_sec: Control
 var _floor_sel: OptionButton
-var _cur_bid := ""            # 当前楼层所属建筑(切建筑 → 回 1 层)
+var _cur_bid := ""
 var _cur_floor := 1
-var _room: Dictionary = {}     # 当前绑定的地点(建筑本体)
+var _room: Dictionary = {}
+
 var _perm: Label
 var _cap: Label
 var _cap_row: Control
@@ -24,14 +32,15 @@ var _i_sec: Control
 var _i: UiList
 var _i_empty: Label
 var _comp_sec: Control
-var _sign_sec: Control
-var _sign_body: VBoxContainer
+var _comp_body: VBoxContainer
+var _lane_sec: Control
+var _lane_body: VBoxContainer
 
 
 func build() -> void:
 	_header = UiKit.header(self)
 
-	# 楼层下拉(仅多楼层建筑显示)
+	# 楼层(仅住宅显示)
 	_floor_sec = UiKit.section(self, "楼层")
 	_floor_sec.visible = false
 	_floor_sel = OptionButton.new()
@@ -43,7 +52,16 @@ func build() -> void:
 	_cap = UiKit.kv(a, "容量")
 	_cap_row = _cap.get_parent()
 
-	_p_sec = UiKit.section(self, "人员")
+	# 公司(商铺): 摘要 + 进"公司运营"页
+	_comp_sec = UiKit.section(self, "公司")
+	_comp_body = _comp_sec.body()
+
+	# 线路(商铺): 前台 = 销售位; 有员工守着才开台
+	_lane_sec = UiKit.section(self, "线路")
+	_lane_body = _lane_sec.body()
+
+	# 在店里的人(全部类型都显示)
+	_p_sec = UiKit.section(self, "在店里的人")
 	UiKit.column_header(_p_sec.body(), [
 		["姓名", 0.0, HORIZONTAL_ALIGNMENT_LEFT],
 		["年龄", UiKit.W_AGE, HORIZONTAL_ALIGNMENT_RIGHT],
@@ -54,6 +72,7 @@ func build() -> void:
 	_p = UiList.new(_p_sec.body(), PERSON_ROW)
 	_p_empty = UiKit.muted(_p_sec.body(), "无人")
 
+	# 物件(在售库存 / 工位 / 货架) —— 商铺也有: 交易靠工位
 	_i_sec = UiKit.section(self, "物件")
 	UiKit.column_header(_i_sec.body(), [
 		["名称", 0.0, HORIZONTAL_ALIGNMENT_LEFT],
@@ -64,13 +83,6 @@ func build() -> void:
 	_i = UiList.new(_i_sec.body(), ITEM_ROW)
 	_i_empty = UiKit.muted(_i_sec.body(), "无")
 
-	# 公司：注册 / 参数 / 招聘(游戏内经营, 只改世界真值)
-	_comp_sec = UiKit.section(self, "公司")
-
-	# 招牌: 这家店在门口吆喝什么(数据来自后端 world.locations[bid].sign)
-	_sign_sec = UiKit.section(self, "招牌")
-	_sign_body = _sign_sec.body()
-
 
 func bind(id: String) -> void:
 	var room := Store.room(id)
@@ -80,11 +92,11 @@ func bind(id: String) -> void:
 	var bid := Store.building_of(id)
 	if bid != _cur_bid:
 		_cur_bid = bid
-		_cur_floor = 1                 # 换建筑 → 回到 1 层
-	# 单层 → 直接显示(无下拉); 分过单元的 → 下拉选层(层数变化才重建选项)
+		_cur_floor = 1
 	var multi := Store.is_multi(bid)
-	_floor_sec.visible = multi
-	if multi:
+	var is_home := Zh.kind_zh(Protocol.s(room.get("kind", ""))) == "住所"
+	_floor_sec.visible = multi and is_home
+	if _floor_sec.visible:
 		var nf := Store.floor_units(bid)
 		_cur_floor = clampi(_cur_floor, 1, nf)
 		if _floor_sel.item_count != nf:
@@ -92,154 +104,15 @@ func bind(id: String) -> void:
 			for i in range(1, nf + 1):
 				_floor_sel.add_item("第 %d 层" % i)
 		if _floor_sel.selected != _cur_floor - 1:
-			_floor_sel.select(_cur_floor - 1)   # select() 不发信号, 不会递归
-	Store.set_floor(_cur_floor)      # 把“在盯哪一层”同步给观察集
+			_floor_sel.select(_cur_floor - 1)
+	if is_home:
+		Store.set_floor(_cur_floor)
 	_render()
-
-
-## 招牌: 归属公司 / 半径 / 相信度 / 挂着的几条消息(最多 3 条, 由后端定)。
-## 公司名 + 现金(来自 hello.companies 的只读镜像)
-func _company_text(cid: String) -> String:
-	if cid == "":
-		return "（未登记）"
-	for c in Store.companies:
-		var d: Dictionary = c
-		if Protocol.s(d.get("id", "")) == cid:
-			return "%s · 现金 ¥%.0f" % [Protocol.s(d.get("name", cid)),
-				Protocol.num(d.get("cash", 0.0))]
-	return cid
-
-
-## 公司段: 没注册 → 一个按钮; 注册了 → 参数 + 招聘(游戏内经营动作)
-func _render_company() -> void:
-	if _comp_sec == null:
-		return
-	for c in _comp_sec.body().get_children():
-		_comp_sec.body().remove_child(c)
-		c.queue_free()
-	var bid := Store.building_of(_cur_bid)
-	var room := Store.room(bid)
-	if Protocol.s(room.get("kind", "")) != "shop":
-		_comp_sec.visible = false
-		return
-	_comp_sec.visible = true
-	var cid := Protocol.s(room.get("company", ""))
-	if cid == "":
-		_comp_sec.set_title("公司 · 未注册")
-		UiKit.muted(_comp_sec.body(), "没注册公司的店【不能卖东西、也不能招人】")
-		var name_edit := LineEdit.new()
-		name_edit.placeholder_text = "%s 公司" % Protocol.s(room.get("name", bid))
-		UiKit.kv(_comp_sec.body(), "公司名").text = ""
-		_comp_sec.body().add_child(name_edit)
-		var reg := Button.new()
-		reg.text = "注册公司（现金 ¥1000）"
-		reg.pressed.connect(func() -> void:
-			Commands.cmd("register_company", {"location": bid,
-				"name": name_edit.text.strip_edges()})
-		)
-		_comp_sec.body().add_child(reg)
-		return
-	var comp := InspData.company(cid)
-	if comp.is_empty():
-		_comp_sec.set_title("公司 · %s" % cid)
-		UiKit.muted(_comp_sec.body(), "（等下一帧快照）")
-		return
-	_comp_sec.set_title("公司 · %s" % Protocol.s(comp.get("name", cid)))
-	UiKit.kv(_comp_sec.body(), "现金").text = "¥%.0f" % Protocol.num(comp.get("cash", 0.0))
-	var staff: Array = Protocol.as_array(comp.get("staff", []))
-	UiKit.kv(_comp_sec.body(), "员工").text = ("%d 人" % staff.size()) if staff.is_empty() 		else "%d 人：%s" % [staff.size(), ", ".join(staff.map(func(x): return Store.name_of(String(x))))]
-	var open_m := int(Protocol.num(comp.get("open_minute", 480)))
-	var close_m := int(Protocol.num(comp.get("close_minute", 1140)))
-	var wage := Protocol.num(comp.get("wage_per_hour", 10.0))
-	var hire_on := bool(comp.get("hiring_open", false))
-	var slots := int(Protocol.num(comp.get("hiring_slots", 0)))
-	UiKit.kv(_comp_sec.body(), "营业").text = "%02d:%02d - %02d:%02d" % [
-		open_m / 60, open_m % 60, close_m / 60, close_m % 60]
-	UiKit.kv(_comp_sec.body(), "时薪").text = "¥%.0f / 小时" % wage
-	UiKit.kv(_comp_sec.body(), "招聘").text = ("招 %d 人" % slots) if hire_on else "未发布"
-	# —— 参数编辑 ——
-	var cash := _spin(0, 1000000, 100); cash.value = Protocol.num(comp.get("cash", 0.0))
-	_comp_sec.body().add_child(_lrow("改成现金", cash))
-	var om := _spin(0, 1439, 30); om.value = open_m
-	_comp_sec.body().add_child(_lrow("开门(分)", om))
-	var cm := _spin(1, 1440, 30); cm.value = close_m
-	_comp_sec.body().add_child(_lrow("关门(分)", cm))
-	var wg := _spin(1, 500, 1); wg.value = wage
-	_comp_sec.body().add_child(_lrow("时薪", wg))
-	var rs := _spin(0, 999, 10); rs.value = Protocol.num(comp.get("restock_to", 60))
-	_comp_sec.body().add_child(_lrow("补货目标", rs))
-	var save := Button.new()
-	save.text = "保存参数"
-	save.pressed.connect(func() -> void:
-		Commands.cmd("company_update", {"company": cid, "cash": cash.value,
-			"open_minute": int(om.value), "close_minute": int(cm.value),
-			"wage_per_hour": wg.value, "restock_to": int(rs.value)}))
-	_comp_sec.body().add_child(save)
-	# —— 招聘: 招不招人是公司说了算 ——
-	var hs := _spin(0, 99, 1); hs.value = slots
-	_comp_sec.body().add_child(_lrow("要招几人", hs))
-	var post := Button.new()
-	post.text = "发布招聘" if not hire_on else "更新招聘"
-	post.tooltip_text = "发布之后，每天新的一天那一刻与有意愿的 NPC 撮合（外面只做媒婆）"
-	post.pressed.connect(func() -> void:
-		Commands.cmd("company_hire", {"company": cid, "slots": int(hs.value),
-			"wage_per_hour": wg.value}))
-	_comp_sec.body().add_child(post)
-	var cancel := Button.new()
-	cancel.text = "撤回招聘"
-	cancel.pressed.connect(func() -> void:
-		Commands.cmd("company_hire", {"company": cid, "slots": 0}))
-	_comp_sec.body().add_child(cancel)
-
-
-## 面板里的小控件(观察器没有编辑器那套 _spin/_lrow, 这里补两个)
-func _spin(mn: float, mx: float, step: float) -> SpinBox:
-	var s := SpinBox.new()
-	s.min_value = mn
-	s.max_value = mx
-	s.step = step
-	return s
-
-
-func _lrow(label: String, c: Control) -> Control:
-	var row := HBoxContainer.new()
-	var l := Label.new()
-	l.text = label
-	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(l)
-	row.add_child(c)
-	return row
-
-
-func _render_sign() -> void:
-	if _sign_body == null:
-		return
-	for c in _sign_body.get_children():
-		_sign_body.remove_child(c)
-		c.queue_free()
-	var sign := Protocol.as_dict(_room.get("sign", {}))
-	_sign_sec.visible = not sign.is_empty()
-	if sign.is_empty():
-		return
-	var msgs := Protocol.as_array(sign.get("messages", []))
-	_sign_sec.set_title("招牌 · %d 条" % msgs.size())
-	var cid := Protocol.s(sign.get("company", ""))
-	UiKit.kv(_sign_body, "公司").text = _company_text(cid)
-	UiKit.kv(_sign_body, "可见半径").text = "%.0f m" % Protocol.num(sign.get("radius", 0.0))
-	UiKit.kv(_sign_body, "相信度").text = "%.2f" % Protocol.num(sign.get("believe", 0.0))
-	for mid in msgs:
-		var e := Store.entity(String(mid))
-		if e.is_empty():
-			UiKit.muted(_sign_body, "? %s（物件不存在）" % mid)
-			continue
-		var pr := Protocol.num(e.get("price", 0.0))
-		UiKit.muted(_sign_body, "· %s %s" % [Protocol.s(e.get("name", mid)),
-			("¥%d" % int(pr)) if pr > 0.0 else "有货"])
 
 
 func _on_floor_picked(i: int) -> void:
 	_cur_floor = i + 1
-	Store.set_floor(_cur_floor)      # 切层 → 后端只推这一层的人
+	Store.set_floor(_cur_floor)
 	_render()
 
 
@@ -247,32 +120,31 @@ func _render() -> void:
 	var bid := _cur_bid
 	var multi := Store.is_multi(bid)
 	var unit := Store.unit_of(bid, _cur_floor)
-	# 权限/容量取【该层】自己的地点(每层独立成户)
-	# 注: 名字不能叫 r —— 下面两个 for 里都有 var r := _p.row(i),
-	# GDScript 不允许内层块遮蔽外层的同名局部变量(报错, 不是警告)。
 	var unit_room := Store.room(unit)
 	if unit_room.is_empty():
 		unit_room = _room
-	var people := _at(Store.npcs, unit)
-	var items := _at(Store.entities, unit)
+	var kind := Protocol.s(_room.get("kind", ""))
+	var is_home := Zh.kind_zh(kind) == "住所"
+	# 商铺: 看整栋(前台/货架摆在店里, 不分层); 住宅: 看当前层
+	var people := _at(Store.npcs, unit if is_home else bid)
+	var items := _at(Store.entities, unit if is_home else bid)
 
 	var cap := int(Protocol.num(unit_room.get("capacity"), 0.0))
 	var title := Protocol.s(_room.get("name", bid))
-	if multi:
+	if is_home and multi:
 		title = "%s · %d层" % [title, _cur_floor]
-	_header.set_header(title, "%s · %d/%d 人 · %d 物件" % [
-		Zh.kind_zh(Protocol.s(_room.get("kind", ""))),
-		people.size(), cap, items.size()])
+	_header.set_header(title, "%s · %d 人 · %d 物件" % [
+		Zh.kind_zh(kind), people.size(), items.size()])
 
-	_render_sign()
-	_render_company()
+	_render_company(kind, bid)
+	_render_lane(kind, bid)
 
 	_perm.text = InspData.access_text(unit_room)
 	_cap_row.visible = not bool(unit_room.get("public", true))
 	_cap.text = "%d 人" % cap
 
-	# --- 人员(行池) ---
-	_p_sec.set_title("人员 %d" % people.size())
+	# --- 在店里的人(商铺: 店员/顾客; 住宅: 住户) ---
+	_p_sec.set_title(("住户 %d" if is_home else "在店里的人 %d") % people.size())
 	_p_empty.visible = people.is_empty()
 	for i in people.size():
 		var k := String(people[i])
@@ -280,42 +152,122 @@ func _render() -> void:
 		var age := Protocol.num(n.get("age"), -1.0)
 		var hp := clampf(Protocol.num(
 			Protocol.as_dict(n.get("signals", {})).get("hp"), 1.0), 0.0, 1.0)
-		var r := _p.row(i)
-		if not r.selected.is_connected(_on_person):
-			r.selected.connect(_on_person)
-		r.set_row(k, Protocol.s(n.get("name", k)),
+		var work := Protocol.as_dict(n.get("work", {}))
+		var act := Protocol.s(n.get("activity", ""))
+		if Protocol.s(work.get("station", "")) != "" and act == "working":
+			act = "在岗"
+		elif Protocol.s(work.get("station", "")) != "":
+			act = "店员·不在岗"
+		_p.row(i).set_row(k, String(n.get("name", k)),
 			"—" if age < 0.0 else str(int(age)),
-			Zh.role_zh(Protocol.s(n.get("role", ""))),
-			InspData.activity_text(n), hp)
+			Zh.role_zh(Protocol.s(n.get("role", ""))), act, hp)
 	_p.trim(people.size())
 
-	# --- 物件(行池) ---
+	# --- 物件: 在售(含库存) + 工位/销售前台 ---
+	_i_sec.visible = true
 	_i_sec.set_title("物件 %d" % items.size())
 	_i_empty.visible = items.is_empty()
 	for i in items.size():
-		var k := String(items[i])
-		var e := Store.entity(k)
-		var r := _i.row(i)
-		if not r.selected.is_connected(_on_item):
-			r.selected.connect(_on_item)
-		r.set_row(k, InspData.item_name(e, k), InspData.qty_txt(e),
-			InspData.price_txt(e), InspData.user_text(e))
+		var e := Store.entity(String(items[i]))
+		var st := int(Protocol.num(e.get("stock", 1.0)))
+		var pr := Protocol.num(e.get("price", 0.0))
+		var lane := Store.entity(String(items[i]))
+		var qty := "∞" if st < 0 else str(st)
+		if Protocol.s(e.get("item_type", "")) == "station_counter":
+			qty = "工位"                      # 销售前台: 交易靠它
+		_i.row(i).set_row(String(items[i]), String(e.get("name", items[i])),
+			qty, "—" if pr <= 0.0 else "¥%d" % int(pr),
+			Store.name_of(Protocol.s(e.get("claimed_by", ""))))
 	_i.trim(items.size())
 
 
-## 按【该层点位】列人与物(精确匹配 —— 单层时 unit 就是建筑本体)。
+## 公司块(商铺): 摘要 + 一个按钮进"公司运营"页
+func _render_company(kind: String, bid: String) -> void:
+	for c in _comp_body.get_children():
+		_comp_body.remove_child(c)
+		c.queue_free()
+	var cid := Protocol.s(_room.get("company", ""))
+	if kind != "shop":
+		_comp_sec.visible = false
+		return
+	_comp_sec.visible = true
+	if cid == "":
+		_comp_sec.set_title("公司 · 未注册")
+		UiKit.muted(_comp_body, "没注册公司的店【不能卖、不能招人】")
+		var name_edit := LineEdit.new()
+		name_edit.placeholder_text = "%s 公司" % Protocol.s(_room.get("name", bid))
+		_comp_body.add_child(name_edit)
+		var reg := Button.new()
+		reg.text = "注册公司（现金 ¥1000）"
+		reg.pressed.connect(func() -> void:
+			Commands.cmd("register_company", {"location": bid,
+				"name": name_edit.text.strip_edges()})
+		)
+		_comp_body.add_child(reg)
+		return
+	var comp := Store.company(cid)
+	_comp_sec.set_title("公司 · %s" % Protocol.s(comp.get("name", cid)))
+	UiKit.kv(_comp_body, "现金").text = "¥%.0f" % Protocol.num(comp.get("cash", 0.0))
+	var staff: Array = Protocol.as_array(comp.get("staff", []))
+	UiKit.kv(_comp_body, "员工").text = "0 人" if staff.is_empty() else \
+		"%d 人：%s" % [staff.size(), ", ".join(staff.map(
+			func(x): return String(Store.name_of(Protocol.s(x)))))]
+	var open_m := int(Protocol.num(comp.get("open_minute", 480)))
+	var close_m := int(Protocol.num(comp.get("close_minute", 1140)))
+	UiKit.kv(_comp_body, "营业").text = "%02d:%02d - %02d:%02d" % [
+		open_m / 60, open_m % 60, close_m / 60, close_m % 60]
+	var hire_on := bool(comp.get("hiring_open", false))
+	var slots := int(Protocol.num(comp.get("hiring_slots", 0)))
+	UiKit.kv(_comp_body, "招聘").text = ("招 %d 人" % slots) if hire_on else "未发布"
+	var go := Button.new()
+	go.text = "打开公司运营（HR / 价格）"
+	go.pressed.connect(func() -> void: Store.select("company", cid))
+	_comp_body.add_child(go)
+
+
+## 线路块(商铺): 前台 = 销售位; 有人在台前才开台
+func _render_lane(kind: String, bid: String) -> void:
+	for c in _lane_body.get_children():
+		_lane_body.remove_child(c)
+		c.queue_free()
+	if kind != "shop":
+		_lane_sec.visible = false
+		return
+	_lane_sec.visible = true
+	var counters: Array = []
+	for i in Store.entities.values():
+		var e: Dictionary = i
+		if Protocol.s(e.get("item_type", "")) == "station_counter" \
+				and Store.building_of(Protocol.s(e.get("loc", ""))) == bid:
+			counters.append(Protocol.s(e.get("id", "")))
+	var econ := Store.economy
+	var on_duty := int(Protocol.num(
+		Protocol.as_dict(econ.get("on_duty", {})).get(bid, 0.0)))
+	var queue: Array = Protocol.as_array(
+		Protocol.as_dict(econ.get("queues", {})).get(bid, []))
+	_lane_sec.set_title("线路 %d 条 · 在岗 %d · 排队 %d" % [
+		counters.size(), on_duty, queue.size()])
+	if counters.is_empty():
+		UiKit.muted(_lane_body, "还没有销售前台 —— 没有它谁也买不到东西")
+		return
+	for i in counters.size():
+		var cid := String(counters[i])
+		var keeper := ""
+		for pid in Store.npcs:
+			var w := Protocol.as_dict(Protocol.as_dict(Store.npc(pid)).get("work", {}))
+			if Protocol.s(w.get("station", "")) == cid:
+				keeper = String(pid)
+				break
+		UiKit.muted(_lane_body, "前台 %d：%s" % [i + 1,
+			("● " + String(Store.name_of(keeper))) if keeper != "" else "○ 没人守台"])
+
+
 func _at(d: Dictionary, unit: String) -> Array:
 	var out: Array = []
 	for k in d:
-		if Protocol.s((d[k] as Dictionary).get("loc", "")) == unit:
-			out.append(str(k))
+		var rec: Dictionary = d[k]
+		var loc := Protocol.s(rec.get("loc", ""))
+		if loc == unit or Store.building_of(loc) == unit:
+			out.append(String(k))
 	out.sort()
 	return out
-
-
-func _on_person(id: String) -> void:
-	Store.select("npc", id)
-
-
-func _on_item(id: String) -> void:
-	Store.select("entity", id)

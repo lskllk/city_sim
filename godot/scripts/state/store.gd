@@ -48,6 +48,7 @@ var sel_kind: String = ""
 var sel_npc: String = ""
 var sel_location: String = ""
 var sel_entity: String = ""
+var sel_company: String = ""
 var sel_floor: int = 1                   # 建筑页正在看第几层(影响观察集)
 var history: Array = []                  # 浏览历史 [{kind, id}], 供「返回」
 
@@ -184,6 +185,8 @@ func _sel_id() -> String:
 			return sel_location
 		"entity":
 			return sel_entity
+		"company":
+			return sel_company
 		_:
 			return ""
 
@@ -193,10 +196,20 @@ func _apply(kind: String, id: String) -> void:
 	sel_npc = id if kind == "npc" else ""
 	sel_location = id if kind == "location" else ""
 	sel_entity = id if kind == "entity" else ""
+	sel_company = id if kind == "company" else ""
 
 
 func clear_selection() -> void:
 	select("", "")
+
+
+## 查一家公司(镜像里可能是 hello.companies 或 economy.companies)
+func company(id: String) -> Dictionary:
+	for c in companies:
+		var d: Dictionary = c
+		if Protocol.s(d.get("id", "")) == id:
+			return d
+	return {}
 
 
 ## NPC 从世界消失(死亡/被删): 从镜像移除; 若正被选中 → 退回去。

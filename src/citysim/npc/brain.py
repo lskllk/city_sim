@@ -265,18 +265,27 @@ def _travel_key(a: str, b: str) -> str:
 
 
 def drain_per_tick(cfg: SimConfig, sig: str, hour_f: float,
-                   sig_mul: float = 1.0) -> float:
-    """这个需求【每 tick】掉多少(0..1)。**任何信号通用**。
+                   sig_mul: float = 1.0, busy: bool = False) -> float:
+    """这个需求【每 tick】掉多少(0..1)。**任何信号通用, 且和 heartbeat 同源**。
 
     这就是"出门是有代价的"的物理表达: 走 N tick 的路上需求本身在下降,
     所以那件东西真正补回来的只有 `value − drain × ticks`。
-    energy 走昼夜曲线(夜里掉得快), 其余按基准速率。
+
+    ★ 它【不是一个可调参数】—— 它就是用 [metabolism] 那张表算出来的、
+      身体每 tick 真的掉多少(见 Person.heartbeat):
+        hunger/bladder  基准速率 × 个人系数
+        energy          再 × 昼夜曲线(夜里掉得快) × 赶路 1.8 倍(busy)
+      参考就是"时间 × 速率 = 真掉了多少": hunger -1/720/tick → 走 30 tick(半小时)
+      就是 4.2%; energy 白天 30 tick ≈ 1.0%, 21:00 之后 ≈ 9.4%。
+      想让它更"怕走路", 该调的是物理量(busy_energy_mul), 不是这里的系数。
     """
     rate = -min(0.0, float(cfg.metabolism.get(sig, 0.0)))
     if rate <= 0.0:
         return 0.0
     if sig == "energy":
         rate *= float(cfg.rhythm_at(hour_f))      # 注意: 单位是【小时 0..24】
+        if busy:
+            rate *= float(cfg.busy_energy_mul)    # 赶路 = 在做事(与 heartbeat 一致)
     return rate * float(sig_mul)
 
 
@@ -291,7 +300,9 @@ def _net_value(cfg: SimConfig, sig: str, value: float, ticks: int,
     """
     if ticks <= 0:
         return max(0.0, float(value))
-    return max(0.0, float(value) - drain_per_tick(cfg, sig, hour_f, sig_mul) * ticks)
+    k = float(getattr(cfg, "travel_penalty", 1.0))
+    return max(0.0, float(value)
+               - drain_per_tick(cfg, sig, hour_f, sig_mul, busy=True) * ticks * k)
 
 
 def _score_candidates(cands, personality: Mapping[str, float],

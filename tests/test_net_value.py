@@ -30,14 +30,25 @@ def test_energy_drain_follows_day_night_curve() -> None:
 
 
 def test_net_value_subtracts_the_trip() -> None:
-    """走 N tick → 净收益 = value − 掉掉的量; 不走 = 原值。"""
+    """走 N tick → 净收益 = value − 路上掉掉的量 × 走路放大系数; 不走 = 原值。"""
     m = 12.0          # 小时(与 SimConfig.rhythm_at 同单位)
     per = 1.0
     ticks = 100
-    loss = drain_per_tick(CFG, "hunger", m, per) * ticks
+    loss = drain_per_tick(CFG, "hunger", m, per, busy=True) * ticks         * CFG.travel_penalty
     assert loss > 0.0
     assert abs(_net_value(CFG, "hunger", 0.5, ticks, per, m) - (0.5 - loss)) < 1e-9
     assert _net_value(CFG, "hunger", 0.5, 0, per, m) == 0.5      # 不用走 → 不打折
+
+
+def test_travel_penalty_makes_distance_hurt_more() -> None:
+    """走路放大系数 > 1 = 近距离偏好: 同样一趟, 远的更亏。"""
+    assert CFG.travel_penalty >= 1.0
+    m, per = 12.0, 1.0
+    far_1x = _net_value(CFG, "hunger", 0.5, 60, per, m)
+    # 直接验系数: 走 0 tick 不打折; 走得越远扣得越多(单调)
+    assert _net_value(CFG, "hunger", 0.5, 0, per, m) == 0.5
+    assert _net_value(CFG, "hunger", 0.5, 30, per, m)         > _net_value(CFG, "hunger", 0.5, 60, per, m)
+    assert far_1x < 0.5
 
 
 def test_net_value_never_goes_negative() -> None:

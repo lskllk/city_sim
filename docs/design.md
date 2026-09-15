@@ -42,7 +42,7 @@
 
 ```
 eff = (need^power × 净收益 × personality × believe) / (1 + λ × cost)
-净收益 = value − (该需求每 tick 掉的量 × 走的 tick)   ← 任何信号通用; energy 走昼夜曲线
+净收益 = value − (该需求每 tick 掉的量 × 走的 tick × 走路放大系数)   ← 任何信号通用
 cost   = price×qty + price × (1 − believe)           ← 纯钱 + 不确定性
 ```
 
@@ -51,7 +51,8 @@ cost   = price×qty + price × (1 − believe)           ← 纯钱 + 不确定�
 | `utility.threshold` | `0.05` | **唯一阈值**（在得分上）。同时承担"琐碎需求别动"与"别为小事跑一趟" |
 | `utility.power` | `3.0` | 需求急迫度幂次。> 1 放大真缺口 |
 | `utility.power_by_signal` | `energy = 4.0` | 每种需求可以更"钝"（不太困就别去躺） |
-| `utility.cost_lambda` | `0.02` | 成本权重 λ，越大越抠 |
+| `utility.cost_lambda` | `0.02` | 成本权重 λ，越大越抠（只管钱与不确定性） |
+| `utility.travel_penalty` | `2.0` | 走路放大系数（1.0 = 纯物理）。**想"更怕走路"就调它** → 近店优先 |
 | `utility.preempt_ratio` | `1.5` | 迟滞：新的比当前**好这么多倍**才改主意（1.0 = 抽风） |
 | `utility.plan_pull` | `0.15` | 计划（承诺）的基础拉力；需求超过 `plan_pull × preempt_ratio` 才能顶掉日程 |
 

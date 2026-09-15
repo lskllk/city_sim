@@ -54,6 +54,10 @@ class SimConfig:
     # cost = price×qty + price×(1−believe)     (纯钱 + 不确定性)
     # 不再有 move_penalty: 异地成本由【真实移动 tick】表达(走路是有代价的)。
     cost_lambda: float = 0.02      # 成本权重(λ): 越大越"抠"
+    # 走路放大系数: 净收益里扣的"路上消耗" = drain × ticks × 这个倍数。
+    # 1.0 = 纯物理(身体真掉多少就扣多少); >1 = 更怕走路(近距离偏好)。
+    # 想"更怕走路"该调它, 而不是给评分塞钱味儿的 time_value。
+    travel_penalty: float = 2.0
     # 迟滞: 新的比当前这件【好这么多倍】才麻炊地改主意。
     # 1.0 = 随时见异思迁(会抽风); 太大 = 快饿死了还在睡。
     preempt_ratio: float = 1.5
@@ -124,6 +128,7 @@ class SimConfig:
             hp_regen_floor=float(health.get("hp_regen_floor", 0.5)),
             hp_override=float(health.get("hp_override", 0.5)),
             cost_lambda=float(util.get("cost_lambda", 0.02)),
+            travel_penalty=float(util.get("travel_penalty", 2.0)),
             preempt_ratio=float(util.get("preempt_ratio", 1.5)),
             tell_p=float(data.get("social", {}).get("tell_p", 0.3)),
             listen_p=float(data.get("social", {}).get("listen_p", 1.0)),

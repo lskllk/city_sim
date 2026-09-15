@@ -45,6 +45,13 @@ def _load(tmp_path, data: dict, companies=None):
     return w, s
 
 
+def _market(w) -> None:
+    """城里摆一个【市场建筑】(默认拥有所有 item、无限库存) —— 进货的前提。"""
+    w.locations["market"] = {"type": "market_hall", "kind": "market",
+                             "name": "批发市场", "x": 300, "y": 100,
+                             "w": 40, "h": 40, "capacity": 40}
+
+
 def _buy(w, s, qty=2):
     from citysim.core.types import Buy
     from citysim.world.engine import _execute_buy
@@ -87,6 +94,7 @@ def _employ_one(w, s, wage: float = 60.0) -> None:
     comp.wage_per_hour = wage
     comp.hiring_open, comp.hiring_slots = True, 1
     E.hire_at(w, s, CFG)
+    E.tick(w, s, CFG)            # 热身: 新员工先站上台(claim)
 
 
 def test_wage_is_paid_once_a_day(tmp_path) -> None:
@@ -132,51 +140,40 @@ def test_company_without_cash_cannot_pay_wage(tmp_path) -> None:
 
 
 def test_money_circulates(tmp_path) -> None:
-    """端到端: 公司雇了买家 → 买家花钱买货 → 公司账上升 → 再发工资回来。"""
+    """端到端: 公司雇了店员守台 → 顾客到店排队 → 柜台卖出去 → 公司账上升。"""
     w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=100.0,
-                                              shops=("shop",),
-                                              staff=(("npc_a", 60.0),))])
-    npc = w.npcs["npc_a"]
-    npc.set_signals(hunger=0.1)
-    # 他得【知道】有这么个店才可能去买 —— P8: 知识只能靠感知/传闻/招牌,
-    # 这里用场景认知(编辑器里那个"让谁知道")给他一条。
-    npc.note("food_apple_001", tick=0, located="shop", afford="hunger",
-             value=0.35, price=5.0, stock=99, believe=0.8, source="",
-             tags=("edible", "consumable"), shelf_life_ticks=4320)
-    _employ_one(w, s, wage=10.0)     # 雇一个店员守台(交易要有员工在台前)
-    # 顾客得是【别人】—— 员工上班时被绑在台前, 不会跑去买东西(强制约束)
+                                              shops=("shop",), staff=())])
+    _employ_one(w, s, wage=10.0)          # 雇一个店员(走真实路径) + 热身
     from helpers import add_npc
-    npc_buyer = add_npc(w, s, "buyer", location="shop")
-    npc_buyer.set_home("home")
-    npc_buyer.note("food_apple_001", tick=0, located="shop", afford="hunger",
-                   value=0.35, price=5.0, stock=99, believe=0.8, source="",
-                   tags=("edible", "consumable"), shelf_life_ticks=4320)
-    npc_buyer.set_signals(hunger=0.1)
+    buyer = add_npc(w, s, "buyer", location="shop")
+    buyer.set_signals(hunger=0.2)
     income = 0.0
     orig = w.bus.publish
+
     def hook(ev):
         nonlocal income
         if ev.kind == "bought":
             income += float(ev.payload.get("price", 0.0))
         return orig(ev)
+
     w.bus.publish = hook
-    for _ in range(CFG.ticks_per_day * 2):
+    E.enqueue_buy(w, s, "buyer", "shop", "food_apple_001", 2)   # 顾客排队买 2 份
+    for _ in range(60):        # 店员要从家走到店里(~20 tick)才能开台
         E.tick(w, s, CFG)
     w.bus.publish = orig
-    # 钱在城里转了一圈: 买家花钱 → 公司收到货款 → 公司又发工资给买家
-    assert income > 0.0, "买家一次都没买"
-    assert any(e.get("kind") == "wage_paid" for e in s.ui_events), "公司一次工资都没发"
-    assert w.companies["org_a"].cash >= 0.0
+    assert income > 0.0, "柜台没卖出去"
+    assert w.companies["org_a"].cash > 100.0, "货款没进公司账"
+    assert buyer.money < 100.0
 
 
 # --- 批发市场 / 开零售前提 -------------------------------------------------
 
 def test_market_purchase_puts_goods_on_company_shelf(tmp_path) -> None:
     """公司向市场进货: 钱从公司账出、货上架到自己的店。"""
-    from citysim.world.market import Market, purchase
+    from citysim.world.market import purchase
     w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=100.0,
                                               shops=("shop",))])
-    w.market = Market(prices={"food_apple": 3.0})
+    _market(w)
     shelf = next(e for e in w.entities.values() if e.location_id == "shop")
     before = shelf.stock
     res = purchase(w, w.companies["org_a"], "shop", "food_apple", 10)
@@ -187,10 +184,10 @@ def test_market_purchase_puts_goods_on_company_shelf(tmp_path) -> None:
 
 def test_market_is_company_only_and_never_short(tmp_path) -> None:
     """市场数量无限(不因买多次而减少); 公司钱不够 → 只买得起几份, 一份买不起就不买。"""
-    from citysim.world.market import Market, purchase
+    from citysim.world.market import purchase
     w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=7.0,
                                               shops=("shop",))])
-    w.market = Market(prices={"food_apple": 3.0})
+    _market(w)
     res = purchase(w, w.companies["org_a"], "shop", "food_apple", 100)
     assert res["ok"] and res["cost"] == 6.0            # 只买得起 2 份
     assert w.companies["org_a"].cash == 1.0
@@ -200,9 +197,9 @@ def test_market_is_company_only_and_never_short(tmp_path) -> None:
 
 def test_purchase_refused_for_shop_not_owned(tmp_path) -> None:
     """只能给自己旗下的店进货。"""
-    from citysim.world.market import Market, purchase
+    from citysim.world.market import purchase
     w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=100.0,
                                               shops=("shop",))])
-    w.market = Market(prices={"food_apple": 3.0})
+    _market(w)
     res = purchase(w, w.companies["org_a"], "home", "food_apple", 5)
     assert not res["ok"] and res["why"] == "这家店不是它的"

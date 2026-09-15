@@ -144,6 +144,34 @@ def _recent_events(systems, pid: str) -> list:
     return out
 
 
+def economy_block(world, systems) -> dict:
+    """经济观测块(小): 公司账/招聘启事/在岗人数 + 每个店的前台数与排队人数。
+
+    刻意只放【数字】不放对象 —— 这块每帧都随 snapshot 下发, 必须很小。
+    细节(员工是谁、队里都是谁)走 query 或 hello。
+    """
+    from citysim.world.engine import COUNTER_ITEM, staffed_counters
+    counters: dict[str, int] = {}
+    for e in world.entities.values():
+        if e.item_type == COUNTER_ITEM:
+            counters[e.location_id] = counters.get(e.location_id, 0) + 1
+    comps = []
+    for cid, c in sorted(world.companies.items()):
+        comps.append({
+            "id": cid, "cash": round(c.cash, 2),
+            "hiring_open": bool(c.hiring_open), "hiring_slots": int(c.hiring_slots),
+            "wage_per_hour": float(c.wage_per_hour),
+            "open_minute": int(c.open_minute), "close_minute": int(c.close_minute),
+            "staff": [n for n, _w in c.staff], "shops": list(c.shops),
+        })
+    on_duty: dict[str, int] = {}
+    for shop_id in counters:
+        on_duty[shop_id] = len(staffed_counters(world, systems, shop_id))
+    queues = {sid: list(q) for sid, q in sorted(systems.shop_queue.items()) if q}
+    return {"companies": comps, "counters": counters, "on_duty": on_duty,
+            "queues": queues}
+
+
 def _npc_core(world, systems, pid: str, p) -> dict:
     """NPC 的【渲染 + 列表】字段。
 
@@ -159,6 +187,9 @@ def _npc_core(world, systems, pid: str, p) -> dict:
         "gender": p.gender,
         "home": p.home, "position": [float(x) for x in center],
         "activity": p.current_activity,
+        # 上岗信息(公司画布要画"谁守着哪个台"): 空 = 没工作
+        "work": p.work or None,
+        "role": p.role,
         "act_class": act_class_of(world, systems, pid),
         "money": round(p.money, 2),
         "age": p.age,
@@ -260,7 +291,9 @@ def build_snapshot(world, systems, cfg, speed: str,
            "clock": fmt_clock(world.hour_f()),
            "speed": speed, "running": speed != "pause",
            "tps": tps if tps is not None else 0,
-           "entities": ents, "npcs": npcs, "events": events}
+           "entities": ents, "npcs": npcs, "events": events,
+           # 经济观测块(小: 只有数字) —— 公司面板/公司画布靠它实时更新
+           "economy": economy_block(world, systems)}
     if gone and (gone.get("npcs") or gone.get("entities")):
         out["gone"] = gone          # 空的时候不占位(绝大多数帧都是空)
     return out

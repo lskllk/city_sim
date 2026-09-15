@@ -8,6 +8,7 @@
   "affordances": {
     "hunger": 0.35
   },
+  "price": 3.0,
   "duration_ticks": 12,
   "on_start": [
     {

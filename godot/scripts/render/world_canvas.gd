@@ -40,9 +40,26 @@ var _last_mouse := Vector2.ZERO
 var _canvas_key := ""
 
 
+const CompanyCanvasScript := preload("res://scripts/render/company_canvas.gd")
+
+var company_canvas: Control = null      # 公司抽象画布(选中公司建筑时出现)
+
+
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_CLICK
+	# 公司抽象画布: 代码创建(不动 main.tscn), 叠在最上层右上角
+	company_canvas = CompanyCanvasScript.new()
+	company_canvas.name = "CompanyCanvas"
+	company_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	company_canvas.anchor_left = 1.0
+	company_canvas.anchor_right = 1.0
+	company_canvas.offset_left = -420.0
+	company_canvas.offset_right = -12.0
+	company_canvas.offset_top = 12.0
+	company_canvas.offset_bottom = 320.0
+	company_canvas.visible = false
+	add_child(company_canvas)
 
 	camera = WorldCamera.new(camera_root)
 	camera.resize(size.x, size.y)
@@ -107,6 +124,15 @@ func _on_selection() -> void:
 	entity_layer.set_selected(Store.sel_npc if Store.sel_kind == "npc" else "")
 	overlay_layer.refresh()
 	_refresh_hud()
+	_refresh_company_canvas()
+
+
+## 选中【登记过公司的建筑】时, 右上角浮出公司抽象画布(员工在哪/谁在排队)
+func _refresh_company_canvas() -> void:
+	if company_canvas == null:
+		return
+	var loc: String = Store.sel_location if Store.sel_kind == "location" else ""
+	company_canvas.setup(loc)
 
 
 func _on_connection(_status: String) -> void:

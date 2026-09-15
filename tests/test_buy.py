@@ -8,7 +8,7 @@ from citysim.core.types import Buy
 from citysim.npc.schedule import PlanEntry
 from citysim.sim.loop import run_tick
 
-from helpers import add_counter, register_company, add_entity, add_npc, make_runtime
+from helpers import add_counter, register_company, staff_counter, add_entity, add_npc, make_runtime
 
 ROOT = Path(__file__).resolve().parents[1]
 CFG = load_config(ROOT / "config" / "sim.toml")
@@ -34,8 +34,12 @@ def test_plan_buy_deducts_money_and_merges_stock() -> None:
     pantry.owner = "npc"
     pantry.persist_empty = True
     register_company(w, "market")
-    add_counter(w, "market")
-    npc_extra = None
+    _cnt = add_counter(w, "market")[0]
+    # 用户定的闸门: 员工站在销售台, 交易才能进行 —— 这个用例必须有个店员守着
+    _staff = add_npc(w, s, "staff", location="market", rng_pool=rng)
+    staff_counter(w, s, "staff", "market", _cnt.entity_id)
+    _staff.set_signals(hunger=1.0, energy=1.0, bladder=1.0)
+    _run(w, s, rng, 2)                  # 热身: 店员先站上台(claim)
 
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng)   # money=100
     npc.set_home("home")
@@ -63,8 +67,8 @@ def test_plan_buy_insufficient_money_fails_and_skips() -> None:
     _staff = add_npc(w, s, "staff", location="market", rng_pool=rng)
     from helpers import staff_counter
     staff_counter(w, s, "staff", "market", _c.entity_id)
-    _staff.set_plan([])
     _staff.set_signals(hunger=1.0, energy=1.0, bladder=1.0)
+    _run(w, s, rng, 2)          # 热身: 店员先站上台(claim)
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng)
     npc.set_home("home")
     npc.note("market_1", located="market", believe=1.0)

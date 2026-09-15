@@ -140,8 +140,6 @@ class World:
     # 公司(经营单位): id -> Company。店铺的归属写在 location["company"] 上,
     # 成交时据此把款记进它的账(见 engine._execute_buy)。
     companies: dict = field(default_factory=dict)
-    # 批发市场(公司进货的地方): 固定商品/无限库存/只有公司能采购, 见 world/market.py
-    market: object | None = None
     # TASK001 region 几何: {loc: {"x":..,"y":..,"w":..,"h":..,"name":..,"kind":..}}
     # 来自 scene json 的 x/y/w/h, 直接作为世界坐标; 未注册 region = 无空间语义
 

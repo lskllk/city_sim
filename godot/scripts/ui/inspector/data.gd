@@ -105,6 +105,15 @@ static func unique_by_max(rows: Array) -> Array:
 	return out
 
 
+## 从镜像里取一家公司(hello.companies / economy.companies 都行)
+static func company(cid: String) -> Dictionary:
+	for c in Store.companies:
+		var d: Dictionary = c
+		if Protocol.s(d.get("id", "")) == cid:
+			return d
+	return {}
+
+
 static func one_line(ev: Dictionary) -> String:
 	var p := Protocol.as_dict(ev.get("payload", {}))
 	var kind := Protocol.s(ev.get("kind", Protocol.s(ev.get("type", ""))))

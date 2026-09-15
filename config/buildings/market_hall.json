@@ -1,0 +1,15 @@
+{
+  "type": "market_hall",
+  "name": "批发市场",
+  "kind": "market",
+  "capacity": 40,
+  "aspect": 1.6,
+  "pattern": "dots",
+  "doors": [
+    {
+      "side": "south",
+      "offset": 0.0
+    }
+  ],
+  "_note": "批发市场: 无限库存, 只有【公司】能采购(价 = 物品定义里的基准价)。放哪里由编辑器决定。"
+}

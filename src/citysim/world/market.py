@@ -1,48 +1,43 @@
-"""world/market —— 批发市场: 公司进货的地方。
+"""world/market —— 批发市场。**它是一个建筑(地点), 不是配置文件。**
 
-规矩(用户拍板):
-    · 固定商品清单 + **数量无限** —— 世界不需要模拟上游, 只提供"按价拿货"这一手
-    · **只有公司能采购**(个人买不到批发价; 个人的零售买走的是店铺货架)
-    · 价格是**进货价**, 低于店铺零售价 → 差价就是公司的利润(或亏损)
+用户定的规矩:
+    · 市场是一栋楼(编辑器决定放哪), 自带【无限库存】
+    · **只有公司能采购**(个人买不到批发价; 个人买的是店铺货架上的零售)
+    · 价格 = 物品定义里的【基准价】(config/items/*.json 的 price);
+      店铺想卖多少自己定(场景里覆盖实体 price) → 差价就是公司的利润
 
 为什么要有它: 店铺卖出去的货总得从哪来。以前货架上的货是场景写死的 1000 份,
 卖完就没了 —— 有了市场, "进货 → 上架 → 零售"才成为一个可循环的生意。
+后续: NPC 老板可以自己走到市场去进货(现在先由面板/上帝视角按一下)。
 """
 from __future__ import annotations
 
-import json
 import logging
-from dataclasses import dataclass
-from pathlib import Path
 
 log = logging.getLogger("citysim.market")
 
-
-@dataclass(frozen=True)
-class Market:
-    """批发价表: item_type -> 进货单价。"""
-
-    prices: dict[str, float]
-
-    def price_of(self, item_type: str) -> float | None:
-        return self.prices.get(item_type)
-
-    def items(self) -> tuple[str, ...]:
-        return tuple(sorted(self.prices))
+MARKET_KIND = "market"          # 建筑类型库里的 kind
 
 
-def load_market(path: str | Path) -> Market:
-    """读 config/market.json。文件不存在 → 空市场(什么都进不到货)。"""
-    p = Path(path)
-    if not p.is_file():
-        return Market(prices={})
-    raw = json.loads(p.read_text(encoding="utf-8"))
-    items = raw.get("items", raw) if isinstance(raw, dict) else raw
-    prices: dict[str, float] = {}
-    for rec in items or []:
-        if isinstance(rec, dict) and str(rec.get("item_type", "")):
-            prices[str(rec["item_type"])] = float(rec.get("price", 0.0))
-    return Market(prices=prices)
+def market_places(world) -> list:
+    """所有【市场建筑】的地点 id(可能有多个市场)。"""
+    return sorted(lid for lid, loc in world.locations.items()
+                  if isinstance(loc, dict) and str(loc.get("kind", "")) == MARKET_KIND
+                  and not loc.get("part_of"))
+
+
+def wholesale_price(world, item_type: str) -> float | None:
+    """批发价 = 物品定义里的基准价(市场"正常定价")。"""
+    from citysim.world.itemdefs import load_item_defs
+    d = load_item_defs().get(item_type)
+    return float(d.price) if d is not None else None
+
+
+def market_items(world) -> list:
+    """市场里有卖什么: 所有可买的物品类型(数据驱动, 不用手写清单)。"""
+    from citysim.world.itemdefs import load_item_defs
+    return sorted(t for t, d in load_item_defs().items()
+                  if float(getattr(d, "price", 0.0)) > 0.0)
 
 
 def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
@@ -54,11 +49,11 @@ def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
     from citysim.world.itemdefs import load_item_defs
     from citysim.world.world import entity_from_def
 
-    if world.market is None:
-        return {"ok": False, "why": "没有市场", "cost": 0.0, "stock": 0}
+    if not market_places(world):
+        return {"ok": False, "why": "城里还没有市场", "cost": 0.0, "stock": 0}
     if shop_id not in company.shops or shop_id not in world.locations:
         return {"ok": False, "why": "这家店不是它的", "cost": 0.0, "stock": 0}
-    unit = world.market.price_of(item_type)
+    unit = wholesale_price(world, item_type)
     if unit is None:
         return {"ok": False, "why": "市场没有这种货", "cost": 0.0, "stock": 0}
     qty = max(0, int(qty))
@@ -96,8 +91,8 @@ def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
 def restock_all(world) -> list[dict]:
     """简单经营规则: 开门前把旗下货架补到 restock_to 份(用公司的钱)。
 
-    没有这一步, 货架卖空就永远空着(空货架=空货架, 没人会去补)。
-    以后"补多少/什么时候补"应该由经营策略(玩家/面板)决定 —— 现在先给个能跑通的规则。
+    没有这一步, 货架卖空就永远空着。以后"补多少/什么时候补"应该由经营策略
+    (面板 / NPC 老板去市场) 决定 —— 现在先给个能跑通的规则。
     """
     out: list[dict] = []
     for cid in sorted(world.companies):
@@ -105,7 +100,6 @@ def restock_all(world) -> list[dict]:
         for shop_id in comp.shops:
             if shop_id not in world.locations:
                 continue
-            # 这家店在卖哪些品类 → 每种都补到目标
             types = {e.item_type for e in world.entities.values()
                      if e.location_id == shop_id and e.price > 0 and e.stock != -1}
             for itype in sorted(types):

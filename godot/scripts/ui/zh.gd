@@ -54,6 +54,7 @@ const VERB := {
 # 建筑 kind -> 中文
 const KIND := {
 	"home": "住所", "shop": "商业", "work": "工作", "public": "公共",
+	"market": "批发市场",
 	"school": "学校", "clinic": "医疗", "farm": "农业",
 }
 

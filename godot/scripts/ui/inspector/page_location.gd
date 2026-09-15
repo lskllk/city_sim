@@ -23,6 +23,7 @@ var _p_empty: Label
 var _i_sec: Control
 var _i: UiList
 var _i_empty: Label
+var _comp_sec: Control
 var _sign_sec: Control
 var _sign_body: VBoxContainer
 
@@ -62,6 +63,9 @@ func build() -> void:
 	])
 	_i = UiList.new(_i_sec.body(), ITEM_ROW)
 	_i_empty = UiKit.muted(_i_sec.body(), "无")
+
+	# 公司：注册 / 参数 / 招聘(游戏内经营, 只改世界真值)
+	_comp_sec = UiKit.section(self, "公司")
 
 	# 招牌: 这家店在门口吆喝什么(数据来自后端 world.locations[bid].sign)
 	_sign_sec = UiKit.section(self, "招牌")
@@ -104,6 +108,107 @@ func _company_text(cid: String) -> String:
 			return "%s · 现金 ¥%.0f" % [Protocol.s(d.get("name", cid)),
 				Protocol.num(d.get("cash", 0.0))]
 	return cid
+
+
+## 公司段: 没注册 → 一个按钮; 注册了 → 参数 + 招聘(游戏内经营动作)
+func _render_company() -> void:
+	if _comp_sec == null:
+		return
+	for c in _comp_sec.body().get_children():
+		_comp_sec.body().remove_child(c)
+		c.queue_free()
+	var bid := Store.building_of(_cur_bid)
+	var room := Store.room(bid)
+	if Protocol.s(room.get("kind", "")) != "shop":
+		_comp_sec.visible = false
+		return
+	_comp_sec.visible = true
+	var cid := Protocol.s(room.get("company", ""))
+	if cid == "":
+		_comp_sec.set_title("公司 · 未注册")
+		UiKit.muted(_comp_sec.body(), "没注册公司的店【不能卖东西、也不能招人】")
+		var name_edit := LineEdit.new()
+		name_edit.placeholder_text = "%s 公司" % Protocol.s(room.get("name", bid))
+		UiKit.kv(_comp_sec.body(), "公司名").text = ""
+		_comp_sec.body().add_child(name_edit)
+		var reg := Button.new()
+		reg.text = "注册公司（现金 ¥1000）"
+		reg.pressed.connect(func() -> void:
+			Commands.cmd("register_company", {"location": bid,
+				"name": name_edit.text.strip_edges()})
+		)
+		_comp_sec.body().add_child(reg)
+		return
+	var comp := InspData.company(cid)
+	if comp.is_empty():
+		_comp_sec.set_title("公司 · %s" % cid)
+		UiKit.muted(_comp_sec.body(), "（等下一帧快照）")
+		return
+	_comp_sec.set_title("公司 · %s" % Protocol.s(comp.get("name", cid)))
+	UiKit.kv(_comp_sec.body(), "现金").text = "¥%.0f" % Protocol.num(comp.get("cash", 0.0))
+	var staff: Array = Protocol.as_array(comp.get("staff", []))
+	UiKit.kv(_comp_sec.body(), "员工").text = ("%d 人" % staff.size()) if staff.is_empty() 		else "%d 人：%s" % [staff.size(), ", ".join(staff.map(func(x): return Store.name_of(String(x))))]
+	var open_m := int(Protocol.num(comp.get("open_minute", 480)))
+	var close_m := int(Protocol.num(comp.get("close_minute", 1140)))
+	var wage := Protocol.num(comp.get("wage_per_hour", 10.0))
+	var hire_on := bool(comp.get("hiring_open", false))
+	var slots := int(Protocol.num(comp.get("hiring_slots", 0)))
+	UiKit.kv(_comp_sec.body(), "营业").text = "%02d:%02d - %02d:%02d" % [
+		open_m / 60, open_m % 60, close_m / 60, close_m % 60]
+	UiKit.kv(_comp_sec.body(), "时薪").text = "¥%.0f / 小时" % wage
+	UiKit.kv(_comp_sec.body(), "招聘").text = ("招 %d 人" % slots) if hire_on else "未发布"
+	# —— 参数编辑 ——
+	var cash := _spin(0, 1000000, 100); cash.value = Protocol.num(comp.get("cash", 0.0))
+	_comp_sec.body().add_child(_lrow("改成现金", cash))
+	var om := _spin(0, 1439, 30); om.value = open_m
+	_comp_sec.body().add_child(_lrow("开门(分)", om))
+	var cm := _spin(1, 1440, 30); cm.value = close_m
+	_comp_sec.body().add_child(_lrow("关门(分)", cm))
+	var wg := _spin(1, 500, 1); wg.value = wage
+	_comp_sec.body().add_child(_lrow("时薪", wg))
+	var rs := _spin(0, 999, 10); rs.value = Protocol.num(comp.get("restock_to", 60))
+	_comp_sec.body().add_child(_lrow("补货目标", rs))
+	var save := Button.new()
+	save.text = "保存参数"
+	save.pressed.connect(func() -> void:
+		Commands.cmd("company_update", {"company": cid, "cash": cash.value,
+			"open_minute": int(om.value), "close_minute": int(cm.value),
+			"wage_per_hour": wg.value, "restock_to": int(rs.value)}))
+	_comp_sec.body().add_child(save)
+	# —— 招聘: 招不招人是公司说了算 ——
+	var hs := _spin(0, 99, 1); hs.value = slots
+	_comp_sec.body().add_child(_lrow("要招几人", hs))
+	var post := Button.new()
+	post.text = "发布招聘" if not hire_on else "更新招聘"
+	post.tooltip_text = "发布之后，每天新的一天那一刻与有意愿的 NPC 撮合（外面只做媒婆）"
+	post.pressed.connect(func() -> void:
+		Commands.cmd("company_hire", {"company": cid, "slots": int(hs.value),
+			"wage_per_hour": wg.value}))
+	_comp_sec.body().add_child(post)
+	var cancel := Button.new()
+	cancel.text = "撤回招聘"
+	cancel.pressed.connect(func() -> void:
+		Commands.cmd("company_hire", {"company": cid, "slots": 0}))
+	_comp_sec.body().add_child(cancel)
+
+
+## 面板里的小控件(观察器没有编辑器那套 _spin/_lrow, 这里补两个)
+func _spin(mn: float, mx: float, step: float) -> SpinBox:
+	var s := SpinBox.new()
+	s.min_value = mn
+	s.max_value = mx
+	s.step = step
+	return s
+
+
+func _lrow(label: String, c: Control) -> Control:
+	var row := HBoxContainer.new()
+	var l := Label.new()
+	l.text = label
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(l)
+	row.add_child(c)
+	return row
 
 
 func _render_sign() -> void:
@@ -160,6 +265,7 @@ func _render() -> void:
 		people.size(), cap, items.size()])
 
 	_render_sign()
+	_render_company()
 
 	_perm.text = InspData.access_text(unit_room)
 	_cap_row.visible = not bool(unit_room.get("public", true))

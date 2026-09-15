@@ -1,8 +1,0 @@
-{
-  "_note": "批发市场: 固定商品 / 数量无限 / 【只有公司能采购】/ 价格是【进货价】(低于零售价才有利润)",
-  "items": [
-    { "item_type": "food_apple",  "price": 3.0 },
-    { "item_type": "food_pear",   "price": 1.2 },
-    { "item_type": "meal_simple", "price": 5.0 }
-  ]
-}

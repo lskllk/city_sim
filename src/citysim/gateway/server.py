@@ -420,6 +420,80 @@ async def _send(ws: WebSocket, payload: dict) -> None:
                                            payload), ensure_ascii=False))
 
 
+def _admin_company(r, op: str, args: dict) -> dict:
+    """游戏内的经营动作(上帝视角/老板面板用)。**只改世界真值** —— P8 ✓。
+
+    op:
+      register  点一个商铺建筑 → 注册公司 {location, name, cash}
+      update    改参数 {company, cash/open_minute/close_minute/wage_per_hour/restock_to}
+      hire      发布/撤回招聘启事 {company, slots}   ← 招不招人是公司说了算
+      restock   向市场进货 {company, shop?, item_type, qty}
+    注: 招聘只是【发布启事】, 真正撮合还是每天 hire_minute 那次(媒婆)。
+    """
+    from citysim.world.companies import Company
+    from citysim.world.market import purchase
+    world = r.world
+    op = str(op)
+    if op == "register":
+        loc = str(args.get("location", ""))
+        loc_rec = world.locations.get(loc)
+        if not loc_rec:
+            return {"ok": False, "why": "没有这个建筑", "company": ""}
+        if loc_rec.get("company"):
+            return {"ok": False, "why": "这栋楼已经登记过公司了",
+                    "company": str(loc_rec["company"])}
+        if str(loc_rec.get("kind", "")) != "shop":
+            return {"ok": False, "why": "只有商铺才能注册公司", "company": ""}
+        cid = "org_%s" % loc
+        world.companies[cid] = Company(
+            company_id=cid, name=str(args.get("name") or ("%s 公司" % loc)),
+            cash=float(args.get("cash", 1000.0)), shops=(loc,))
+        loc_rec["company"] = cid
+        return {"ok": True, "why": None, "company": cid,
+                "companies": _company_list(world)}
+    cid = str(args.get("company", ""))
+    comp = world.companies.get(cid)
+    if comp is None:
+        return {"ok": False, "why": "没有这家公司", "company": cid}
+    if op == "update":
+        for k in ("cash", "wage_per_hour", "restock_to"):
+            if k in args:
+                setattr(comp, k, float(args[k]))
+        for k in ("open_minute", "close_minute"):
+            if k in args:
+                setattr(comp, k, int(args[k]))
+        if args.get("name"):
+            comp.name = str(args["name"])
+        return {"ok": True, "why": None, "company": cid,
+                "companies": _company_list(world)}
+    if op == "hire":
+        slots = max(0, int(args.get("slots", 0)))
+        comp.hiring_slots = slots
+        comp.hiring_open = slots > 0
+        if "wage_per_hour" in args:
+            comp.wage_per_hour = float(args["wage_per_hour"])
+        return {"ok": True, "why": None, "company": cid,
+                "companies": _company_list(world)}
+    if op == "restock":
+        shop = str(args.get("shop", "") or (comp.shops[0] if comp.shops else ""))
+        item = str(args.get("item_type", ""))
+        qty = int(args.get("qty", 0))
+        res = purchase(world, comp, shop, item, qty)
+        res["company"] = cid
+        return res
+    return {"ok": False, "why": "未知操作 %s" % op, "company": cid}
+
+
+def _company_list(world) -> list:
+    return [{"id": cid, "name": c.name, "cash": round(c.cash, 2),
+             "owner": c.owner, "shops": list(c.shops),
+             "open_minute": c.open_minute, "close_minute": c.close_minute,
+             "wage_per_hour": c.wage_per_hour, "restock_to": c.restock_to,
+             "hiring_open": c.hiring_open, "hiring_slots": c.hiring_slots,
+             "staff": [{"npc": n, "wage": w} for n, w in c.staff]}
+            for cid, c in sorted(world.companies.items())]
+
+
 async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
     name, args, rid = cmd.get("name"), cmd.get("args", {}), cmd.get("req_id")
     if name == "set_speed" and args.get("speed") in SPEED_TPS:
@@ -440,6 +514,28 @@ async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
                          "ok": data is not None,
                          "data": data,
                          "why": None if data is not None else "not found"})
+    elif name == "register_company":
+        # 游戏内【注册公司】: 点商铺建筑 → 注册。没注册的店不能卖、不能招人。
+        admin = _admin_company(r, "register", args)
+        await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
+                         "ok": admin["ok"], "data": admin, "why": admin["why"]})
+    elif name == "company_update":
+        admin = _admin_company(r, "update", args)
+        await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
+                         "ok": admin["ok"], "data": admin, "why": admin["why"]})
+    elif name == "company_hire":
+        admin = _admin_company(r, "hire", args)
+        await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
+                         "ok": admin["ok"], "data": admin, "why": admin["why"]})
+    elif name == "company_restock":
+        admin = _admin_company(r, "restock", args)
+        await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
+                         "ok": admin["ok"], "data": admin, "why": admin["why"]})
+    elif name == "hire_now":
+        from citysim.world.engine import hire_at
+        hired = hire_at(r.world, r.systems, r.cfg)
+        await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
+                         "ok": True, "data": {"hired": hired}, "why": None})
     elif name == "select":
         # 观察驱动: 客户端告知“我在看谁 / 看哪栋楼” → 这些每帧全量下发。
         r.focus_npc = str(args.get("npc", ""))

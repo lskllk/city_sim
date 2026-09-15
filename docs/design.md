@@ -41,8 +41,9 @@
 ### 2.1 决策：效用主导
 
 ```
-eff = (need^power × value × personality × believe) / (1 + λ × cost)
-cost = price×qty + time_value × travel_ticks + price × (1 − believe)
+eff = (need^power × 净收益 × personality × believe) / (1 + λ × cost)
+净收益 = value − (该需求每 tick 掉的量 × 走的 tick)   ← 任何信号通用; energy 走昼夜曲线
+cost   = price×qty + price × (1 − believe)           ← 纯钱 + 不确定性
 ```
 
 | 参数 | 现取值 | 意思 / 改它会怎样 |
@@ -51,13 +52,12 @@ cost = price×qty + time_value × travel_ticks + price × (1 − believe)
 | `utility.power` | `3.0` | 需求急迫度幂次。> 1 放大真缺口 |
 | `utility.power_by_signal` | `energy = 4.0` | 每种需求可以更"钝"（不太困就别去躺） |
 | `utility.cost_lambda` | `0.02` | 成本权重 λ，越大越抠 |
-| `utility.time_value` | `0.05` | 走 1 tick 折合多少钱 → 决定"顺路"值多少 |
 | `utility.preempt_ratio` | `1.5` | 迟滞：新的比当前**好这么多倍**才改主意（1.0 = 抽风） |
 | `utility.plan_pull` | `0.15` | 计划（承诺）的基础拉力；需求超过 `plan_pull × preempt_ratio` 才能顶掉日程 |
 
 - **候选不过滤**：记忆里的行全部参与打分（删掉了 `REFLEX_SIGNALS` 白名单与 `fallback_need`）。
 - **单轨**：`_goal` 一个，`source ∈ {need, plan}`；`Person.decide` = 需求 > 日程 > idle。
-- **异地成本 = 真实行走 tick**（`move_penalty` 已删）。
+- **异地成本 = 路上需求的消耗**（净收益里扣）；`move_penalty`/`time_value` 都已删。
 
 ### 2.2 需求（`[metabolism]` + `[energy_rhythm]`）
 

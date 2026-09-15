@@ -187,7 +187,7 @@ def test_move_penalty_is_gone() -> None:
     """move_penalty 已删 —— 异地成本只能由真实 tick 表达。"""
     assert not hasattr(CFG, "move_penalty")
     assert not hasattr(CFG, "fallback_need")
-    assert hasattr(CFG, "cost_lambda") and hasattr(CFG, "time_value")
+    assert hasattr(CFG, "cost_lambda")
 
 
 # ---------------------------------------------------------------------------

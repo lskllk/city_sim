@@ -51,10 +51,9 @@ class SimConfig:
     hp_override: float = 0.5
     # —— 成本模型(比价 / 比距离 / 顺路) ——
     # eff = (need^power × value × personality × believe) / (1 + cost_lambda × cost)
-    # cost = price×qty + time_value×travel_ticks + price×(1−believe)
+    # cost = price×qty + price×(1−believe)     (纯钱 + 不确定性)
     # 不再有 move_penalty: 异地成本由【真实移动 tick】表达(走路是有代价的)。
     cost_lambda: float = 0.02      # 成本权重(λ): 越大越"抠"
-    time_value: float = 0.05       # 走 1 tick 折合多少钱(决定"顺路"值多少)
     # 迟滞: 新的比当前这件【好这么多倍】才麻炊地改主意。
     # 1.0 = 随时见异思迁(会抽风); 太大 = 快饿死了还在睡。
     preempt_ratio: float = 1.5
@@ -125,7 +124,6 @@ class SimConfig:
             hp_regen_floor=float(health.get("hp_regen_floor", 0.5)),
             hp_override=float(health.get("hp_override", 0.5)),
             cost_lambda=float(util.get("cost_lambda", 0.02)),
-            time_value=float(util.get("time_value", 0.05)),
             preempt_ratio=float(util.get("preempt_ratio", 1.5)),
             tell_p=float(data.get("social", {}).get("tell_p", 0.3)),
             listen_p=float(data.get("social", {}).get("listen_p", 1.0)),

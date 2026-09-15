@@ -76,7 +76,7 @@
     {
       "at": "bld_010",
       "id": "food_pear_035",
-      "price": 2.0,
+      "price": 4.0,
       "stock": 1000,
       "type": "food_pear"
     }
@@ -178,7 +178,15 @@
     },
     "bld_010": {
       "h": 21.91,
-      "name": "店铺1号",
+      "name": "店铺3号",
+      "sign": {
+        "believe": 1.0,
+        "company": "",
+        "messages": [
+          "food_pear_035"
+        ],
+        "radius": 20.0
+      },
       "type": "shop_small",
       "w": 21.91,
       "x": 639.05,
@@ -199,7 +207,6 @@
           ]
         ],
         "floors": 1,
-        "name": "店铺1号",
         "rot": 0.0,
         "size": [
           21.909,
@@ -219,7 +226,6 @@
           ]
         ],
         "floors": 1,
-        "name": "办公楼1号",
         "rot": 0.0,
         "size": [
           69.282,
@@ -239,7 +245,6 @@
           ]
         ],
         "floors": 1,
-        "name": "工地1号",
         "rot": 0.0,
         "size": [
           32.249,
@@ -259,7 +264,6 @@
           ]
         ],
         "floors": 1,
-        "name": "店铺2号",
         "rot": 0.0,
         "size": [
           21.909,
@@ -279,7 +283,6 @@
           ]
         ],
         "floors": 2,
-        "name": "小屋1号",
         "rot": 0.0,
         "size": [
           7.746,
@@ -299,7 +302,6 @@
           ]
         ],
         "floors": 3,
-        "name": "小屋2号",
         "rot": 0.0,
         "size": [
           7.746,
@@ -320,6 +322,14 @@
         ],
         "floors": 1,
         "rot": 0.0,
+        "sign": {
+          "believe": 1.0,
+          "company": "",
+          "messages": [
+            "food_pear_035"
+          ],
+          "radius": 20.0
+        },
         "size": [
           21.909,
           21.909

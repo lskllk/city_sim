@@ -57,14 +57,16 @@ threshold = 0.05               # 【唯一阈值】低于此分就不行动。
 
 # —— 成本模型(比价 / 比距离 / 顺路) ——
 # eff = (need^power × value × personality × believe) / (1 + cost_lambda × cost)
-# cost = price×qty + time_value×travel_ticks + price×(1−believe)
+# cost = price×qty + price×(1−believe)
+# 注: 【走路的时间代价不在这里】—— 它由"净收益"表达(路上需求自己会掉),
+#     见 brain.drain_per_tick / _net_value。以前还有个 time_value(走1tick=¥0.05),
+#     它把同一次路程罚了两遍、而且罚得不准 —— 已删。
 # 注: move_penalty 已删 —— 异地成本由【真实移动 tick】表达。
 plan_pull = 0.15               # 计划(承诺)的基础拉力: 需求要超过
                                # plan_pull × preempt_ratio 才能顶掉日程。
                                # 太小 → 计划被琐碎需求踢开(等于没用);
                                # 太大 → 饿着也硬按日程走。
 cost_lambda = 0.02             # λ: 成本权重(越大越抠)
-time_value  = 0.05             # 走 1 tick 折合多少钱(决定“顺路”值多少)
 
 [utility.power_by_signal]      # 每种需求的“钝感”: 越大 → 不到真难受就不动
 energy = 4.0                   # 精力要钝一点(默认 3.0): 不太困就别去躺。

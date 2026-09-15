@@ -124,7 +124,7 @@ def load_scene(path: str | Path | None = None,
         costs = resolved
     # 注: 位移成本矩阵要等【NPC 建好之后】才能注入(见文件末尾) ——
     # 这里 world.npcs 还是空的, 以前那句循环等于什么都没做 ✗。
-    # 后果: 打分里的 time_value × travel_ticks 全是常量 30,
+    # 后果: 打分里查到的 travel tick 全是常量 30,
     #       "哪家店更近"在决策里完全没有区别。
     # 场景脉冲(世界侧定时)
     systems.pulses = _norm_pulses(data.get("pulses", []), CFG.ticks_per_day)

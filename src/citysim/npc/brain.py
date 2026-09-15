@@ -286,8 +286,8 @@ def _net_value(cfg: SimConfig, sig: str, value: float, ticks: int,
 
     用户提的例子: 在家吃梨立刻补 0.30; 出门买苹果 value 0.35,
     但走 23 tick 路上饿掉一部分 → 真正到手没那么多。
-    **长途更明显** —— 这就是"更近的店"该有的优势, 不需要靠 time_value
-    那种钱味儿的估算来表达。同一个式子对 hunger / energy / bladder 都成立。
+    **长途更明显** —— 这就是"更近的店"该有的优势, 而且不需要另设"走路要多少钱"
+    (那种估算既重复又不准)。同一个式子对 hunger / energy / bladder 都成立。
     """
     if ticks <= 0:
         return max(0.0, float(value))
@@ -304,7 +304,7 @@ def _score_candidates(cands, personality: Mapping[str, float],
 
         eff = (need^power × 净收益 × personality × believe) / (1 + λ × cost)
         净收益 = value − 路上这段时间需求自己掉掉的量   ← 任何信号通用
-        cost   = price×qty + time_value×travel_ticks + price×(1−believe)
+        cost   = price×qty + price×(1−believe)      (纯钱 + 不确定性)
 
      成本里同时放了【钱】和【时间】; 而"时间"的真实代价由净收益表达(需求会掉)。
      believe 项: “听说便宜”不如“亲眼看到便宜”可靠(κ = 1)。
@@ -339,7 +339,6 @@ def _score_candidates(cands, personality: Mapping[str, float],
             qty = min(qty, affordable)   # 钱够几件就买几件
         # —— 成本 ——
         cost = float(row.price) * qty if for_sale else 0.0
-        cost += cfg.time_value * ticks                # 走路的时间成本(钱味儿那份)
         cost += float(row.price) * (1.0 - row.believe)   # 不确定的便宜要打折
         eff = base / (1.0 + cfg.cost_lambda * cost)
         scored.append((row.item_id, sig, eff, row.located, row, qty, driver))

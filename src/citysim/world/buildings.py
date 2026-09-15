@@ -163,28 +163,6 @@ def _door_no(loc_id: str) -> str:
     return f"{int(m.group(1))} 号" if m else ""
 
 
-MAX_SIGN_MESSAGES = 3      # 一块招牌最多挂几条(游戏内部写死规则)
-
-
-def _normalize_sign(raw, bid: str) -> dict | None:
-    """招牌字段: {company?, radius, believe, messages:[实体 id, 最多 3 条]}。
-
-    缺项给默认值; messages 为空 → 视为没有招牌(返回 None)。
-    messages 引用的实体不存在时【保留】(由 engine 侧忽略) —— 数据不该被悄悄改。
-    """
-    if not isinstance(raw, dict):
-        return None
-    msgs = [str(x) for x in (raw.get("messages") or []) if str(x) != ""]
-    if not msgs:
-        return None
-    return {
-        "company": str(raw.get("company", "")),
-        "radius": max(0.0, float(raw.get("radius", 20.0))),
-        "believe": min(1.0, max(0.0, float(raw.get("believe", 0.7)))),
-        "messages": msgs[:MAX_SIGN_MESSAGES],
-    }
-
-
 def build_locations(data: dict) -> dict[str, dict]:
     """scene data → {loc_id: {name, kind, capacity, pattern, x, y, w, h}}。
 
@@ -220,12 +198,6 @@ def build_locations(data: dict) -> dict[str, dict]:
                 "open_to": open_to,
                 "public": spec.get("public"),
             }
-            # 招牌(建筑字段): 挂在店门口的消息板。
-            # 语义 = 【被动感知源】: 路人走进半径就"看到"这几条(相当于被 told,
-            # 但走的是感知而不是人与人的传播), source = "sign:<bid>"。
-            sign = _normalize_sign(spec.get("sign"), loc_id)
-            if sign is not None:
-                resolved[loc_id]["sign"] = sign
             # 楼层单元(编辑器导出): part_of 指向父建筑。后端只需透传 ——
             # 它不参与寻路/归属(那些走 doors/region_center 兜底), 仅用于观测/前端识别。
             if spec.get("part_of"):

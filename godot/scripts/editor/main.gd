@@ -45,9 +45,6 @@ var _f_price: SpinBox
 var _f_owner: OptionButton
 var _f_owner_ids: Array = []
 var _homeless_sec: VBoxContainer   # 「无住所的人」区(每次刷新重建)
-var _f_sign_company: LineEdit
-var _f_sign_radius: SpinBox
-var _f_sign_believe: SpinBox
 var _f_mem_item: OptionButton      # 额外记忆: 选一个场景里的物件
 var _f_mem_believe: SpinBox        # 他有多信这条
 var _mem_item_ids: Array = []      # 与 _f_mem_item 的条目一一对应
@@ -444,8 +441,8 @@ func _header_row(text: String) -> Label:
 ##
 ## 为什么商铺不显示人员/物件: 谁在里面上班、里面摆了什么(销售前台、货架)
 ## 都归【经营】 —— 游戏内注册公司后"装修", 不在编辑器里编。
-## (招牌 / 认知 本质也是经营, 代码留在 _sec_sign / _sec_knowledge,
-##  想让某类建筑重新显示, 在本表里写上 "sign" / "knowledge" 即可。)
+## (认知注入本质也是经营, 代码留在 _sec_knowledge; 想让某类建筑重新显示,
+##  在本表里写上 "knowledge" 即可。)
 const BLD_SECTIONS := {
 	"home": ["basic", "floors", "access", "people", "items"],
 	"_default": ["basic", "floors", "access"],
@@ -467,7 +464,6 @@ func _build_building(bid: String) -> void:
 			"access": _sec_access(bid)
 			"people": _sec_people(bid)
 			"items": _sec_items(bid)
-			"sign": _sec_sign(bid)
 			"knowledge": _sec_knowledge(bid)
 
 
@@ -680,64 +676,6 @@ func _muted(text: String) -> Label:
 
 
 # --- 人员详情 ------------------------------------------------------------
-
-
-func _sec_sign(bid: String) -> void:
-	# 招牌: 挂在门口的"消息板"(最多 3 条) —— 路人走进半径就相当于被 told。
-	# 这是【被动感知源】: 不挑人、不等对方愿意听, 只要你路过。
-	var ssec := _section("招牌")
-	var cur: Dictionary = MapDoc.sign_of(bid)
-	ssec.add_child(_muted("路人走进半径就会「看到」这几条(相当于被告诉), "
-		+ "写进记忆时按「听说」档打折。最多 %d 条。" % MapDoc.MAX_SIGN_MESSAGES))
-	_f_sign_company = LineEdit.new()
-	_f_sign_company.text = String(cur.get("company", ""))
-	_f_sign_company.placeholder_text = "公司(可空) —— 以后决定能挂几块"
-	ssec.add_child(_lrow("公司", _f_sign_company))
-	_f_sign_radius = _spin(1.0, 300.0, 1.0)
-	_f_sign_radius.value = float(cur.get("radius", 20.0))
-	ssec.add_child(_lrow("可见半径 m", _f_sign_radius))
-	_f_sign_believe = _spin(0.1, 1.0, 0.05)
-	_f_sign_believe.value = float(cur.get("believe", 0.7))
-	ssec.add_child(_lrow("相信度", _f_sign_believe))
-	var cur_msgs: Array = cur.get("messages", [])
-	var cands: Array = MapDoc.sign_candidates(bid)
-	if cands.is_empty():
-		ssec.add_child(_muted("（这栋楼里还没有物件可挂）"))
-	else:
-		for iid in cands:
-			var cb := CheckBox.new()
-			var it: Dictionary = MapDoc.items[iid]
-			var pr := float(it.get("price", 0.0))
-			cb.text = "%s %s @ %s" % [MapDoc.item_display(String(it.get("type", ""))),
-				("¥%d" % int(pr)) if pr > 0.0 else "无价",
-				MapDoc.unit_display(String(it.get("at", "")))]
-			cb.button_pressed = cur_msgs.has(String(iid))
-			cb.set_meta("iid", String(iid))
-			ssec.add_child(cb)
-		var sbtns := HBoxContainer.new()
-		sbtns.add_theme_constant_override("separation", 4)
-		var ssave := Button.new()
-		ssave.text = "保存招牌"
-		ssave.tooltip_text = "勾选的就是挂在门口的消息(最多 %d 条, 超出的忽略)" % MapDoc.MAX_SIGN_MESSAGES
-		ssave.pressed.connect(func() -> void:
-			var picked: Array = []
-			for c in ssec.get_children():
-				if c is CheckBox and (c as CheckBox).button_pressed:
-					picked.append(String((c as CheckBox).get_meta("iid")))
-			MapDoc.set_sign(bid, _f_sign_company.text.strip_edges(),
-				_f_sign_radius.value, _f_sign_believe.value, picked)
-			_refresh_status("招牌已保存 (%d 条)" % mini(picked.size(),
-				MapDoc.MAX_SIGN_MESSAGES)))
-		sbtns.add_child(ssave)
-		var sclr := Button.new()
-		sclr.text = "摘掉招牌"
-		sclr.pressed.connect(func() -> void:
-			MapDoc.clear_sign(bid)
-			_refresh_status("招牌已摘掉"))
-		sbtns.add_child(sclr)
-		ssec.add_child(sbtns)
-	_inspector.add_child(ssec)
-
 
 
 func _sec_knowledge(bid: String) -> void:

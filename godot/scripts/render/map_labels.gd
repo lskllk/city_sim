@@ -130,59 +130,7 @@ func _draw_map_building(font: Font, id: String, occ: Dictionary) -> void:
 	if k >= BuildingGeom.LOD_BADGE:
 		BuildingStyle.draw_badge(self, font, rect, "%d/%d" % [n, cap], base, fill, k)
 	# 招牌: 挂在门口的消息板(最多 3 条)。玩家要能一眼看出"这家店在吆喝什么"。
-	_draw_sign(font, room, rect, k)
 	_draw_doors_for(id, room)
-
-
-## 招牌可视化 —— 三段随缩放变化(以前只在"建筑短边 ≥51px"时才画, 缩远就看不见,
-## 用户反馈"加了招牌前端什么都没有"就是这么来的):
-##   k <  LOD_NAME  → 右上角一个小黄点(知道这家有招牌)
-##   k >= LOD_NAME  → 一块小牌子, 只写「招牌 N」
-##   k >= LOD_EMBLEM→ 展开写每一行「货 ¥价」(最多 3 行)
-## 数据全部来自后端(world.locations[bid].sign); 前端不猜不算。
-func _draw_sign(font: Font, room: Dictionary, rect: Rect2, k: float) -> void:
-	var sign := Protocol.as_dict(room.get("sign", {}))
-	if sign.is_empty():
-		return
-	var msgs := Protocol.as_array(sign.get("messages", []))
-	if msgs.is_empty():
-		return
-	if k < BuildingGeom.LOD_NAME:
-		# 太远: 只留一个记号, 免得整张图看过去"这家店没有招牌"
-		draw_circle(rect.position + Vector2(rect.size.x - 3.0, 2.0), 2.5,
-			Color("ffcf5a"))
-		return
-	var detailed := k >= BuildingGeom.LOD_EMBLEM
-	var lines: Array[String] = []
-	if detailed:
-		for mid in msgs:
-			var e := Store.entity(String(mid))
-			if e.is_empty():
-				lines.append("? " + String(mid))
-				continue
-			var pr := Protocol.num(e.get("price", 0.0))
-			lines.append("%s %s" % [Protocol.s(e.get("name", mid)),
-				("¥%d" % int(pr)) if pr > 0.0 else "有货"])
-	else:
-		lines.append("招牌 %d" % msgs.size())
-	var fs := maxi(8, int(round(9.0 * k)))
-	var w := 0.0
-	for ln in lines:
-		w = maxf(w, font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
-	var pad := 3.0 * k
-	# 挂在建筑【右上角外侧】: 角标在左上角, 这里不会打架; 再往上抬一点避开边框
-	var box := Rect2(rect.position + Vector2(rect.size.x + 3.0 * k, -2.0 * k),
-		Vector2(w + pad * 2.0, (fs + 3.0 * k) * lines.size() + pad * 2.0))
-	draw_rect(box, Color(0.10, 0.09, 0.06, 0.9), true)
-	draw_rect(box, Color("ffcf5a"), false, 1.5)
-	# 一条细线连回建筑, 一眼看出牌子是谁家的
-	draw_line(rect.position + Vector2(rect.size.x, 0.0), box.position,
-		Color("ffcf5a"), 1.0)
-	var y := box.position.y + pad + fs * 0.9
-	for ln in lines:
-		draw_string(font, Vector2(box.position.x + pad, y), ln,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("ffe9b0"))
-		y += fs + 3.0 * k
 
 
 ## 编辑器未导出 map 时的回退: 轴对齐矩形(locations)。
@@ -193,7 +141,6 @@ func _draw_room(font: Font, id: String, r: Dictionary, rect: Rect2, n: int) -> v
 		n, int(Protocol.num(r.get("capacity"), 10.0)),
 		k, BuildingGeom.LOD_NAME, BuildingGeom.LOD_EMBLEM,
 		BuildingGeom.LOD_BADGE)
-	_draw_sign(font, r, rect, k)          # 没导出 map 的场景也要看得见招牌
 	_draw_doors_for(id, r)
 
 

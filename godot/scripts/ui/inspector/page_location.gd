@@ -73,6 +73,9 @@ func build() -> void:
 	_reg_btn.pressed.connect(func() -> void:
 		Commands.cmd("register_company", {"location": _cur_bid,
 			"name": _reg_name.text.strip_edges()}))
+	# 【必须填公司名】: 名字空 → 按钮禁用(并说明为什么)
+	_reg_name.text_changed.connect(func(_s: String) -> void: _sync_reg_btn())
+	_sync_reg_btn()
 	_comp_body.add_child(_reg_btn)
 	_go_btn = Button.new()
 	_go_btn.text = "打开运营界面"
@@ -204,7 +207,16 @@ func _render() -> void:
 	_i.trim(items.size())
 
 
-## 公司段(商铺): 未注册 → 注册按钮; 注册了 → 打开运营界面。
+## 注册按钮: 名字空就不能点(用户定: 一定要输入公司名字)
+func _sync_reg_btn() -> void:
+	if _reg_btn == null:
+		return
+	var blank := _reg_name.text.strip_edges() == ""
+	_reg_btn.disabled = blank
+	_reg_btn.tooltip_text = "先填公司名" if blank else "注册后直接进入公司管理"
+
+
+## 公司段(商铺): 未注册 → 注册按钮; 注册了 → 只显示【进入公司管理】。
 ## ★ 只切 visible / 改文字 —— 绝不在这里 new/free(否则按钮闪烁点不中)
 func _sync_company(kind: String, bid: String) -> void:
 	if _msg != null and Commands.reply_seq != _seen_reply:
@@ -223,14 +235,28 @@ func _sync_company(kind: String, bid: String) -> void:
 	_comp_sec.visible = kind == "shop"
 	if kind != "shop":
 		return
+	# 兜底: location 上的 company 还没同步到, 但某家公司已把这栋楼列进 shops
+	# → 也算已注册(否则会出现"注册过了还显示注册按钮")
+	if cid == "":
+		for c in Store.companies:
+			var cd: Dictionary = c
+			if Protocol.as_array(cd.get("shops", [])).has(bid):
+				cid = Protocol.s(cd.get("id", ""))
+				break
 	var registered := cid != ""
+	# 注册组 / 管理组: 二选一, 绝不同时出现
 	_reg_hint.visible = not registered
 	_reg_name.visible = not registered
 	_reg_btn.visible = not registered
 	_go_btn.visible = registered
-	_comp_sec.set_title("公司 · %s" % (cid if registered else "未注册"))
-	if not registered and not _reg_name.has_focus():
-		_reg_name.placeholder_text = "%s 公司" % Protocol.s(_room.get("name", bid))
+	_comp_sec.set_title("公司管理" if registered else "公司 · 未注册")
+	if registered:
+		_go_btn.text = "进入公司管理（%s）" % Protocol.s(
+			Store.company(cid).get("name", cid))
+	else:
+		_sync_reg_btn()
+		if not _reg_name.has_focus():
+			_reg_name.placeholder_text = "%s 公司" % Protocol.s(_room.get("name", bid))
 
 
 func _at(d: Dictionary, unit: String) -> Array:

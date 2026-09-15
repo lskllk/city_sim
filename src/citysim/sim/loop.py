@@ -32,8 +32,6 @@ class Systems:
     # 听过的这轮不再说(见 engine._notify_due)。talked_tick 用来按 tick 清空。
     talked: set[str] = field(default_factory=set)
     talked_tick: int = -1
-    # 招牌搭上的桥: pid -> 还没听完的消息(一条消息 1 tick 依次递) —— 见 engine._sign_broadcast
-    sign_queue: dict[str, list] = field(default_factory=dict)
     last_wage_tick: int = -1     # 上次发工资的 tick(每天只发一次)
     last_restock_day: int = -1   # 上次开市补货的日子(每天只补一次)
     last_hire_tick: int = -1     # 上次招聘匹配的 tick(每天一次)

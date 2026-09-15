@@ -444,9 +444,12 @@ def _admin_company(r, op: str, args: dict) -> dict:
                     "company": str(loc_rec["company"])}
         if str(loc_rec.get("kind", "")) != "shop":
             return {"ok": False, "why": "只有商铺才能注册公司", "company": ""}
+        name = str(args.get("name", "")).strip()
+        if name == "":
+            return {"ok": False, "why": "公司名不能空", "company": ""}
         cid = "org_%s" % loc
         world.companies[cid] = Company(
-            company_id=cid, name=str(args.get("name") or ("%s 公司" % loc)),
+            company_id=cid, name=name,
             cash=float(args.get("cash", 1000.0)), shops=(loc,))
         loc_rec["company"] = cid
         return {"ok": True, "why": None, "company": cid,

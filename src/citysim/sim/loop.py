@@ -36,6 +36,14 @@ class Systems:
     sign_queue: dict[str, list] = field(default_factory=dict)
     last_wage_tick: int = -1     # 上次发工资的 tick(每天只发一次)
     last_restock_day: int = -1   # 上次开市补货的日子(每天只补一次)
+    # —— 店铺排队(用户定: 一个前台同时只能服务 1 人, 多的排队) ——
+    #   shop_id -> [pid...]   谁在排(先进先出, 两条前台就是两条线)
+    #   pid -> shop_id        反查; 排队中的人这轮不决策(他在等)
+    #   pid -> (item_id, 还想买几份)  成交 1 份就减 1
+    shop_queue: dict[str, list] = field(default_factory=dict)
+    queued: dict[str, str] = field(default_factory=dict)
+    buy_left: dict[str, tuple] = field(default_factory=dict)
+    queued_since: dict[str, int] = field(default_factory=dict)   # pid -> 开始排队的 tick
     rng: random.Random = field(default_factory=lambda: random.Random(0))
     #     ↑ 传播用的随机源。【必须来自 systems】: 用全局 random 会让回放飘。
     bubble_ttl: int = 40                 # 气泡存活 tick(冒一下就走)

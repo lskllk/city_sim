@@ -1,0 +1,14 @@
+{
+  "item_type": "station_counter",
+  "name": "销售前台",
+  "tags": ["work", "station"],
+  "affordances": {},
+  "duration_ticks": 600,
+  "interruptible": true,
+  "persist_empty": true,
+  "_note": "公司的一个【销售位】: 1 个前台 = 1 位店员 + 每 tick 最多成交 1 份。摆几个就有几条线路。",
+  "on_start": [],
+  "on_complete": [],
+  "attrs": {},
+  "stock": 1
+}

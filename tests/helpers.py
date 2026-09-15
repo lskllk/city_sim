@@ -68,9 +68,27 @@ def register_company(world: World, shop_ids, cash: float = 1000.0,
     from citysim.world.companies import Company
     cid = "org_test"
     ids = tuple(shop_ids) if not isinstance(shop_ids, str) else (shop_ids,)
-    comp = Company(cid, name, cash=cash, shops=ids)
+    # 测试里默认【全天营业】—— 不然跑几十 tick 还在清晨, 店没开门什么都不会发生
+    comp = Company(cid, name, cash=cash, shops=ids,
+                   open_minute=0, close_minute=1440)
     world.companies = {**getattr(world, "companies", {}), cid: comp}
     for bid in ids:
         world.locations.setdefault(bid, {})       # 测试夹具可能没登记地点
         world.locations[bid]["company"] = cid
     return comp
+
+
+def add_counter(world: World, shop_id: str, n: int = 1) -> list:
+    """给店铺摆 n 个销售前台(每个 = 1 个销售位: 每 tick 最多成交 1 份)。
+
+    现在交易是【柜台一份一份卖】: 没有前台 → 服务不了 → 顾客排队然后放弃。
+    """
+    from citysim.world.itemdefs import load_item_defs
+    from citysim.world.world import entity_from_def
+    d = load_item_defs()["station_counter"]
+    out = []
+    for _ in range(n):
+        e = entity_from_def(d, shop_id)
+        world.spawn_entity(e)
+        out.append(e)
+    return out

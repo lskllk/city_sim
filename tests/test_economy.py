@@ -119,6 +119,8 @@ def test_money_circulates(tmp_path) -> None:
     npc.note("food_apple_001", tick=0, located="shop", afford="hunger",
              value=0.35, price=5.0, stock=99, believe=0.8, source="",
              tags=("edible", "consumable"), shelf_life_ticks=4320)
+    from helpers import add_counter
+    add_counter(w, "shop")           # 卖东西得有前台(每个前台每 tick 1 份)
     income = 0.0
     orig = w.bus.publish
     def hook(ev):

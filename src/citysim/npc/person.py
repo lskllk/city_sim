@@ -151,6 +151,11 @@ class Person:
         self._age: int | None = self._age_from_birthday(0)   # 每天 on_day 重算
         self._bladder_pending: float = 0.0
         self._last_intent: "Intent | None" = None
+        # 对【店铺】的好感度(0..2, 中性 1.0)。不记的店 = 中性。
+        # 它是慢变量: 交易顺利慢慢涨、被怠慢/买到坏货掉得多、随时间回到中性。
+        self._favor: dict[str, float] = {}
+        self._work: dict = {}          # {company, shop, station} 被雇佣时绑定
+        self._worked_ticks: int = 0    # 本期在岗 tick(工资按在岗时间算)
         self._last_percept: "PerceptionRecord | None" = None
         self._mem = MemBase()
         self._perceived_loc: str = ""   # 最近一次感知到自己在哪(自身认知, 不长期维护坐标)
@@ -577,6 +582,68 @@ class Person:
         fields.setdefault("remember", 1.0)
         fields.setdefault("last_seen", tick)
         self._mem.update(item_id, **fields)
+
+    # --- 好感度(对店铺的慢变量) ----------------------------------------
+    def favor_of(self, shop_id: str, neutral: float = 1.0) -> float:
+        """对某家店的好感度; 没记过 = 中性。"""
+        if not shop_id:
+            return neutral
+        return float(self._favor.get(shop_id, neutral))
+
+    def favors(self) -> dict[str, float]:
+        """只读快照(观测用)。"""
+        return dict(self._favor)
+
+    def bump_favor(self, shop_id: str, delta: float, cfg) -> float:
+        """好感度加减(自动夹在 min..max)。返回新值。"""
+        if not shop_id or delta == 0.0:
+            return self.favor_of(shop_id, cfg.favor_neutral)
+        v = self.favor_of(shop_id, cfg.favor_neutral) + float(delta)
+        v = max(cfg.favor_min, min(cfg.favor_max, v))
+        self._favor[shop_id] = v
+        return v
+
+    def drift_favor(self, cfg, per_day_fraction: float = 1.0) -> None:
+        """朝中性慢慢回归(慢变量)。per_day_fraction: 0..1, 一天可多次调用。"""
+        if not self._favor:
+            return
+        k = float(cfg.favor_drift_per_day) * float(per_day_fraction)
+        if k <= 0.0:
+            return
+        n = cfg.favor_neutral
+        for sid in list(self._favor):
+            v = self._favor[sid]
+            v = v + (n - v) * min(1.0, k)
+            if abs(v - n) < 0.001:
+                del self._favor[sid]              # 回到中性 → 不必再记(省内存)
+            else:
+                self._favor[sid] = max(cfg.favor_min, min(cfg.favor_max, v))
+
+    def set_work(self, company_id: str, shop_id: str, station_id: str) -> None:
+        """被雇佣: 绑定公司/店/工位(销售前台)。"""
+        self._work = {"company": company_id, "shop": shop_id,
+                      "station": station_id}
+
+    @property
+    def work(self) -> dict:
+        return dict(self._work)
+
+    def clear_work(self) -> None:
+        self._work = {}
+
+    def worked(self, ticks: int = 1) -> None:
+        """在岗计时(工资按在岗时间算)。"""
+        self._worked_ticks += max(0, int(ticks))
+
+    @property
+    def worked_ticks(self) -> int:
+        return self._worked_ticks
+
+    def reset_worked(self) -> int:
+        """取走并清零"这一期在岗的 tick 数"(发工资时用)。"""
+        n = self._worked_ticks
+        self._worked_ticks = 0
+        return n
 
     def mem_peek(self, item_id: str):
         """只读地看一眼记忆里那行(供"这条消息对他是不是新的"这类判断)。"""

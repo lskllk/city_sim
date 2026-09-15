@@ -19,5 +19,7 @@ def due_npcs(world, systems) -> list[str]:
     for pid in sorted(world.npcs):
         if pid in systems.travel:
             continue                      # 在途不打断
+        if pid in getattr(systems, "queued", {}):
+            continue                      # 在柜台排队 → 这轮不重决策(他在等)
         out.append(pid)
     return out

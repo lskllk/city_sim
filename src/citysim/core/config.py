@@ -69,6 +69,19 @@ class SimConfig:
     # 每天【几点】发一次工资(游戏分钟; 480 = 08:00)。这是世界的收付节奏,
     # 不是"NPC 到点去做某事" —— 工资是公司发的, 不改变任何人的计划。
     wage_minute: int = 480
+    # —— 好感度(慢变量: NPC 对【店铺】) ——
+    #   0 = 再也不会去 | 1.0 = 中性(无加成) | 2.0 = 死忠; 会随时间慢慢回到中性。
+    #   候选打分里乘它 → 好感差就少去/不去。它是"店"的声誉, 不是某个商品的。
+    favor_neutral: float = 1.0
+    favor_min: float = 0.0
+    favor_max: float = 2.0
+    favor_drift_per_day: float = 0.08     # 每天朝中性回归多少(慢)
+    favor_trade_up: float = 0.02          # 顺利买到 → 涨
+    favor_no_service_down: float = 0.15   # 到店却没人招待(白跑) → 掉得多
+    favor_spoiled_down: float = 0.10      # 变质 → 掉
+    favor_price_lie_down: float = 0.08    # 价格与听说的不符 → 掉(对应 SURPRISE/DOUBT)
+    # 招聘桥接: 每天几点匹配一次(0 = 午夜)
+    hire_minute: int = 0
     tell_p: float = 0.3
     listen_p: float = 1.0
     # 【跟谁说话】的权重: 同屋(同一个 home = 同一层)的人愿意聊, 路人很少搭话。
@@ -135,6 +148,14 @@ class SimConfig:
             travel_penalty=float(util.get("travel_penalty", 2.0)),
             preempt_ratio=float(util.get("preempt_ratio", 1.5)),
             wage_minute=int(data.get("economy", {}).get("wage_minute", 480)),
+            hire_minute=int(data.get("economy", {}).get("hire_minute", 0)),
+            **{k: float(data.get("favor", {}).get(k[len("favor_"):], v))
+               for k, v in (("favor_neutral", 1.0), ("favor_min", 0.0),
+                            ("favor_max", 2.0), ("favor_drift_per_day", 0.08),
+                            ("favor_trade_up", 0.02),
+                            ("favor_no_service_down", 0.15),
+                            ("favor_spoiled_down", 0.10),
+                            ("favor_price_lie_down", 0.08))},
             tell_p=float(data.get("social", {}).get("tell_p", 0.3)),
             listen_p=float(data.get("social", {}).get("listen_p", 1.0)),
             tell_same_home=float(data.get("social", {}).get(

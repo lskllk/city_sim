@@ -8,12 +8,12 @@
       "shops": [
         "bld_004"
       ],
-      "staff": [],
       "open_minute": 480,
       "close_minute": 1140,
       "wage_per_hour": 10.0,
-      "slots": 2,
-      "restock_to": 60
+      "hire_minute": 0,
+      "restock_to": 60,
+      "staff": []
     },
     {
       "id": "org_shop_nancheng",
@@ -24,12 +24,12 @@
         "bld_007",
         "bld_010"
       ],
-      "staff": [],
       "open_minute": 480,
       "close_minute": 1140,
       "wage_per_hour": 10.0,
-      "slots": 2,
-      "restock_to": 60
+      "hire_minute": 0,
+      "restock_to": 60,
+      "staff": []
     }
   ]
 }

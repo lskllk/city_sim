@@ -96,6 +96,7 @@ def decide(
     travel_ticks: Mapping[str, int] | None = None,   # "a|b" -> tick(可选)
     money: float = float("inf"),  # 买不起的就不作为候选(否则反复失败刷屏)
     home: str = "",               # 住址(囤货要看“我家还剩几个”)
+    favor: Mapping[str, float] | None = None,   # 对店铺的好感度(0..2, 中性 1.0)
 ) -> Intent:
     """决策主算法。纯函数。铁律:
 
@@ -109,7 +110,8 @@ def decide(
     全部参与打分, 唯一的阀值在得分上(cfg.utility_threshold)。
     """
     intent, _eff = decide_scored(signals, personality, mem, location_id, cfg,
-                                 now_tick, self_id, travel_ticks, money, home)
+                                 now_tick, self_id, travel_ticks, money, home,
+                                 favor)
     return intent
 
 
@@ -124,6 +126,7 @@ def decide_scored(
     travel_ticks: Mapping[str, int] | None = None,
     money: float = float("inf"),
     home: str = "",
+    favor: Mapping[str, float] | None = None,
 ) -> tuple[Intent, float]:
     """同 decide, 但多返回【得分】。
 
@@ -137,7 +140,8 @@ def decide_scored(
         thrift=float(personality.get("thrift", 1.0)))
     scored, ranked, relevant = _score_candidates(
         cands, personality, location_id, cfg, travel_ticks, money, self_id,
-        hour_f=(now_tick % max(1, cfg.ticks_per_day)) / 60.0)
+        hour_f=(now_tick % max(1, cfg.ticks_per_day)) / 60.0,
+        favor=favor)
     return _choose(scored, ranked, relevant, cfg, self_id, location_id, home)
 
 
@@ -332,7 +336,8 @@ def _score_candidates(cands, personality: Mapping[str, float],
                       travel_ticks: Mapping[str, int] | None = None,
                       money: float = float("inf"),
                       self_id: str = "",
-                      hour_f: float = 0.0):
+                      hour_f: float = 0.0,
+                      favor: Mapping[str, float] | None = None):
     """[阶段2+3] 评分 + 排序。
 
         eff = (need^power × 净收益 × personality × believe) / (1 + λ × cost)
@@ -371,8 +376,13 @@ def _score_candidates(cands, personality: Mapping[str, float],
         #   而且是"这一趟"的消耗 → 按份数摊平(买得多, 路费就不是劣势)
         net = _net_value(cfg, sig, row.value, ticks,
                          float(personality.get(sig, 1.0)), hour_f, qty=qty)
+        # ★ 对【这家店】的好感度(0..2, 中性 1.0): 声誉是店的, 不是商品的。
+        #   掉到 0 → 这条直接不成立(再便宜也不去); 高于 1 则是加分项。
+        fav = float((favor or {}).get(str(row.located), cfg.favor_neutral))
+        if fav <= 0.0:
+            continue
         base = (need ** power) * net \
-            * float(personality.get(sig, 1.0)) * row.believe
+            * float(personality.get(sig, 1.0)) * row.believe * fav
         # —— 成本 ——
         cost = float(row.price) * qty if for_sale else 0.0
         cost += float(row.price) * (1.0 - row.believe)   # 不确定的便宜要打折

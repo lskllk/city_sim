@@ -15,12 +15,21 @@ func _initialize() -> void:
 	_collect("res://", files)
 	files.sort()
 	var failed: Array[String] = []
+	var n_gd := 0
 	for f in files:
 		if not f.ends_with(".gd"):
 			continue
-		if load(f) == null:
+		n_gd += 1
+		# 坑(踩过一次): 语法错的脚本 load() **不返回 null**, 而是返回一个
+		# 无效的 GDScript(错误只打到 stderr) → 只判 null 的话这个自检永远绿,
+		# 真正坏掉的文件反而报不出来。用 can_instantiate() 判有效性。
+		var s: Variant = load(f)
+		var bad := s == null or not (s is GDScript)
+		if not bad:
+			bad = not (s as GDScript).can_instantiate()
+		if bad:
 			failed.append(f)
-	print("\n[check] 共 %d 个 .gd, 解析失败 %d 个" % [files.size(), failed.size()])
+	print("\n[check] 共 %d 个 .gd, 解析失败 %d 个" % [n_gd, failed.size()])
 	for f in failed:
 		print("   !! ", f)
 	quit(1 if failed.size() > 0 else 0)

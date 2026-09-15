@@ -1424,7 +1424,7 @@ func to_scene_dict(scene_name_arg: String = "") -> Dictionary:
 			"personality": p.get("personality", {}),
 			"init": p.get("init", {}),
 			"traits": p.get("traits", {}),
-			"tell_bias": float(p.get("tell_bias", 1.0))}
+			"tell_bias": float(p.get("tell_bias", 1.0))})
 		# 只有真写过记忆才导出这一段(否则 114 个人各多一行空字典)
 		var mmem: Dictionary = p.get("memory", {})
 		if not mmem.is_empty():

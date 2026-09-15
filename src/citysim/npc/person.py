@@ -565,6 +565,10 @@ class Person:
         fields.setdefault("last_seen", tick)
         self._mem.update(item_id, **fields)
 
+    def mem_peek(self, item_id: str):
+        """只读地看一眼记忆里那行(供"这条消息对他是不是新的"这类判断)。"""
+        return self._mem.get(item_id)
+
     def remembers(self, item_id: str) -> bool:
         """我记忆里有没有这一条(供“对方已知就不说”这类判断用)。"""
         return self._mem.get(item_id) is not None

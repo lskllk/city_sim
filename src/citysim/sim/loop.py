@@ -32,6 +32,8 @@ class Systems:
     # 听过的这轮不再说(见 engine._notify_due)。talked_tick 用来按 tick 清空。
     talked: set[str] = field(default_factory=set)
     talked_tick: int = -1
+    # 招牌搭上的桥: pid -> 还没听完的消息(一条消息 1 tick 依次递) —— 见 engine._sign_broadcast
+    sign_queue: dict[str, list] = field(default_factory=dict)
     rng: random.Random = field(default_factory=lambda: random.Random(0))
     #     ↑ 传播用的随机源。【必须来自 systems】: 用全局 random 会让回放飘。
     bubble_ttl: int = 40                 # 气泡存活 tick(冒一下就走)

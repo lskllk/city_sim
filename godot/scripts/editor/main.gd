@@ -606,7 +606,7 @@ func _build_building(bid: String) -> void:
 	_f_sign_company.placeholder_text = "公司(可空) —— 以后决定能挂几块"
 	ssec.add_child(_lrow("公司", _f_sign_company))
 	_f_sign_radius = _spin(1.0, 300.0, 1.0)
-	_f_sign_radius.value = float(cur.get("radius", 12.0))
+	_f_sign_radius.value = float(cur.get("radius", 20.0))
 	ssec.add_child(_lrow("可见半径 m", _f_sign_radius))
 	_f_sign_believe = _spin(0.1, 1.0, 0.05)
 	_f_sign_believe.value = float(cur.get("believe", 0.7))

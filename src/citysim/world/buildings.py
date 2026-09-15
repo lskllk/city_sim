@@ -179,7 +179,7 @@ def _normalize_sign(raw, bid: str) -> dict | None:
         return None
     return {
         "company": str(raw.get("company", "")),
-        "radius": max(0.0, float(raw.get("radius", 12.0))),
+        "radius": max(0.0, float(raw.get("radius", 20.0))),
         "believe": min(1.0, max(0.0, float(raw.get("believe", 0.7)))),
         "messages": msgs[:MAX_SIGN_MESSAGES],
     }

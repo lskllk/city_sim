@@ -7,6 +7,7 @@ systems 为执行环境(duck: interaction/travel/pulses/日志), 由上层构造
 from __future__ import annotations
 
 import zlib
+from dataclasses import replace
 
 from citysim.npc import semantic as _sem
 
@@ -22,6 +23,7 @@ from citysim.core.types import (
     intent_target,
 )
 from citysim.world.drive import due_npcs
+from citysim.world.buildings import door_points
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.pulses import apply as apply_pulses
 from citysim.world.perception import build_percept
@@ -151,21 +153,100 @@ def _loc_center(loc: Mapping[str, Any]) -> tuple[float, float]:
             float(loc.get("y", 0.0)) + float(loc.get("h", 0.0)) * 0.5)
 
 
-def _perceive_signs(world, systems) -> None:
-    """招牌 = 会说话的世界: 走进半径就"看到"招牌上那几条消息。
+def _sign_point(world, bid: str) -> tuple[float, float]:
+    """招牌被"挂在"哪里 = 【门口】, 不是建筑中心。
 
-    —— 这是【感知】而不是【传播】——
-    不走 _notify_due 的那套(说概率/听概率/一对一/话题冷却): 招牌不挑人、不等对方
-    愿意听, 只要你路过。写进去的 source = "sign:<bid>"、believe = 招牌自己那个档,
-    所以它在传播里仍然只是"听说的", 也能被别人转述出去。
-
-    只在【新消息 / 价格库存变了】时才写 —— 否则站在门口每 tick 都刷一遍。
+    优先用编辑器导出的门点(map.buildings[bid].doors, 世界坐标)——
+    那就是前端画出来的那个门; 没有就用建筑类型的 doors 现算; 再没有才回退中心。
     """
+    mb = (world.map or {}).get("buildings", {}).get(bid)
+    if isinstance(mb, dict):
+        for d in (mb.get("doors") or []):
+            if isinstance(d, (list, tuple)) and len(d) >= 2:
+                return float(d[0]), float(d[1])
+    loc = world.locations.get(bid) or {}
+    pts = door_points(dict(loc), loc.get("doors"))
+    if pts:
+        return float(pts[0]["x"]), float(pts[0]["y"])
+    return _loc_center(loc)
+
+
+def _stall_travel(systems, pid: str, ticks: int) -> None:
+    """让正在赶路的人【停一下】(他要站在门口把话听完)。
+
+    做法: 把这次旅行的到达时刻往后推 —— 位置是按时间插值的, 推后即"站住不走"。
+    """
+    tv = systems.travel.get(pid)
+    if tv is None or ticks <= 0:
+        return
+    systems.travel[pid] = replace(tv, arrive_tick=tv.arrive_tick + int(ticks))
+
+
+def _sign_is_new(world, npc, eid: str) -> bool:
+    """招牌上这条消息对他是不是【新的或变了】—— 决定要不要为他搭这座桥。"""
+    ent = world.entities.get(eid)
+    if ent is None:
+        return False                               # 招牌写了不存在的货
+    row = npc.mem_peek(eid)
+    if row is None:
+        return True
+    return (abs(float(row.price) - float(ent.price)) > 0.005
+            or int(row.stock) != int(ent.stock))
+
+
+def _receive_sign_line(world, systems, npc, bid: str, sign: dict,
+                       eid: str) -> None:
+    """收下招牌上的一条消息: 写记忆(听说的档) + 冒 told 格式的气泡 + 发 told 事件。"""
+    ent = world.entities.get(eid)
+    if ent is None:
+        return
+    afford, value = next(iter(ent.affordances.items()), ("", 0.0))
+    if not npc.see_sign(eid, world.clock_tick, located=ent.location_id,
+                        name=ent.name, price=float(ent.price),
+                        stock=int(ent.stock),
+                        believe=float(sign.get("believe", 0.7)),
+                        source="sign:%s" % bid, afford=afford,
+                        value=float(value), item_type=ent.item_type):
+        return                                     # 已经知道且没变 → 不再说一遍
+    # 气泡 = told 格式("听{招牌}说：{货}{价}") —— 招牌是个说者, 措辞和人说的一样
+    label = "%s的招牌" % str((world.locations.get(bid) or {}).get("name", bid))
+    rep = _sem.report(world.clock_tick, "sign:%s" % bid, eid, ent.name,
+                      _price_word({"price": ent.price, "stock": ent.stock}),
+                      who=label)
+    _set_bubble(systems, npc, _sem.render(rep, speaker_name=label),
+                "told", world.clock_tick)
+    world.bus.publish(world.bus.make(
+        world.clock_tick, "told", npc.person_id,
+        {"audience": [npc.person_id], "item_id": eid, "from": "sign:%s" % bid,
+         "to": npc.person_id, "sign": bid, "company": sign.get("company", ""),
+         "believe": sign.get("believe", 0.7)}))
+
+
+def _sign_broadcast(world, systems) -> None:
+    """招牌 = 一个【虚拟说者】站在门口, 一直按 told 那套广播。
+
+    复用 NPC 的传播模型(而不是"进了圈就写进脑子"):
+      ① 距离只是【搭桥阈值】: 到【门口】≤ radius 才可能搭上, 不代表已经听到
+      ② 搭桥两道骰子: 招牌的广播频率(tell_p) × 听众的听概率(listen_p)
+      ③ 搭上之后 → 他【停下来】(旅行到达时刻推后), 按【一条消息 1 tick】
+         依次收完(招牌上是几条就听几个 tick)
+      ④ 气泡走 told 格式("听{招牌}说：{货}{价}"), 事件也是 told
+    于是"路过 → 搭桥 → 停下 → 听完 → 之后他自己会讲给别人"是一条链。
+    """
+    tell_p = float(getattr(systems, "tell_p", 0.0))
+    listen_p = float(getattr(systems, "listen_p", 1.0))
+    rng = getattr(systems, "rng", None)
+    if rng is None or tell_p <= 0.0 or listen_p <= 0.0:
+        return
+
+    # ① 先找新的桥（搭上的这一 tick 就开始听第一条）
     signs = [(bid, loc["sign"]) for bid, loc in sorted(world.locations.items())
              if isinstance(loc, dict) and loc.get("sign")]
     if not signs:
         return
     for pid in sorted(world.npcs):
+        if pid in systems.sign_queue:
+            continue                               # 正在收, 先听完
         npc = world.npcs.get(pid)
         if npc is None:
             continue
@@ -173,34 +254,35 @@ def _perceive_signs(world, systems) -> None:
         if pt is None:
             continue
         for bid, sign in signs:
-            loc = world.locations.get(bid) or {}
-            cx, cy = _loc_center(loc)
-            dx, dy = pt[0] - cx, pt[1] - cy
-            if (dx * dx + dy * dy) ** 0.5 > float(sign.get("radius", 12.0)):
-                continue                       # 还没走到看得见的地方
-            for eid in sign.get("messages", ()):
-                ent = world.entities.get(eid)
-                if ent is None:
-                    continue                   # 招牌上写了不存在的货 → 忽略
-                afford, value = next(iter(ent.affordances.items()), ("", 0.0))
-                seen = npc.see_sign(
-                    eid, world.clock_tick, located=ent.location_id,
-                    name=ent.name, price=float(ent.price),
-                    stock=int(ent.stock), believe=float(sign.get("believe", 0.7)),
-                    source="sign:%s" % bid, afford=afford, value=float(value),
-                    item_type=ent.item_type)
-                if not seen:
-                    continue
-                # 路过的人头顶冒一句 —— 没有它, 玩家根本不知道招牌起作用了
-                _set_bubble(systems, npc,
-                            _sem.sign_line(ent.name, _price_word(
-                                {"price": ent.price, "stock": ent.stock})),
-                            "sign", world.clock_tick)
-                world.bus.publish(world.bus.make(
-                    world.clock_tick, "saw_sign", pid,
-                    {"audience": [pid], "sign": bid, "item_id": eid,
-                     "price": ent.price, "company": sign.get("company", "")}))
+            dx, dy = pt[0] - _sign_point(world, bid)[0],                 pt[1] - _sign_point(world, bid)[1]
+            if (dx * dx + dy * dy) ** 0.5 > float(sign.get("radius", 20.0)):
+                continue                           # 还不够近 → 搭不上桥
+            if rng.random() >= tell_p:
+                continue                           # 招牌这一下没"广播"
+            if rng.random() >= listen_p:
+                continue                           # 他不想听(走着呢)
+            # 只把【对他还是新的】那几条排进队 —— 否则搭上桥却发现无话可说,
+            # 下一秒又搭一次(实测: 队列永远排不空, 一直"站住听").
+            msgs = [str(m) for m in sign.get("messages", ())]
+            fresh = [m for m in msgs if _sign_is_new(world, npc, m)]
+            if not fresh:
+                continue
+            systems.sign_queue[pid] = [(bid, dict(sign), m) for m in fresh]
+            _stall_travel(systems, pid, len(fresh))  # 停下来听
+            break
 
+
+    # ② 已经搭上的桥, 每 tick 递一条（一条消息 1 tick）
+    for pid in sorted(systems.sign_queue):
+        queue = systems.sign_queue.get(pid) or []
+        npc = world.npcs.get(pid)
+        if npc is None or not queue:
+            systems.sign_queue.pop(pid, None)
+            continue
+        bid, sign, eid = queue.pop(0)
+        _receive_sign_line(world, systems, npc, bid, sign, eid)
+        if not queue:
+            systems.sign_queue.pop(pid, None)
 
 def _notify_due(world, systems, npc, ev) -> None:
     """这一轮张嘴: 把【刚才那句值得说的话】说给【一个】同地的人听。
@@ -607,8 +689,8 @@ def tick(world, systems, cfg: SimConfig) -> None:
                 if npc is not None:
                     npc.on_failure(trv.to_loc, why, world.clock_tick)
 
-    # 5a2. 招牌: 路过就"被 told"(被动感知源, 不是人与人的传播)
-    _perceive_signs(world, systems)
+    # 5a2. 招牌: 站在门口一直广播 —— 路过的人被它"搭桥"后停下听完(见 _sign_broadcast)
+    _sign_broadcast(world, systems)
 
     # 5b. 决策: 先对全部该决策者算 Decision(同一世界快照), 再统一仲裁执行
     #     仲裁 = 继续/挂起/中止/提交。

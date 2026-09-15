@@ -22,7 +22,7 @@ SIGNALS: tuple[str, ...] = (
 # 它原本用于“哪些信号能产生候选 / 哪些需求能抢占计划” —— 现在两者都不需要:
 #   - 候选不再过滤(记忆里的行全部参与打分), 阀值只落在得分上(utility.threshold)
 #   - 抢占只看得分比(preempt_ratio), 不看信号白名单
-# 详见 docs/20260914/plan.md §3.1/§3.2。
+# 详见 docs/design.md §2。
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,7 @@ class SimConfig:
     utility_threshold: float = 0.05
     move_ticks: int = 30           # 跨地点移动耗时(无路网时的降级)
     move_m_per_tick: float = 10.0  # 有路网时: 每 tick 可走米数
-    # —— 生命三态(docs/20260914/plan.md §3.7) ——
+    # —— 生命三态(docs/design.md §2) ——
     #   hp ↓  hunger==0 或 energy==0
     #   hp ↑  hunger ≥ floor 且 energy ≥ floor
     #   其他  不动(中间带 —— 否则咬一口饭 hp 就开始涨, “饿死”永远发生不了)

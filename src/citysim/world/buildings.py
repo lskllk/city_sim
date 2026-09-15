@@ -1,6 +1,6 @@
 """buildings —— 建筑类型库 + 场景自动布局。纯几何, 不依赖 world/渲染。
 
-设计见 docs/building_abstraction.md:
+设计见 docs/design.md §2.9:
 - 类型库 config/buildings/*.json: {type, name, kind, capacity, pattern, aspect, doors}
   doors = 进出口定义(资产逻辑): [{"side": north|south|east|west, "offset": -0.5..0.5}]
 - 场景 locations 只写 {type, name?} —— 不写坐标;

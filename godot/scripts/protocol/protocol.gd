@@ -1,6 +1,6 @@
 # protocol.gd —— 与前端 protocol/schemas.ts 对齐的只读镜像 + 消息解析。
 #
-# 纯工具层: 不持有状态、不碰场景。对应 docs/observation_contract.md。
+# 纯工具层: 不持有状态、不碰场景。对应 docs/design.md §2.8。
 class_name Protocol
 extends RefCounted
 

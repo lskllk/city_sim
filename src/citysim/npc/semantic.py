@@ -1,6 +1,6 @@
 """semantic —— NPC 说什么(语义层 M-S1)。
 
-铁律(docs/20260913/semantic_event.md §1):
+铁律(docs/design.md §2.7):
   1. **随机只在措辞层。** 谁 / 知道什么 / 什么行为 / 什么强度 —— 全部为真、确定。
   2. **准确性靠约束, 不靠更聪明的模型。** 槽位只允许真值, 渲染时不许新增实体。
   3. **语义系统 = 知识系统的可视化 + 传播载体。** 说出的话就是一条带来源的 Fact。
@@ -21,7 +21,7 @@ from typing import Any, Mapping, Sequence
 
 from citysim.core.types import SemanticEvent
 
-# act 集合与说话优先级(docs/20260913/semantic_event.md §8)
+# act 集合与说话优先级(docs/design.md §2.7)
 ACTS: tuple[str, ...] = ("STATE", "INTENT", "SURPRISE", "DOUBT", "DENIED",
                          "REPORT")
 PRIORITY: Mapping[str, int] = {

@@ -79,7 +79,7 @@ def _kill(world, systems, pid: str) -> None:
 
 # --- 传播(传闻) -----------------------------------------------------------
 #
-# 规则(docs/20260914/mvp.md):
+# 规则(docs/design.md §2.6):
 #   - 信任只有两档: 同址(同一个 home) 0.9~1.0; 否则 0.4~0.7
 #   - 按 (a,b) **确定性派生** —— 每对人一个固定值, 零存储、可回放
 #   - 传出去的 believe = 说话人自己信的程度 × 对听者的信任
@@ -119,7 +119,7 @@ def _notify_due(world, systems, npc, ev) -> None:
     而且【只搭一条桥】: 说的人这轮不再听、听的人这轮不再说(说的不听/听的不说),
     一个场地里只有"在说的"和"在听的"才配对。
 
-    说什么由语义层决定(见 docs/20260913/semantic_event.md): `ev` 是 Person
+    说什么由语义层决定(见 docs/design.md §2.7): `ev` 是 Person
     攒好的 SemanticEvent(DOUBT > SURPRISE > INTENT > STATE), 没话可说就不说。
     """
     tick = world.clock_tick

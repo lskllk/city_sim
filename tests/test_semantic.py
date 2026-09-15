@@ -1,4 +1,4 @@
-"""语义层 M-S1(docs/20260913/semantic_event.md)。
+"""语义层 M-S1(docs/design.md §2.7)。
 
     act: STATE / INTENT / SURPRISE / DOUBT (+ REPORT 转述)
     随机只在措辞层 —— 谁/什么行为/什么强度全部为真。

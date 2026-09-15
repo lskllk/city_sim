@@ -1,59 +1,36 @@
-# docs 文档约定
+# docs
 
-## 1. 两类文档
+## 先看这两个（**活文档**）
 
-| 类型 | 位置 | 含义 | 可否移动 |
-|---|---|---|---|
-| **常青（evergreen）** | `docs/` 根目录 | 规则 / 契约 / 愿景。长期有效 | **不要动**——被代码与测试引用 |
-| **按日归档（dated）** | `docs/<YYYYMMDD>/` | 某次讨论产出的设计稿 | 随意，日期即版本 |
+| 文件 | 是什么 |
+|---|---|
+| **`design.md`** | **设计真源**：定位 / 铁律 / 机制与参数含义 / 明确不做 |
+| **`20260914/checklist.md`** | **现状清单**：做到哪了 / 没做什么 / 待拍板 |
 
-**游戏方向总纲**见 `docs/20260914/game.md`（指导性文档）——它约束各机制文档的优先级，
-机制细节仍以对应机制文档为准。
+另有 `naming.md`（命名规则，测试强制）与 `plan_timeline_viz.md`（时间线可视化）仍是活文档。
 
-## 2. 目录结构
+## 其余全是**归档**（历史讨论记录，别当规格用）
 
-```text
-docs/
-  README.md              本文件
-  Vision.md              长期愿景（常青）
-  naming.md              命名规则（常青；tests/test_naming.py 强制）
-  plan_timeline_viz.md   计划表时间线可视化（常青；plan_timeline.gd 引用）
-  20260910/
-    requirements.md      需求拆解 + 设计草案
-  20260913/
-    semantic_event.md    NPC 语义层（气泡 / 传播载体）
-    mind.md              情绪 / 关系 / 传播 MVP
-    memory.md            记忆：L0 物化视图 + L1 情景日志
-    plan.md              计划表：角色日程模板 + 自由块（**已被 20260914/plan.md 取代**）
-  20260914/
-    checklist.md         ★ 一页逆览：20260914 全部决议 + 实施顺序（先看这个）
-    observe.md           推送架构：观察驱动（位置只在状态迁移时推）
-    game.md              游戏定位（指导性总纲）：开店老板 × 活着的城市
-    mvp.md               消息传播 + 气泡 MVP（三件事，< 50 行内核）
-    bubble.md            气泡实现方案（渲染 / 契约 / 节流）
-    plan.md              计划与需求（PLAN 收敛版）—— 取代 20260913/plan.md
+```
+Vision.md                    长期愿景（"不同经历 → 不同认知 → 不同决策"）
+20260910/requirements.md     早期需求拆解（经济/角色/计划/技能/关系 —— 只有 ①② 还有价值）
+20260913/semantic_event.md   语义层设计稿（M-S1 已实现，其原则已进 design.md §2.7）
+20260913/mind.md             情绪 / 关系 / 信任演化（未实现）
+20260913/memory.md           记忆 L0/L1（L0 已实现，L1 未做）
+20260913/plan.md             计划表（已被 20260914 取代）
+20260914/game.md             游戏定位展开（design.md §1 是它的浓缩）
+20260914/plan.md             PLAN 收敛版（机制已实现，原则已进 design.md §2）
+20260914/mvp.md              传播+气泡 MVP（已实现）
+20260914/bubble.md           气泡实现方案（已实现）
+20260914/observe.md          推送架构（已实现，契约进 design.md §2.8）
 ```
 
-## 3. 命名规则
+> 为什么归档而不是删：里面有"为什么这么设计"的推演过程，翻旧账时有用；
+> 但**机制细节一律以 `design.md` 与 `config/*` 为准** —— 它们已经和实现脱节了。
 
-- 目录：`YYYYMMDD`，如 `20260913`。
-- 文件：小写 `snake_case` ASCII，如 `semantic_event.md`、`mind.md`。
-- **日期不进文件名**——日期已经在目录上。
-- 中文标题写在文件内，不写进文件名。
+## 约定
 
-## 4. 引用写法
-
-- 常青：`docs/naming.md`
-- 归档：`docs/20260913/mind.md`
-- 跨文档引用带小节号：`docs/20260913/mind.md §7.2`
-
-## 5. 已知悬空引用（待清理）
-
-以下文件被代码引用但**已删除**（见 commit `8c9dd2b`），引用未同步更新：
-
-| 引用方 | 悬空目标 |
-|---|---|
-| `godot/scripts/protocol/protocol.gd` | `docs/observation_contract.md` |
-| `godot/scripts/shared/building_style.gd` | `docs/building_abstraction.md` |
-| `src/citysim/world/buildings.py` | `docs/building_abstraction.md` |
-| `docs/20260910/requirements.md` | `docs/task0XX.md` |
+- **活文档**放 `docs/` 根或最新的日期目录；**归档**按 `YYYYMMDD/` 装。
+- 跨文档引用带小节号：`docs/design.md §2.6`。
+- 文件名小写 `snake_case` ASCII，日期不进文件名（在目录上）。
+- 新增机制时的写法：**先改 `config/*` 数据 → 再改代码 → 最后在 `design.md` 补一段含义**。

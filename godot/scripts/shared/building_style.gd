@@ -9,7 +9,7 @@
 # 约束(保持自包含, 便于将来复用/单测):
 #   - 只用 Godot 内建类型; 不反向依赖 editor/ 或 render/ 其它脚本;
 #   - 不用 class_name / autoload(保持为纯静态工具类)。
-# 视觉通道与 docs/building_abstraction.md 对齐:
+# 视觉通道与 docs/design.md §2.9 对齐:
 #   色相 = kind(类别), 面积 = capacity(后端算), 红度 = 占用率(观察器运行时有)。
 extends RefCounted
 

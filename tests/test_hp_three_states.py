@@ -1,4 +1,4 @@
-"""hp 三态 + hp_override(docs/20260914/plan.md §3.7)。
+"""hp 三态 + hp_override(docs/design.md §2)。
 
     下降   hunger == 0  或  energy == 0
     上升   hunger ≥ hp_regen_floor 且 energy ≥ hp_regen_floor

@@ -21,6 +21,7 @@ from citysim.npc.planner import ScriptedPlanner
 from citysim.sim.loop import attach_replay, make_systems
 from citysim.world.buildings import build_locations
 from citysim.world.companies import load_companies
+from citysim.world.market import load_market
 from citysim.world.pulses import normalize as _norm_pulses
 from citysim.world.roads import RoadGraph
 from citysim.world.itemdefs import load_item_defs
@@ -83,6 +84,8 @@ def load_scene(path: str | Path | None = None,
     # 编辑器导出的原始路网/建筑(含 rot/doors), 供观察器按编辑器思路渲染
     world.map = data.get("map") or {}
 
+    # 批发市场(固定商品/无限库存): 公司进货的来源
+    world.market = load_market(ROOT / "config" / "market.json")
     # 公司(config/companies.json, 与场景分离): 店铺归属 + 公司的账 + 员工
     world.companies = load_companies(ROOT / "config" / "companies.json")
     for cid, comp in world.companies.items():

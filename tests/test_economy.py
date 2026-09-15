@@ -64,11 +64,13 @@ def test_purchase_credits_the_shop_company(tmp_path) -> None:
     assert ev["payload"]["company"] == "org_a"
 
 
-def test_shop_without_company_keeps_old_behaviour(tmp_path) -> None:
-    """没登记公司的店 → 钱仍然消失(旧行为; 让"店主=公司"是后续的事)。"""
+def test_shop_without_company_cannot_sell(tmp_path) -> None:
+    """【没登记公司的店不能卖】(用户定的开零售前提): 成交失败, 钱不动。"""
     w, s = _load(tmp_path, _scene())
     _buy(w, s, qty=1)
-    assert w.npcs["npc_a"].money == 95.0
+    assert w.npcs["npc_a"].money == 100.0            # 一分没花
+    fail = [e for e in s.ui_events if e.get("kind") == "intent_failed"][-1]
+    assert fail["payload"]["why"] == "这家店没有登记公司"
 
 
 def test_wage_is_paid_once_a_day(tmp_path) -> None:
@@ -132,3 +134,42 @@ def test_money_circulates(tmp_path) -> None:
     assert income > 0.0, "买家一次都没买"
     assert any(e.get("kind") == "wage_paid" for e in s.ui_events), "公司一次工资都没发"
     assert w.companies["org_a"].cash >= 0.0
+
+
+# --- 批发市场 / 开零售前提 -------------------------------------------------
+
+def test_market_purchase_puts_goods_on_company_shelf(tmp_path) -> None:
+    """公司向市场进货: 钱从公司账出、货上架到自己的店。"""
+    from citysim.world.market import Market, purchase
+    w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=100.0,
+                                              shops=("shop",))])
+    w.market = Market(prices={"food_apple": 3.0})
+    shelf = next(e for e in w.entities.values() if e.location_id == "shop")
+    before = shelf.stock
+    res = purchase(w, w.companies["org_a"], "shop", "food_apple", 10)
+    assert res["ok"] and res["cost"] == 30.0
+    assert shelf.stock == before + 10
+    assert w.companies["org_a"].cash == 70.0
+
+
+def test_market_is_company_only_and_never_short(tmp_path) -> None:
+    """市场数量无限(不因买多次而减少); 公司钱不够 → 只买得起几份, 一份买不起就不买。"""
+    from citysim.world.market import Market, purchase
+    w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=7.0,
+                                              shops=("shop",))])
+    w.market = Market(prices={"food_apple": 3.0})
+    res = purchase(w, w.companies["org_a"], "shop", "food_apple", 100)
+    assert res["ok"] and res["cost"] == 6.0            # 只买得起 2 份
+    assert w.companies["org_a"].cash == 1.0
+    res2 = purchase(w, w.companies["org_a"], "shop", "food_apple", 5)
+    assert not res2["ok"] and res2["why"] == "公司现钱不够"
+
+
+def test_purchase_refused_for_shop_not_owned(tmp_path) -> None:
+    """只能给自己旗下的店进货。"""
+    from citysim.world.market import Market, purchase
+    w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=100.0,
+                                              shops=("shop",))])
+    w.market = Market(prices={"food_apple": 3.0})
+    res = purchase(w, w.companies["org_a"], "home", "food_apple", 5)
+    assert not res["ok"] and res["why"] == "这家店不是它的"

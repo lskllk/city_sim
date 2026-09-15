@@ -8,7 +8,7 @@ from citysim.core.types import Buy
 from citysim.npc.schedule import PlanEntry
 from citysim.sim.loop import run_tick
 
-from helpers import add_entity, add_npc, make_runtime
+from helpers import register_company, add_entity, add_npc, make_runtime
 
 ROOT = Path(__file__).resolve().parents[1]
 CFG = load_config(ROOT / "config" / "sim.toml")
@@ -33,6 +33,7 @@ def test_plan_buy_deducts_money_and_merges_stock() -> None:
     pantry.item_type = "meal_simple"
     pantry.owner = "npc"
     pantry.persist_empty = True
+    register_company(w, "market")
 
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng)   # money=100
     npc.set_home("home")
@@ -55,6 +56,7 @@ def test_plan_buy_insufficient_money_fails_and_skips() -> None:
                       affordances={"hunger": 0.5}, duration_ticks=10, stock=50)
     shop.price = 999.0
     shop.item_type = "meal_simple"
+    register_company(w, "market")            # 没登记公司的店现在不能卖
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng)
     npc.set_home("home")
     npc.note("market_1", located="market", believe=1.0)

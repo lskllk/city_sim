@@ -22,7 +22,13 @@ class Company:
     cash: float = 0.0
     owner: str = ""                       # 老板 npc(以后玩家化身就是他)
     shops: tuple[str, ...] = ()
-    staff: tuple[tuple[str, float], ...] = ()   # ((npc_id, 日薪), ...)
+    staff: tuple[tuple[str, float], ...] = ()   # ((npc_id, 时薪), ...)
+    # —— 营业(用户拍板: 编辑器可编) ——
+    open_minute: int = 480          # 开门(游戏分钟)
+    close_minute: int = 1140        # 关门
+    wage_per_hour: float = 10.0     # 时薪: 招聘时确定(按小时算)
+    slots: int = 2                  # 销售位: 1 位 = 1 tick 成交 1 份, 需要 1 个店员
+    restock_to: int = 60            # 开门前把货架补到几份(简单经营规则)
 
     def display(self) -> str:
         return self.name or self.company_id
@@ -55,5 +61,10 @@ def load_companies(path: str | Path) -> dict[str, Company]:
             owner=str(rec.get("owner", "")),
             shops=tuple(str(x) for x in (rec.get("shops") or [])),
             staff=tuple(staff),
+            open_minute=int(rec.get("open_minute", 480)),
+            close_minute=int(rec.get("close_minute", 1140)),
+            wage_per_hour=float(rec.get("wage_per_hour", 10.0)),
+            slots=max(0, int(rec.get("slots", 2))),
+            restock_to=max(0, int(rec.get("restock_to", 60))),
         )
     return out

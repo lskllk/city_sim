@@ -35,6 +35,7 @@ class Systems:
     # 招牌搭上的桥: pid -> 还没听完的消息(一条消息 1 tick 依次递) —— 见 engine._sign_broadcast
     sign_queue: dict[str, list] = field(default_factory=dict)
     last_wage_tick: int = -1     # 上次发工资的 tick(每天只发一次)
+    last_restock_day: int = -1   # 上次开市补货的日子(每天只补一次)
     rng: random.Random = field(default_factory=lambda: random.Random(0))
     #     ↑ 传播用的随机源。【必须来自 systems】: 用全局 random 会让回放飘。
     bubble_ttl: int = 40                 # 气泡存活 tick(冒一下就走)

@@ -57,3 +57,20 @@ def is_asleep(world: World, systems, person_id: str) -> bool:
         return False
     ent = world.entities.get(act.entity_id)
     return ent is not None and ent.is_sleepable
+
+
+def register_company(world: World, shop_ids, cash: float = 1000.0,
+                     name: str = "测试公司"):
+    """给店铺挂一个公司 —— 现在【没登记公司的店不能卖】(用户定的开零售前提)。
+
+    测试里凡是要真的成交, 都得先注册。返回 Company。
+    """
+    from citysim.world.companies import Company
+    cid = "org_test"
+    ids = tuple(shop_ids) if not isinstance(shop_ids, str) else (shop_ids,)
+    comp = Company(cid, name, cash=cash, shops=ids)
+    world.companies = {**getattr(world, "companies", {}), cid: comp}
+    for bid in ids:
+        world.locations.setdefault(bid, {})       # 测试夹具可能没登记地点
+        world.locations[bid]["company"] = cid
+    return comp

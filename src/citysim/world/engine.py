@@ -156,6 +156,27 @@ def _loc_center(loc: Mapping[str, Any]) -> tuple[float, float]:
             float(loc.get("y", 0.0)) + float(loc.get("h", 0.0)) * 0.5)
 
 
+def _is_registered_shop(world, shop) -> bool:
+    """这家店登记过公司吗? 没登记 → 不许卖(用户定的开零售前提)。"""
+    cid = str((world.locations.get(str(shop.location_id)) or {}).get("company", ""))
+    return bool(cid) and cid in world.companies
+
+
+def _restock_if_open(world, systems, cfg: SimConfig) -> None:
+    """每天开门那一刻, 各公司补一次货(只补货架, 不动任何 NPC)。"""
+    from citysim.world.market import restock_all
+    minute = world.clock_tick % max(1, cfg.ticks_per_day)
+    day = world.clock_tick // max(1, cfg.ticks_per_day)
+    for cid in sorted(world.companies):
+        comp = world.companies[cid]
+        if int(comp.open_minute) != minute:
+            continue
+        if systems.last_restock_day == day:
+            continue                       # 同一开门时刻只补一次
+        systems.last_restock_day = day
+        restock_all(world)
+
+
 def _company_of_shop(world, shop):
     """这家店归哪个公司? 先看实体, 再看它所在的建筑(含楼层单元的父建筑)。"""
     cid = str(getattr(shop, "owner", "")) or ""
@@ -574,6 +595,10 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
         why = "已被他人拥有"
     elif shop.price <= 0:
         why = "非卖品"
+    elif not _is_registered_shop(world, shop):
+        # 用户拍板: 【没有注册公司的店不能卖】。店铺建筑没挂公司 →
+        # 它的货架不生效(既不合规, 也给编辑器一个能看见的错误)。
+        why = "这家店没有登记公司"
     elif shop.stock != -1 and shop.stock < qty:
         why = "库存不足"
     elif npc.money < shop.price * qty:
@@ -712,6 +737,9 @@ def tick(world, systems, cfg: SimConfig) -> None:
     # 0. 场景脉冲(世界脚本): 在 NPC 感知前改库存/停业
     if systems.pulses:
         apply_pulses(world, systems.pulses, world.clock_tick, cfg.ticks_per_day)
+
+    # 0a0. 开门前补货: 公司用现钱向市场进货, 把货架补到目标(见 market.restock_all)
+    _restock_if_open(world, systems, cfg)
 
     # 0a. 发工资(每天 wage_minute 那一刻): 公司的账 → 员工个人。
     #     放在最前面: 与任何人的决策无关, 只是世界的收付节奏。

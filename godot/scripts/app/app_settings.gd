@@ -52,7 +52,10 @@ func _register_defaults() -> void:
 	register("network", "ws_url", Type.STRING, "ws://127.0.0.1:8765/ws", "WebSocket 端点")
 	# 游戏(场景重建参数)
 	register("game", "seed", Type.INT, 3, "随机种子", "场景重建的确定性种子")
-	register("game", "tell_p", Type.FLOAT, 0.1, "通知概率", "NPC 相互告知的概率")
+	register("game", "tell_p", Type.FLOAT, 0.1, "想说概率",
+		"我这一轮想开口告诉别人的概率(乘个体 tell_bias)")
+	register("game", "listen_p", Type.FLOAT, 1.0, "愿听概率",
+		"被搭话的人愿意停下来听的概率。搭桥要两次都过(一对一, 说的不听/听的不说)")
 	# 显示
 	register("display", "fullscreen", Type.BOOL, false, "全屏")
 	register("display", "vsync", Type.BOOL, true, "垂直同步")

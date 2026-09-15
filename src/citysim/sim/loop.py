@@ -24,7 +24,14 @@ class Systems:
     travel: dict[str, Travel] = field(default_factory=dict)  # npc_id -> Travel
     log_lines: list[str] | None = None   # 录制/回放(非 None 即开启)
     ui_events: RingBuffer = field(default_factory=RingBuffer)  # 事件环形缓冲(定长)
-    tell_p: float = 0.0                  # 空闲时开口告诉别人的概率(乘 tell_bias)
+    tell_p: float = 0.0                  # 我这一轮想开口的概率(乘 tell_bias)
+    listen_p: float = 1.0                # 被搭话的人愿意听的概率
+    tell_same_home: float = 1.0          # 跟【同屋的人】搭话的权重
+    tell_stranger: float = 0.15          # 跟【路人】搭话的权重
+    # 一轮传播是【一对一】的: 说的人和听的人各用掉本轮名额, 说过的这轮不再听、
+    # 听过的这轮不再说(见 engine._notify_due)。talked_tick 用来按 tick 清空。
+    talked: set[str] = field(default_factory=set)
+    talked_tick: int = -1
     rng: random.Random = field(default_factory=lambda: random.Random(0))
     #     ↑ 传播用的随机源。【必须来自 systems】: 用全局 random 会让回放飘。
     bubble_ttl: int = 40                 # 气泡存活 tick(冒一下就走)
@@ -40,11 +47,16 @@ class Systems:
 
 
 def make_systems(*, log: bool = False, tell_p: float = 0.0,
+                 listen_p: float = 1.0,
+                 tell_same_home: float = 1.0, tell_stranger: float = 0.15,
                  roads: object | None = None,
                  seed: int = 0) -> Systems:
     return Systems(interaction=InteractionSystem(),
                    planner=Planner(),
                    log_lines=[] if log else None, tell_p=tell_p,
+                   listen_p=listen_p,
+                   tell_same_home=tell_same_home,
+                   tell_stranger=tell_stranger,
                    roads=roads, rng=random.Random(seed))
 
 

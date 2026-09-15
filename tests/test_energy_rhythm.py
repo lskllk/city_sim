@@ -29,22 +29,28 @@ def _daily_drain() -> float:
 # 曲线
 # ---------------------------------------------------------------------------
 def test_night_drains_faster_than_day() -> None:
-    assert CFG.rhythm_at(23.0) > CFG.rhythm_at(12.0)     # 深夜 >> 正午
-    assert CFG.rhythm_at(2.0) > CFG.rhythm_at(14.0)
-    assert CFG.rhythm_at(9.0) < 1.0 < CFG.rhythm_at(23.0)
+    assert CFG.rhythm_at(23.0) > CFG.rhythm_at(12.0) * 3.0   # 深夜 >> 正午
+    assert CFG.rhythm_at(23.0) > CFG.rhythm_at(20.0)         # 21:00 之后才陡增
+    assert abs(CFG.rhythm_at(12.0) - 1.0) < 1e-9            # 白天 = 基准速度
 
 
 def test_energy_is_one_day_not_four() -> None:
-    """1 天的量: 24h 不睡 ≈ 耗光 1.0(既不是 4 天也不是半天)。"""
+    """【两天的基准 + 夜间陡增】合成"一天一条命"。
+
+    基准(-0.5/1440)光靠自己 2 天才耗光 1.0; 是 21:00 之后那段 9 倍把人放倒的,
+    合起来 24h 不睡 ≈ 1.0(既不是 4 天, 也不是半天)。
+    """
     d = _daily_drain()
     assert 0.9 < d < 1.1, d
 
 
 def test_daytime_alone_does_not_empty_the_bar() -> None:
-    """只白天醒着(15h)掉不到一半 —— 白天不该把人逼去睡。"""
+    """白天只是慢慢累 —— 真正把人放倒的是 21:00 之后那一段。"""
     base = CFG.metabolism["energy"]
-    day = -base * sum(CFG.rhythm_at(t / 60.0) for t in range(420, 1320))
-    assert 0.25 < day < 0.5, day
+    day = -base * sum(CFG.rhythm_at(t / 60.0) for t in range(420, 1140))
+    night = -base * sum(CFG.rhythm_at(t / 60.0) for t in range(1260, 1440))
+    assert 0.15 < day < 0.45, day          # 07:00–19:00 半天班 ≈ 1/4 条
+    assert night > day, (night, day)       # 夜里 3 小时比整个白天还狠
 
 
 # ---------------------------------------------------------------------------

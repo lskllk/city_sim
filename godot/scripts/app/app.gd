@@ -85,6 +85,7 @@ func _try_load_pending() -> void:
 		"scenario": _pending_scene,
 		"seed": int(Settings.get_value("game", "seed", 3)),
 		"tell_p": float(Settings.get_value("game", "tell_p", 0.1)),
+		"listen_p": float(Settings.get_value("game", "listen_p", 1.0)),
 	})
 	_pending_scene = ""
 

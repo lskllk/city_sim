@@ -105,7 +105,7 @@ class SimRunner:
         self.log_cursor = 0
         self.event_seq = 0            # drain 兜底 event_id 序号
         self.params = dict(scenario="elm_lane", seed=3, n_npc=6,
-                           tell_p=0.1)
+                           tell_p=0.1, listen_p=1.0)
         self._pushed_tick: int | None = None   # 上次推送时的 tick(None=需重推)
         # 观察驱动: 只下发「渲染状态变了」的 NPC + 当前选中的那个。
         self._npc_sig: dict[str, tuple] = {}   # pid -> 上次推送时的渲染签名

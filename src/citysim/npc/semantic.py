@@ -69,7 +69,8 @@ _POOLS: Mapping[str, Mapping[str, Sequence[str]]] = {
         "tail": ("", "。", "……"),
     },
     "REPORT": {
-        "opener": ("听说", "听{who}说", "他们说"),
+        # ★ 开场必须带【说话人名字】—— “谁给谁说的”是玩家最需要的一眼信息
+        "opener": ("听{who}说", "{who}说", "{who}跟我说"),
         "core": ("{item}{now}", "{item}现在{now}"),
         "tail": ("", "。", "，不知道真的假的"),
     },
@@ -243,11 +244,27 @@ def doubt(tick: int, speaker: str, item_id: str, item_name: str, who: str,
                   source=source or who, intensity=intensity)
 
 
+# 说者那半句气泡: “→ 林静：简餐8块”。不是语义事件(不含新信息),
+# 只是把“谁给谁说”画出来 —— 所以只做措辞, 不进 event 队列。
+SAY_POOL: tuple[str, ...] = ("→ {to}：{item}{now}", "跟{to}说：{item}{now}",
+                             "{to}，{item}{now}")
+
+
+def say_line(to_name: str, item_name: str, now: str) -> str:
+    """说者头顶那半句。措辞确定(用话题哈希), 不掷骰子。"""
+    slots = {"to": to_name, "item": item_name, "now": now}
+    key = f"{to_name}|{item_name}|{now}"
+    idx = int(_pick(key, "SAY", "out", 7) * len(SAY_POOL))
+    return _fill(SAY_POOL[min(idx, len(SAY_POOL) - 1)], slots, "")
+
+
 def report(tick: int, speaker: str, item_id: str, item_name: str,
            now: str, who: str = "", *,
            fact: Mapping[str, Any] | None = None) -> SemanticEvent:
     """转述: 听者头上的那条“听说…”。"""
-    slots = {"item": item_name, "now": now}
+    # who 同时进 slots: 模板里的 {who} 就一定能填上(不依赖调用方记得传
+    # speaker_name —— 以前漏传就会渲染出“跟我说苹果5块”这种没主语的话)
+    slots = {"item": item_name, "now": now, "who": who}
     slots.update(fact or {})
     return _event(_next_seq(), tick, speaker, "REPORT",
                   f"item.{item_id}", slots, source=who)

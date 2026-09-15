@@ -108,70 +108,116 @@ def trust_between(a, b) -> float:
 
 
 def _notify_due(world, systems, npc, ev) -> None:
-    """空闲时: 把【刚才那句值得说的话】说给同地的人听。
+    """这一轮张嘴: 把【刚才那句值得说的话】说给【一个】同地的人听。
 
-    —— 2026-09-14 语义层 ——
-    旧版是“抄一行对方不知道的记忆”(于是张嘴就是自家马桶)。
-    现在 **说什么由语义层决定**: `ev` 是 Person 已经攒好的 SemanticEvent
-    (DOUBT > SURPRISE > INTENT > STATE), 没话可说就不说 —— 不硬造话题。
+    —— 2026-09-15: 改成【一对一搭桥】+【跟谁说得看关系】——
+    旧版是"一对多": 一个人张嘴就能同时告诉身边所有人。
+    现在三道骰子, 都过才成一条桥:
+      ① 我这一轮想不想开口      tell_p × tell_bias
+      ② 愿不愿意【跟这个人】说  同屋 tell_same_home / 路人 tell_stranger
+      ③ 对方愿不愿意停下来听     listen_p
+    而且【只搭一条桥】: 说的人这轮不再听、听的人这轮不再说(说的不听/听的不说),
+    一个场地里只有"在说的"和"在听的"才配对。
 
-    传播规则(不变): 说给谁随机 · believe = 说话人自己信几分 × 他对听者的信任 ·
-    溯源写进听者记忆的 source。
+    说什么由语义层决定(见 docs/20260913/semantic_event.md): `ev` 是 Person
+    攒好的 SemanticEvent(DOUBT > SURPRISE > INTENT > STATE), 没话可说就不说。
     """
+    tick = world.clock_tick
+    if systems.talked_tick != tick:          # 新的一轮 → 清空搭桥名册
+        systems.talked.clear()
+        systems.talked_tick = tick
+    if npc.person_id in systems.talked:
+        return                               # 这一轮已经在说/在听了
+
     fact: dict = {}
     if ev is not None:
         fact = dict(ev.slots or {})
     item_id = str(fact.get("item_id", ""))
     if not item_id:
         # 刚发生的意外已经冒过泡了 —— 但【新闻要能带走】:
-        # 退一步从记忆里挑一件“值得转述”的(语义层过滤: 不是自家东西/对方不知道)
-        # 注意: “对方是否已知”交给下面逐个听者的 remembers() 判断 ——
-        # 这里不能提前用“任何人已知”过滤, 否则一个人知道就没人能听到了。
+        # 退一步从记忆里挑一件"值得转述"的(不是自家东西/没有 afford 的不要)
         picked = _sem.pick_retellable(npc.memory_dicts(), home=npc.home,
                                       knows=lambda _i: False)
         if picked is None:
-            return                  # 没话可说就不说(旧版是“硬抄一行记忆”)
+            return                           # 没话可说就不说(不硬造话题)
         fact = dict(picked)
         item_id = str(picked.get("item_id", ""))
         fact["item"] = _item_name(world, item_id)
         fact["now"] = _price_word(fact)
+
     tell_p = float(getattr(systems, "tell_p", 0.0))
-    if tell_p <= 0.0:
+    listen_p = float(getattr(systems, "listen_p", 1.0))
+    if tell_p <= 0.0 or listen_p <= 0.0:
         return
     rng = getattr(systems, "rng", None)
     if rng is None:
         return
+    if rng.random() >= tell_p * npc.tell_bias:      # ① 我想不想说
+        return
+    same_mul = float(getattr(systems, "tell_same_home", 1.0))
+    str_mul = float(getattr(systems, "tell_stranger", 0.15))
     loc = world.loc_of(npc.person_id)
+    # 先收集所有过闸的人, 再【按权重抽一个】——
+    # 不能"按 id 顺序取第一个过闸的": 同屋的人永远排在路人前面,
+    # 于是"路人概率低"根本不起作用(抽签必须真的抽)。
+    cands: list[tuple[float, str]] = []
     for other_id in sorted(world.npcs):
         if other_id == npc.person_id or world.loc_of(other_id) != loc:
             continue
+        if other_id in systems.talked:            # 他这轮已经在说/在听了
+            continue
         other = world.npcs[other_id]
-        if rng.random() >= tell_p * npc.tell_bias:
-            continue                      # 说不说, 随机
+        same_home = bool(npc.home) and npc.home == other.home
+        pair_mul = same_mul if same_home else str_mul
+        if rng.random() >= pair_mul:              # ② 愿不愿意跟这个人说
+            continue
+        if rng.random() >= listen_p:              # ③ 他愿不愿意听
+            continue
         if not _may_tell(world, systems, npc, other, fact):
-            continue                      # ← 六条传播规则都在这里
-        npc.mark_said("item.%s" % item_id, world.clock_tick)
-        trust = trust_between(npc, other)
-        other.note(item_id, tick=world.clock_tick,
-                   located=str(fact.get("located", "")),
-                   afford=str(fact.get("afford", "")),
-                   value=float(fact.get("value", 0.0)),
-                   price=float(fact.get("price", 0.0)),
-                   item_type=str(fact.get("item_type", "")),
-                   stock=int(fact.get("stock", -1)),
-                   shelf_life_ticks=int(fact.get("shelf_life_ticks", 0)),
-                   believe=float(fact.get("believe", 1.0)) * trust,
-                   source=npc.person_id)
-        # 听者头上的气泡 = 他刚学到的事实(转述)
-        rep = _sem.report(world.clock_tick, npc.person_id, item_id,
-                          str(fact.get("item", item_id)),
-                          str(fact.get("now", "")), who=npc.name)
-        _set_bubble(systems, other, _sem.render(rep), "told",
-                    world.clock_tick)
-        world.bus.publish(world.bus.make(
-            world.clock_tick, "told", npc.person_id,
-            {"audience": [other_id], "item_id": item_id,
-             "from": npc.person_id, "believe": round(trust, 3)}))
+            continue                              # 六条硬规则(对方已知就不说)
+        cands.append((pair_mul, other_id))
+    if not cands:
+        return
+    total = sum(w for w, _ in cands)
+    roll = rng.random() * total
+    other_id = cands[-1][1]
+    acc = 0.0
+    for w_, oid in cands:                         # 同屋权重大 → 中签多
+        acc += w_
+        if roll < acc:
+            other_id = oid
+            break
+    other = world.npcs[other_id]
+
+    # 搭上这一条桥 —— 双方名额都用掉, 本轮不再参与
+    systems.talked.add(npc.person_id)
+    systems.talked.add(other_id)
+    npc.mark_said("item.%s" % item_id, tick)
+    trust = trust_between(npc, other)
+    other.note(item_id, tick=tick,
+               located=str(fact.get("located", "")),
+               afford=str(fact.get("afford", "")),
+               value=float(fact.get("value", 0.0)),
+               price=float(fact.get("price", 0.0)),
+               item_type=str(fact.get("item_type", "")),
+               stock=int(fact.get("stock", -1)),
+               shelf_life_ticks=int(fact.get("shelf_life_ticks", 0)),
+               believe=float(fact.get("believe", 1.0)) * trust,
+               source=npc.person_id)
+    item_name = str(fact.get("item", _item_name(world, item_id)))
+    now = str(fact.get("now", _price_word(fact)))
+    # 听者头顶: “王伟说：简餐8块”（看得见是谁跟他说的）
+    rep = _sem.report(tick, npc.person_id, item_id, item_name, now, who=npc.name)
+    _set_bubble(systems, other, _sem.render(rep, speaker_name=npc.name),
+                "told", tick)
+    # 说者头顶: “跟林静说：简餐8块”（另一半桥 —— 谁给谁说一眼看得出）
+    _set_bubble(systems, npc, _sem.say_line(other.name, item_name, now),
+                "say", tick)
+    world.bus.publish(world.bus.make(
+        tick, "told", npc.person_id,
+        {"audience": [other_id], "item_id": item_id,
+         "from": npc.person_id, "to": other_id,
+         "believe": round(trust, 3)}))
 
 
 def _may_tell(world, systems, npc, other, fact: Mapping[str, Any]) -> bool:

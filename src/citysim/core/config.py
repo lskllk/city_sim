@@ -58,7 +58,16 @@ class SimConfig:
     # 迟滞: 新的比当前这件【好这么多倍】才麻炊地改主意。
     # 1.0 = 随时见异思迁(会抽风); 太大 = 快饿死了还在睡。
     preempt_ratio: float = 1.5
-    tell_p: float = 0.3          # 传播概率(场景可覆盖; 0 = 不传谣)
+    # 传播: 【说】和【听】各掷一次骰子, 都过才搭桥(见 engine._notify_due)。
+    #   tell_p   = 我这一轮想说给谁听的概率(乘个体 tell_bias)
+    #   listen_p = 被搭话的人愿意停下来的概率(默认 1.0 = 都愿意听)
+    # 实际成交 ≈ tell_p × listen_p。0 = 不传谣。
+    tell_p: float = 0.3
+    listen_p: float = 1.0
+    # 【跟谁说话】的权重: 同屋(同一个 home = 同一层)的人愿意聊, 路人很少搭话。
+    # 这是"关系"的第一块: 信息因此主要在家里流动, 陌生人之间很难传开。
+    tell_same_home: float = 1.0
+    tell_stranger: float = 0.15
     # —— energy 的【昼夜倍率】(乘在 metabolism.energy 的基准消耗上) ——
     # 白天慢、夜里快: 夜里掉得快 → 困 → 去睡(不是“到点睡觉”的脚本)。
     # 控制点 [(当天分钟, 倍率)], 线性插值; 空 = 恒 1.0。
@@ -119,6 +128,11 @@ class SimConfig:
             time_value=float(util.get("time_value", 0.05)),
             preempt_ratio=float(util.get("preempt_ratio", 1.5)),
             tell_p=float(data.get("social", {}).get("tell_p", 0.3)),
+            listen_p=float(data.get("social", {}).get("listen_p", 1.0)),
+            tell_same_home=float(data.get("social", {}).get(
+                "tell_same_home", 1.0)),
+            tell_stranger=float(data.get("social", {}).get(
+                "tell_stranger", 0.15)),
             energy_rhythm=tuple(
                 (float(m), float(v))
                 for m, v in data.get("energy_rhythm", {}).get("points", [])),

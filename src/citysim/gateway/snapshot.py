@@ -326,5 +326,6 @@ def hello_payload(runner) -> dict:
             "seed": runner.params["seed"],
             "n_npc": runner.params["n_npc"],
             "tell_p": runner.params["tell_p"],
+            "listen_p": runner.params.get("listen_p", 1.0),
             "signals": list(SIGNALS),
             "locations": locs}

@@ -50,6 +50,11 @@ def load_scene(path: str | Path = DEFAULT_SCENE,
 
     systems = make_systems(log=True,
                            tell_p=float(data.get("tell_p", CFG.tell_p)),
+                           listen_p=float(data.get("listen_p", CFG.listen_p)),
+                           tell_same_home=float(data.get(
+                               "tell_same_home", CFG.tell_same_home)),
+                           tell_stranger=float(data.get(
+                               "tell_stranger", CFG.tell_stranger)),
                            roads=RoadGraph(world.map, CFG.move_m_per_tick),
                            seed=int(seed))
     attach_replay(world, systems)      # 让 bus 事件(intent_failed/bought/…) 进 ui_events
@@ -290,7 +295,8 @@ def _resolve_home(home: str, locations: dict) -> str:
 
 def build_scenario(scenario: str | None = None, seed: int = 3,
                    n_npc: int | None = None,
-                   tell_p: float | None = None):
+                   tell_p: float | None = None,
+                   listen_p: float | None = None):
     # 场景来源优先级: 显式文件路径 > 环境变量 CITYSIM_SCENE > 内置默认场景。
     # 路径既可为绝对路径, 也可相对仓库根(如 godot/scene.json)。
     path = _resolve_scene_path(str(scenario)) if scenario else None
@@ -305,4 +311,6 @@ def build_scenario(scenario: str | None = None, seed: int = 3,
     w, s, r = load_scene(path or DEFAULT_SCENE, seed=seed)
     if tell_p is not None:
         s.tell_p = float(tell_p)
+    if listen_p is not None:
+        s.listen_p = float(listen_p)
     return w, s, r

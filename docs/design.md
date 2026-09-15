@@ -42,7 +42,7 @@
 
 ```
 eff = (need^power × 净收益 × personality × believe) / (1 + λ × cost)
-净收益 = value − (该需求每 tick 掉的量 × 走的 tick × 走路放大系数)   ← 任何信号通用
+净收益 = value − (该需求每 tick 掉的量 × 走的 tick × 走路放大系数) ÷ 买几份   ← 任何信号通用
 cost   = price×qty + price × (1 − believe)           ← 纯钱 + 不确定性
 ```
 
@@ -56,6 +56,8 @@ cost   = price×qty + price × (1 − believe)           ← 纯钱 + 不确定�
 | `utility.preempt_ratio` | `1.5` | 迟滞：新的比当前**好这么多倍**才改主意（1.0 = 抽风） |
 | `utility.plan_pull` | `0.15` | 计划（承诺）的基础拉力；需求超过 `plan_pull × preempt_ratio` 才能顶掉日程 |
 
+- **路费按买几份摊**：只买 1 个 → 这趟消耗全压在它身上 → **近店好**；
+  一趟囤 N 份 → 摊到 N 份上 → **远店不再是劣势**。（买得多本来就该少跑几趟）
 - **候选不过滤**：记忆里的行全部参与打分（删掉了 `REFLEX_SIGNALS` 白名单与 `fallback_need`）。
 - **单轨**：`_goal` 一个，`source ∈ {need, plan}`；`Person.decide` = 需求 > 日程 > idle。
 - **异地成本 = 路上需求的消耗**（净收益里扣）；`move_penalty`/`time_value` 都已删。

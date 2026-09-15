@@ -51,6 +51,31 @@ def test_travel_penalty_makes_distance_hurt_more() -> None:
     assert far_1x < 0.5
 
 
+def test_trip_cost_is_amortized_over_quantity() -> None:
+    """一趟的路费按【买几份】摊: 只买 1 个 → 近的好; 一次囤 16 份 → 远近差不多。
+
+    这是用户定的口径: 买一个近点好, 买得多路费不该成为劣势。
+    """
+    m, per = 12.0, 1.0
+    one = _net_value(CFG, "hunger", 0.30, 29, per, m, qty=1)
+    many = _net_value(CFG, "hunger", 0.30, 29, per, m, qty=16)
+    assert many > one, (many, one)                    # 摊薄 → 亏得少
+    # 摊到 16 份 ≈ 原价的 1/16 那么点损失
+    base = 0.30
+    assert abs((base - many) - (base - one) / 16.0) < 1e-9
+
+
+def test_near_shop_wins_when_buying_one_far_shop_ties_when_bulk() -> None:
+    """买 1 个: 近店 > 远店; 买 16 份: 两者几乎一样。"""
+    m, per = 12.0, 1.0
+    near1 = _net_value(CFG, "hunger", 0.30, 5, per, m, qty=1)
+    far1 = _net_value(CFG, "hunger", 0.30, 29, per, m, qty=1)
+    near16 = _net_value(CFG, "hunger", 0.30, 5, per, m, qty=16)
+    far16 = _net_value(CFG, "hunger", 0.30, 29, per, m, qty=16)
+    assert near1 > far1 * 1.1                         # 买一个 → 近店明显好
+    assert abs(near16 - far16) < 0.01                 # 囤货 → 差不多
+
+
 def test_net_value_never_goes_negative() -> None:
     """走太远 → 净收益 0(而不是负数: 去过一趟反而更饿, 不该变成"倒赔")。"""
     assert _net_value(CFG, "hunger", 0.05, 5000, 1.0, 12.0) == 0.0

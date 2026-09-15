@@ -290,19 +290,25 @@ def drain_per_tick(cfg: SimConfig, sig: str, hour_f: float,
 
 
 def _net_value(cfg: SimConfig, sig: str, value: float, ticks: int,
-               sig_mul: float, hour_f: float) -> float:
-    """净收益 = 这件东西给的价值 − 路上这 N tick 需求自己掉掉的量。
+               sig_mul: float, hour_f: float, qty: int = 1) -> float:
+    """净收益 = 这件东西给的价值 − 【这一趟】路上掉掉的量，再按买几份摊平。
 
     用户提的例子: 在家吃梨立刻补 0.30; 出门买苹果 value 0.35,
     但走 23 tick 路上饿掉一部分 → 真正到手没那么多。
     **长途更明显** —— 这就是"更近的店"该有的优势, 而且不需要另设"走路要多少钱"
     (那种估算既重复又不准)。同一个式子对 hunger / energy / bladder 都成立。
+
+    ÷ qty 的含义(用户定的口径):
+      · 只买 1 个 → 这趟的消耗全压在这一个上 → **近的店更好** ✓
+      · 一趟囤 16 份 → 这点消耗摊到 16 份上 → **远的店也不再是劣势** ✓
+      · 不摊的话, "远店囤货"会被按"一份"罚整趟(实测 13.4%), 而钱那边
+        却按 16 份收 —— 两边口径不一致。
     """
     if ticks <= 0:
         return max(0.0, float(value))
     k = float(getattr(cfg, "travel_penalty", 1.0))
-    return max(0.0, float(value)
-               - drain_per_tick(cfg, sig, hour_f, sig_mul, busy=True) * ticks * k)
+    loss = drain_per_tick(cfg, sig, hour_f, sig_mul, busy=True) * ticks * k
+    return max(0.0, float(value) - loss / max(1, int(qty)))
 
 
 def _score_candidates(cands, personality: Mapping[str, float],
@@ -314,10 +320,12 @@ def _score_candidates(cands, personality: Mapping[str, float],
     """[阶段2+3] 评分 + 排序。
 
         eff = (need^power × 净收益 × personality × believe) / (1 + λ × cost)
-        净收益 = value − 路上这段时间需求自己掉掉的量   ← 任何信号通用
-        cost   = price×qty + price×(1−believe)      (纯钱 + 不确定性)
+        净收益 = value − (路上掉掉的量 × 走路放大系数) ÷ 买几份   ← 任何信号通用
+        cost   = price×qty + price×(1 −believe)      (纯钱 + 不确定性)
 
-     成本里同时放了【钱】和【时间】; 而"时间"的真实代价由净收益表达(需求会掉)。
+     为什么路费要"÷ 买几份": 跑一趟只买 1 个, 那这趟的消耗全压在这一个上(近的好);
+     一趟囤 16 份, 这点消耗摊到 16 份上就不算什么了 → 远的店也值得去 ✓
+     (用户定的口径: 买一个近点好, 买得多路费不该成为劣势)
      believe 项: “听说便宜”不如“亲眼看到便宜”可靠(κ = 1)。
      """
     needs: dict[str, float] = {}
@@ -326,7 +334,7 @@ def _score_candidates(cands, personality: Mapping[str, float],
         needs[sig] = need
         # 每种需求可以有自己的幂次(精力要钝: 不太困就别去躺)
         power = cfg.power_by_signal.get(sig, cfg.utility_power)
-        # 走这一趟要多少 tick(下面 cost 用同一个数, 不再重复算)
+        # 走这一趟要多少 tick
         ticks = 0
         if row.located and location_id and row.located != location_id:
             ticks = DEFAULT_TRAVEL_TICKS
@@ -334,12 +342,7 @@ def _score_candidates(cands, personality: Mapping[str, float],
                 ticks = int(travel_ticks.get(
                     _travel_key(location_id, row.located),
                     DEFAULT_TRAVEL_TICKS))
-        # ★ 净收益: 路上需求自己在掉 → 真正补回来的没 value 那么多
-        net = _net_value(cfg, sig, row.value, ticks,
-                         float(personality.get(sig, 1.0)), hour_f)
-        base = (need ** power) * net \
-            * float(personality.get(sig, 1.0)) * row.believe
-        # 买得起吗 —— 要按【打算买几件】算, 不是按单价!
+        # 买几份 / 买得起吗 —— 要按【打算买几件】算, 不是按单价!
         # (旧版只看单价: 钱只够 1 件、却按缺口要买 4 件 → 白跑一趟再失败)
         qty = max(1, int(want))
         for_sale = row.price > 0 and row.owner != self_id
@@ -348,6 +351,12 @@ def _score_candidates(cands, personality: Mapping[str, float],
             if affordable < 1:
                 continue                 # 一件都买不起 → 别白跑
             qty = min(qty, affordable)   # 钱够几件就买几件
+        # ★ 净收益: 路上需求在掉 → 补回来的没 value 那么多;
+        #   而且是"这一趟"的消耗 → 按份数摊平(买得多, 路费就不是劣势)
+        net = _net_value(cfg, sig, row.value, ticks,
+                         float(personality.get(sig, 1.0)), hour_f, qty=qty)
+        base = (need ** power) * net \
+            * float(personality.get(sig, 1.0)) * row.believe
         # —— 成本 ——
         cost = float(row.price) * qty if for_sale else 0.0
         cost += float(row.price) * (1.0 - row.believe)   # 不确定的便宜要打折

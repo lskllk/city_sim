@@ -15,9 +15,7 @@ id 规则见 docs/naming.md: org_<kind>_<slug>。
 """
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 
 
 @dataclass
@@ -40,50 +38,7 @@ class Company:
     slots: int = 2                  # 销售位: 1 位 = 1 tick 成交 1 份, 需要 1 个店员
     restock_to: int = 60            # 开门前把货架补到几份(简单经营规则)
 
-    def display(self) -> str:
-        return self.name or self.company_id
 
 
-def new_company(company_id: str, name: str, cash: float = 0.0,
-                shops: tuple = ()) -> Company:
-    """游戏内注册一家公司(默认: 08:00-19:00, 时薪 10, 补货目标 60, 不招人)。"""
-    return Company(company_id=company_id, name=name or company_id, cash=float(cash),
-                   shops=tuple(shops))
 
 
-def load_companies(path: str | Path) -> dict[str, Company]:
-    """(保留给测试/工具) 从一份 JSON 读公司表。世界本身不用它。"""
-    p = Path(path)
-    if not p.is_file():
-        return {}
-    raw = json.loads(p.read_text(encoding="utf-8"))
-    items = raw.get("companies", raw) if isinstance(raw, dict) else raw
-    out: dict[str, Company] = {}
-    for rec in items or []:
-        if not isinstance(rec, dict):
-            continue
-        cid = str(rec.get("id", ""))
-        if not cid:
-            continue
-        staff = []
-        for s in rec.get("staff") or []:
-            if isinstance(s, dict) and str(s.get("npc", "")):
-                staff.append((str(s["npc"]), float(s.get("wage", 0.0))))
-            elif isinstance(s, str):
-                staff.append((s, 0.0))
-        out[cid] = Company(
-            company_id=cid,
-            name=str(rec.get("name", "")),
-            cash=float(rec.get("cash", 0.0)),
-            owner=str(rec.get("owner", "")),
-            shops=tuple(str(x) for x in (rec.get("shops") or [])),
-            staff=tuple(staff),
-            open_minute=int(rec.get("open_minute", 480)),
-            close_minute=int(rec.get("close_minute", 1140)),
-            wage_per_hour=float(rec.get("wage_per_hour", 10.0)),
-            hiring_open=bool(rec.get("hiring_open", False)),
-            hiring_slots=max(0, int(rec.get("hiring_slots", 0))),
-            slots=max(0, int(rec.get("slots", 2))),
-            restock_to=max(0, int(rec.get("restock_to", 60))),
-        )
-    return out

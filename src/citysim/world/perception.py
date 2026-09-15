@@ -11,22 +11,25 @@ from citysim.core.types import EntityView, Percept
 
 
 def _view_for(world, npc, e, closed: bool, site_owner: str = "") -> EntityView:
+    # ★ 定死: 放在住所里的东西, 对本住所的授权人 = 自家财产(免费使用)。
+    #   由世界判定(world.is_household), NPC 层只消费这个事实。
+    household = (not closed) and world.is_household(e, npc.person_id)
+    # ★ 定死三条规则的综合结论: 住所授权 / 公共无主 / 本公司店员 → 免费直接用。
+    free_use = (not closed) and world.free_use(e, npc.person_id)
     return EntityView(
         entity_id=e.entity_id,
         name=e.name,
         tags=frozenset(e.tags),
         affordances=dict(e.affordances),
         duration_ticks=e.duration_ticks,
-        distance=0.0,
-        claimable=e.claimable_by(npc.person_id) and not closed,
-        stock_zero=(e.stock == 0) or closed,
         stock=e.stock,
         shelf_life_ticks=e.shelf_life_ticks,
         expires_tick=e.expires_tick,
         location_id=e.location_id,
         price=e.price,
         owner=e.owner or site_owner,
-        site_owner=site_owner,
+        household=household,
+        free_use=free_use,
         item_type=e.item_type,
     )
 
@@ -34,7 +37,6 @@ def _view_for(world, npc, e, closed: bool, site_owner: str = "") -> EntityView:
 def build_percept(world, npc) -> Percept:
     """仅 npc 所在 location 的实体全可见(region 局部感知)。纯世界读, 不改任何状态。
 
-    EntityView.claimable = (无人占用 或 自己占用) 且 stock!=0。
     events = 该 NPC 信箱里取走的全部事件。
     结果要不要记进记忆, 由 Person.perceive 决定(此处不管)。
     """

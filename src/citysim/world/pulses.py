@@ -9,8 +9,6 @@ normalize(raw, ticks_per_day):
 """
 from __future__ import annotations
 
-from typing import Any
-
 
 def _parse_minute(hhmm: str) -> int:
     hh, _, mm = hhmm.partition(":")

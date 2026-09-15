@@ -35,11 +35,6 @@ def _default_anchor(rect: dict, entity_id: str) -> tuple[float, float]:
     return (round(rect["x"] + ix, 3), round(rect["y"] + iy, 3))
 
 
-def lerp(a: tuple[float, float], b: tuple[float, float],
-         t: float) -> tuple[float, float]:
-    """线性插值(t 应已 clamp 0..1; travel 连续位置用)。"""
-    t = max(0.0, min(1.0, float(t)))
-    return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
 
 
 
@@ -52,8 +47,10 @@ class Entity:
     affordances: dict[str, float] = field(default_factory=dict)  # 信号效果
     duration_ticks: int = 30
     location_id: str = ""
-    claimed_by: str | None = None         # 占用者 npc_id
+    claimants: set[str] = field(default_factory=set)  # 占用者集合(可并发)
     stock: int = 1                        # 容器/消耗品库存; -1=无限
+                                          # ★ 同时可被多少人占用 = stock(-1=无限)。
+                                          #   3 张床合并成 stock=3 → 3 人能同时睡;
     attrs: dict[str, Any] = field(default_factory=dict)  # 如 bladder_load
     interruptible: bool = True            # M3 睡眠泛化: 床 False
     on_start: list[dict] = field(default_factory=list)       # M4 数据化效果
@@ -106,9 +103,33 @@ class Entity:
     def is_sleepable(self) -> bool:
         return "sleepable" in self.tags
 
+    @property
+    def claimed_by(self) -> str | None:
+        """“谁在用”的展示用主占用者(多人并发时取 id 最小者)。
+
+        仅是【展示兼容】字段: 真相在 `claimants` 集合里, 不要用它做仲裁。
+        """
+        return min(self.claimants) if self.claimants else None
+
+    @claimed_by.setter
+    def claimed_by(self, value: str | None) -> None:
+        """兼容旧写法(entity.claimed_by = pid): 等价于把占用者设为仅此人。"""
+        self.claimants = set() if value is None else {str(value)}
+
     def claimable_by(self, npc_id: str | None) -> bool:
-        return (self.claimed_by is None or self.claimed_by == npc_id) \
-            and self.stock != 0
+        """还能不能被 npc_id 占用。
+
+        ★ 定死: 容量 = stock —— 一件实体代表 stock 个可用单位,
+          因此最多 stock 人可【同时】占用它(-1 = 无限)。>1 的实体不再变成
+          “一个床位锁死一排人”(3 张床/一堆食物被合并后正是这个 bug)。
+        """
+        if self.stock == 0:
+            return False
+        if npc_id is not None and npc_id in self.claimants:
+            return True                       # 已经是我在用 → 继续
+        if self.stock < 0:
+            return True                       # 无限库存 → 无限并发
+        return len(self.claimants) < self.stock
 
 
 # ----------------------------------------------------------------------
@@ -198,6 +219,72 @@ class World:
             return True
         return npc_id in (r.get("open_to") or [])
 
+    def is_residence(self, location_id: str) -> bool:
+        """是不是"住所"(建筑类型 kind=home)。编辑器放进去的东西 = 家用物品。"""
+        return str((self.locations.get(location_id) or {}).get("kind", "")) == "home"
+
+    def is_household(self, entity, npc_id: str) -> bool:
+        """★ 定死的原则: **放在某住所的东西, 该住所的所有授权人都能免费使用**。
+
+        授权口径与门禁同源(`allowed_in`: owner / open_to / 公共) —— 能进这所
+        房子的人, 就能用屋里的东西, 不看 price/owner。
+        非住所(商铺/市场/公共) → False, 照旧按买卖/免费公共规则走。
+        """
+        loc = getattr(entity, "location_id", "") or ""
+        r = self.locations.get(loc)
+        if r is None or not self.is_residence(loc):
+            return False
+        return self.allowed_in(r, npc_id)
+
+    def company_owner_of(self, entity) -> str:
+        """这件东西归哪家公司。判据(按优先级):
+
+        1. `entity.owner` 本身是公司 id → 归该公司(公司买货后就这么写);
+        2. **家具(fixture)不继承地点公司** —— 家具归属由放置时显式决定,
+           `owner=""` 就是公共(如公司门口的马桶, 谁都能用);
+        3. 其余(可零售的【商品】)没有显式归属时, 默认归【所在地点的公司】。
+
+        没有 → ""。
+        """
+        o = str(getattr(entity, "owner", "") or "")
+        if o and o in self.companies:
+            return o
+        if "fixture" in tuple(getattr(entity, "tags", ()) or ()):
+            return ""                      # 家具: 显式 owner(""=公共)算数
+        c = str((self.locations.get(getattr(entity, "location_id", "") or "")
+                 or {}).get("company", "") or "")
+        return c
+
+    def is_employee(self, company_id: str, npc_id: str) -> bool:
+        """是不是这家公司的店员(拿工资的人)。"""
+        comp = self.companies.get(company_id)
+        if comp is None:
+            return False
+        return any(n == npc_id for n, _w in comp.staff)
+
+    def free_use(self, entity, npc_id: str) -> bool:
+        """★ 定死的三条归属/使用规则 —— 这个 NPC 能不能【免费直接用】它。
+
+        1. 在【住所】里 → 归该屋; 有该屋权限的人(owner/open_to/公共)随便用。
+        2. 归属为【公共】(owner=="" 且不属于任何公司) → 不管价格多少,
+           任何人都能免费直接用。
+        3. 归属【公司】 → 只有该公司【店员】能免费直接用;
+           外人要买(price>0 走 Buy, price<=0 用不了)。
+        (自己的东西当然也免费 —— 含在“住所/公共/员工”之外的单列分支里。)
+        """
+        # 规则 1: 家宅物品
+        if self.is_household(entity, npc_id):
+            return True
+        # 自己的东西
+        if str(getattr(entity, "owner", "") or "") == npc_id:
+            return True
+        # 规则 3: 公司物品 → 仅本公司店员
+        cid = self.company_owner_of(entity)
+        if cid:
+            return self.is_employee(cid, npc_id)
+        # 规则 2: 公共(无主) → 任何人、不论价格
+        return str(getattr(entity, "owner", "") or "") == ""
+
     def entry_check(self, location_id: str, npc_id: str) -> tuple[bool, str]:
         """可否进入某建筑 → (ok, 失败原因)。未注册 region 不设限。"""
         r = self.locations.get(location_id)
@@ -211,8 +298,6 @@ class World:
         return True, ""
 
     # --- TASK001 空间 helper ------------------------------------------
-    def region_rect(self, location_id: str) -> dict | None:
-        return self.locations.get(location_id)
 
     def region_center(self, location_id: str) -> tuple[float, float] | None:
         r = self.locations.get(location_id)

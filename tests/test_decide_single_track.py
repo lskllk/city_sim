@@ -7,7 +7,7 @@
     1. 没有候选门槛了: 非致命需求也能驱动行为
     2. 有需求 → 不看日程
     3. 没需求 → 才走日程
-    4. 迟滞: 只好了“一点点”的需求不打断当前动作; 明显更好才打断
+    4. 承诺: 手上有事就【做完再决策】, 只有 PLAN 能打断(不再有迟滞/reflex 抢占)
     5. 结构: Person 上只剩一个 _goal(不再有 _plan_goal / _reflex_goal 两条轨)
     6. move_penalty 已删: 异地要不要去, 由【真实行走 tick】算进成本
 """
@@ -94,38 +94,22 @@ def test_plan_runs_when_no_need() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. 迟滞: 好一点点不换, 明显更好才换
+# 4. 承诺: 手上有事就【做完再决策】—— 除 PLAN 外任何东西都不能打断
 # ---------------------------------------------------------------------------
-def test_hysteresis_keeps_current_when_barely_better() -> None:
-    """正在做 bed(need 0.6), 另一个目标只好了不到 1.5 倍 → 不换。"""
-    w, s, _ = make_runtime(CFG)
-    add_entity(w, "bed", tags=("sleepable",), affordances={"energy": 0.6},
-               duration_ticks=100)
-    add_entity(w, "chair", tags=("seat",), affordances={"energy": 0.5},
-               duration_ticks=100)
-    npc = add_npc(w, s, "npc", energy=0.4)
-    npc.set_plan([PlanEntry("e0", 1, Interact("bed"))])
-    _run(w, s, 3)
-    assert s.interaction.active["npc"].entity_id == "bed"
-    # 挤掉不换: chair 的分没到 1.5 倍
-    assert s.interaction.active["npc"].entity_id == "bed"
-
-
-def test_hysteresis_switches_when_much_better() -> None:
-    """快饿死时, 需求必须能把人从床上拽起来。"""
+def test_action_is_committed_until_done() -> None:
+    """手上有事就【做完再决策】: 做着 bed(plan) 时需求见底也不许打断。"""
     w, s, _ = make_runtime(CFG)
     bed = add_entity(w, "bed", tags=("sleepable",),
-                     affordances={"energy": 0.7}, duration_ticks=100)
+                     affordances={"energy": 0.6}, duration_ticks=100)
     bed.interruptible = False
     add_entity(w, "food", tags=("edible",), affordances={"hunger": 0.5})
-    npc = add_npc(w, s, "npc", energy=0.5, hunger=0.9)
+    npc = add_npc(w, s, "npc", energy=1.0, hunger=1.0)
     npc.set_plan([PlanEntry("e0", 1, Interact("bed"))])
-    _run(w, s, 5)
+    _run(w, s, 5)                                 # 没需求 → 计划把 bed 做起来
     assert s.interaction.active["npc"].entity_id == "bed"
-
-    npc.set_signal("hunger", 0.0)               # 快饿死 → 分远高于床
+    npc.set_signal("hunger", 0.0)               # 需求见底也不许打断
     run_tick(w, s, CFG, {})
-    assert s.interaction.active["npc"].entity_id == "food"
+    assert s.interaction.active["npc"].entity_id == "bed"
 
 
 # ---------------------------------------------------------------------------

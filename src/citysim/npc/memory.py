@@ -4,7 +4,7 @@
 TODO(由上层逐项接线, 本模块保持无脑):
 - [brain]  写入: 感知 obs / 传闻 told 何时给 believe 多高; 强来源不降等合并规则在此实现。
 - [brain]  读取: decide 用 query(afford=…)/query(located=…) 取候选集打分。
-- [percep] 映射: 真实 Entity → MemItem(obs 覆盖 located/owner/claimed/price/stock…)。
+- [percep] 映射: 真实 Entity → MemItem(obs 覆盖 located/owner/price/stock…)。
 - [brain]  遗忘: 用 last_seen/remember 字段自实现 remember 衰减+删行; 何时调/半衰/阈值自定。
 - [设计]   afford 现为单值; 若要完全对齐 Entity.affordances(dict) 需把 afford/value 换成 dict。
 - 溯源 trace / 来源 ref: 本版不纳入(如要再加字段)。
@@ -24,13 +24,16 @@ class MemItem:
     # —— 内容(与 Entity 同构, 值由上层填)——
     located: str = ""            # 我以为它在哪(易变)
     owner: str = ""              # 我以为归谁: ""=无主/公共 | person_id | company_id
-    claimed: bool = False        # 我以为是否被占用(易变)
     afford: str = ""             # 它能提供什么信号(obs/told 填)
     value: float = 0.0           # 提供多少
     item_type: str = ""          # 物品类型 id(去重/合并用)
     tags: tuple[str, ...] = ()   # 物品标签(edible/consumable/…)
                                   # “囤货”只对 consumable 生效 —— 床/马桶不该被囤
     price: float = 0.0           # 我以为的现价(易变)
+    household: bool = False      # ★ 放在住所里、且我是该住所授权人 → 自家财产,
+                                 #   免费使用(不看 price)。由世界感知写入, 决策只读。
+    free_use: bool = False       # ★ 定死三条规则的综合结论: 我能免费直接用
+                                 #   (住所授权 / 公共无主 / 本公司店员)。
     # 库存。**默认 -1(不知道/无限)** —— 场景种的记忆、注入的认知通常不写 stock,
     # 若默认 0 会被当成“空的”而永远不出现在候选里。
     stock: int = -1
@@ -51,8 +54,8 @@ class MemBase:
     """每 NPC 的记忆库 = 薄 CRUD(增删改查), 无策略。"""
 
     _FIELDS = frozenset({
-        "located", "owner", "claimed", "afford", "value",
-        "item_type", "tags", "price", "stock", "attrs", "believe", "remember",
+        "located", "owner", "afford", "value",
+        "item_type", "tags", "price", "household", "free_use", "stock", "attrs", "believe", "remember",
         "last_seen", "cool_until", "source", "shelf_life_ticks", "expires_tick",
     })
 
@@ -64,24 +67,6 @@ class MemBase:
         """主键取一行。"""
         return self._rows.get(item_id)
 
-    def query(self, *, afford: str | None = None,
-              located: str | None = None,
-              owner: str | None = None,
-              min_believe: float = 0.0,
-              min_remember: float = 0.0) -> tuple[MemItem, ...]:
-        """按字段过滤检索(缺省条件=不过滤)。供 decide 取候选。"""
-        out = []
-        for r in self._rows.values():
-            if afford is not None and r.afford != afford:
-                continue
-            if located is not None and r.located != located:
-                continue
-            if owner is not None and r.owner != owner:
-                continue
-            if r.believe < min_believe or r.remember < min_remember:
-                continue
-            out.append(r)
-        return tuple(out)
 
     def items(self) -> tuple[MemItem, ...]:
         """全量快照(观测/导出)。"""
@@ -120,9 +105,10 @@ class MemBase:
     def to_dicts(self) -> list[dict]:
         return [
             {"item_id": r.item_id, "located": r.located, "owner": r.owner,
-             "claimed": r.claimed, "afford": r.afford, "value": r.value,
+             "afford": r.afford, "value": r.value,
              "item_type": r.item_type, "tags": list(r.tags), "source": r.source,
-             "price": r.price, "stock": r.stock,
+             "price": r.price, "household": bool(r.household),
+             "free_use": bool(r.free_use), "stock": r.stock,
              "shelf_life_ticks": r.shelf_life_ticks,
              "expires_tick": r.expires_tick,
              "believe": round(r.believe, 3),

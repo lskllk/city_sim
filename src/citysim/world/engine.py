@@ -7,8 +7,6 @@ systems 为执行环境(duck: interaction/travel/pulses/日志), 由上层构造
 from __future__ import annotations
 
 import zlib
-from dataclasses import replace
-
 from citysim.npc import semantic as _sem
 
 from typing import Any, Mapping
@@ -23,12 +21,11 @@ from citysim.core.types import (
     intent_target,
 )
 from citysim.world.drive import due_npcs
-from citysim.world.buildings import door_points
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.pulses import apply as apply_pulses
 from citysim.world.perception import build_percept
 from citysim.world.travel import Travel
-from citysim.world.world import Entity, entity_from_def
+from citysim.world.world import entity_from_def
 
 
 def _travel_cost(systems, cfg: SimConfig, a: str, b: str) -> int:
@@ -112,48 +109,8 @@ def trust_between(a, b) -> float:
     return lo + (hi - lo) * _unit_hash("%s|%s" % (k, j))
 
 
-def _npc_point(world, systems, pid: str) -> tuple[float, float] | None:
-    """NPC 【此刻】的世界坐标。
-
-    · 在途: 按 (now - depart)/(arrive - depart) 沿 waypoints 折线插值
-      —— 和前端用的是同一个式子(所以"路过"两边看到的是同一个位置)
-    · 不在途: 用所在地点的中心
-    """
-    tv = systems.travel.get(pid)
-    if tv is not None and len(tv.waypoints) >= 2:
-        span = tv.arrive_tick - tv.depart_tick
-        t = 1.0 if span <= 0 else max(0.0, min(
-            1.0, (world.clock_tick - tv.depart_tick) / float(span)))
-        pts = tv.waypoints
-        seg = [0.0]
-        total = 0.0
-        for i in range(1, len(pts)):
-            dx = pts[i][0] - pts[i - 1][0]
-            dy = pts[i][1] - pts[i - 1][1]
-            total += (dx * dx + dy * dy) ** 0.5
-            seg.append(total)
-        if total <= 0.0:
-            return float(pts[0][0]), float(pts[0][1])
-        want = total * t
-        for i in range(1, len(pts)):
-            if seg[i] >= want:
-                span_len = seg[i] - seg[i - 1]
-                k = 0.0 if span_len <= 0 else (want - seg[i - 1]) / span_len
-                x = pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * k
-                y = pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * k
-                return x, y
-        return float(pts[-1][0]), float(pts[-1][1])
-    loc = world.locations.get(world.loc_of(pid))
-    if not loc:
-        return None
-    x = float(loc.get("x", 0.0)) + float(loc.get("w", 0.0)) * 0.5
-    y = float(loc.get("y", 0.0)) + float(loc.get("h", 0.0)) * 0.5
-    return x, y
 
 
-def _loc_center(loc: Mapping[str, Any]) -> tuple[float, float]:
-    return (float(loc.get("x", 0.0)) + float(loc.get("w", 0.0)) * 0.5,
-            float(loc.get("y", 0.0)) + float(loc.get("h", 0.0)) * 0.5)
 
 
 COUNTER_ITEM = "station_counter"   # 销售前台: 1 个 = 1 个销售位
@@ -763,7 +720,8 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
         why = "目标不存在"
     elif shop.location_id != world.loc_of(pid):
         why = "目标不在此地"
-    elif shop.owner != "":
+    elif shop.owner and str(shop.owner) not in world.companies:
+        # 只拦“别人的个人物品”; 归【公司】的货是可以卖的(顾客买 = 零售)。
         why = "已被他人拥有"
     elif shop.price <= 0:
         why = "非卖品"
@@ -782,12 +740,16 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
             {"target": intent.item_id, "why": why}))
         npc.on_failure(intent.item_id, why, world.clock_tick)
         return
-    cost = shop.price * qty
-    npc.pay(cost)
+    # ★ 定死三条规则: 免费自用的东西(住所授权 / 公共无主 / 本公司店员)
+    #   一律不扣钱 —— 即使有人写了 Buy 意图, 引擎也不收钱。
+    free = world.free_use(shop, pid)
+    cost = 0.0 if free else shop.price * qty
+    if cost:
+        npc.pay(cost)
     # ★ 双分录: 买家付的钱进【店铺所属公司】的账。
     #   以前这钱凭空消失 → 城里只有支出没有收入, 所有人慢慢破产饿死。
     #   没登记公司的店 → 仍然"钱消失"(旧行为; 让店主=公司是下一步的事)。
-    comp = _credit_shop(world, shop, cost)
+    comp = _credit_shop(world, shop, cost) if cost else None
     if shop.stock != -1:
         shop.stock -= qty
     container = _deliver(world, pid, npc, shop, qty, home)
@@ -812,10 +774,8 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
 
 
 
-def _can_preempt(world, systems, pid, source) -> bool:
-    """计划只能硬中止可打断的交互; 需求轨(need)始终可。"""
-    if source == "need":
-        return True
+def _can_preempt(world, systems, pid) -> bool:
+    """能不能中止当前交互: 只有可打断的才行(睡觉不可打断)。"""
     act = systems.interaction.active.get(pid)
     if act is None:
         return True
@@ -823,12 +783,9 @@ def _can_preempt(world, systems, pid, source) -> bool:
     return bool(ent is not None and ent.interruptible)
 
 
-def _preempt(world, systems, pid, source) -> None:
-    """抢占当前交互: need=软挂起(可恢复), plan=硬中止(触发 on_complete)。"""
-    if source == "need":
-        systems.interaction.suspend(world, pid)
-    else:
-        systems.interaction.abort(world, pid)
+def _preempt(world, systems, pid) -> None:
+    """中止当前交互(唯一能打断的是 PLAN: 上班)。"""
+    systems.interaction.abort(world, pid)
 
 
 def _apply(world, systems, cfg, pid, npc, decision) -> None:
@@ -842,9 +799,9 @@ def _apply(world, systems, cfg, pid, npc, decision) -> None:
         if trv is not None and trv.to_loc == dest:
             return                                   # 已在去往该地途中
         if active is not None:
-            if not _can_preempt(world, systems, pid, decision.source):
+            if not _can_preempt(world, systems, pid):
                 return
-            _preempt(world, systems, pid, decision.source)
+            _preempt(world, systems, pid)
         here = world.loc_of(pid)
         if dest == here:
             return
@@ -877,7 +834,7 @@ def _apply(world, systems, cfg, pid, npc, decision) -> None:
             _execute_buy(world, systems, cfg, pid, npc, intent)   # 兜底: 不在店里的异常情形
             return
         if active is not None:
-            _preempt(world, systems, pid, decision.source)
+            _preempt(world, systems, pid)
         enqueue_buy(world, systems, pid, shop.location_id,
                     intent.item_id, int(getattr(intent, "qty", 1)))
         _set_bubble(systems, npc, "老板，来 %d 份" % max(1, int(getattr(intent, "qty", 1))),
@@ -888,8 +845,11 @@ def _apply(world, systems, cfg, pid, npc, decision) -> None:
         tid = intent.target_id
         # 防御: 在售商品不能拿 Interact “白拿” —— 得走 Buy 付钱。
         # (模板计划器已不再挑它们; 但 ScriptedPlanner / LLM 计划可能写错。)
+        # ★ 例外(定死三条规则): 住所授权 / 公共无主 / 本公司店员 → 免费直接用,
+        #   不算“白拿”。否则才需要走 Buy 付钱。
         ent = world.entities.get(tid)
-        if ent is not None and ent.price > 0 and ent.owner != pid:
+        if (ent is not None and ent.price > 0 and ent.owner != pid
+                and not world.free_use(ent, pid)):
             why = "在售商品·需购买"
             world.bus.publish(world.bus.make(
                 world.clock_tick, "intent_failed", pid,
@@ -899,11 +859,9 @@ def _apply(world, systems, cfg, pid, npc, decision) -> None:
         if active is not None and active.entity_id == tid:
             return                                   # 继续当前交互
         if active is not None:
-            if not _can_preempt(world, systems, pid, decision.source):
+            if not _can_preempt(world, systems, pid):
                 return
-            _preempt(world, systems, pid, decision.source)
-        if systems.interaction.resume(world, npc, tid):
-            return                                   # 恢复挂起进度
+            _preempt(world, systems, pid)
         systems.interaction.submit(world, npc, intent)
         return
 

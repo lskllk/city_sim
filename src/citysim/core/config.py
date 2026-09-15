@@ -19,9 +19,8 @@ SIGNALS: tuple[str, ...] = (
 )
 
 # 注: REFLEX_SIGNALS(致命信号白名单)已在 2026-09-14 删除。
-# 它原本用于“哪些信号能产生候选 / 哪些需求能抢占计划” —— 现在两者都不需要:
-#   - 候选不再过滤(记忆里的行全部参与打分), 阀值只落在得分上(utility.threshold)
-#   - 抢占只看得分比(preempt_ratio), 不看信号白名单
+# 注: 迟滞(preempt_ratio)/plan_pull 也已删除 —— 手上有事就【做完再决策】,
+# 不再每 tick 重算比较; 唯一能打断当前动作的是 PLAN(上班)。
 # 详见 docs/design.md §2。
 
 
@@ -58,9 +57,6 @@ class SimConfig:
     # 1.0 = 纯物理(身体真掉多少就扣多少); >1 = 更怕走路(近距离偏好)。
     # 想"更怕走路"该调它, 而不是给评分塞钱味儿的 time_value。
     travel_penalty: float = 2.0
-    # 迟滞: 新的比当前这件【好这么多倍】才麻炊地改主意。
-    # 1.0 = 随时见异思迁(会抽风); 太大 = 快饿死了还在睡。
-    preempt_ratio: float = 1.5
     # 传播: 【说】和【听】各掷一次骰子, 都过才搭桥(见 engine._notify_due)。
     #   tell_p   = 我这一轮想说给谁听的概率(乘个体 tell_bias)
     #   listen_p = 被搭话的人愿意停下来的概率(默认 1.0 = 都愿意听)
@@ -78,8 +74,6 @@ class SimConfig:
     favor_drift_per_day: float = 0.08     # 每天朝中性回归多少(慢)
     favor_trade_up: float = 0.02          # 顺利买到 → 涨
     favor_no_service_down: float = 0.15   # 到店却没人招待(白跑) → 掉得多
-    favor_spoiled_down: float = 0.10      # 变质 → 掉
-    favor_price_lie_down: float = 0.08    # 价格与听说的不符 → 掉(对应 SURPRISE/DOUBT)
     # 招聘桥接: 每天几点匹配一次(0 = 午夜)
     hire_minute: int = 0
     # —— 上班时的"强制约束"(用户定: 站在工作台上就绑定住了) ——
@@ -104,10 +98,6 @@ class SimConfig:
     stock_fill: float = 0.8            # 囤到保质期的几成(1.0 = 一直在临期边缘)
     stock_default_days: float = 3.0    # 不会坏的东西(无保质期)按几天囤
     stock_future_weight: float = 1.0   # 预期需求在 urgency 里的权重(w)
-    # 计划(承诺)的【基础拉力】: 它参与打分, 不是一个“指令”。
-    # 需求要超过 plan_pull × preempt_ratio 才能把日程顶掉 ——
-    # 否则任何琐碎需求都会把计划踢开(计划表就等于没用)。
-    plan_pull: float = 0.15
 
     def rhythm_at(self, hour_f: float) -> float:
         """hour_f(0..24) → energy 消耗倍率。纯函数, 供 heartbeat 每 tick 调用。"""
@@ -150,7 +140,6 @@ class SimConfig:
             hp_override=float(health.get("hp_override", 0.5)),
             cost_lambda=float(util.get("cost_lambda", 0.02)),
             travel_penalty=float(util.get("travel_penalty", 2.0)),
-            preempt_ratio=float(util.get("preempt_ratio", 1.5)),
             wage_minute=int(data.get("economy", {}).get("wage_minute", 480)),
             hire_minute=int(data.get("economy", {}).get("hire_minute", 0)),
             work_leave_floor=float(data.get("work", {}).get(
@@ -159,9 +148,7 @@ class SimConfig:
                for k, v in (("favor_neutral", 1.0), ("favor_min", 0.0),
                             ("favor_max", 2.0), ("favor_drift_per_day", 0.08),
                             ("favor_trade_up", 0.02),
-                            ("favor_no_service_down", 0.15),
-                            ("favor_spoiled_down", 0.10),
-                            ("favor_price_lie_down", 0.08))},
+                            ("favor_no_service_down", 0.15))},
             tell_p=float(data.get("social", {}).get("tell_p", 0.3)),
             listen_p=float(data.get("social", {}).get("listen_p", 1.0)),
             tell_same_home=float(data.get("social", {}).get(
@@ -178,7 +165,6 @@ class SimConfig:
                 data.get("stock", {}).get("default_days", 3.0)),
             stock_future_weight=float(
                 data.get("stock", {}).get("future_weight", 1.0)),
-            plan_pull=float(util.get("plan_pull", 0.15)),
         )
 
 

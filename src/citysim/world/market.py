@@ -111,7 +111,8 @@ def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
     # 上架: 店里已经有同类货架就加库存, 没有就开一个新的(空货架要留着 → persist_empty)
     shelf = None
     for e in sorted(world.entities.values(), key=lambda x: x.entity_id):
-        if e.item_type == item_type and e.location_id == shop_id and e.price > 0:
+        if (e.item_type == item_type and e.location_id == shop_id
+                and e.price > 0 and e.owner in ("", company.company_id)):
             shelf = e
             break
     if shelf is None:
@@ -121,6 +122,8 @@ def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
         shelf = entity_from_def(d, shop_id)
         shelf.persist_empty = True                    # 货架: 卖空了也留着, 等下次进货
         world.spawn_entity(shelf)
+    # ★ 商品固定归属这家公司(不再靠“地点公司”推断): 顾客要买, 店员免费。
+    shelf.owner = company.company_id
     if shelf.stock == -1:
         return {"ok": False, "why": "货架是无限货(不需要进货)", "cost": 0.0,
                 "stock": shelf.stock}
@@ -132,9 +135,12 @@ def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
             "shelf": shelf.entity_id}
 
 
-def decorate(world, company, shop_id: str, item_type: str) -> dict:
+def decorate(world, company, shop_id: str, item_type: str,
+             public: bool = False) -> dict:
     """公司给自己的店【装修】: 摆一件装修件(马桶/销售前台/工位…), 从公司账出钱。
 
+    public=True → 这件家具是【公共】的(owner="", 任何人都能用, 如门口马桶);
+    public=False(默认) → 归公司(owner=cid, 只有本公司店员免费使用)。
     返回 {"ok": bool, "why": str, "cost": float, "entity": str}。
     装修件与"货"分开: 它不进货架、不零售, 一次买断地钉在店里(persist_empty)。
     """
@@ -153,6 +159,7 @@ def decorate(world, company, shop_id: str, item_type: str) -> dict:
         return {"ok": False, "why": "公司现钱不够", "cost": 0.0, "entity": ""}
     e = entity_from_def(d, shop_id)
     e.persist_empty = True                 # 装修件不因空库存被回收
+    e.owner = "" if public else company.company_id   # ★ 家具权限: 公共 / 公司
     world.spawn_entity(e)
     if price > 0:
         company.cash -= price

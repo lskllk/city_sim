@@ -25,7 +25,7 @@ from citysim.npc.memory import MemBase, MemItem
 def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
     """感知 → 记忆(写入): 把当前可见实体 upsert 进记忆库。非纯函数。
 
-    同地 re-obs: 现场为准, 整行覆盖(located/owner/claimed/afford/price/…)并刷新
+    同地 re-obs: 现场为准, 整行覆盖(located/owner/afford/price/…)并刷新
     believe/remember/last_seen。只 upsert 可见实体, 不做证伪删行(由上层策略定)。
 
     现场看到的 → source=""(亲眼) 且 believe=1.0: 不管之前听谁说过, 亲眼所见最硬。
@@ -34,25 +34,26 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> None:
         # TODO: affordances 多键 dict → 决定单值 or dict(MemItem.afford 现单值)
         afford, value = (next(iter(v.affordances.items()), ("", 0.0)))
         # owner 直接存世界真值 id(person_id/company_id/""=无主)：判定"自己的"靠
-        # decide 的 self_id 比对, 不再用 "me" 哨兵。claimed 语义待对齐。
-        claimed = not v.claimable
+        # decide 的 self_id 比对, 不再用 "me" 哨兵。
         row = mem.get(v.entity_id)
         if row is None:
             mem.set(MemItem(
                 item_id=v.entity_id, located=v.location_id,
-                owner=v.owner, claimed=claimed, afford=afford, value=float(value),
+                owner=v.owner, afford=afford, value=float(value),
                 item_type=v.item_type, tags=tuple(sorted(v.tags)), source="",
-                price=v.price, stock=int(v.stock),
+                price=v.price, household=bool(v.household),
+                free_use=bool(v.free_use), stock=int(v.stock),
                 shelf_life_ticks=int(v.shelf_life_ticks),
                 expires_tick=int(v.expires_tick),
                 believe=1.0, remember=1.0, last_seen=tick))
         else:
             mem.update(
                 v.entity_id, located=v.location_id, owner=v.owner,
-                claimed=claimed, afford=afford or row.afford,
+                afford=afford or row.afford,
                 value=float(value) if value else row.value,
                 item_type=v.item_type, tags=tuple(sorted(v.tags)), source="",
-                price=v.price, stock=int(v.stock),
+                price=v.price, household=bool(v.household),
+                free_use=bool(v.free_use), stock=int(v.stock),
                 shelf_life_ticks=int(v.shelf_life_ticks),
                 expires_tick=int(v.expires_tick),
                 believe=1.0, remember=1.0, last_seen=tick)
@@ -130,18 +131,17 @@ def decide_scored(
 ) -> tuple[Intent, float]:
     """同 decide, 但多返回【得分】。
 
-    得分是“这件事现在值多少分”。用来回答“值不值得打断我正在做的事”:
-    每 tick 重算一次, 只有新事的分明显高于当前事(迟滞)才换 —— 否则会在两个
-    差不多好的目标之间反复横跳。
+    得分是“这件事现在值多少分”。**只在空闲时调** —— 手上有事就做完再决策,
+    没有迟滞/抢占这一层了。
     """
     cands = _gather_candidates(
-        mem, signals, now_tick, home=home, cfg=cfg,
+        mem, signals, now_tick, self_id=self_id, home=home, cfg=cfg,
         future_weight=cfg.stock_future_weight,
         thrift=float(personality.get("thrift", 1.0)))
     scored, ranked, relevant = _score_candidates(
         cands, personality, location_id, cfg, travel_ticks, money, self_id,
         hour_f=(now_tick % max(1, cfg.ticks_per_day)) / 60.0,
-        favor=favor)
+        favor=favor, home=home)
     return _choose(scored, ranked, relevant, cfg, self_id, location_id, home)
 
 
@@ -199,84 +199,69 @@ def _future_need(cfg: SimConfig, have: float, sig: str, value: float,
     return min(1.0, max(0.0, (target - have) / target))
 
 
+def _self_use(row, self_id: str, home: str) -> bool:
+    """我能不能【免费直接使用】它(单一口径, 候选/打分/分流共用)。
+
+    免费自用 = 自己的 / 我自己家的 / 住所授权(free_use, 含本公司店员) /
+    无主且免费的公共。注意 `free_use` 是感知时由世界算好的。
+    """
+    if self_id and row.owner == self_id:
+        return True
+    if home and row.located == home:
+        return True
+    if bool(getattr(row, "free_use", False)):
+        return True
+    if bool(getattr(row, "household", False)):
+        return True
+    return row.owner == "" and row.price <= 0
+
+
 def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
-                       now_tick: int,  *, home: str = "",
+                       now_tick: int,  *, self_id: str = "", home: str = "",
                        cfg: SimConfig | None = None,
                        future_weight: float = 0.0, thrift: float = 1.0):
-    """[阶段1] 候选收集 —— **不过滤**。
+    """[阶段1] 候选收集。**用=免费自用; 买=只补货**, 两条路分开:
 
-    只要能提供点什么(afford 非空 且 value>0)就是候选。
-    “值不值得做”全部交给后面的得分与阀值; 这里只看两个硬事实:
-      - afford/value 缺失 → 这条记忆没告诉我能得到什么;
-      - stock == 0: 空的东西不值得跑一趟(-1 = 无限, 不算空);
-      - cool_until: 刚失败过的别马上再试(防重试死循环)。
+    1. 免费自用(自家/住所授权/公共/本公司店员) → 满足当前需求
+       need = 1 − signal, driver="now"(就地吃/睡/用, 出门只是走过去)。
+    2. 在售(非自用) → 只当【囤货】: need = w × 目标存量缺口, driver="future"。
+       家里存货涨上来 → 缺口自然归零 → 不会重复买(不再需要“供贷抵消”补丁)。
+       无家者没有“囤货”概念 → 退化为“就地买来吃”。
 
-    need = max(眼前的缺口, w × 未来的缺口)
-      · 眼前的缺口 = 1 − signal − 【家里已有供贷折算量】(限"出门去拿"那些行)
-      · 未来的缺口 = 囤货(家里存货相对目标还有多少缺口)
-
-    ★ 为什么要减"家里已有供贷": "买回来"是送到【家】的, 人还在店门口——
-    需求一点没变。不减的话, “手里还有 5 个苹果”这件事完全没进入评分,
-    而在店里再买一个不要路费、回家吃却要走 23 tick → 于是每个 tick 都再买一个。
-    (实测: 两天买 81 次、花 ¥470、家里堆 86 个苹果)
-    返回 [(row, sig, need), ...]。
+    硬门槛: afford/value 缺失 / stock==0 / 失败冷却中的行 → 不进候选。
+    返回 [(row, sig, need, want, driver), ...]。
     """
-    # 家里每种 afford 的存货份数(只在 cfg 到手时算; 下面"供贷抵消"要用)
     stock = _home_stock(mem, home) if (cfg is not None and home) else {}
     out = []
     for row in mem.items():
         if row.cool_until and row.cool_until > now_tick:
-            continue          # 失败冷却中(如厕所刚被占), 稍后再看
+            continue
         sig = row.afford
         if not sig or row.value <= 0:
             continue
         if int(getattr(row, "stock", -1)) == 0:
-            continue          # 空的(已消耗/已变质) —— 别去
-        need = 1.0 - float(signals.get(sig, 1.0))
-        # ★ 供贷抵消(边际需求): “出门去拿”的东西, 家里已有的那份要先扣掉。
-        #   家里够吃 → 边际需求 0 → 这条自然消失(不用拿 target 当闸门)。
-        #   家里有一点但不够 → 只补缺的那点(连续, 自动跟着真实饥饿变)。
-        #   注: 【吃家里现成的】不扣(吃本身就是满足, 扣了就不吃饭了)。
-        if row.located != home:
-            supply = min(1.0, float(stock.get(sig, 0.0)) * row.value)
-            need = max(0.0, need - supply)
-        # 缺口只驱动【补货】(出门/买), 不驱动“把家里最后一点吃掉”
-        # —— 后者只会把存货变得更少。所以只在不位于本家时才加预期需求。
-        # 该买几份: 补到目标存量为止(不再是“一次只买一个”)
-        want = 1
-        # driver: 这次行动到底是【眼前缺】还是【未来缺(囤货)】驱动的 ——
-        # 措辞层必须知道这件事, 否则会说出“好饿, 去买点吃的”这种假话。
-        driver = "now"
-        # 只有【会消耗的东西】才谈得上囤货 —— 床/马桶的 stock 永远 1,
-        # 对它做目标存量会推出“囤 2.5 张床”, 进而把床的分抬到压过吃饭。
+            continue
+        now = 1.0 - float(signals.get(sig, 1.0))
+        if _self_use(row, self_id, home):
+            out.append((row, sig, now, 1, "now"))
+            continue
+        if row.price <= 0:            # 别人的东西又不卖 → 用不了
+            continue
+        if not home:                   # 无家: 买来就地吃(送货到当前位置)
+            out.append((row, sig, now, 1, "now"))
+            continue
+        # 囤货: 只对【会消耗的】且【不在家】的货
         consumable = "consumable" in tuple(getattr(row, "tags", ()) or ())
-        # ★ 注意不能写 `if stock` —— _home_stock 在"家里什么都没有"时返回 {}(假值),
-        #   于是整个囤货分支被跳过 → 买什么都只买 1 份、也永远不"为了以后"出门。
-        #   实测: 6 个 NPC 全都没有存货 → 囤货逻辑一次都没生效过。
-        # 还需 home 非空: "囤货"的本义是【给家里补货】。无住所的人(编辑器里
-        # 那些 home="")没有"家里的存货"这个概念, 硬算会得出"我什么都没有 →
-        # 立刻去吃" → 家里剩一份饭、人不饿也会被吃掉(测试抓到的循环)。
-        if cfg is not None and consumable and home and row.located != home:
-            have = float(stock.get(sig, 0.0))
-            target = _stock_target(cfg, sig, row.value,
-                                   int(getattr(row, "shelf_life_ticks", 0)),
-                                   thrift)
-            fut = _future_need(cfg, have, sig, row.value,
-                               int(getattr(row, "shelf_life_ticks", 0)),
-                               thrift)
-            # 注: 这个分支只负责"低于目标存量"的部分(囤货); 而上面
-            #     “家里够不够眼前吃”已由供贷抵消处理 —— 两者共用 have,
-            #     不重复建模。也正因为如此, 这里【不再】需要"存货≥目标就不买"
-            #     那把闸门(那是上一版的表面补丁, 已删)。
-            if fut > 0.0 and future_weight * fut > need:
-                need = future_weight * fut
-                driver = "future"          # ← 未来缺口赢了: 不是“我饿了”
-                # 【只有囤货才一次买多份】。眼前缺(=真的饿了)只买 1 份:
-                # 否则"买 3 份的钱"会把救命那一下的得分压下去 →
-                # 快饿死了却还在床上躺着(测试抓到的回归: 命比钱大)✗
-                if target > 0.0:
-                    want = max(1, int(math.ceil(target - have)))
-        out.append((row, sig, need, want, driver))
+        if not consumable or row.located == home:
+            continue
+        have = float(stock.get(sig, 0.0))
+        shelf = int(getattr(row, "shelf_life_ticks", 0))
+        fut = _future_need(cfg, have, sig, row.value, shelf, thrift)
+        if fut <= 0.0:
+            continue
+        target = _stock_target(cfg, sig, row.value, shelf, thrift)
+        want = max(1, int(math.ceil(target - have))) if target > 0 else 1
+        out.append((row, sig, future_weight * fut, want, "future"))
     return out
 
 
@@ -337,7 +322,8 @@ def _score_candidates(cands, personality: Mapping[str, float],
                       money: float = float("inf"),
                       self_id: str = "",
                       hour_f: float = 0.0,
-                      favor: Mapping[str, float] | None = None):
+                      favor: Mapping[str, float] | None = None,
+                      home: str = ""):
     """[阶段2+3] 评分 + 排序。
 
         eff = (need^power × 净收益 × personality × believe) / (1 + λ × cost)
@@ -366,7 +352,8 @@ def _score_candidates(cands, personality: Mapping[str, float],
         # 买几份 / 买得起吗 —— 要按【打算买几件】算, 不是按单价!
         # (旧版只看单价: 钱只够 1 件、却按缺口要买 4 件 → 白跑一趟再失败)
         qty = max(1, int(want))
-        for_sale = row.price > 0 and row.owner != self_id
+        # 免费自用的不当商品算钱(口径与候选/分流同一个 _self_use)。
+        for_sale = row.price > 0 and not _self_use(row, self_id, home)
         if for_sale:
             affordable = int(float(money) // float(row.price))
             if affordable < 1:
@@ -384,8 +371,12 @@ def _score_candidates(cands, personality: Mapping[str, float],
         base = (need ** power) * net \
             * float(personality.get(sig, 1.0)) * row.believe * fav
         # —— 成本 ——
-        cost = float(row.price) * qty if for_sale else 0.0
-        cost += float(row.price) * (1.0 - row.believe)   # 不确定的便宜要打折
+        # 只有【真在卖】才把价放进成本。免费自用(住所/公共/本公司店员)不看 price
+        # ——否则凭听说(believe<1)得来的家用物品会被“不确定折扣”莫名扣分。
+        cost = 0.0
+        if for_sale:
+            cost = float(row.price) * qty
+            cost += float(row.price) * (1.0 - row.believe)   # 不确定的便宜要打折
         eff = base / (1.0 + cfg.cost_lambda * cost)
         scored.append((row.item_id, sig, eff, row.located, row, qty, driver))
     scored.sort(key=lambda x: (-x[2], x[0]))
@@ -400,19 +391,16 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
 
     返回 (intent, score): Idle 时 score = 0。
     不判断"是否本地": 异地成本已算进 cost(真实行走 tick)。
-    自己的/免费公共 → Interact; **在售 → Buy**(要付钱)。
+    自己的/自家住所里的(授权人)/免费公共 → Interact; **在售 → Buy**(要付钱)。
     """
     thresh = cfg.utility_threshold
     for item_id, sig, eff, loc, row, qty, driver in scored:
         if eff <= thresh:
             continue
-        # 能不能用: 自己的 / 自己家里的(共享) / 无主免费公共; 【在售】→ 买
-        # “自己家里的”很关键: 一张床只写在不同住户名下, 但同住的人都能用。
-        mine = bool(self_id) and row.owner == self_id
-        my_home = bool(home) and row.located == home
-        free_public = row.owner == "" and row.price <= 0
-        for_sale = row.price > 0 and row.owner != self_id
-        if not (mine or my_home or free_public or for_sale):
+        # 免费自用 → Interact; 在售(只会是囤货候选) → Buy。
+        self_use = _self_use(row, self_id, home)
+        for_sale = row.price > 0 and not self_use
+        if not (self_use or for_sale):
             continue
         if not loc:                       # 无地点信息 → 不可达
             continue

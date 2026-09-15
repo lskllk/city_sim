@@ -18,17 +18,18 @@ class EntityView:
     tags: frozenset[str]                  # {"edible","sleepable","toilet",...}
     affordances: Mapping[str, float]      # 完成后信号效果 {"hunger": +0.4}
     duration_ticks: int
-    distance: float = 0.0                 # 到 NPC 的距离(M2 先全 0.0)
-    claimable: bool = True                # True=当前无人占用
-    stock_zero: bool = False              # True=stock==0(真空), 区别于被占用
     stock: int = -1                       # 存量(-1=无限); 囤货要靠它算“家里还剩几个”
     shelf_life_ticks: int = 0             # 保质期(0=不坏) —— 目标存量由它推导
     expires_tick: int = 0                 # 到点变质(0=不过期)
     location_id: str = ""
     price: float = 0.0                    # 价格(0=免费)
-    owner: str = ""                       # 归属(""=无主/商店)
-    site_owner: str = ""                  # 所在地的主人(家是谁的) —— 私有家里
-                                          # 无主的东西要继承它, 否则全城都能来用
+    owner: str = ""                       # 归属(""=无主/商店) —— 已把所在地主人折进来
+    household: bool = False               # ★ 定死: 这件东西放在某住所(kind=home),
+                                          #   而我是该住所的授权人(owner/open_to/公共)
+                                          #   → 自家财产, 免费使用, 不看 price
+    free_use: bool = False                # ★ 定死三条规则的综合结论: 我能【免费直接
+                                          #   用】它(住所授权 / 公共无主 / 本公司店员)。
+                                          #   False + price>0 → 才要买(Buy)。
     item_type: str = ""                   # 物品类型 id(去重/合并用)
 
 
@@ -125,9 +126,9 @@ class SemanticEvent:
 class Decision:
     """Person 的一次决策(供 engine 仲裁): intent + 来源。
 
-    source 决定抢占语义:
-      "need"   → 软挂起当前交互(需求完成后恢复)
-      "plan"   → 硬中止当前交互(触发 on_complete, 不恢复)
+    source 区分来源:
+      "need"   → 需求(utility)驱动; 只在空闲时产生
+      "plan"   → 计划/上班; 唯一能中止当前交互的来源
       "idle"   → 无事可做
     """
     intent: Intent

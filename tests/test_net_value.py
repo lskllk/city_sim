@@ -23,10 +23,10 @@ def test_drain_is_generic_over_signals() -> None:
 
 
 def test_energy_drain_follows_day_night_curve() -> None:
-    """energy 用昼夜曲线: 深夜掉得比正午快(所以"晚上出门"更亏)。"""
-    night = drain_per_tick(CFG, "energy", 23.0)
+    """energy 用昼夜曲线: 入夜(21:00)掉得比正午快(所以"入夜出门"更亏)。"""
+    dusk = drain_per_tick(CFG, "energy", 21.0)
     noon = drain_per_tick(CFG, "energy", 12.0)
-    assert night > noon * 3.0, (night, noon)
+    assert dusk > noon * 3.0, (dusk, noon)
 
 
 def test_net_value_subtracts_the_trip() -> None:

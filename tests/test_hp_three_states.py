@@ -102,10 +102,3 @@ def test_plan_loses_pull_when_hp_low() -> None:
     assert isinstance(npc.decide(CFG, 5).intent, Idle)
 
 
-def test_plan_loses_pull_mid_interaction() -> None:
-    """正做着日程的事, hp 掉了 → 立刻放弃(不等迟滞比)。"""
-    w, s, _ = make_runtime(CFG)
-    npc = _plan_bench(w, s, 0.9)
-    assert isinstance(npc.decide(CFG, 5).intent, Interact)
-    npc.set_signal("hp", 0.2)
-    assert isinstance(npc.decide(CFG, 6).intent, Idle)

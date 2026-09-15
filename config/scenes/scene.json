@@ -6,13 +6,6 @@
   "display_name": "scene",
   "entities": [
     {
-      "at": "bld_004",
-      "id": "food_apple_024",
-      "price": 5.0,
-      "stock": 1000,
-      "type": "food_apple"
-    },
-    {
       "at": "bld_008",
       "id": "bed_basic_036",
       "type": "bed_basic"
@@ -35,16 +28,34 @@
     {
       "at": "bld_008",
       "id": "meal_simple_040",
-      "price": 1.0,
       "stock": 500,
       "type": "meal_simple"
     },
     {
       "at": "bld_009",
       "id": "meal_simple_041",
-      "price": 1.0,
-      "stock": 100,
+      "stock": 1000,
       "type": "meal_simple"
+    },
+    {
+      "at": "bld_008",
+      "id": "bed_basic_042",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_008",
+      "id": "bed_basic_043",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_009",
+      "id": "bed_basic_044",
+      "type": "bed_basic"
+    },
+    {
+      "at": "bld_009",
+      "id": "bed_basic_045",
+      "type": "bed_basic"
     }
   ],
   "knowledge": [],

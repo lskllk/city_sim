@@ -5,7 +5,7 @@ affordances; 完成时处理 消耗品/如厕。事件经 EventBus 发布给 NPC
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from citysim.core.config import SIGNALS
 from citysim.core.types import Idle, Interact
@@ -16,15 +16,6 @@ from citysim.world.world import Entity, World
 
 @dataclass
 class ActiveInteraction:
-    npc_id: str
-    entity_id: str
-    remaining_ticks: int
-    total_ticks: int
-
-
-@dataclass
-class Suspension:
-    """软挂起的交互进度(被 reflex 抢占时暂存, 供 resume 恢复)。"""
     entity_id: str
     remaining_ticks: int
     total_ticks: int
@@ -39,7 +30,6 @@ class InteractionSystem:
 
     def __init__(self) -> None:
         self.active: dict[str, ActiveInteraction] = {}   # key = npc_id
-        self.suspended: dict[str, Suspension] = {}        # key = npc_id(软挂起进度)
 
     # --- 提交 ---------------------------------------------------------
     def submit(self, world: World, npc: Person, intent) -> bool:
@@ -62,7 +52,8 @@ class InteractionSystem:
         if ent.stock == 0:
             self._fail(world, pid, tid, "已空(stock=0)")
             return False
-        if ent.claimed_by not in (None, pid):
+        # 容量 = stock: 只要还有人没用满, 就能同时用(3 张床 → 3 人睡)
+        if not ent.claimable_by(pid):
             self._fail(world, pid, tid, "已被他人占用")
             return False
         # 现实约束: 目标必须同 region
@@ -87,10 +78,9 @@ class InteractionSystem:
         # 登记(rule 3)
         dur = max(1, ent.duration_ticks)
         self.active[pid] = ActiveInteraction(
-            npc_id=pid, entity_id=tid,
-            remaining_ticks=dur, total_ticks=dur,
+            entity_id=tid, remaining_ticks=dur, total_ticks=dur,
         )
-        ent.claimed_by = pid
+        ent.claimants.add(pid)
         npc.set_activity(ent.name)
         # 数据化开始效果(M4): on_start(如 add_pending 膀胱负荷)在开始 tick 应用
         if ent.on_start:
@@ -135,7 +125,6 @@ class InteractionSystem:
         if ent is None:
             self.active.pop(pid, None)
             return
-        self.suspended.pop(pid, None)          # 硬中止 → 丢弃挂起进度
         self._finalize(world, pid, ent, act, aborted=True)
 
     def _finalize(self, world: World, pid: str, ent: Entity,
@@ -174,41 +163,6 @@ class InteractionSystem:
         if not aborted:
             npc.on_interaction_done(ent.entity_id, world.clock_tick)
 
-    # --- 软挂起 / 恢复(reflex 抢占) ------------------------------------
-    def suspend(self, world: World, pid: str) -> Suspension | None:
-        """软挂起当前交互: 释放 claim, 保留剩余进度。"""
-        act = self.active.pop(pid, None)
-        if act is None:
-            return None
-        ent = world.entities.get(act.entity_id)
-        if ent is not None and ent.claimed_by == pid:
-            ent.claimed_by = None
-        npc = world.npcs.get(pid)
-        if npc is not None:
-            npc.set_activity("idle")
-        susp = Suspension(act.entity_id, max(1, act.remaining_ticks),
-                          max(1, act.total_ticks))
-        self.suspended[pid] = susp
-        return susp
-
-    def resume(self, world: World, npc: Person, entity_id: str) -> bool:
-        """恢复挂起进度(重新 claim + 还原 remaining); 无匹配挂起则 False。"""
-        pid = npc.person_id
-        susp = self.suspended.get(pid)
-        if susp is None or susp.entity_id != entity_id:
-            return False
-        ent = world.entities.get(entity_id)
-        if ent is None or ent.stock == 0 or ent.claimed_by not in (None, pid):
-            return False
-        self.suspended.pop(pid, None)
-        ent.claimed_by = pid
-        self.active[pid] = ActiveInteraction(
-            npc_id=pid, entity_id=entity_id,
-            remaining_ticks=max(1, susp.remaining_ticks),
-            total_ticks=max(1, susp.total_ticks))
-        npc.set_activity(ent.name)
-        return True
-
     # --- 内部 ---------------------------------------------------------
     def release_active(self, world: World, pid: str) -> None:
         """m5-rectify 10: 主动清掉某 NPC 的残留 claim(move_to 出发前调用)。"""
@@ -219,8 +173,8 @@ class InteractionSystem:
         npc = world.npcs.get(pid)
         if act is not None:
             ent = world.entities.get(act.entity_id)
-            if ent is not None and ent.claimed_by == pid:
-                ent.claimed_by = None
+            if ent is not None:
+                ent.claimants.discard(pid)
         if npc is not None:
             if cancel:
                 npc.set_activity("idle")

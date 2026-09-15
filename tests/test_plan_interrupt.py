@@ -79,60 +79,8 @@ def test_plan_deadline_aborts_and_fires_on_complete() -> None:
     assert npc.signal("hunger") >= 0.6, "硬中止未触发 on_complete(+0.5)"
 
 
-def test_reflex_suspends_and_resumes_high_fidelity() -> None:
-    """需求抢占另一个交互 → 软挂起; 那个需求完了 → 回去继续做, 非硬中止。
-
-    注(2026-09-14 删双轨后): 只剩一条轨 —— “回去继续”不再是计划轨强制的,
-    而是【那个目标仍然值得做】时被重新选中(engine 这时会 resume 挂起进度)。
-    所以这里让 bench 一直有吸引力(energy 低), 恢复才会发生; 这正是单轨的语义。
-    """
-    w, s, rng = make_runtime(CFG, log=True)
-    add_entity(w, "bench", location="work", tags=("work",),
-               affordances={"energy": 0.5}, duration_ticks=20)
-    add_entity(w, "wc", location="work", tags=("toilet",),
-               affordances={"bladder": 0.6}, duration_ticks=3)
-    npc = add_npc(w, s, "npc", location="work", rng_pool=rng,
-                  bladder=1.0, energy=0.2)   # 累 → bench 值得做完
-    npc.set_plan([PlanEntry("e0", 1, Interact("bench"))])
-    _run(w, s, rng, 5)
-    assert s.interaction.active["npc"].entity_id == "bench"
-    rem = s.interaction.active["npc"].remaining_ticks
-    assert 0 < rem < 20
-
-    npc.set_signal("bladder", 0.0)            # 触发致命 reflex
-    run_tick(w, s, CFG, rng)
-    assert s.interaction.active["npc"].entity_id == "wc"
-    assert s.interaction.suspended["npc"].entity_id == "bench"
-    # 高保真: 挂起的是"当时剩余"(本 tick step 已先扣 1), 而非重置为 20
-    assert s.interaction.suspended["npc"].remaining_ticks == rem - 1
-
-    _run(w, s, rng, 40)
-    evs = _events(s)
-    assert any(k == "interaction_done" and p.get("entity") == "bench"
-               for k, _, p in evs), "恢复后 bench 未完成"
-    assert not any(k == "interaction_aborted" for k, _, p in evs)
-    assert "npc" not in s.interaction.suspended
 
 
-def test_fatal_reflex_wakes_non_interruptible_sleep() -> None:
-    """睡觉 interruptible=False, 快饿死仍被唤醒(致命 reflex 开后门)。"""
-    w, s, rng = make_runtime(CFG, log=True)
-    bed = add_entity(w, "bed", location="home", tags=("sleepable",),
-                     affordances={"energy": 0.7}, duration_ticks=100)
-    bed.interruptible = False
-    add_entity(w, "food", location="home", tags=("edible", "consumable"),
-               affordances={"hunger": 0.5}, duration_ticks=3, stock=1)
-    npc = add_npc(w, s, "npc", location="home", rng_pool=rng,
-                  energy=0.5, hunger=0.9)
-    # 饿到 0 时 food 的分远高于床(0.5 vs 0.09), 越过迟滞比 → 需求轨改主意
-    npc.set_plan([PlanEntry("e0", 1, Interact("bed"))])
-    _run(w, s, rng, 5)
-    assert s.interaction.active["npc"].entity_id == "bed"
-
-    npc.set_signal("hunger", 0.0)             # 快饿死
-    run_tick(w, s, CFG, rng)
-    assert s.interaction.active["npc"].entity_id == "food", "未被唤醒吃饭"
-    assert s.interaction.suspended["npc"].entity_id == "bed"
 
 
 def test_interact_only_plan_auto_navigates() -> None:

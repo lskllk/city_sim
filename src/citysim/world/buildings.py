@@ -106,8 +106,6 @@ def load_building_types(directory: str | Path | None = None) -> dict[str, Buildi
     return _read(str(_DIR if directory is None else Path(directory)))
 
 
-def clear_cache() -> None:
-    _read.cache_clear()
 
 
 def _pack(need: dict[str, dict], w_canvas: float, h_canvas: float) -> dict[str, dict]:

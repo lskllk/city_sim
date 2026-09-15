@@ -75,7 +75,7 @@ class _Goal:
     —— 2026-09-14 删双轨 ——
     以前是 _reflex_goal / _plan_goal 两条轨 + 固定优先级抢占; 现在只有一个。
     source 只用来区分“谁在维持它”:
-      "need" —— 需求(utility)驱动的, 可以不讲道理地抢(命比规矩大)
+      "need" —— 需求(utility)驱动的, 做完再决策
       "plan" —— 日程/承诺驱动的, 到点会被下一条硬中止, 也尊重 can_preempt
 
     phase: to_dest=还没到目标地(异地), doing=已在目标地/正在交互。
@@ -83,7 +83,6 @@ class _Goal:
     source: str                               # "need" | "plan"
     intent: "Intent"
     phase: str = "to_dest"
-    score: float = 0.0      # 启动时的效用分(供迟滞抢占比较)
 
 
 # ----------------------------------------------------------------------
@@ -209,10 +208,6 @@ class Person:
         """性别码("male"/"female"/""), 来自场景人设。"""
         return self._identity.gender
 
-    @property
-    def perceived_loc(self) -> str:
-        """最近一次感知到自己在哪(决策用; 真实位置归 World, 本层不长期维护坐标)。"""
-        return self._perceived_loc
 
     @property
     def current_activity(self) -> str:
@@ -260,8 +255,6 @@ class Person:
         if signal in SIGNALS:
             self._signals[signal] = _clamp(self._signals.get(signal, 1.0) + delta)
 
-    def set_personality(self, mapping: Mapping[str, float]) -> None:
-        self._personality = dict(mapping)
 
     def apply_metabolism(self, deltas: Mapping[str, float],
                          activity_mul: Mapping[str, float] | None = None,
@@ -339,8 +332,6 @@ class Person:
         if amount > 0:
             self._money += float(amount)
 
-    def set_money(self, money: float) -> None:
-        self._money = max(0.0, float(money))
 
     def set_home(self, home: str) -> None:
         self._home = home
@@ -458,8 +449,6 @@ class Person:
     def bubble(self) -> tuple[str, int, str] | None:
         return self._bubble
 
-    def clear_bubble(self) -> None:
-        self._bubble = None
 
     def set_travel_costs(self, costs: dict[str, int]) -> None:
         """装配: 注入位移成本矩阵(engine/场景侧提供, 这里只存不用)。"""
@@ -470,8 +459,6 @@ class Person:
         """爱不爱说话(乘在传播概率上): <1 寡言, >1 八卦。"""
         return self._tell_bias
 
-    def set_tell_bias(self, v: float) -> None:
-        self._tell_bias = v
 
     # ------------------------------------------------------------------
     # 大脑 —— 感知写入记忆 + 决策(只看记忆+自身, 不看环境)
@@ -534,9 +521,6 @@ class Person:
             return neutral
         return float(self._favor.get(shop_id, neutral))
 
-    def favors(self) -> dict[str, float]:
-        """只读快照(观测用)。"""
-        return dict(self._favor)
 
     def bump_favor(self, shop_id: str, delta: float, cfg) -> float:
         """好感度加减(自动夹在 min..max)。返回新值。"""
@@ -547,21 +531,6 @@ class Person:
         self._favor[shop_id] = v
         return v
 
-    def drift_favor(self, cfg, per_day_fraction: float = 1.0) -> None:
-        """朝中性慢慢回归(慢变量)。per_day_fraction: 0..1, 一天可多次调用。"""
-        if not self._favor:
-            return
-        k = float(cfg.favor_drift_per_day) * float(per_day_fraction)
-        if k <= 0.0:
-            return
-        n = cfg.favor_neutral
-        for sid in list(self._favor):
-            v = self._favor[sid]
-            v = v + (n - v) * min(1.0, k)
-            if abs(v - n) < 0.001:
-                del self._favor[sid]              # 回到中性 → 不必再记(省内存)
-            else:
-                self._favor[sid] = max(cfg.favor_min, min(cfg.favor_max, v))
 
     def set_work(self, company_id: str, shop_id: str, station_id: str,
                  open_minute: int = 0, close_minute: int = 1440) -> None:
@@ -593,9 +562,6 @@ class Person:
         """在岗计时(工资按在岗时间算)。"""
         self._worked_ticks += max(0, int(ticks))
 
-    @property
-    def worked_ticks(self) -> int:
-        return self._worked_ticks
 
     def reset_worked(self) -> int:
         """取走并清零"这一期在岗的 tick 数"(发工资时用)。"""
@@ -603,9 +569,6 @@ class Person:
         self._worked_ticks = 0
         return n
 
-    def mem_peek(self, item_id: str):
-        """只读地看一眼记忆里那行(供"这条消息对他是不是新的"这类判断)。"""
-        return self._mem.get(item_id)
 
     def remembers(self, item_id: str) -> bool:
         """我记忆里有没有这一条(供“对方已知就不说”这类判断用)。"""
@@ -647,16 +610,12 @@ class Person:
         self._schedule = Schedule(entries)
         self._goal = None
 
-    def _reflex_intent(self, cfg: "SimConfig", now_tick: int) -> "Intent | None":
-        """需求决策(复用 brain.decide); Idle → None。"""
-        intent, _eff = self._intent_scored(cfg, now_tick)
-        return intent
 
     def _intent_scored(self, cfg: "SimConfig",
                        now_tick: int) -> "tuple[Intent | None, float]":
         """当前最想做的事 + 它的得分(Idle → (None, 0.0))。
 
-        每 tick 重算 —— 用来回答“值不值得打断我正在做的事”。
+        只在【空闲】时调 —— 手上有事就做完再决策, 不重算。
         """
         intent, eff = brain.decide_scored(
             self._signals, self._personality, self._mem,
@@ -670,41 +629,27 @@ class Person:
 
         开头先做一次跨天处理: daily 计划顺延到今天(上班写一次就不必再动)。
 
-        —— 2026-09-14 删双轨 ——
-        旧版是“reflex 轨 / plan 轨”两条并行 + 固定优先级抢占。现在只有一条:
-        每 tick 算一次“我此刻最想做什么(utility)”, 有就做它; 没有才看日程。
-        所以计划不再是“指令”, 而是【没别的事可做时的安排】。
+        节奏: **手上有事就做完再决策** —— 只有空闲时才每 tick 重算。
+        唯一能打断当前动作的是 **PLAN(上班)**; 不再有迟滞/reflex 抢占。
 
         can_preempt: 世界告知“当前交互能不能被打断”(睡觉等)。
-                     需求轨不受此限(命比规矩大); 计划轨尊重它。
+                     只影响【计划条目】的到期推进, 不影响需求目标。
         """
         self._schedule.roll_day(now_tick, cfg.ticks_per_day)
-        # ★ 上班的【强制约束】(用户定): 只要在班次内, 工作就是绑住的 ——
-        #   "自动绑定自己的工作(销售台), 给一次强制约束; 只有很想上厕所/饿了
-        #    要吃饭才从工作下来"。所以班次内【需求不能随便把他叫走】,
-        #   除非强需求掉到线下(hunger/energy/bladder)。
-        #   注意: 这不是门禁 —— 强需求到了照样能下来(见 _need_to_leave_work)。
+        # ★ 上班是【唯一能打断当前动作的东西】(不管在做什么, 开始上班就决策)。
+        #   班次内工作就是绑住的; 只有强需求掉到线下(hunger/energy/bladder)
+        #   才允许从工作台上下来(见 _need_to_leave_work)。
         if self._on_shift(now_tick, cfg) and not self._need_to_leave_work(cfg):
             plan = self._plan_intent(now_tick, cfg)
             if plan is not None:
+                if self._goal is not None and self._goal.source == "need":
+                    self._goal = None       # 需求目标让位; 计划条不丢
                 return self._record(Decision(plan, "plan"))
         while True:
-            cand, eff = self._intent_scored(cfg, now_tick)   # 此刻最想做的事
-
-            # 1) 手上正做着事
+            # 1) 手上有事 → 【做完再决策】: 不重算, 不被打断(只有上面的 PLAN 能)。
+            #    空闲时才每 tick 决策。
             if self._goal is not None:
-                # 1a) 【命比日程大】: hp 见底 → 日程立即失去拉力(不看迟滞)
-                if self._goal.source == "plan" and self._hp_low(cfg):
-                    self._abandon()
-                    continue
-                # 1b) 有了【明显更好的事】→ 改主意(迟滞: 好 preempt_ratio 倍)
-                #     需求轨不尊重 can_preempt: 快饿死时该把人从被窝里拽起来。
-                bar = max(self._goal.score, cfg.utility_threshold) \
-                    * cfg.preempt_ratio
-                if cand is not None and eff > bar:
-                    self._abandon()
-                    continue
-                # 1c) 日程条目的窗口到期(下一条已到点) → 硬中止当前条目
+                # 日程条目的窗口到期(下一条已到点) → 中止当前条目, 推进计划
                 if self._goal.source == "plan" and can_preempt:
                     dl = self._schedule.deadline()
                     if dl is not None and now_tick >= dl:
@@ -716,9 +661,10 @@ class Person:
                     return self._record(d)
                 continue
 
-            # 2) 有事可做 → 做需求(不再有任何“阈值层”, 能不能行动看 eff)
+            # 2) 没事做 → 每 tick 决策(需求 > 日程 > idle)
+            cand, _eff = self._intent_scored(cfg, now_tick)
             if cand is not None:
-                self._goal = _Goal("need", cand, score=eff)
+                self._goal = _Goal("need", cand)
                 self._queue_intent_speech(now_tick, cand)   # 语义层: “我去买点吃的”
                 continue
 
@@ -739,8 +685,7 @@ class Person:
                 self._schedule.drop()
                 continue
             self._schedule.commit()
-            # 承诺也有拉力(参与打分), 不是“指令”: 见 SimConfig.plan_pull
-            self._goal = _Goal("plan", e.intent, score=cfg.plan_pull)
+            self._goal = _Goal("plan", e.intent)
             continue
 
     def _on_shift(self, now_tick: int, cfg: "SimConfig") -> bool:
@@ -831,11 +776,6 @@ class Person:
         """观测: 失败日志只读快照(0:00 交 LLM 用)。"""
         return list(self._failures)
 
-    def drain_failures(self) -> list[dict]:
-        """取走并清空失败日志(夜间计划器消费)。"""
-        out = self._failures
-        self._failures = []
-        return out
 
     def on_failure(self, target_id: str, why: str, now_tick: int,
                    retry_ticks: int | None = None) -> None:
@@ -892,22 +832,6 @@ class Person:
     # ------------------------------------------------------------------
     # 观测快照(外部一份只读 dict, 避免拆着读字段)
     # ------------------------------------------------------------------
-    def snapshot(self) -> dict:
-        return {
-            "id": self.person_id, "name": self.name,
-            "home": self._home,
-            "activity": self._current_activity,
-            "money": round(self._money, 2),
-            "age": self._age,
-            "role": self.role,
-            "signals": {k: round(v, 4) for k, v in self._signals.items()},
-            "personality": dict(self._personality),
-            "bladder_pending": round(self._bladder_pending, 4),
-            "tell_bias": self._tell_bias,
-            "last_intent": None if self._last_intent is None
-            else intent_kind(self._last_intent),
-            "mem": len(self._mem),
-        }
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"Person({self.person_id})"

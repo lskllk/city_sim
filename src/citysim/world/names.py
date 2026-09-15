@@ -54,5 +54,3 @@ def new_name(seed: int, gender: str = "male",
     return PersonName(s["hz"], s["py"], g["hz"], g["py"])
 
 
-def clear_cache() -> None:
-    load_name_pool.cache_clear()

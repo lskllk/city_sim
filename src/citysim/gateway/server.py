@@ -235,7 +235,7 @@ class SimRunner:
 
     def _ent_sig_of(self, e) -> tuple:
         return (e.location_id, e.stock, round(float(e.price), 4), e.owner,
-                e.claimed_by, e.position, bool(e.persist_empty))
+                tuple(sorted(e.claimants)), e.position, bool(e.persist_empty))
 
     def _dirty_entities(self) -> set[str]:
         """物品很少变 → 变了才推。客户端 merge + gone 删除, 不会错。"""
@@ -506,7 +506,8 @@ def _admin_company(r, op: str, args: dict) -> dict:
         from citysim.world.market import decorate
         shop = str(args.get("shop", "") or (comp.shops[0] if comp.shops else ""))
         item = str(args.get("item_type", ""))
-        res = decorate(world, comp, shop, item)
+        public = bool(args.get("public", False))   # 家具权限: True=公共
+        res = decorate(world, comp, shop, item, public=public)
         res["company"] = cid
         return res
     return {"ok": False, "why": "未知操作 %s" % op, "company": cid}

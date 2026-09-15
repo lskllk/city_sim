@@ -107,6 +107,3 @@ def load_item_defs(directory: str | Path | None = None) -> dict[str, ItemDef]:
     return _read_dir(str(d))
 
 
-def clear_cache() -> None:
-    """测试动态增删 JSON 后清缓存。"""
-    _read_dir.cache_clear()

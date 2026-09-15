@@ -53,8 +53,9 @@ cost   = price×qty + price × (1 − believe)           ← 纯钱 + 不确定�
 | `utility.power_by_signal` | `energy = 4.0` | 每种需求可以更"钝"（不太困就别去躺） |
 | `utility.cost_lambda` | `0.02` | 成本权重 λ，越大越抠（只管钱与不确定性） |
 | `utility.travel_penalty` | `2.0` | 走路放大系数（1.0 = 纯物理）。**想"更怕走路"就调它** → 近店优先 |
-| `utility.preempt_ratio` | `1.5` | 迟滞：新的比当前**好这么多倍**才改主意（1.0 = 抽风） |
-| `utility.plan_pull` | `0.15` | 计划（承诺）的基础拉力；需求超过 `plan_pull × preempt_ratio` 才能顶掉日程 |
+
+- **决策节奏**：手上有事就**做完再决策**，空闲才每 tick 重算。
+  唯一能打断当前动作的是 **PLAN（上班）**——已删迟滞 `preempt_ratio` / `plan_pull`。
 
 - **路费按买几份摊**：只买 1 个 → 这趟消耗全压在它身上 → **近店好**；
   一趟囤 N 份 → 摊到 N 份上 → **远店不再是劣势**。（买得多本来就该少跑几趟）
@@ -222,6 +223,7 @@ id:    地点 <slug>_<NNN>(+_fN)  实体 <itemtype>_<NNN>  NPC npc_<姓拼音>_<
 |---|---|
 | `F2` 自由块 | utility 主导后多余 |
 | `REFLEX_SIGNALS` + 双轨仲裁 | 计划只是偏置 → 没有"要抢占的计划" |
+| 迟滞 `preempt_ratio` / `plan_pull` / 软挂起 `suspend/resume` | 改成"做完再决策"后不再需要抢占比较; 只有 PLAN 能打断 |
 | `home_bias` 归巢兜底 | NPC 有需求自然会回家 |
 | `safety` 安全感、`alertness` 拆信号 | 单信号 `energy` 够用 |
 | 多 `afford` 物品 | 等真需要"一个物品满足两种需求"再做 |

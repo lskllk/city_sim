@@ -64,28 +64,6 @@ def icon_of(entity) -> str:
     return SEMANTIC_EMOJI["box"]
 
 
-def parse_log_line(line: str) -> dict | None:
-    parts = line.split("\t")
-    if not parts:
-        return None
-    kind = parts[0]
-    if kind == "D":
-        if len(parts) < 5:
-            return None
-        return {"tick": int(parts[1]), "kind": "decision",
-                "subject": parts[2], "target": parts[4],
-                "intent": parts[3], "payload": {}}
-    if kind == "E":
-        payload: dict = {}
-        if len(parts) > 4 and parts[4]:
-            for kv in parts[4].split(";"):
-                if "=" in kv:
-                    k, v = kv.split("=", 1)
-                    payload[k.strip()] = v.strip()
-        return {"tick": int(parts[1]), "kind": parts[2],
-                "subject": parts[3], "target": payload.get("target", ""),
-                "intent": "", "payload": payload}
-    return None
 
 
 def act_class_of(world, systems, pid: str) -> str:

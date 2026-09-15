@@ -14,7 +14,7 @@ src/citysim/
   core/ids.py        占位(空)
 
   npc/person.py      Person 门面: signals 单一真源 + 计划表执行/中断仲裁 + 失败日志
-  npc/brain.py       decide() 兜底 reflex 纯函数(fallback_need 触发; 节律已删)
+  npc/brain.py       决策纯函数: 候选搜集/打分/选优(用=免费自用, 买=只补货)
   npc/schedule.py    PlanEntry + Schedule(当天 (at_tick, Intent) 脚本)
   npc/planner.py     LLM 日计划生成器(PlannerInput 纯数据 + 规则模板降级 + 缓存/校验)
 
@@ -23,11 +23,11 @@ src/citysim/
   world/names.py     中文姓名池(config/names) + 生成规则(姓+名, id=拼音)
   world/itemdefs.py  config/items/*.json 校验+加载(ItemDef)
   world/effects.py   副作用 op 表 + apply_effects
-  world/interaction.py InteractionSystem: 执行/claim/affordance 推进/消耗/睡眠唤醒
-                       + abort(硬中止)/suspend/resume(reflex 抢占高保真恢复)
+  world/interaction.py InteractionSystem: 执行/claim(容量=stock)/affordance 推进/消耗/睡眠唤醒
+                       + abort(换目标时中止当前交互)
   world/perception.py 建 Percept + 感知→记忆写入
   world/events.py    EventBus 事件→NPC 信箱
-  world/drive.py     执行驱动: 每 tick 所有非旅行 NPC 决策(交互中也跑, 供抢占)
+  world/drive.py     执行驱动: 每 tick 所有非旅行 NPC 决策(做完再决策, 空闲才重算)
 
   sim/loop.py        run_tick 唯一推进入口 + Travel + 购物成交 + 传闻gossip
   sim/pulses.py      世界侧定时脚本(set_stock/close_forever)
@@ -81,8 +81,9 @@ run_tick(sim/loop.py):
   1 代谢 person.apply_metabolism + hp
   → 排泄 → 交互 InteractionSystem.step
   → 决策: build_percept(perception) + perceive(obs→记忆)
-              → decide: 致命 reflex > 计划表 > idle
-              → 仲裁执行: 继续/挂起(suspend)/硬中止(abort)/提交/旅行
+              → decide: 手上有事就做完; 空闲才决定 (需求 > 计划表 > idle)
+                        唯一能打断的是 PLAN(上班)
+              → 仲裁执行: 继续/中止(abort)/提交/旅行
   → 每日 KB.decay(knowledge)
 
 观察器(gateway): SimRunner 独占跑 run_tick → snapshot.build_snapshot(纯读 world)

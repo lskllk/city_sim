@@ -233,7 +233,13 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
         # 只有【会消耗的东西】才谈得上囤货 —— 床/马桶的 stock 永远 1,
         # 对它做目标存量会推出“囤 2.5 张床”, 进而把床的分抬到压过吃饭。
         consumable = "consumable" in tuple(getattr(row, "tags", ()) or ())
-        if stock and cfg is not None and consumable and row.located != home:
+        # ★ 注意不能写 `if stock` —— _home_stock 在"家里什么都没有"时返回 {}(假值),
+        #   于是整个囤货分支被跳过 → 买什么都只买 1 份、也永远不"为了以后"出门。
+        #   实测: 6 个 NPC 全都没有存货 → 囤货逻辑一次都没生效过。
+        # 还需 home 非空: "囤货"的本义是【给家里补货】。无住所的人(编辑器里
+        # 那些 home="")没有"家里的存货"这个概念, 硬算会得出"我什么都没有 →
+        # 立刻去吃" → 家里剩一份饭、人不饿也会被吃掉(测试抓到的循环)。
+        if cfg is not None and consumable and home and row.located != home:
             have = float(stock.get(sig, 0.0))
             target = _stock_target(cfg, sig, row.value,
                                    int(getattr(row, "shelf_life_ticks", 0)),
@@ -244,8 +250,11 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
             if fut > 0.0 and future_weight * fut > need:
                 need = future_weight * fut
                 driver = "future"          # ← 未来缺口赢了: 不是“我饿了”
-            if target > 0.0:
-                want = max(1, int(math.ceil(target - have)))
+                # 【只有囤货才一次买多份】。眼前缺(=真的饿了)只买 1 份:
+                # 否则"买 3 份的钱"会把救命那一下的得分压下去 →
+                # 快饿死了却还在床上躺着(测试抓到的回归: 命比钱大)✗
+                if target > 0.0:
+                    want = max(1, int(math.ceil(target - have)))
         out.append((row, sig, need, want, driver))
     return out
 

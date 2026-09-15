@@ -209,7 +209,10 @@ def _receive_sign_line(world, systems, npc, bid: str, sign: dict,
                         stock=int(ent.stock),
                         believe=float(sign.get("believe", 0.7)),
                         source="sign:%s" % bid, afford=afford,
-                        value=float(value), item_type=ent.item_type):
+                        value=float(value), item_type=ent.item_type,
+                        tags=tuple(ent.tags),
+                        shelf_life_ticks=int(ent.shelf_life_ticks),
+                        expires_tick=int(ent.expires_tick)):
         return                                     # 已经知道且没变 → 不再说一遍
     # 气泡 = told 格式("听{招牌}说：{货}{价}") —— 招牌是个说者, 措辞和人说的一样
     label = "%s的招牌" % str((world.locations.get(bid) or {}).get("name", bid))

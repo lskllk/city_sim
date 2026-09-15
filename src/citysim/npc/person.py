@@ -376,7 +376,8 @@ class Person:
     def see_sign(self, item_id: str, tick: int, *, located: str, name: str,
                  price: float, stock: int, believe: float,
                  source: str, afford: str = "", value: float = 0.0,
-                 item_type: str = "") -> bool:
+                 item_type: str = "", tags: Sequence[str] | None = None,
+                 shelf_life_ticks: int = 0, expires_tick: int = 0) -> bool:
         """看见招牌: 和【感知】走同一套写入 —— 写记忆 + 有落差就排 SURPRISE/DOUBT。
 
         source = "sign:<bid>"(招牌), believe 由招牌本身定(听说的档, 不是 1.0)。
@@ -416,10 +417,17 @@ class Person:
                 self._push_speech(semantic.surprise(
                     tick, self.person_id, item_id, name, was, now,
                     fact=fact, intensity=inten))
+        # ★ tags / 保质期 一定要带上: 它们是【囤货逻辑的开关】
+        #   (_gather_candidates 里 "只对 consumable 谈目标存量";
+        #    保质期决定"该囤几份")。以前招牌写记忆时漏了这两样 →
+        #    "路过招牌学到的货"永远只买 1 份、也不会为了将来出门,
+        #    于是"又近又便宜"完全体现不出来(用户实测: 梨输给苹果)。
         self.note(item_id, tick=tick, located=located, afford=afford or None,
                   value=float(value), price=float(price), stock=int(stock),
                   believe=float(believe), source=source,
-                  item_type=item_type or None)
+                  item_type=item_type or None,
+                  tags=tags, shelf_life_ticks=int(shelf_life_ticks) or None,
+                  expires_tick=int(expires_tick) or None)
         return True
 
     def _spot_surprises(self, percept, tick: int) -> list:
@@ -708,7 +716,12 @@ class Person:
         if goal.phase == "to_dest":
             dest = self._dest_for(goal.intent)
             if dest and self._perceived_loc != dest:
-                return Decision(MoveTo(dest=dest), goal.source)
+                # ★ 把选中时的 trace 一起带上 —— 否则 "去某地" 这一步
+                # 在 Inspector/事件日志里【看不到为什么选它】(ranked 是空的),
+                # 调参时只能干瞪眼(用户就踩过: 分不清是打分选的还是计划推的)。
+                return Decision(MoveTo(dest=dest,
+                                       trace=getattr(goal.intent, "trace", None)),
+                                goal.source)
             if isinstance(goal.intent, MoveTo):
                 self._finish_goal(goal)            # 纯移动: 到达即完成
                 return None

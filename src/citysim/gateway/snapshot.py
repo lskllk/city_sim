@@ -303,9 +303,9 @@ def do_query(runner, args: dict) -> dict | None:
 
 
 def hello_payload(runner) -> dict:
-    from citysim.gateway.scenarios import DEFAULT_SCENE
+    from citysim.gateway.scenarios import DEFAULT_SCENE, default_scene_path
     import json as _json
-    locs_path = DEFAULT_SCENE
+    locs_path = default_scene_path() or DEFAULT_SCENE
     try:
         all_scene = _json.loads(Path(locs_path).read_text(encoding="utf-8"))
     except OSError:
@@ -320,6 +320,7 @@ def hello_payload(runner) -> dict:
     locs = {"canvas": canvas, "locations": loc_map}
     from citysim.core.config import SIGNALS
     return {"type": "hello", "protocol": PROTOCOL_VERSION,
+            "scene_error": getattr(runner, "build_error", ""),
             # 编辑器原始地图(节点/路段/建筑含 rot/doors); 无则 {}
             "map": getattr(runner.world, "map", {}) or {},
             "scenario": runner.params["scenario"],

@@ -12,15 +12,49 @@ import json
 import re
 from pathlib import Path
 
-from citysim.gateway.scenarios import load_scene
+from citysim.gateway.scenarios import load_scene, DEMO_SCENE, NAV_SCENE
 from citysim.world.buildings import load_building_types
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.names import new_name
 
 ROOT = Path(__file__).resolve().parents[1]
-SCENE = json.loads((ROOT / "config" / "scenes" / "elm_lane.json").read_text(encoding="utf-8"))
+SCENES_DIR = ROOT / "config" / "scenes"
+
+
+# 详细命名校验跑【测试自带的副本】(test_fixtures/elm_lane.json):
+# 不依赖 config/scenes/ —— 用户随时会改/删那边, 测试不该跟着挂。
+# 用户自己的场景靠下面 test_every_scene_file_loads 做同一套校验。
+SCENE = json.loads(
+    (ROOT / "tests" / "fixtures" / "elm_lane.json").read_text(encoding="utf-8"))
 ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
-SEQ_ID_RE = re.compile(r"^[a-z][a-z0-9_]*_\d{3}$")
+# 楼层单元是 <建筑id>_f<N>(多楼层契约, 见 docs/20260914/checklist.md §4.6)
+SEQ_ID_RE = re.compile(r"^[a-z][a-z0-9_]*_\d{3}(_f\d+)?$")
+
+
+def test_every_scene_file_loads() -> None:
+    """config/scenes/*.json 每一个都要: ① 能装进世界 ② 自己的 id/引用说得通。
+
+    ② 很重要: 场景是作者手画的, 悬空引用(如 at="" 的孤儿物件)只有这里能拦住。
+    """
+    files = sorted(SCENES_DIR.glob("*.json"))
+    assert files, "config/scenes 里一个场景文件都没有"
+    for f in files:
+        w, _s, _r = load_scene(f)
+        assert w.locations or w.entities, f
+        _check_scene(json.loads(f.read_text(encoding="utf-8")), where=f.name)
+
+
+def _check_scene(scene: dict, where: str) -> None:
+    """一份场景数据的 id 格式 + 引用闭合(与上面各 test_* 同一套规则)。"""
+    locs = set(scene.get("locations", {}))
+    for loc in locs:
+        assert SEQ_ID_RE.match(loc), f"{where}: 地点应为 <slug>_<NNN>: {loc}"
+    for e in scene.get("entities", []):
+        assert e["id"].startswith(e["type"] + "_"), f"{where}: {e}"
+        assert e["at"] in locs, f"{where}: 悬空引用(物件不在任何地点): {e}"
+    for n in scene.get("npcs", []):
+        assert re.match(r"^npc_[a-z0-9_]+$", n["id"]), f"{where}: {n['id']}"
+        assert n.get("home", "") in locs or n.get("home", "") == "",             f"{where}: 住所不存在: {n['id']} → {n.get('home')}"
 
 
 def _items() -> dict:
@@ -100,7 +134,7 @@ def test_references_resolve() -> None:
 
 
 def test_scene_loads_and_ids_consistent() -> None:
-    w, _s, _r = load_scene()
+    w, _s, _r = load_scene(DEMO_SCENE)
     assert set(w.locations) == set(SCENE["locations"])
     assert {e.entity_id for e in w.entities.values()} == {e["id"] for e in SCENE["entities"]}
     assert set(w.npcs) == {n["id"] for n in SCENE["npcs"]}

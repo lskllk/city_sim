@@ -1,7 +1,7 @@
 """建筑类型库 + 自动布局: 面积∝容量、零重叠、不出画布。"""
 from __future__ import annotations
 
-from citysim.gateway.scenarios import load_scene
+from citysim.gateway.scenarios import load_scene, DEMO_SCENE, NAV_SCENE
 from citysim.world.buildings import (DOOR_SIDES, build_locations,
                                      load_building_types)
 
@@ -15,7 +15,7 @@ def test_type_library_has_kinds_and_capacity() -> None:
 
 
 def test_area_proportional_to_capacity_and_no_overlap() -> None:
-    w, _s, _r = load_scene()
+    w, _s, _r = load_scene(DEMO_SCENE)
     locs = w.locations
     ratios = [(v["w"] * v["h"]) / v["capacity"] for v in locs.values()]
     assert (max(ratios) - min(ratios)) / max(ratios) < 0.002   # 取整误差内一致
@@ -85,7 +85,7 @@ def test_explicit_geometry_kept() -> None:
 
 
 def test_home_name_is_door_no() -> None:
-    w, _s, _r = load_scene()
+    w, _s, _r = load_scene(DEMO_SCENE)
     # 住宅无显式 name → 由 id 序号派生门牌号
     assert w.locations["apt_001"]["name"] == "1 号"
     assert w.locations["apt_002"]["name"] == "2 号"

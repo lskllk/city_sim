@@ -1,14 +1,14 @@
 """NPC 年龄(按天更新) + 角色(role) 契约。"""
 from __future__ import annotations
 
-from citysim.gateway.scenarios import load_scene, CFG
+from citysim.gateway.scenarios import load_scene, CFG, DEMO_SCENE, NAV_SCENE
 
 WANG = "npc_wang_er"
 LI = "npc_li_si"
 
 
 def test_age_role_from_scene() -> None:
-    w, _s, _r = load_scene()
+    w, _s, _r = load_scene(DEMO_SCENE)
     wang = w.npcs[WANG]
     li = w.npcs[LI]
     # birthday 1985-06-15 / 1996-11-02, 游戏纪元 2026-01-01
@@ -17,7 +17,7 @@ def test_age_role_from_scene() -> None:
 
 
 def test_age_updates_daily_on_birthday() -> None:
-    w, _s, _r = load_scene()
+    w, _s, _r = load_scene(DEMO_SCENE)
     wang = w.npcs[WANG]                        # 生日 06-15
     wang.on_day(CFG, 100 * CFG.ticks_per_day)  # 2026-04-11 → 40
     assert wang.age == 40
@@ -26,7 +26,7 @@ def test_age_updates_daily_on_birthday() -> None:
 
 
 def test_snapshot_exposes_age_role_and_item_type() -> None:
-    w, s, r = load_scene()
+    w, s, r = load_scene(DEMO_SCENE)
     from citysim.sim.loop import run_tick
     from citysim.gateway.snapshot import build_snapshot
     for _ in range(4):

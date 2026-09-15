@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from citysim.gateway.scenarios import load_scene
+from citysim.gateway.scenarios import NAV_SCENE, load_scene
 from citysim.world.roads import RoadGraph
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -136,7 +136,7 @@ def test_ticks_follow_m_per_tick() -> None:
 # ----------------------------------------------------------------------
 def test_scenefornav_takes_the_upper_route() -> None:
     """scenefornav: 上路 133.29 m / 13 tick; 下路(经 n_005/n_006)不被选中。"""
-    w, s, _r = load_scene(ROOT / "config" / "scenes" / "scenefornav.json")
+    w, s, _r = load_scene(NAV_SCENE)
     assert s.roads is not None and s.roads.ok
     a = w.door_point("bld_001")
     b = w.door_point("bld_002")
@@ -166,9 +166,9 @@ def test_scenefornav_reroutes_when_winning_edge_is_removed() -> None:
     import json
     import math
 
-    w, _s, _r = load_scene(ROOT / "config" / "scenes" / "scenefornav.json")
+    w, _s, _r = load_scene(NAV_SCENE)
     raw = json.loads(
-        (ROOT / "config" / "scenes" / "scenefornav.json").read_text(encoding="utf-8"))
+        NAV_SCENE.read_text(encoding="utf-8"))
     m = dict(raw["map"])
     edges = {k: v for k, v in m["edges"].items() if k != "e_002"}
     m["edges"] = edges

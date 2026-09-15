@@ -28,17 +28,51 @@ from citysim.world.world import Entity, World, entity_from_def
 log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[3]          # → d:\...\npc_cognition
-DEFAULT_SCENE = ROOT / "config" / "scenes" / "elm_lane.json"
+SCENES_DIR = ROOT / "config" / "scenes"
+# 默认场景【不再写死文件名】: elm_lane 只是首选, 没有就挑一个存在的。
+# 以前写死一个路径 → 用户把那个文件删了, 后端在 import 时就 FileNotFoundError 闪退。
+DEFAULT_SCENE = SCENES_DIR / "elm_lane.json"
+
+
+def default_scene_path() -> Path | None:
+    """挑一个可用的默认场景: elm_lane → scene.json → 目录里任意一个; 都没有 None。"""
+    for name in ("elm_lane.json", "scene.json"):
+        p = SCENES_DIR / name
+        if p.is_file():
+            return p
+    if SCENES_DIR.is_dir():
+        for f in sorted(SCENES_DIR.glob("*.json")):
+            return f
+    return None
+
+
+# 测试自带的小场景副本: 【不依赖 config/scenes/】—— 用户随时会删/改那边,
+# 测试不该跟着挂(实测: 删掉内置 demo 场景 → 一堆断言 KeyError)。
+TESTS_DIR = ROOT / "tests" / "fixtures"
+DEMO_SCENE = TESTS_DIR / "elm_lane.json"
+NAV_SCENE = TESTS_DIR / "scenefornav.json"
+
 CFG = load_config(ROOT / "config" / "sim.toml")
 _ARGS_ORDER = ("energy", "hunger", "bladder", "hp")
 # 初始记忆行允许的字段(与 Person.note 对齐; 其余忽略)
 _MEM_FIELDS = frozenset({"located", "owner", "afford", "value", "price", "stock"})
 
 
-def load_scene(path: str | Path = DEFAULT_SCENE,
+def load_scene(path: str | Path | None = None,
                seed: int = 3) -> tuple[World, object, dict]:
-    """读 scene json → (world, systems, rng_pool)。唯一场景入口。"""
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    """读 scene json → (world, systems, rng_pool)。唯一场景入口。
+
+    path=None(或不传) → 用 default_scene_path(): 存在的那个默认场景。
+    """
+    if path is None:
+        path = default_scene_path()
+    if path is None:
+        raise FileNotFoundError(
+            "config/scenes/ 里一个场景都没有 —— 请先在编辑器里导出一个场景")
+    _p = Path(path)
+    if not _p.is_file():
+        raise FileNotFoundError("场景文件不存在: %s" % _p)
+    data = json.loads(_p.read_text(encoding="utf-8"))
     world = World()
     # 建筑: 类型库(config/buildings) + 显式几何或 面积∝容量 自动布局
     world.locations = build_locations(data)
@@ -308,7 +342,12 @@ def build_scenario(scenario: str | None = None, seed: int = 3,
                 import sys
                 print(f"[scenarios] CITYSIM_SCENE 指向的文件不存在: {env}"
                       f" (相对仓库根: {ROOT}); 回退默认场景", file=sys.stderr)
-    w, s, r = load_scene(path or DEFAULT_SCENE, seed=seed)
+    if path is None:
+        path = default_scene_path()
+    if path is None:
+        raise FileNotFoundError(
+            "config/scenes/ 里一个场景文件都没有 —— 请先在编辑器里导出一个场景")
+    w, s, r = load_scene(path, seed=seed)
     if tell_p is not None:
         s.tell_p = float(tell_p)
     if listen_p is not None:

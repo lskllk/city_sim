@@ -24,6 +24,8 @@ var floors: Dictionary = {}            # 建筑 id -> 楼层单元数(由 locati
 var map: Dictionary = {}               # 编辑器原始地图 {nodes,edges,buildings}; 无则 {}
 var canvas: Dictionary = {"w": 1280.0, "h": 800.0}
 var scenario: String = ""
+## 后端场景加载失败的原因(空 = 正常)。后端不闪退了, 原因走这里给界面显示。
+var scene_error: String = ""
 var seed_value: int = 0
 var n_npc: int = 0
 var signals_list: Array = []
@@ -63,6 +65,8 @@ func clear_world() -> void:
 
 func init_hello(h: Dictionary) -> void:
 	scenario = Protocol.s(h.get("scenario"))
+	# 后端场景坏了也能起来(不闪退), 原因走这里; 界面负责显示
+	scene_error = Protocol.s(h.get("scene_error"))
 	seed_value = int(Protocol.num(h.get("seed")))
 	n_npc = int(Protocol.num(h.get("n_npc")))
 	var sigs: Variant = h.get("signals", [])

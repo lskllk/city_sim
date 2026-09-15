@@ -6,36 +6,6 @@
   "display_name": "scene",
   "entities": [
     {
-      "at": "",
-      "id": "bed_basic_001",
-      "type": "bed_basic"
-    },
-    {
-      "at": "",
-      "id": "toilet_basic_002",
-      "type": "toilet_basic"
-    },
-    {
-      "at": "",
-      "id": "bed_basic_003",
-      "type": "bed_basic"
-    },
-    {
-      "at": "",
-      "id": "toilet_basic_004",
-      "type": "toilet_basic"
-    },
-    {
-      "at": "",
-      "id": "bed_basic_021",
-      "type": "bed_basic"
-    },
-    {
-      "at": "",
-      "id": "toilet_basic_022",
-      "type": "toilet_basic"
-    },
-    {
       "at": "bld_007",
       "id": "meal_simple_023",
       "price": 8.0,

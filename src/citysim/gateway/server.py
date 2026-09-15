@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import logging
 import time
 import json
 import sys
@@ -16,6 +17,8 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from citysim.core.config import load_config
+
+log = logging.getLogger("citysim.server")
 from citysim.gateway.scenarios import build_scenario
 from citysim.gateway.snapshot import (
     build_snapshot,
@@ -104,8 +107,11 @@ class SimRunner:
         self.speed = "pause"          # 启动即暂停, 方便观察初态
         self.log_cursor = 0
         self.event_seq = 0            # drain 兜底 event_id 序号
-        self.params = dict(scenario="elm_lane", seed=3, n_npc=6,
+        # scenario="" = 用「存在的那个」默认场景(见 scenarios.default_scene_path);
+        # 写死名字的话, 文件一被删后端就起不来。
+        self.params = dict(scenario="", seed=3, n_npc=6,
                            tell_p=0.1, listen_p=1.0)
+        self.build_error: str = ""     # 场景加载失败的原因(给 UI 看, 不再闪退)
         self._pushed_tick: int | None = None   # 上次推送时的 tick(None=需重推)
         # 观察驱动: 只下发「渲染状态变了」的 NPC + 当前选中的那个。
         self._npc_sig: dict[str, tuple] = {}   # pid -> 上次推送时的渲染签名
@@ -142,7 +148,22 @@ class SimRunner:
         self._seen_entities.clear()
 
     def _build(self) -> None:
-        self.world, self.systems, self.rng_pool = build_scenario(**self.params)
+        try:
+            self.world, self.systems, self.rng_pool = build_scenario(
+                **self.params)
+            self.build_error = ""
+        except Exception as exc:      # noqa: BLE001
+            # 【不闪退】: 场景坏了也要能起服务, 把原因告诉前端。
+            # 以前这里是裸调用 → 删了个场景文件, 后端 import 阶段就死, 前端只看到断开。
+            import traceback
+            self.build_error = "%s: %s" % (type(exc).__name__, exc)
+            log.error("场景加载失败, 用空世界启动: %s", self.build_error)
+            traceback.print_exc()
+            from citysim.world.world import World
+            from citysim.sim.loop import make_systems
+            self.world = World()
+            self.systems = make_systems(log=True)
+            self.rng_pool = {}
         attach_replay(self.world, self.systems)   # log_lines 承载 D/E 行
         self.log_cursor = 0
         self._pushed_tick = None

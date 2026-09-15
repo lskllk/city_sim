@@ -76,6 +76,9 @@ func _quit() -> void:
 
 
 func _update_status(status: String) -> void:
+	if Store.scene_error != "":
+		%StatusLabel.text = "⚠ 后端场景加载失败：%s" % Store.scene_error
+		return
 	match status:
 		"open":
 			%StatusLabel.text = "● 后端已连接"

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from citysim.core.config import load_config
 from citysim.core.types import Decision, MoveTo
-from citysim.gateway.scenarios import load_scene
+from citysim.gateway.scenarios import load_scene, DEMO_SCENE, NAV_SCENE
 from citysim.world.engine import _apply
 
 from helpers import add_npc, make_runtime
@@ -15,7 +15,7 @@ CFG = load_config(ROOT / "config" / "sim.toml")
 
 
 def test_scene_binds_home_owner_and_public() -> None:
-    w, _s, _r = load_scene()
+    w, _s, _r = load_scene(DEMO_SCENE)
     # 住所: 首个住客=户主, 默认私人
     assert w.locations["apt_001"]["owner"] == "npc_wang_er"
     assert w.locations["apt_002"]["owner"] == "npc_li_si"
@@ -26,7 +26,7 @@ def test_scene_binds_home_owner_and_public() -> None:
 
 
 def test_entry_check_forbidden_and_allowed() -> None:
-    w, _s, _r = load_scene()
+    w, _s, _r = load_scene(DEMO_SCENE)
     assert w.entry_check("apt_001", "npc_li_si") == (False, "无权进入")
     assert w.entry_check("apt_001", "npc_wang_er")[0] is True
     assert w.entry_check("market_001", "npc_li_si")[0] is True

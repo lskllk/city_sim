@@ -208,12 +208,17 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
       - cool_until: 刚失败过的别马上再试(防重试死循环)。
 
     need = max(眼前的缺口, w × 未来的缺口)
-      · 眼前的缺口 = 1 − signal
+      · 眼前的缺口 = 1 − signal − 【家里已有供贷折算量】(限"出门去拿"那些行)
       · 未来的缺口 = 囤货(家里存货相对目标还有多少缺口)
+
+    ★ 为什么要减"家里已有供贷": "买回来"是送到【家】的, 人还在店门口——
+    需求一点没变。不减的话, “手里还有 5 个苹果”这件事完全没进入评分,
+    而在店里再买一个不要路费、回家吃却要走 23 tick → 于是每个 tick 都再买一个。
+    (实测: 两天买 81 次、花 ¥470、家里堆 86 个苹果)
     返回 [(row, sig, need), ...]。
     """
-    stock = (_home_stock(mem, home)
-             if (cfg is not None and future_weight > 0.0) else {})
+    # 家里每种 afford 的存货份数(只在 cfg 到手时算; 下面"供贷抵消"要用)
+    stock = _home_stock(mem, home) if (cfg is not None and home) else {}
     out = []
     for row in mem.items():
         if row.cool_until and row.cool_until > now_tick:
@@ -224,6 +229,13 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
         if int(getattr(row, "stock", -1)) == 0:
             continue          # 空的(已消耗/已变质) —— 别去
         need = 1.0 - float(signals.get(sig, 1.0))
+        # ★ 供贷抵消(边际需求): “出门去拿”的东西, 家里已有的那份要先扣掉。
+        #   家里够吃 → 边际需求 0 → 这条自然消失(不用拿 target 当闸门)。
+        #   家里有一点但不够 → 只补缺的那点(连续, 自动跟着真实饥饿变)。
+        #   注: 【吃家里现成的】不扣(吃本身就是满足, 扣了就不吃饭了)。
+        if row.located != home:
+            supply = min(1.0, float(stock.get(sig, 0.0)) * row.value)
+            need = max(0.0, need - supply)
         # 缺口只驱动【补货】(出门/买), 不驱动“把家里最后一点吃掉”
         # —— 后者只会把存货变得更少。所以只在不位于本家时才加预期需求。
         # 该买几份: 补到目标存量为止(不再是“一次只买一个”)
@@ -248,6 +260,10 @@ def _gather_candidates(mem: MemBase, signals: Mapping[str, float],
             fut = _future_need(cfg, have, sig, row.value,
                                int(getattr(row, "shelf_life_ticks", 0)),
                                thrift)
+            # 注: 这个分支只负责"低于目标存量"的部分(囤货); 而上面
+            #     “家里够不够眼前吃”已由供贷抵消处理 —— 两者共用 have,
+            #     不重复建模。也正因为如此, 这里【不再】需要"存货≥目标就不买"
+            #     那把闸门(那是上一版的表面补丁, 已删)。
             if fut > 0.0 and future_weight * fut > need:
                 need = future_weight * fut
                 driver = "future"          # ← 未来缺口赢了: 不是“我饿了”

@@ -136,7 +136,8 @@ def decide_scored(
         future_weight=cfg.stock_future_weight,
         thrift=float(personality.get("thrift", 1.0)))
     scored, ranked, relevant = _score_candidates(
-        cands, personality, location_id, cfg, travel_ticks, money, self_id)
+        cands, personality, location_id, cfg, travel_ticks, money, self_id,
+        hour_f=(now_tick % max(1, cfg.ticks_per_day)) / 60.0)
     return _choose(scored, ranked, relevant, cfg, self_id, location_id, home)
 
 
@@ -263,17 +264,49 @@ def _travel_key(a: str, b: str) -> str:
     return "%s|%s" % (a, b) if a <= b else "%s|%s" % (b, a)
 
 
+def drain_per_tick(cfg: SimConfig, sig: str, hour_f: float,
+                   sig_mul: float = 1.0) -> float:
+    """这个需求【每 tick】掉多少(0..1)。**任何信号通用**。
+
+    这就是"出门是有代价的"的物理表达: 走 N tick 的路上需求本身在下降,
+    所以那件东西真正补回来的只有 `value − drain × ticks`。
+    energy 走昼夜曲线(夜里掉得快), 其余按基准速率。
+    """
+    rate = -min(0.0, float(cfg.metabolism.get(sig, 0.0)))
+    if rate <= 0.0:
+        return 0.0
+    if sig == "energy":
+        rate *= float(cfg.rhythm_at(hour_f))      # 注意: 单位是【小时 0..24】
+    return rate * float(sig_mul)
+
+
+def _net_value(cfg: SimConfig, sig: str, value: float, ticks: int,
+               sig_mul: float, hour_f: float) -> float:
+    """净收益 = 这件东西给的价值 − 路上这 N tick 需求自己掉掉的量。
+
+    用户提的例子: 在家吃梨立刻补 0.30; 出门买苹果 value 0.35,
+    但走 23 tick 路上饿掉一部分 → 真正到手没那么多。
+    **长途更明显** —— 这就是"更近的店"该有的优势, 不需要靠 time_value
+    那种钱味儿的估算来表达。同一个式子对 hunger / energy / bladder 都成立。
+    """
+    if ticks <= 0:
+        return max(0.0, float(value))
+    return max(0.0, float(value) - drain_per_tick(cfg, sig, hour_f, sig_mul) * ticks)
+
+
 def _score_candidates(cands, personality: Mapping[str, float],
                       location_id: str, cfg: SimConfig,
                       travel_ticks: Mapping[str, int] | None = None,
                       money: float = float("inf"),
-                      self_id: str = ""):
+                      self_id: str = "",
+                      hour_f: float = 0.0):
     """[阶段2+3] 评分 + 排序。
 
-        eff = (need^power × value × personality × believe) / (1 + λ × cost)
-        cost = price×qty + time_value×travel_ticks + price×(1−believe)
+        eff = (need^power × 净收益 × personality × believe) / (1 + λ × cost)
+        净收益 = value − 路上这段时间需求自己掉掉的量   ← 任何信号通用
+        cost   = price×qty + time_value×travel_ticks + price×(1−believe)
 
-     成本里同时放了【钱】和【时间】 → 比价 / 比距离 / 顺路 都是同一个式子的结果。
+     成本里同时放了【钱】和【时间】; 而"时间"的真实代价由净收益表达(需求会掉)。
      believe 项: “听说便宜”不如“亲眼看到便宜”可靠(κ = 1)。
      """
     needs: dict[str, float] = {}
@@ -282,7 +315,18 @@ def _score_candidates(cands, personality: Mapping[str, float],
         needs[sig] = need
         # 每种需求可以有自己的幂次(精力要钝: 不太困就别去躺)
         power = cfg.power_by_signal.get(sig, cfg.utility_power)
-        base = (need ** power) * row.value \
+        # 走这一趟要多少 tick(下面 cost 用同一个数, 不再重复算)
+        ticks = 0
+        if row.located and location_id and row.located != location_id:
+            ticks = DEFAULT_TRAVEL_TICKS
+            if travel_ticks:
+                ticks = int(travel_ticks.get(
+                    _travel_key(location_id, row.located),
+                    DEFAULT_TRAVEL_TICKS))
+        # ★ 净收益: 路上需求自己在掉 → 真正补回来的没 value 那么多
+        net = _net_value(cfg, sig, row.value, ticks,
+                         float(personality.get(sig, 1.0)), hour_f)
+        base = (need ** power) * net \
             * float(personality.get(sig, 1.0)) * row.believe
         # 买得起吗 —— 要按【打算买几件】算, 不是按单价!
         # (旧版只看单价: 钱只够 1 件、却按缺口要买 4 件 → 白跑一趟再失败)
@@ -295,13 +339,7 @@ def _score_candidates(cands, personality: Mapping[str, float],
             qty = min(qty, affordable)   # 钱够几件就买几件
         # —— 成本 ——
         cost = float(row.price) * qty if for_sale else 0.0
-        if row.located and location_id and row.located != location_id:
-            ticks = DEFAULT_TRAVEL_TICKS
-            if travel_ticks:
-                ticks = int(travel_ticks.get(
-                    _travel_key(location_id, row.located),
-                    DEFAULT_TRAVEL_TICKS))
-            cost += cfg.time_value * ticks            # 走路的时间成本
+        cost += cfg.time_value * ticks                # 走路的时间成本(钱味儿那份)
         cost += float(row.price) * (1.0 - row.believe)   # 不确定的便宜要打折
         eff = base / (1.0 + cfg.cost_lambda * cost)
         scored.append((row.item_id, sig, eff, row.located, row, qty, driver))

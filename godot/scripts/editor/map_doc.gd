@@ -743,6 +743,8 @@ func add_memory(pid: String, iid: String, believe: float,
 	if not npcs.has(pid) or iid == "":
 		return
 	var rec := memory_defaults(iid)
+	if String(rec.get("located", "")) == "":
+		return                  # 没地点 → 他走不到, 写进去是死记忆
 	for k in extra:
 		rec[k] = extra[k]
 	rec["believe"] = clampf(believe, 0.0, 1.0)
@@ -768,7 +770,9 @@ func clear_memory(pid: String) -> void:
 ## 一行记忆的中文描述(面板显示用)。
 func memory_label(iid: String, rec: Dictionary) -> String:
 	var nm := item_display(String(items.get(iid, {}).get("type", "")))
-	var bits: Array = ["%s · %s" % [nm, unit_display(String(rec.get("located", "")))]]
+	var where := String(rec.get("located", ""))
+	var loc_txt := unit_display(where) if where != "" else "没地点(用不上)"
+	var bits: Array = ["%s · %s" % [nm, loc_txt]]
 	if float(rec.get("price", 0.0)) > 0.0:
 		bits.append("¥%d" % int(rec.get("price", 0.0)))
 	var aff := String(rec.get("afford", ""))
@@ -885,6 +889,8 @@ func is_valid_at(at: String) -> bool:
 
 ## 地点显示名: 楼层单元 → "建筑名 · N层"; 否则建筑名。
 func unit_display(at: String) -> String:
+	if at == "":
+		return "未放置"          # 孤儿物件(不属于任何地点)
 	if buildings.has(at):
 		return building_name(at)
 	var bid := building_of(at)
@@ -935,7 +941,7 @@ func purge_invalid_refs() -> Dictionary:
 	var kill: Array = []
 	for iid in items:
 		var at := String(items[iid].get("at", ""))
-		if at != "" and not sites.has(at):
+		if not sites.has(at):        # at == "" 的孤儿物件也一起收掉(没有这个地点)
 			kill.append(iid)
 	for iid in kill:
 		items.erase(iid)

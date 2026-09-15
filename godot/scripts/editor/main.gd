@@ -704,14 +704,22 @@ func _build_person(pid: String) -> void:
 	_mem_item_ids.clear()
 	var iids: Array = MapDoc.items.keys()
 	iids.sort()
+	var n_orphan := 0
 	for iid in iids:
 		var it: Dictionary = MapDoc.items[iid]
+		var iat := String(it.get("at", ""))
+		if not MapDoc.is_valid_at(iat):
+			n_orphan += 1        # 没地点(或地点已删) → 他走不到, 注了也是死记忆
+			continue
 		_f_mem_item.add_item("%s @ %s" % [
 			MapDoc.item_display(String(it.get("type", ""))),
-			MapDoc.unit_display(String(it.get("at", "")))])
+			MapDoc.unit_display(iat)])
 		_mem_item_ids.append(String(iid))
 	if _mem_item_ids.is_empty():
-		_f_mem_item.add_item("（场景里还没有物件）")
+		_f_mem_item.add_item("（场景里还没有可注入的物件）")
+	if n_orphan > 0:
+		msec.add_child(_muted("跳过 %d 个不在任何地点里的物件 —— 它们 NPC 去不了, "
+			% n_orphan + "注了也用不上; 「清理无效引用」可以删掉它们"))
 	msec.add_child(_lrow("物件", _f_mem_item))
 	_f_mem_believe = _spin(0.1, 1.0, 0.05)
 	_f_mem_believe.value = 0.8

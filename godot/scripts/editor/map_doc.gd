@@ -553,13 +553,29 @@ func remove_building(id: String) -> void:
 	changed.emit()
 
 
-## 作者起过名字吗? (等于类型默认名也算“没起” —— 见 from_dict 的归一化)
+## 这个名字是不是【自动编号】(店铺1号 / 小屋2号 …)?
+##
+## 导出时会把自动编号【写进 name】(后端没有编号能力, 总得给它一个显示名),
+## 于是在重新导入时就容易被当成"作者起的名字" —— 一旦如此, 自动编号就不再数它,
+## 下一栋同类建筑会撞上同一个号(实测: 载入后新增商铺 → 三个“店铺1号”)。
+func _is_auto_name(name: String, type_id: String) -> bool:
+	var base := type_display(type_id)
+	if base == "" or not name.begins_with(base):
+		return false
+	var tail := name.substr(base.length())
+	if not tail.ends_with("号") or tail.length() < 2:
+		return false
+	return tail.substr(0, tail.length() - 1).is_valid_int()
+
+
+## 作者起过名字吗? 三种都算“没起”: 空 / 等于类型默认名(小屋) / 是自动编号(小屋1号)。
 func has_custom_name(bid: String) -> bool:
 	if not buildings.has(bid):
 		return false
 	var b: Dictionary = buildings[bid]
 	var nm := String(b.get("name", ""))
-	return nm != "" and nm != type_display(String(b.get("type", "")))
+	var tp := String(b.get("type", ""))
+	return nm != "" and nm != type_display(tp) and not _is_auto_name(nm, tp)
 
 
 ## 默认展示名 = 【类型名 + 同类型序号】号 —— 保证不重叠。
@@ -597,7 +613,7 @@ func dedupe_building_names() -> int:
 	var n := 0
 	for bid in buildings:
 		if not has_custom_name(String(bid)) and String(buildings[bid].get("name", "")) != "":
-			buildings[bid]["name"] = ""
+			buildings[bid]["name"] = ""      # 含"自动编号被烤进 name"的老场景
 			n += 1
 	if n > 0:
 		errors = validate()
@@ -1446,7 +1462,12 @@ func from_dict(d: Dictionary) -> void:
 	var bld_raw: Dictionary = d.get("buildings", {})
 	for _k in bld_raw:
 		var _b = bld_raw[_k]
-		if _b is Dictionary and String(_b.get("name", "")) != "" 				and String(_b.get("name", "")) == type_display(String(_b.get("type", ""))):
+		if not (_b is Dictionary):
+			continue
+		var _tp := String(_b.get("type", ""))
+		var _nm := String(_b.get("name", ""))
+		# 自动编号 / 类型默认名 → 视作没起名字, 交回 default_building_name(避免撞号)
+		if _nm != "" and (_nm == type_display(_tp) or _is_auto_name(_nm, _tp)):
 			_b["name"] = ""
 	var bld: Dictionary = bld_raw
 	for id in bld:
@@ -1619,7 +1640,7 @@ func _load_buildings_from_locations(d: Dictionary) -> void:
 			continue
 		if buildings.has(bid):
 			var nm0 := String(loc.get("name", ""))
-			if nm0 != "" and nm0 != type_display(t):
+			if nm0 != "" and nm0 != type_display(t) 					and not _is_auto_name(nm0, t):
 				buildings[bid]["name"] = nm0
 			if loc.get("sign") is Dictionary and not (loc["sign"] as Dictionary).is_empty():
 				buildings[bid]["sign"] = (loc["sign"] as Dictionary).duplicate(true)
@@ -1638,7 +1659,7 @@ func _load_buildings_from_locations(d: Dictionary) -> void:
 		if loc.get("sign") is Dictionary and not (loc["sign"] as Dictionary).is_empty():
 			b["sign"] = (loc["sign"] as Dictionary).duplicate(true)
 		var nm := String(loc.get("name", ""))
-		if nm != "":
+		if nm != "" and nm != type_display(t) and not _is_auto_name(nm, t):
 			b["name"] = nm
 		buildings[bid] = b
 		_sync_doors(b)

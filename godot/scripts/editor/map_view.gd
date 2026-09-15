@@ -248,12 +248,19 @@ func _draw_buildings() -> void:
 			var dp := w2s(dw["pos"])
 			draw_circle(dp, 3.0, Color("ffcf5a"))
 			BuildingStyle.draw_door(self, dp, dw["normal"], 5.0, Color(1, 1, 1, 0.85))
-		# 名称: 与观察器同底账(BuildingStyle)
+		# 名称: 用【建筑名】而不是类型名 —— 类型名会让同类型 N 栋楼在地图上
+		# 全写一样(十个小屋都叫“小屋”, 分不清谁是谁)。没起名字的走
+		# building_name() 自动编号: 小屋1号 / 小屋2号 …
 		var min_px: float = minf(b["size"].x, b["size"].y) * zoom
 		var ctr := w2s(b["center"])
-		var fsize := int(clampf(min_px / 8.0, 9.0, 16.0))
-		BuildingStyle.draw_centered(self, font, MapDoc.type_display(String(b["type"])),
-			ctr, fsize, Color.WHITE if sel else Color("c7d2e2"))
+		# LOD: 与观察器同一档(建筑屏幕短边 < ~37px 就不写字) ——
+		# 挤成一团比不画更看不清。
+		var k_name := BuildingGeom.badge_scale(
+			Rect2(ctr - b["size"] * zoom * 0.5, b["size"] * zoom))
+		if k_name >= BuildingGeom.LOD_NAME:
+			var fsize := int(clampf(min_px / 8.0, 9.0, 16.0))
+			BuildingStyle.draw_centered(self, font, MapDoc.building_name(id),
+				ctr, fsize, Color.WHITE if sel else Color("c7d2e2"))
 		if min_px >= 52.0:
 			BuildingStyle.draw_emblem(self, ctr + Vector2(0, -min_px * 0.28), kind, base)
 		draw_circle(ctr, 2.0, C_BLDG_SEL if sel else Color("d8c7a8"))

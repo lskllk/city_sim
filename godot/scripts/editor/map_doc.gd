@@ -38,7 +38,7 @@ var nodes: Dictionary = {}        # id -> {xy:Vector2, kind:String}
 var edges: Dictionary = {}        # id -> {a,b,class,width,speed,oneway,geom:Array[Vector2]}
 var buildings: Dictionary = {}    # id -> {type,center:Vector2,size:Vector2,rot:float,doors:Array[Vector2],floors:int}
 var npcs: Dictionary = {}         # id -> {name,gender,birthday,role,money,home,
-                                  #        personality,init,traits,tell_bias,memory}
+								  #        personality,init,traits,tell_bias,memory}
 # memory: item_id -> {located/afford/value/price/stock/owner/believe}
 # = 【这个人额外的记忆】。后端 scenarios 的 spec["memory"] 直接读它。
 # 与 knowledge 段的区别: knowledge 是【批量】(所有人 / 一整户),

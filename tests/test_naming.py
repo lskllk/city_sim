@@ -27,7 +27,7 @@ SCENES_DIR = ROOT / "config" / "scenes"
 SCENE = json.loads(
     (ROOT / "tests" / "fixtures" / "elm_lane.json").read_text(encoding="utf-8"))
 ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
-# 楼层单元是 <建筑id>_f<N>(多楼层契约, 见 docs/20260914/checklist.md §4.6)
+# 楼层单元是 <建筑id>_f<N>(多楼层契约, 见 docs/checklist.md §4.6)
 SEQ_ID_RE = re.compile(r"^[a-z][a-z0-9_]*_\d{3}(_f\d+)?$")
 
 

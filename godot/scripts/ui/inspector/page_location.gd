@@ -36,6 +36,19 @@ var _comp_body: VBoxContainer
 var _lane_sec: Control
 var _lane_body: VBoxContainer
 
+# 公司段: 两种形态的控件【各建一次】(未注册 / 已注册), bind 只切 visible + 改文字。
+# —— 铁律: bind() 绝不增删控件, 否则按钮每 100ms 被重建一次 = 闪烁 + 点不中。
+var _reg_hint: Label
+var _reg_name: LineEdit
+var _reg_btn: Button
+var _kv_cash: Label
+var _kv_staff: Label
+var _kv_hours: Label
+var _kv_hire: Label
+var _go_btn: Button
+var _lc_title: Label
+var _lc_rows: Array = []          # 线路行池(Label), 懒增长, 不销毁
+
 
 func build() -> void:
 	_header = UiKit.header(self)
@@ -52,13 +65,34 @@ func build() -> void:
 	_cap = UiKit.kv(a, "容量")
 	_cap_row = _cap.get_parent()
 
-	# 公司(商铺): 摘要 + 进"公司运营"页
+	# 公司(商铺): 摘要 + 进"公司运营"页 —— 控件常驻, bind 只改属性
 	_comp_sec = UiKit.section(self, "公司")
 	_comp_body = _comp_sec.body()
+	_reg_hint = UiKit.muted(_comp_body, "没注册公司的店【不能卖、不能招人】")
+	_reg_name = LineEdit.new()
+	_comp_body.add_child(_reg_name)
+	_reg_btn = Button.new()
+	_reg_btn.text = "注册公司（现金 ¥1000）"
+	_reg_btn.pressed.connect(func() -> void:
+		Commands.cmd("register_company", {"location": _cur_bid,
+			"name": _reg_name.text.strip_edges()}))
+	_comp_body.add_child(_reg_btn)
+	_kv_cash = UiKit.kv(_comp_body, "现金")
+	_kv_staff = UiKit.kv(_comp_body, "员工")
+	_kv_hours = UiKit.kv(_comp_body, "营业")
+	_kv_hire = UiKit.kv(_comp_body, "招聘")
+	_go_btn = Button.new()
+	_go_btn.text = "打开公司运营（HR / 价格）"
+	_go_btn.pressed.connect(func() -> void:
+		var cid := Protocol.s(_room.get("company", ""))
+		if cid != "":
+			Store.select("company", cid))
+	_comp_body.add_child(_go_btn)
 
 	# 线路(商铺): 前台 = 销售位; 有员工守着才开台
 	_lane_sec = UiKit.section(self, "线路")
 	_lane_body = _lane_sec.body()
+	_lc_title = UiKit.muted(_lane_body, "")     # 标题行常驻, 只改文字
 
 	# 在店里的人(全部类型都显示)
 	_p_sec = UiKit.section(self, "在店里的人")
@@ -136,8 +170,8 @@ func _render() -> void:
 	_header.set_header(title, "%s · %d 人 · %d 物件" % [
 		Zh.kind_zh(kind), people.size(), items.size()])
 
-	_render_company(kind, bid)
-	_render_lane(kind, bid)
+	_sync_company(kind, bid)
+	_sync_lane(kind, bid)
 
 	_perm.text = InspData.access_text(unit_room)
 	_cap_row.visible = not bool(unit_room.get("public", true))
@@ -182,84 +216,83 @@ func _render() -> void:
 
 
 ## 公司块(商铺): 摘要 + 一个按钮进"公司运营"页
-func _render_company(kind: String, bid: String) -> void:
-	for c in _comp_body.get_children():
-		_comp_body.remove_child(c)
-		c.queue_free()
+## ★ 只切 visible / 改文字 —— 绝不在这里 new/free(见文件头的铁律)
+func _sync_company(kind: String, bid: String) -> void:
 	var cid := Protocol.s(_room.get("company", ""))
+	_comp_sec.visible = kind == "shop"
 	if kind != "shop":
-		_comp_sec.visible = false
 		return
-	_comp_sec.visible = true
-	if cid == "":
+	var registered := cid != ""
+	_reg_hint.visible = not registered
+	_reg_name.visible = not registered
+	_reg_btn.visible = not registered
+	_kv_cash.visible = registered
+	_kv_staff.visible = registered
+	_kv_hours.visible = registered
+	_kv_hire.visible = registered
+	_go_btn.visible = registered
+	if not registered:
 		_comp_sec.set_title("公司 · 未注册")
-		UiKit.muted(_comp_body, "没注册公司的店【不能卖、不能招人】")
-		var name_edit := LineEdit.new()
-		name_edit.placeholder_text = "%s 公司" % Protocol.s(_room.get("name", bid))
-		_comp_body.add_child(name_edit)
-		var reg := Button.new()
-		reg.text = "注册公司（现金 ¥1000）"
-		reg.pressed.connect(func() -> void:
-			Commands.cmd("register_company", {"location": bid,
-				"name": name_edit.text.strip_edges()})
-		)
-		_comp_body.add_child(reg)
+		if not _reg_name.has_focus():
+			_reg_name.placeholder_text = "%s 公司" % Protocol.s(_room.get("name", bid))
+			_reg_name.editable = true
 		return
 	var comp := Store.company(cid)
 	_comp_sec.set_title("公司 · %s" % Protocol.s(comp.get("name", cid)))
-	UiKit.kv(_comp_body, "现金").text = "¥%.0f" % Protocol.num(comp.get("cash", 0.0))
+	_kv_cash.text = "¥%.0f" % Protocol.num(comp.get("cash", 0.0))
 	var staff: Array = Protocol.as_array(comp.get("staff", []))
-	UiKit.kv(_comp_body, "员工").text = "0 人" if staff.is_empty() else \
-		"%d 人：%s" % [staff.size(), ", ".join(staff.map(
-			func(x): return String(Store.name_of(Protocol.s(x)))))]
+	_kv_staff.text = "0 人" if staff.is_empty() else "%d 人：%s" % [staff.size(),
+		", ".join(staff.map(func(x): return String(Store.name_of(Protocol.s(x)))))]
 	var open_m := int(Protocol.num(comp.get("open_minute", 480)))
 	var close_m := int(Protocol.num(comp.get("close_minute", 1140)))
-	UiKit.kv(_comp_body, "营业").text = "%02d:%02d - %02d:%02d" % [
-		open_m / 60, open_m % 60, close_m / 60, close_m % 60]
+	_kv_hours.text = "%02d:%02d - %02d:%02d" % [open_m / 60, open_m % 60,
+		close_m / 60, close_m % 60]
 	var hire_on := bool(comp.get("hiring_open", false))
 	var slots := int(Protocol.num(comp.get("hiring_slots", 0)))
-	UiKit.kv(_comp_body, "招聘").text = ("招 %d 人" % slots) if hire_on else "未发布"
-	var go := Button.new()
-	go.text = "打开公司运营（HR / 价格）"
-	go.pressed.connect(func() -> void: Store.select("company", cid))
-	_comp_body.add_child(go)
+	_kv_hire.text = ("招 %d 人" % slots) if hire_on else "未发布"
 
 
 ## 线路块(商铺): 前台 = 销售位; 有人在台前才开台
-func _render_lane(kind: String, bid: String) -> void:
-	for c in _lane_body.get_children():
-		_lane_body.remove_child(c)
-		c.queue_free()
+## ★ 同样只改属性: 行池懒增长, 多出来的行隐藏(不销毁)
+func _sync_lane(kind: String, bid: String) -> void:
+	_lane_sec.visible = kind == "shop"
 	if kind != "shop":
-		_lane_sec.visible = false
 		return
-	_lane_sec.visible = true
 	var counters: Array = []
 	for i in Store.entities.values():
 		var e: Dictionary = i
-		if Protocol.s(e.get("item_type", "")) == "station_counter" \
-				and Store.building_of(Protocol.s(e.get("loc", ""))) == bid:
+		if Protocol.s(e.get("item_type", "")) == "station_counter" 				and Store.building_of(Protocol.s(e.get("loc", ""))) == bid:
 			counters.append(Protocol.s(e.get("id", "")))
 	var econ := Store.economy
 	var on_duty := int(Protocol.num(
 		Protocol.as_dict(econ.get("on_duty", {})).get(bid, 0.0)))
 	var queue: Array = Protocol.as_array(
 		Protocol.as_dict(econ.get("queues", {})).get(bid, []))
-	_lane_sec.set_title("线路 %d 条 · 在岗 %d · 排队 %d" % [
-		counters.size(), on_duty, queue.size()])
 	if counters.is_empty():
-		UiKit.muted(_lane_body, "还没有销售前台 —— 没有它谁也买不到东西")
-		return
+		_lane_sec.set_title("线路 0 条")
+		_lc_title.text = "还没有销售前台 —— 没有它谁也买不到东西"
+		_lc_title.visible = true
+	else:
+		_lane_sec.set_title("线路 %d 条 · 在岗 %d · 排队 %d" % [
+			counters.size(), on_duty, queue.size()])
+		_lc_title.visible = false
+	var keeper_of: Dictionary = {}
+	for pid in Store.npcs:
+		var w := Protocol.as_dict(Protocol.as_dict(Store.npc(pid)).get("work", {}))
+		var st := Protocol.s(w.get("station", ""))
+		if st != "" and not keeper_of.has(st):
+			keeper_of[st] = String(pid)
 	for i in counters.size():
-		var cid := String(counters[i])
-		var keeper := ""
-		for pid in Store.npcs:
-			var w := Protocol.as_dict(Protocol.as_dict(Store.npc(pid)).get("work", {}))
-			if Protocol.s(w.get("station", "")) == cid:
-				keeper = String(pid)
-				break
-		UiKit.muted(_lane_body, "前台 %d：%s" % [i + 1,
-			("● " + String(Store.name_of(keeper))) if keeper != "" else "○ 没人守台"])
+		while _lc_rows.size() <= i:
+			var l := UiKit.muted(_lane_body, "")
+			_lc_rows.append(l)
+		var l2: Label = _lc_rows[i]
+		l2.visible = true
+		var keeper := String(keeper_of.get(String(counters[i]), ""))
+		l2.text = "前台 %d：%s" % [i + 1,
+			("● " + String(Store.name_of(keeper))) if keeper != "" else "○ 没人守台"]
+	for i in range(counters.size(), _lc_rows.size()):
+		_lc_rows[i].visible = false
 
 
 func _at(d: Dictionary, unit: String) -> Array:

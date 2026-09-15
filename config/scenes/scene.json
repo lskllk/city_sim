@@ -638,7 +638,6 @@
       "home": "",
       "id": "npc_li_tao",
       "init": {},
-      "memory": {},
       "money": 397.0,
       "name": "李涛",
       "personality": {
@@ -655,7 +654,6 @@
       "home": "",
       "id": "npc_xu_fang",
       "init": {},
-      "memory": {},
       "money": 301.0,
       "name": "徐芳",
       "personality": {
@@ -672,7 +670,6 @@
       "home": "",
       "id": "npc_zhang_er",
       "init": {},
-      "memory": {},
       "money": 148.0,
       "name": "张二",
       "personality": {
@@ -689,7 +686,6 @@
       "home": "",
       "id": "npc_huang_yang",
       "init": {},
-      "memory": {},
       "money": 344.0,
       "name": "黄洋",
       "personality": {
@@ -706,7 +702,6 @@
       "home": "",
       "id": "npc_gao_yan",
       "init": {},
-      "memory": {},
       "money": 238.0,
       "name": "高艳",
       "personality": {
@@ -723,7 +718,6 @@
       "home": "",
       "id": "npc_yang_ling",
       "init": {},
-      "memory": {},
       "money": 319.0,
       "name": "杨玲",
       "personality": {
@@ -740,7 +734,6 @@
       "home": "",
       "id": "npc_he_jing",
       "init": {},
-      "memory": {},
       "money": 136.0,
       "name": "何静",
       "personality": {
@@ -757,7 +750,6 @@
       "home": "",
       "id": "npc_zhou_li",
       "init": {},
-      "memory": {},
       "money": 8.0,
       "name": "周丽",
       "personality": {
@@ -774,7 +766,6 @@
       "home": "",
       "id": "npc_zhu_fang",
       "init": {},
-      "memory": {},
       "money": 210.0,
       "name": "朱芳",
       "personality": {
@@ -791,7 +782,6 @@
       "home": "",
       "id": "npc_gao_na",
       "init": {},
-      "memory": {},
       "money": 315.0,
       "name": "高娜",
       "personality": {
@@ -808,7 +798,6 @@
       "home": "",
       "id": "npc_hu_jie",
       "init": {},
-      "memory": {},
       "money": 150.0,
       "name": "胡杰",
       "personality": {
@@ -825,7 +814,6 @@
       "home": "",
       "id": "npc_gao_tao",
       "init": {},
-      "memory": {},
       "money": 368.0,
       "name": "高涛",
       "personality": {
@@ -842,7 +830,6 @@
       "home": "",
       "id": "npc_sun_zhiqiang",
       "init": {},
-      "memory": {},
       "money": 376.0,
       "name": "孙志强",
       "personality": {
@@ -859,7 +846,6 @@
       "home": "",
       "id": "npc_liu_yan",
       "init": {},
-      "memory": {},
       "money": 184.0,
       "name": "刘燕",
       "personality": {
@@ -876,7 +862,6 @@
       "home": "",
       "id": "npc_he_xia",
       "init": {},
-      "memory": {},
       "money": 341.0,
       "name": "何霞",
       "personality": {
@@ -893,7 +878,6 @@
       "home": "",
       "id": "npc_ma_xia",
       "init": {},
-      "memory": {},
       "money": 81.0,
       "name": "马霞",
       "personality": {
@@ -910,7 +894,6 @@
       "home": "",
       "id": "npc_wu_min",
       "init": {},
-      "memory": {},
       "money": 108.0,
       "name": "吴敏",
       "personality": {
@@ -927,7 +910,6 @@
       "home": "",
       "id": "npc_ma_juan",
       "init": {},
-      "memory": {},
       "money": 391.0,
       "name": "马娟",
       "personality": {
@@ -944,7 +926,6 @@
       "home": "",
       "id": "npc_liu_jun",
       "init": {},
-      "memory": {},
       "money": 318.0,
       "name": "刘军",
       "personality": {
@@ -961,7 +942,6 @@
       "home": "",
       "id": "npc_li_wei",
       "init": {},
-      "memory": {},
       "money": 279.0,
       "name": "李伟",
       "personality": {
@@ -978,7 +958,6 @@
       "home": "",
       "id": "npc_yang_san",
       "init": {},
-      "memory": {},
       "money": 250.0,
       "name": "杨三",
       "personality": {
@@ -995,7 +974,6 @@
       "home": "",
       "id": "npc_luo_yang",
       "init": {},
-      "memory": {},
       "money": 164.0,
       "name": "罗洋",
       "personality": {
@@ -1012,7 +990,6 @@
       "home": "",
       "id": "npc_hu_xiuying",
       "init": {},
-      "memory": {},
       "money": 235.0,
       "name": "胡秀英",
       "personality": {
@@ -1029,7 +1006,6 @@
       "home": "",
       "id": "npc_hu_juan",
       "init": {},
-      "memory": {},
       "money": 374.0,
       "name": "胡娟",
       "personality": {
@@ -1046,7 +1022,6 @@
       "home": "",
       "id": "npc_zhang_yang",
       "init": {},
-      "memory": {},
       "money": 44.0,
       "name": "张洋",
       "personality": {
@@ -1063,7 +1038,6 @@
       "home": "",
       "id": "npc_he_chao",
       "init": {},
-      "memory": {},
       "money": 161.0,
       "name": "何超",
       "personality": {
@@ -1080,7 +1054,6 @@
       "home": "",
       "id": "npc_li_ling",
       "init": {},
-      "memory": {},
       "money": 228.0,
       "name": "李玲",
       "personality": {
@@ -1097,7 +1070,6 @@
       "home": "",
       "id": "npc_sun_na",
       "init": {},
-      "memory": {},
       "money": 112.0,
       "name": "孙娜",
       "personality": {
@@ -1114,7 +1086,6 @@
       "home": "",
       "id": "npc_lin_yan",
       "init": {},
-      "memory": {},
       "money": 150.0,
       "name": "林艳",
       "personality": {
@@ -1131,7 +1102,6 @@
       "home": "",
       "id": "npc_lin_yang",
       "init": {},
-      "memory": {},
       "money": 39.0,
       "name": "林洋",
       "personality": {
@@ -1148,7 +1118,6 @@
       "home": "",
       "id": "npc_wang_wei",
       "init": {},
-      "memory": {},
       "money": 16.0,
       "name": "王伟",
       "personality": {
@@ -1165,7 +1134,6 @@
       "home": "",
       "id": "npc_luo_xia",
       "init": {},
-      "memory": {},
       "money": 15.0,
       "name": "罗霞",
       "personality": {
@@ -1182,7 +1150,6 @@
       "home": "",
       "id": "npc_wang_chao",
       "init": {},
-      "memory": {},
       "money": 489.0,
       "name": "王超",
       "personality": {
@@ -1199,7 +1166,6 @@
       "home": "",
       "id": "npc_yang_jianguo",
       "init": {},
-      "memory": {},
       "money": 384.0,
       "name": "杨建国",
       "personality": {
@@ -1216,7 +1182,6 @@
       "home": "",
       "id": "npc_ma_jun",
       "init": {},
-      "memory": {},
       "money": 249.0,
       "name": "马军",
       "personality": {
@@ -1233,7 +1198,6 @@
       "home": "",
       "id": "npc_luo_tao",
       "init": {},
-      "memory": {},
       "money": 372.0,
       "name": "罗涛",
       "personality": {
@@ -1250,7 +1214,6 @@
       "home": "",
       "id": "npc_li_min",
       "init": {},
-      "memory": {},
       "money": 175.0,
       "name": "李敏",
       "personality": {
@@ -1267,7 +1230,6 @@
       "home": "",
       "id": "npc_zhao_jie",
       "init": {},
-      "memory": {},
       "money": 19.0,
       "name": "赵杰",
       "personality": {
@@ -1284,7 +1246,6 @@
       "home": "",
       "id": "npc_wang_qiang",
       "init": {},
-      "memory": {},
       "money": 338.0,
       "name": "王强",
       "personality": {
@@ -1301,7 +1262,6 @@
       "home": "",
       "id": "npc_gao_na_2",
       "init": {},
-      "memory": {},
       "money": 234.0,
       "name": "高娜",
       "personality": {
@@ -1318,7 +1278,6 @@
       "home": "",
       "id": "npc_wang_xiuying",
       "init": {},
-      "memory": {},
       "money": 100.0,
       "name": "王秀英",
       "personality": {
@@ -1335,7 +1294,6 @@
       "home": "",
       "id": "npc_lin_zhiqiang",
       "init": {},
-      "memory": {},
       "money": 174.0,
       "name": "林志强",
       "personality": {
@@ -1352,7 +1310,6 @@
       "home": "",
       "id": "npc_liu_zhiqiang",
       "init": {},
-      "memory": {},
       "money": 206.0,
       "name": "刘志强",
       "personality": {
@@ -1369,7 +1326,6 @@
       "home": "",
       "id": "npc_zhou_qiang",
       "init": {},
-      "memory": {},
       "money": 226.0,
       "name": "周强",
       "personality": {
@@ -1386,7 +1342,6 @@
       "home": "",
       "id": "npc_zhou_yong",
       "init": {},
-      "memory": {},
       "money": 164.0,
       "name": "周勇",
       "personality": {
@@ -1403,7 +1358,6 @@
       "home": "",
       "id": "npc_guo_zhiqiang",
       "init": {},
-      "memory": {},
       "money": 485.0,
       "name": "郭志强",
       "personality": {
@@ -1420,7 +1374,6 @@
       "home": "",
       "id": "npc_zhang_jun",
       "init": {},
-      "memory": {},
       "money": 3.0,
       "name": "张军",
       "personality": {
@@ -1437,7 +1390,6 @@
       "home": "",
       "id": "npc_zhou_li_2",
       "init": {},
-      "memory": {},
       "money": 255.0,
       "name": "周丽",
       "personality": {
@@ -1454,7 +1406,6 @@
       "home": "",
       "id": "npc_chen_ming",
       "init": {},
-      "memory": {},
       "money": 495.0,
       "name": "陈明",
       "personality": {
@@ -1471,7 +1422,6 @@
       "home": "",
       "id": "npc_li_er",
       "init": {},
-      "memory": {},
       "money": 215.0,
       "name": "李二",
       "personality": {
@@ -1488,7 +1438,6 @@
       "home": "",
       "id": "npc_wang_xiaomei",
       "init": {},
-      "memory": {},
       "money": 481.0,
       "name": "王小美",
       "personality": {
@@ -1505,7 +1454,6 @@
       "home": "",
       "id": "npc_luo_yong",
       "init": {},
-      "memory": {},
       "money": 422.0,
       "name": "罗勇",
       "personality": {
@@ -1522,7 +1470,6 @@
       "home": "",
       "id": "npc_wu_ling",
       "init": {},
-      "memory": {},
       "money": 201.0,
       "name": "吴玲",
       "personality": {
@@ -1539,7 +1486,6 @@
       "home": "",
       "id": "npc_he_ling",
       "init": {},
-      "memory": {},
       "money": 1.0,
       "name": "何玲",
       "personality": {
@@ -1556,7 +1502,6 @@
       "home": "",
       "id": "npc_xu_fang_2",
       "init": {},
-      "memory": {},
       "money": 163.0,
       "name": "徐芳",
       "personality": {
@@ -1573,7 +1518,6 @@
       "home": "",
       "id": "npc_guo_juan",
       "init": {},
-      "memory": {},
       "money": 299.0,
       "name": "郭娟",
       "personality": {
@@ -1590,7 +1534,6 @@
       "home": "",
       "id": "npc_chen_jianguo",
       "init": {},
-      "memory": {},
       "money": 448.0,
       "name": "陈建国",
       "personality": {
@@ -1607,7 +1550,6 @@
       "home": "",
       "id": "npc_lin_tao",
       "init": {},
-      "memory": {},
       "money": 362.0,
       "name": "林涛",
       "personality": {
@@ -1624,7 +1566,6 @@
       "home": "",
       "id": "npc_zhu_lei",
       "init": {},
-      "memory": {},
       "money": 192.0,
       "name": "朱磊",
       "personality": {
@@ -1641,7 +1582,6 @@
       "home": "",
       "id": "npc_hu_jianguo",
       "init": {},
-      "memory": {},
       "money": 136.0,
       "name": "胡建国",
       "personality": {
@@ -1658,7 +1598,6 @@
       "home": "",
       "id": "npc_lin_yong",
       "init": {},
-      "memory": {},
       "money": 254.0,
       "name": "林勇",
       "personality": {
@@ -1675,7 +1614,6 @@
       "home": "",
       "id": "npc_zhu_ling",
       "init": {},
-      "memory": {},
       "money": 447.0,
       "name": "朱玲",
       "personality": {
@@ -1692,7 +1630,6 @@
       "home": "",
       "id": "npc_sun_min",
       "init": {},
-      "memory": {},
       "money": 221.0,
       "name": "孙敏",
       "personality": {
@@ -1709,7 +1646,6 @@
       "home": "",
       "id": "npc_huang_jie",
       "init": {},
-      "memory": {},
       "money": 476.0,
       "name": "黄杰",
       "personality": {
@@ -1726,7 +1662,6 @@
       "home": "",
       "id": "npc_chen_xia",
       "init": {},
-      "memory": {},
       "money": 293.0,
       "name": "陈霞",
       "personality": {
@@ -1743,7 +1678,6 @@
       "home": "",
       "id": "npc_sun_san",
       "init": {},
-      "memory": {},
       "money": 193.0,
       "name": "孙三",
       "personality": {
@@ -1760,7 +1694,6 @@
       "home": "",
       "id": "npc_zhou_fang",
       "init": {},
-      "memory": {},
       "money": 231.0,
       "name": "周芳",
       "personality": {
@@ -1777,7 +1710,6 @@
       "home": "",
       "id": "npc_li_tao_2",
       "init": {},
-      "memory": {},
       "money": 68.0,
       "name": "李涛",
       "personality": {
@@ -1794,7 +1726,6 @@
       "home": "",
       "id": "npc_xu_xia",
       "init": {},
-      "memory": {},
       "money": 10.0,
       "name": "徐霞",
       "personality": {
@@ -1811,7 +1742,6 @@
       "home": "",
       "id": "npc_guo_jing",
       "init": {},
-      "memory": {},
       "money": 317.0,
       "name": "郭静",
       "personality": {
@@ -1828,7 +1758,6 @@
       "home": "",
       "id": "npc_xu_ling",
       "init": {},
-      "memory": {},
       "money": 364.0,
       "name": "徐玲",
       "personality": {
@@ -1845,7 +1774,6 @@
       "home": "",
       "id": "npc_huang_na",
       "init": {},
-      "memory": {},
       "money": 56.0,
       "name": "黄娜",
       "personality": {
@@ -1862,7 +1790,6 @@
       "home": "",
       "id": "npc_zhou_juan",
       "init": {},
-      "memory": {},
       "money": 50.0,
       "name": "周娟",
       "personality": {
@@ -1879,7 +1806,6 @@
       "home": "",
       "id": "npc_huang_xiaomei",
       "init": {},
-      "memory": {},
       "money": 463.0,
       "name": "黄小美",
       "personality": {
@@ -1896,7 +1822,6 @@
       "home": "",
       "id": "npc_zhu_jie",
       "init": {},
-      "memory": {},
       "money": 397.0,
       "name": "朱杰",
       "personality": {
@@ -1913,7 +1838,6 @@
       "home": "",
       "id": "npc_zhang_yan",
       "init": {},
-      "memory": {},
       "money": 152.0,
       "name": "张燕",
       "personality": {
@@ -1930,7 +1854,6 @@
       "home": "",
       "id": "npc_zhu_xiuying",
       "init": {},
-      "memory": {},
       "money": 244.0,
       "name": "朱秀英",
       "personality": {
@@ -1947,7 +1870,6 @@
       "home": "",
       "id": "npc_he_yan",
       "init": {},
-      "memory": {},
       "money": 297.0,
       "name": "何燕",
       "personality": {
@@ -1964,7 +1886,6 @@
       "home": "",
       "id": "npc_li_xiaomei",
       "init": {},
-      "memory": {},
       "money": 240.0,
       "name": "李小美",
       "personality": {
@@ -1981,7 +1902,6 @@
       "home": "",
       "id": "npc_luo_juan",
       "init": {},
-      "memory": {},
       "money": 301.0,
       "name": "罗娟",
       "personality": {
@@ -1998,7 +1918,6 @@
       "home": "",
       "id": "npc_hu_zhiqiang",
       "init": {},
-      "memory": {},
       "money": 489.0,
       "name": "胡志强",
       "personality": {
@@ -2015,7 +1934,6 @@
       "home": "",
       "id": "npc_zhang_fang",
       "init": {},
-      "memory": {},
       "money": 165.0,
       "name": "张芳",
       "personality": {
@@ -2032,7 +1950,6 @@
       "home": "",
       "id": "npc_gao_zhiqiang",
       "init": {},
-      "memory": {},
       "money": 475.0,
       "name": "高志强",
       "personality": {
@@ -2049,7 +1966,6 @@
       "home": "",
       "id": "npc_he_juan",
       "init": {},
-      "memory": {},
       "money": 73.0,
       "name": "何娟",
       "personality": {
@@ -2066,7 +1982,6 @@
       "home": "",
       "id": "npc_ma_jie",
       "init": {},
-      "memory": {},
       "money": 187.0,
       "name": "马杰",
       "personality": {
@@ -2083,7 +1998,6 @@
       "home": "",
       "id": "npc_zhu_fang_2",
       "init": {},
-      "memory": {},
       "money": 247.0,
       "name": "朱芳",
       "personality": {
@@ -2100,7 +2014,6 @@
       "home": "",
       "id": "npc_zhu_xiaomei",
       "init": {},
-      "memory": {},
       "money": 271.0,
       "name": "朱小美",
       "personality": {
@@ -2117,7 +2030,6 @@
       "home": "",
       "id": "npc_huang_yan",
       "init": {},
-      "memory": {},
       "money": 424.0,
       "name": "黄艳",
       "personality": {
@@ -2134,7 +2046,6 @@
       "home": "",
       "id": "npc_zhou_jianguo",
       "init": {},
-      "memory": {},
       "money": 408.0,
       "name": "周建国",
       "personality": {
@@ -2151,7 +2062,6 @@
       "home": "",
       "id": "npc_chen_jianguo_2",
       "init": {},
-      "memory": {},
       "money": 366.0,
       "name": "陈建国",
       "personality": {
@@ -2168,7 +2078,6 @@
       "home": "",
       "id": "npc_zhu_wei",
       "init": {},
-      "memory": {},
       "money": 397.0,
       "name": "朱伟",
       "personality": {
@@ -2185,7 +2094,6 @@
       "home": "",
       "id": "npc_wu_zhiqiang",
       "init": {},
-      "memory": {},
       "money": 119.0,
       "name": "吴志强",
       "personality": {
@@ -2202,7 +2110,6 @@
       "home": "",
       "id": "npc_zhang_ling",
       "init": {},
-      "memory": {},
       "money": 383.0,
       "name": "张玲",
       "personality": {
@@ -2219,7 +2126,6 @@
       "home": "",
       "id": "npc_wu_juan",
       "init": {},
-      "memory": {},
       "money": 147.0,
       "name": "吴娟",
       "personality": {
@@ -2236,7 +2142,6 @@
       "home": "",
       "id": "npc_lin_ming",
       "init": {},
-      "memory": {},
       "money": 282.0,
       "name": "林明",
       "personality": {
@@ -2253,7 +2158,6 @@
       "home": "",
       "id": "npc_wang_yan",
       "init": {},
-      "memory": {},
       "money": 343.0,
       "name": "王燕",
       "personality": {
@@ -2270,7 +2174,6 @@
       "home": "",
       "id": "npc_wu_wei",
       "init": {},
-      "memory": {},
       "money": 90.0,
       "name": "吴伟",
       "personality": {
@@ -2287,7 +2190,6 @@
       "home": "",
       "id": "npc_sun_lei",
       "init": {},
-      "memory": {},
       "money": 400.0,
       "name": "孙磊",
       "personality": {
@@ -2304,7 +2206,6 @@
       "home": "",
       "id": "npc_zhou_jing",
       "init": {},
-      "memory": {},
       "money": 304.0,
       "name": "周静",
       "personality": {
@@ -2321,7 +2222,6 @@
       "home": "",
       "id": "npc_chen_min",
       "init": {},
-      "memory": {},
       "money": 66.0,
       "name": "陈敏",
       "personality": {
@@ -2338,7 +2238,6 @@
       "home": "",
       "id": "npc_lin_juan",
       "init": {},
-      "memory": {},
       "money": 357.0,
       "name": "林娟",
       "personality": {
@@ -2355,7 +2254,6 @@
       "home": "",
       "id": "npc_zhang_ling_2",
       "init": {},
-      "memory": {},
       "money": 352.0,
       "name": "张玲",
       "personality": {
@@ -2372,7 +2270,6 @@
       "home": "",
       "id": "npc_sun_yang",
       "init": {},
-      "memory": {},
       "money": 348.0,
       "name": "孙洋",
       "personality": {
@@ -2389,7 +2286,6 @@
       "home": "",
       "id": "npc_lin_yong_2",
       "init": {},
-      "memory": {},
       "money": 446.0,
       "name": "林勇",
       "personality": {
@@ -2406,7 +2302,6 @@
       "home": "",
       "id": "npc_lin_xiaomei",
       "init": {},
-      "memory": {},
       "money": 112.0,
       "name": "林小美",
       "personality": {
@@ -2423,7 +2318,6 @@
       "home": "",
       "id": "npc_yang_chao",
       "init": {},
-      "memory": {},
       "money": 131.0,
       "name": "杨超",
       "personality": {
@@ -2440,7 +2334,6 @@
       "home": "",
       "id": "npc_wang_jianguo",
       "init": {},
-      "memory": {},
       "money": 452.0,
       "name": "王建国",
       "personality": {
@@ -2457,7 +2350,6 @@
       "home": "",
       "id": "npc_zhu_xia",
       "init": {},
-      "memory": {},
       "money": 126.0,
       "name": "朱霞",
       "personality": {
@@ -2474,7 +2366,6 @@
       "home": "bld_008_f1",
       "id": "npc_wang_wei_2",
       "init": {},
-      "memory": {},
       "money": 31.0,
       "name": "王伟",
       "personality": {
@@ -2491,7 +2382,6 @@
       "home": "bld_008_f2",
       "id": "npc_ma_chao",
       "init": {},
-      "memory": {},
       "money": 162.0,
       "name": "马超",
       "personality": {
@@ -2508,7 +2398,6 @@
       "home": "bld_009_f1",
       "id": "npc_wu_yong",
       "init": {},
-      "memory": {},
       "money": 471.0,
       "name": "吴勇",
       "personality": {
@@ -2525,7 +2414,6 @@
       "home": "bld_009_f2",
       "id": "npc_xu_chao",
       "init": {},
-      "memory": {},
       "money": 54.0,
       "name": "徐超",
       "personality": {
@@ -2542,7 +2430,6 @@
       "home": "bld_009_f3",
       "id": "npc_zhou_xiaomei",
       "init": {},
-      "memory": {},
       "money": 356.0,
       "name": "周小美",
       "personality": {
@@ -2559,7 +2446,6 @@
       "home": "bld_009_f3",
       "id": "npc_lin_jing",
       "init": {},
-      "memory": {},
       "money": 476.0,
       "name": "林静",
       "personality": {

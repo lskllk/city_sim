@@ -1424,8 +1424,11 @@ func to_scene_dict(scene_name_arg: String = "") -> Dictionary:
 			"personality": p.get("personality", {}),
 			"init": p.get("init", {}),
 			"traits": p.get("traits", {}),
-			"tell_bias": float(p.get("tell_bias", 1.0)),
-			"memory": (p.get("memory", {}) as Dictionary).duplicate(true)})
+			"tell_bias": float(p.get("tell_bias", 1.0))}
+		# 只有真写过记忆才导出这一段(否则 114 个人各多一行空字典)
+		var mmem: Dictionary = p.get("memory", {})
+		if not mmem.is_empty():
+			ppl[ppl.size() - 1]["memory"] = mmem.duplicate(true)
 	# 旅行成本: 建筑中心直线距离 / 10 粗估(缺省 20; 无路网时的降级)
 	var pairs := {}
 	var bids: Array = buildings.keys()

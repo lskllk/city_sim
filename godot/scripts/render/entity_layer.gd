@@ -15,8 +15,8 @@ const DOT_MIN_PX := 4.0       # 屏幕最小直径(否则缩放后看不见)
 const DOT_MAX_PX := 9.0
 const PICK_MIN_PX := 9.0      # 命中半径(像素)
 const SYNC_SNAP := 3.0        # 与快照 tick 偏差超过此值 → 硬同步
-const LOOKAHEAD := 1.0        # 允许最多超前服务端这么多 tick(只为平滑)
-const FOLLOW_K := 8.0         # tick 软纠偏速率
+const LOOKAHEAD := 1.0        # 只用于"偏差多大算漂移"的判据
+const CLOCK_K := 0.5          # 时钟速率纠偏系数(见 _advance_clock)
 
 const C_MOVING := Color("ffb347")
 const C_SELECTED := Color("ffd166")
@@ -50,14 +50,21 @@ func _advance_clock(delta: float) -> void:
 	if Store.tps <= 0.0:                     # 暂停 → 直接对齐真值
 		_tick_f = target
 		return
-	if absf(target - _tick_f) > SYNC_SNAP:   # 首帧 / 切场景 / 严重漂移
+	var err := target - _tick_f
+	if absf(err) > SYNC_SNAP:                # 首帧 / 切场景 / 严重漂移
 		_tick_f = target
 		return
-	# 按标称速度外推, 但【不允许超前服务端太多】。
-	# 高倍率下服务端往往跑不到标称 tps, 客户端却按标称外推 →
-	# 每帧都被纠偏拽回来 = 走在路上疯狂前后抖动。
-	# 宁可停在服务端已推进的位置上等一等。
-	_tick_f = minf(_tick_f + delta * Store.tps, target + LOOKAHEAD)
+	# 【连续调速】而不是【硬 cap】。
+	#
+	# 旧版: _tick_f = min(_tick_f + delta*tps, target + LOOKAHEAD)
+	#   服务端只在 tick 变化(或状态变化)时才推流, 1x 下大约 1 秒一次 →
+	#   客户端撞上 cap 后就【只能干等下一 tick】, 位置一秒跳一格
+	#   = 走一步停一步(实测 46% 的帧完全不动)。
+	# 现在: 落后就把速率调快一点、超前就调慢一点 —— 时钟永远是连续的,
+	#   而长期速率会自动收敛到服务端【真实的】推进速度
+	#   (服务端跑不到标称 tps 时也不会再被反复拽回)。
+	var rate := Store.tps * clampf(1.0 + err * CLOCK_K, 0.25, 2.0)
+	_tick_f += delta * rate
 
 
 # ---------------------------------------------------------------------------

@@ -44,6 +44,7 @@ var _f_stock: SpinBox
 var _f_price: SpinBox
 var _f_owner: OptionButton
 var _f_owner_ids: Array = []
+var _homeless_sec: VBoxContainer   # 「无住所的人」区(每次刷新重建)
 var _f_mem_item: OptionButton      # 额外记忆: 选一个场景里的物件
 var _f_mem_believe: SpinBox        # 他有多信这条
 var _mem_item_ids: Array = []      # 与 _f_mem_item 的条目一一对应
@@ -164,6 +165,11 @@ func _build_right_panel() -> VBoxContainer:
 	fill.pressed.connect(_on_fill_residents)
 	_base_page.add_child(fill)
 
+	# --- 无住所的人: 他们不在任何建筑的住户列表里, 以前【完全看不见】 ---
+	_homeless_sec = VBoxContainer.new()
+	_homeless_sec.add_theme_constant_override("separation", 4)
+	_base_page.add_child(_homeless_sec)
+	_rebuild_homeless()
 	_base_page.add_child(_header("选中"))
 	_del_selected_btn = Button.new()
 	_del_selected_btn.text = "删除选中 (Del)"
@@ -228,6 +234,7 @@ func _show_page(detail: bool) -> void:
 
 func _on_doc_changed() -> void:
 	_dirty = true
+	_rebuild_homeless()          # 人数/住所会变 → 这块要跟着刷
 	if _detail_page.visible:
 		_rebuild_inspector()
 
@@ -334,6 +341,52 @@ func _rebuild_inspector() -> void:
 		hint.text = "点建筑查看人员与物件\n\n流程: 画路 → 放建筑 → 点建筑加人/物件"
 		hint.add_theme_color_override("font_color", MUTED)
 		_inspector.add_child(hint)
+
+
+## 「无住所的人 (N)」: 列名字(点了进详情) + 分配 / 清空。
+## 只在 N>0 时出现 —— 没有就不占地方。
+func _rebuild_homeless() -> void:
+	if _homeless_sec == null:
+		return
+	for c in _homeless_sec.get_children():
+		_homeless_sec.remove_child(c)
+		c.queue_free()
+	var ids := MapDoc.homeless_npcs()
+	if ids.is_empty():
+		return
+	_homeless_sec.add_child(_header("无住所的人 (%d)" % ids.size()))
+	_homeless_sec.add_child(_muted("他们不属于任何建筑 → 在楼里点不到。
+"
+		+ "要么分配空床位(只有住宅算床位), 要么删掉。"))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	var assign := Button.new()
+	assign.text = "分配空床位"
+	assign.tooltip_text = "把空床按建筑/楼层顺序分给他们(不够的留着)"
+	assign.pressed.connect(func() -> void:
+		var r: Dictionary = MapDoc.assign_homeless()
+		_refresh_status("已安置 %d 人, 还剩 %d 人无住所"
+			% [r["assigned"], r["left"]]))
+	row.add_child(assign)
+	var wipe := Button.new()
+	wipe.text = "全部删除 (%d)" % ids.size()
+	wipe.tooltip_text = "删掉所有无住所的人(含他们名下的物件归属)"
+	wipe.pressed.connect(func() -> void:
+		var n := MapDoc.remove_homeless()
+		_refresh_status("已删除 %d 个无住所的人" % n))
+	row.add_child(wipe)
+	_homeless_sec.add_child(row)
+	# 名字列表(最多 60 个, 免得几百人时把面板撑爆)
+	var list := ItemList.new()
+	list.custom_minimum_size.y = 92
+	for i in mini(ids.size(), 60):
+		list.add_item(MapDoc.npc_display(String(ids[i])))
+	list.item_selected.connect(func(i: int) -> void:
+		_view.select("npc", String(ids[i])))
+	_homeless_sec.add_child(list)
+	if ids.size() > 60:
+		_homeless_sec.add_child(_muted("… 还有 %d 人(点上面按钮批量处理)"
+			% (ids.size() - 60)))
 
 
 func _section(title: String) -> VBoxContainer:

@@ -960,6 +960,15 @@ func purge_invalid_refs() -> Dictionary:
 ## 每层能住几人 = 建筑【单层】容量(类型 capacity 本身)。
 ## 多层是【垂直堆叠】: 总容量 = 单层容量 × 楼层数, 占地不变(密度而不是铺开)。
 ## 所以 home_small(3) 盖 3 层 = 每层 3 人 / 共 9 人。
+## 这栋楼【是住宅】吗? —— 看类型库的 kind(数据驱动, 不写死 id)。
+## ★ 为什么必须有这个: 办公楼 capacity=200, 但那 200 是【工位】不是床位。
+##   以前 add_resident 不看 kind → 点办公楼也能塞“住户”(塞到 200 个),
+##   一个场景里凭空多出一百多号人就是这么来的。
+func is_home(bid: String) -> bool:
+	var tp := String(buildings.get(bid, {}).get("type", ""))
+	return String(building_types.get(tp, {}).get("kind", "")) == "home"
+
+
 func unit_capacity(bid: String) -> int:
 	var t: Dictionary = building_types.get(String(buildings.get(bid, {}).get("type", "")), {})
 	return maxi(1, int(t.get("capacity", 3)))
@@ -1043,6 +1052,53 @@ func knowledge_label(rule: Dictionary) -> String:
 		float(rule.get("believe", 0.8))]
 
 
+## 没有住所(或住所已不存在)的人。**编辑器以前只在"建筑的住户列表"里显示人**
+## → 这些人一个都看不到(实测一个场景 114 人里 108 个是这种), 于是
+## “场景里没这么多人”的错觉就来了。给他们一个面板。
+func homeless_npcs() -> Array:
+	var sites := _valid_sites()
+	var out: Array = []
+	for pid in npcs:
+		var h := String(npcs[pid].get("home", ""))
+		if h == "" or not sites.has(h):
+			out.append(String(pid))
+	out.sort()
+	return out
+
+
+## 把所有空闲床位(每层容量 − 现有住户)分给无住所的人。返回 {assigned, left}。
+func assign_homeless() -> Dictionary:
+	var free_slots: Array = []
+	var bids: Array = buildings.keys()
+	bids.sort()
+	for bid in bids:
+		if not is_home(String(bid)):
+			continue                 # 办公楼/商铺的 capacity 不是床位
+		for unit in unit_ids(String(bid)):
+			var cap := unit_capacity(String(bid))
+			var used := npcs_at_unit(String(unit)).size()
+			for i in range(maxi(0, cap - used)):
+				free_slots.append(String(unit))
+	var assigned := 0
+	for pid in homeless_npcs():
+		if free_slots.is_empty():
+			break
+		npcs[pid]["home"] = free_slots.pop_front()
+		assigned += 1
+	if assigned > 0:
+		errors = validate()
+		changed.emit()
+	return {"assigned": assigned, "left": homeless_npcs().size()}
+
+
+## 删掉所有无住所的人(和删单人一样, 顺手清掉他名下的物件归属)。
+func remove_homeless() -> int:
+	var kill := homeless_npcs()
+	for pid in kill:
+		remove_npc(String(pid))
+	return kill.size()
+
+
 func npcs_at_unit(unit: String) -> Array:
 	var out: Array = []
 	for pid in npcs:
@@ -1092,6 +1148,9 @@ func target_unit(bid: String) -> String:
 func add_resident(bid: String) -> Dictionary:
 	if not buildings.has(bid):
 		return {"ok": false, "reason": "无此建筑"}
+	if not is_home(bid):
+		return {"ok": false,
+			"reason": "这里不是住宅 —— 办公楼/商铺的 capacity 是工位/客流, 不住人"}
 	var unit := target_unit(bid)
 	var cap := unit_capacity(bid)
 	if npcs_at_unit(unit).size() >= cap:
@@ -1186,6 +1245,12 @@ func validate() -> Array:
 		var pb: Vector2 = nodes[e["b"]]["xy"]
 		if pa.distance_to(pb) < 3.0:
 			out.append({"level": "warn", "msg": "路段过短", "kind": "edge", "id": id})
+	# 无住所的人: 不算错误(合法状态 —— 出生空白), 但必须让人看见
+	var n_homeless := homeless_npcs().size()
+	if n_homeless > 0:
+		out.append({"level": "warn",
+			"msg": "%d 人没有住所(右边「无住所的人」可以分配或删除)" % n_homeless,
+			"kind": "npc", "id": ""})
 	# 引用指向不存在的地点(典型: 减层后遗留的 bld_001_f7)
 	var sites := _valid_sites()
 	for pid in npcs:

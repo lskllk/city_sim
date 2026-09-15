@@ -129,7 +129,43 @@ func _draw_map_building(font: Font, id: String, occ: Dictionary) -> void:
 			Color.WHITE if n > 0 else BuildingStyle.NAME_COLOR)
 	if k >= BuildingGeom.LOD_BADGE:
 		BuildingStyle.draw_badge(self, font, rect, "%d/%d" % [n, cap], base, fill, k)
+	# 招牌: 挂在门口的消息板(最多 3 条)。玩家要能一眼看出"这家店在吆喝什么"。
+	_draw_sign(font, room, rect, k)
 	_draw_doors_for(id, room)
+
+
+## 招牌可视化: 建筑右上角一块小牌子 + 最多 3 行"货 + 价"。
+## 数据来自后端(world.locations[bid].sign) —— 前端不猜、不算, 只画。
+func _draw_sign(font: Font, room: Dictionary, rect: Rect2, k: float) -> void:
+	var sign := Protocol.as_dict(room.get("sign", {}))
+	if sign.is_empty():
+		return
+	var msgs := Protocol.as_array(sign.get("messages", []))
+	if msgs.is_empty() or k < BuildingGeom.LOD_BADGE:
+		return                                     # 太小就不画(糊了反而乱)
+	var lines: Array[String] = []
+	for mid in msgs:
+		var e := Store.entity(String(mid))
+		if e.is_empty():
+			lines.append("? " + String(mid))
+			continue
+		var pr := Protocol.num(e.get("price", 0.0))
+		lines.append(("%s %s" % [Protocol.s(e.get("name", mid)),
+			("¥%d" % int(pr)) if pr > 0.0 else "有货"]))
+	var fs := maxi(8, int(round(9.0 * k)))
+	var w := 0.0
+	for ln in lines:
+		w = maxf(w, font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+	var pad := 3.0 * k
+	var box := Rect2(rect.position + Vector2(rect.size.x + 4.0 * k, 0.0),
+		Vector2(w + pad * 2.0, (fs + 3.0 * k) * lines.size() + pad * 2.0))
+	draw_rect(box, Color(0.10, 0.09, 0.06, 0.88), true)
+	draw_rect(box, Color("ffcf5a"), false, 1.5)
+	var y := box.position.y + pad + fs * 0.9
+	for ln in lines:
+		draw_string(font, Vector2(box.position.x + pad, y), ln,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("ffe9b0"))
+		y += fs + 3.0 * k
 
 
 ## 编辑器未导出 map 时的回退: 轴对齐矩形(locations)。

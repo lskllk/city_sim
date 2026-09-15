@@ -107,6 +107,101 @@ def trust_between(a, b) -> float:
     return lo + (hi - lo) * _unit_hash("%s|%s" % (k, j))
 
 
+def _npc_point(world, systems, pid: str) -> tuple[float, float] | None:
+    """NPC 【此刻】的世界坐标。
+
+    · 在途: 按 (now - depart)/(arrive - depart) 沿 waypoints 折线插值
+      —— 和前端用的是同一个式子(所以"路过"两边看到的是同一个位置)
+    · 不在途: 用所在地点的中心
+    """
+    tv = systems.travel.get(pid)
+    if tv is not None and len(tv.waypoints) >= 2:
+        span = tv.arrive_tick - tv.depart_tick
+        t = 1.0 if span <= 0 else max(0.0, min(
+            1.0, (world.clock_tick - tv.depart_tick) / float(span)))
+        pts = tv.waypoints
+        seg = [0.0]
+        total = 0.0
+        for i in range(1, len(pts)):
+            dx = pts[i][0] - pts[i - 1][0]
+            dy = pts[i][1] - pts[i - 1][1]
+            total += (dx * dx + dy * dy) ** 0.5
+            seg.append(total)
+        if total <= 0.0:
+            return float(pts[0][0]), float(pts[0][1])
+        want = total * t
+        for i in range(1, len(pts)):
+            if seg[i] >= want:
+                span_len = seg[i] - seg[i - 1]
+                k = 0.0 if span_len <= 0 else (want - seg[i - 1]) / span_len
+                x = pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * k
+                y = pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * k
+                return x, y
+        return float(pts[-1][0]), float(pts[-1][1])
+    loc = world.locations.get(world.loc_of(pid))
+    if not loc:
+        return None
+    x = float(loc.get("x", 0.0)) + float(loc.get("w", 0.0)) * 0.5
+    y = float(loc.get("y", 0.0)) + float(loc.get("h", 0.0)) * 0.5
+    return x, y
+
+
+def _loc_center(loc: Mapping[str, Any]) -> tuple[float, float]:
+    return (float(loc.get("x", 0.0)) + float(loc.get("w", 0.0)) * 0.5,
+            float(loc.get("y", 0.0)) + float(loc.get("h", 0.0)) * 0.5)
+
+
+def _perceive_signs(world, systems) -> None:
+    """招牌 = 会说话的世界: 走进半径就"看到"招牌上那几条消息。
+
+    —— 这是【感知】而不是【传播】——
+    不走 _notify_due 的那套(说概率/听概率/一对一/话题冷却): 招牌不挑人、不等对方
+    愿意听, 只要你路过。写进去的 source = "sign:<bid>"、believe = 招牌自己那个档,
+    所以它在传播里仍然只是"听说的", 也能被别人转述出去。
+
+    只在【新消息 / 价格库存变了】时才写 —— 否则站在门口每 tick 都刷一遍。
+    """
+    signs = [(bid, loc["sign"]) for bid, loc in sorted(world.locations.items())
+             if isinstance(loc, dict) and loc.get("sign")]
+    if not signs:
+        return
+    for pid in sorted(world.npcs):
+        npc = world.npcs.get(pid)
+        if npc is None:
+            continue
+        pt = _npc_point(world, systems, pid)
+        if pt is None:
+            continue
+        for bid, sign in signs:
+            loc = world.locations.get(bid) or {}
+            cx, cy = _loc_center(loc)
+            dx, dy = pt[0] - cx, pt[1] - cy
+            if (dx * dx + dy * dy) ** 0.5 > float(sign.get("radius", 12.0)):
+                continue                       # 还没走到看得见的地方
+            for eid in sign.get("messages", ()):
+                ent = world.entities.get(eid)
+                if ent is None:
+                    continue                   # 招牌上写了不存在的货 → 忽略
+                afford, value = next(iter(ent.affordances.items()), ("", 0.0))
+                seen = npc.see_sign(
+                    eid, world.clock_tick, located=ent.location_id,
+                    name=ent.name, price=float(ent.price),
+                    stock=int(ent.stock), believe=float(sign.get("believe", 0.7)),
+                    source="sign:%s" % bid, afford=afford, value=float(value),
+                    item_type=ent.item_type)
+                if not seen:
+                    continue
+                # 路过的人头顶冒一句 —— 没有它, 玩家根本不知道招牌起作用了
+                _set_bubble(systems, npc,
+                            _sem.sign_line(ent.name, _price_word(
+                                {"price": ent.price, "stock": ent.stock})),
+                            "sign", world.clock_tick)
+                world.bus.publish(world.bus.make(
+                    world.clock_tick, "saw_sign", pid,
+                    {"audience": [pid], "sign": bid, "item_id": eid,
+                     "price": ent.price, "company": sign.get("company", "")}))
+
+
 def _notify_due(world, systems, npc, ev) -> None:
     """这一轮张嘴: 把【刚才那句值得说的话】说给【一个】同地的人听。
 
@@ -511,6 +606,9 @@ def tick(world, systems, cfg: SimConfig) -> None:
                 npc = world.npcs.get(pid)
                 if npc is not None:
                     npc.on_failure(trv.to_loc, why, world.clock_tick)
+
+    # 5a2. 招牌: 路过就"被 told"(被动感知源, 不是人与人的传播)
+    _perceive_signs(world, systems)
 
     # 5b. 决策: 先对全部该决策者算 Decision(同一世界快照), 再统一仲裁执行
     #     仲裁 = 继续/挂起/中止/提交。

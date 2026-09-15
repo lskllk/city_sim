@@ -373,6 +373,55 @@ class Person:
         self._said_at[best.topic] = now_tick
         return best
 
+    def see_sign(self, item_id: str, tick: int, *, located: str, name: str,
+                 price: float, stock: int, believe: float,
+                 source: str, afford: str = "", value: float = 0.0,
+                 item_type: str = "") -> bool:
+        """看见招牌: 和【感知】走同一套写入 —— 写记忆 + 有落差就排 SURPRISE/DOUBT。
+
+        source = "sign:<bid>"(招牌), believe 由招牌本身定(听说的档, 不是 1.0)。
+        返回 True = 这条消息对他是【新的或变了】(调用方据此冒泡/记事件)。
+        招牌是【被动感知源】: 不是谁"说了", 是世界在说话 —— 所以走这里而不是
+        _notify_due(那是人与人的传播, 有说/听概率与一对一)。
+        """
+        row = self._mem.get(item_id)
+        fact = {"item_id": item_id, "located": located, "afford": afford,
+                "value": float(value), "price": float(price),
+                "item_type": item_type, "stock": int(stock),
+                "believe": float(believe), "source": source}
+        fresh = row is None
+        changed = bool(row is not None
+                       and (abs(float(row.price) - float(price)) > 0.005
+                            or int(row.stock) != int(stock)))
+        if not fresh and not changed:
+            return False                       # 已经知道且没变 → 不重复说
+        if changed:
+            was = semantic.money_word(row.price)
+            now = semantic.money_word(price)
+            inten = min(1.0, abs(price - row.price) / max(1.0, float(row.price)))
+            old_src = row.source
+            if old_src and not old_src.startswith(("sign:", "ad:"))                     and old_src != self.person_id:
+                nm = ""
+                if self._name_of is not None:
+                    nm = str(self._name_of(old_src) or "")
+                if nm:
+                    self._push_speech(semantic.doubt(
+                        tick, self.person_id, item_id, name, nm, was, now,
+                        fact=fact, source=old_src, intensity=inten))
+                else:
+                    self._push_speech(semantic.surprise(
+                        tick, self.person_id, item_id, name, was, now,
+                        fact=fact, intensity=inten))
+            else:
+                self._push_speech(semantic.surprise(
+                    tick, self.person_id, item_id, name, was, now,
+                    fact=fact, intensity=inten))
+        self.note(item_id, tick=tick, located=located, afford=afford or None,
+                  value=float(value), price=float(price), stock=int(stock),
+                  believe=float(believe), source=source,
+                  item_type=item_type or None)
+        return True
+
     def _spot_surprises(self, percept, tick: int) -> list:
         """【预期 vs 观察】—— 语义层最值钱的两个 act 就长在这儿。
 

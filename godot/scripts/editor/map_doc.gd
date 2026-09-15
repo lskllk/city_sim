@@ -605,6 +605,51 @@ func dedupe_building_names() -> int:
 	return n
 
 
+## 招牌(建筑字段): {company, radius, believe, messages[最多 3 个实体 id]}。
+## 消息由公司老板挑 —— 现阶段在编辑器里挑, 以后搬到经营面板。
+const MAX_SIGN_MESSAGES := 3
+
+
+func sign_of(bid: String) -> Dictionary:
+	return (buildings.get(bid, {}).get("sign", {}) as Dictionary)
+
+
+func set_sign(bid: String, company: String, radius: float, believe: float,
+		messages: Array) -> void:
+	if not buildings.has(bid):
+		return
+	var msgs: Array = []
+	for m in messages:
+		if String(m) != "" and msgs.size() < MAX_SIGN_MESSAGES:
+			msgs.append(String(m))
+	if msgs.is_empty():
+		buildings[bid].erase("sign")
+	else:
+		buildings[bid]["sign"] = {"company": company, "radius": radius,
+			"believe": believe, "messages": msgs}
+	errors = validate()
+	changed.emit()
+
+
+func clear_sign(bid: String) -> void:
+	if buildings.has(bid):
+		buildings[bid].erase("sign")
+		errors = validate()
+		changed.emit()
+
+
+## 这栋楼里可挂上招牌的物件(有名字就能挂; 有价钱的排前面)。
+func sign_candidates(bid: String) -> Array:
+	var ids: Array = items_at(bid)
+	ids.sort_custom(func(a, b) -> bool:
+		var pa := float(items[a].get("price", 0.0))
+		var pb := float(items[b].get("price", 0.0))
+		if pa != pb:
+			return pa > pb
+		return String(a) < String(b))
+	return ids
+
+
 func set_building_name(bid: String, name: String) -> void:
 	if buildings.has(bid):
 		buildings[bid]["name"] = name
@@ -1356,6 +1401,9 @@ func to_dict() -> Dictionary:
 			"floors": int(b.get("floors", 1))}
 		if has_custom_name(String(id)):              # 作者起的名字要留在 .map 里
 			rec["name"] = String(b.get("name", ""))
+		var sg: Dictionary = b.get("sign", {})
+		if not (sg.get("messages", []) as Array).is_empty():
+			rec["sign"] = sg.duplicate(true)
 		bd[id] = rec
 	return {"format": SCHEMA, "version": VERSION,
 		"world": {"unit": "m",
@@ -1412,6 +1460,8 @@ func from_dict(d: Dictionary) -> void:
 			"floors": maxi(1, int(b.get("floors", 1)))}
 		if String(b.get("name", "")) != "":
 			rec["name"] = String(b["name"])
+		if b.get("sign") is Dictionary and not (b["sign"] as Dictionary).is_empty():
+			rec["sign"] = (b["sign"] as Dictionary).duplicate(true)
 		buildings[String(id)] = rec
 	_recount()
 	# 已知类型 → 按 doors 定义重算进出口世界点(不信任导入的旧值)
@@ -1454,6 +1504,9 @@ func to_scene_dict(scene_name_arg: String = "") -> Dictionary:
 			"w": snappedf(maxp.x - minp.x, 0.01),
 			"h": snappedf(maxp.y - minp.y, 0.01)}
 		var base := {"type": String(b["type"]), "name": building_name(bid)}
+		var sgn: Dictionary = b.get("sign", {})
+		if not (sgn.get("messages", []) as Array).is_empty():
+			base["sign"] = sgn.duplicate(true)
 		base.merge(geo)
 		locs[bid] = base
 		# floors>1: 每层额外导出一个【子地点】(同 footprint + part_of)。
@@ -1568,6 +1621,8 @@ func _load_buildings_from_locations(d: Dictionary) -> void:
 			var nm0 := String(loc.get("name", ""))
 			if nm0 != "" and nm0 != type_display(t):
 				buildings[bid]["name"] = nm0
+			if loc.get("sign") is Dictionary and not (loc["sign"] as Dictionary).is_empty():
+				buildings[bid]["sign"] = (loc["sign"] as Dictionary).duplicate(true)
 			continue
 		var w := float(loc.get("w", 0.0))
 		var h := float(loc.get("h", 0.0))
@@ -1580,6 +1635,8 @@ func _load_buildings_from_locations(d: Dictionary) -> void:
 				float(loc.get("y", 0.0)) + h * 0.5),
 			"size": Vector2(w, h), "rot": 0.0, "doors": [],
 			"floors": maxi(1, int(children.get(bid, 0)))}
+		if loc.get("sign") is Dictionary and not (loc["sign"] as Dictionary).is_empty():
+			b["sign"] = (loc["sign"] as Dictionary).duplicate(true)
 		var nm := String(loc.get("name", ""))
 		if nm != "":
 			b["name"] = nm

@@ -23,6 +23,8 @@ var _p_empty: Label
 var _i_sec: Control
 var _i: UiList
 var _i_empty: Label
+var _sign_sec: Control
+var _sign_body: VBoxContainer
 
 
 func build() -> void:
@@ -61,6 +63,10 @@ func build() -> void:
 	_i = UiList.new(_i_sec.body(), ITEM_ROW)
 	_i_empty = UiKit.muted(_i_sec.body(), "无")
 
+	# 招牌: 这家店在门口吆喝什么(数据来自后端 world.locations[bid].sign)
+	_sign_sec = UiKit.section(self, "招牌")
+	_sign_body = _sign_sec.body()
+
 
 func bind(id: String) -> void:
 	var room := Store.room(id)
@@ -85,6 +91,32 @@ func bind(id: String) -> void:
 			_floor_sel.select(_cur_floor - 1)   # select() 不发信号, 不会递归
 	Store.set_floor(_cur_floor)      # 把“在盯哪一层”同步给观察集
 	_render()
+
+
+## 招牌: 归属公司 / 半径 / 相信度 / 挂着的几条消息(最多 3 条, 由后端定)。
+func _render_sign() -> void:
+	if _sign_body == null:
+		return
+	for c in _sign_body.get_children():
+		_sign_body.remove_child(c)
+		c.queue_free()
+	var sign := Protocol.as_dict(_room.get("sign", {}))
+	_sign_sec.visible = not sign.is_empty()
+	if sign.is_empty():
+		return
+	var msgs := Protocol.as_array(sign.get("messages", []))
+	_sign_sec.set_title("招牌 · %d 条" % msgs.size())
+	UiKit.kv(_sign_body, "公司").text = Protocol.s(sign.get("company", ""), "（未登记）")
+	UiKit.kv(_sign_body, "可见半径").text = "%.0f m" % Protocol.num(sign.get("radius", 0.0))
+	UiKit.kv(_sign_body, "相信度").text = "%.2f" % Protocol.num(sign.get("believe", 0.0))
+	for mid in msgs:
+		var e := Store.entity(String(mid))
+		if e.is_empty():
+			UiKit.muted(_sign_body, "? %s（物件不存在）" % mid)
+			continue
+		var pr := Protocol.num(e.get("price", 0.0))
+		UiKit.muted(_sign_body, "· %s %s" % [Protocol.s(e.get("name", mid)),
+			("¥%d" % int(pr)) if pr > 0.0 else "有货"])
 
 
 func _on_floor_picked(i: int) -> void:
@@ -113,6 +145,8 @@ func _render() -> void:
 	_header.set_header(title, "%s · %d/%d 人 · %d 物件" % [
 		Zh.kind_zh(Protocol.s(_room.get("kind", ""))),
 		people.size(), cap, items.size()])
+
+	_render_sign()
 
 	_perm.text = InspData.access_text(unit_room)
 	_cap_row.visible = not bool(unit_room.get("public", true))

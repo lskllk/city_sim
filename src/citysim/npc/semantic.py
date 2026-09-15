@@ -258,6 +258,22 @@ def say_line(to_name: str, item_name: str, now: str) -> str:
     return _fill(SAY_POOL[min(idx, len(SAY_POOL) - 1)], slots, "")
 
 
+SIGN_POOL: tuple[str, ...] = ("招牌上写着：{item}{now}", "看到招牌：{item}{now}",
+                              "{item}{now}（招牌）")
+
+
+def sign_line(item_name: str, now: str) -> str:
+    """路过看见招牌时头顶那句。
+
+    和 REPORT 分开: 招牌【不是人说的】("谁说"那栏填招牌 = 撒谎),
+    所以措辞必须一眼看出信息来自招牌, 而不是"听某人说"。
+    """
+    slots = {"item": item_name, "now": now}
+    key = f"{item_name}|{now}"
+    idx = int(_pick(key, "SIGN", "in", 11) * len(SIGN_POOL))
+    return _fill(SIGN_POOL[min(idx, len(SIGN_POOL) - 1)], slots, "")
+
+
 def report(tick: int, speaker: str, item_id: str, item_name: str,
            now: str, who: str = "", *,
            fact: Mapping[str, Any] | None = None) -> SemanticEvent:

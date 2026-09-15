@@ -72,6 +72,13 @@
       "id": "toilet_basic_034",
       "owner": "npc_xu_chao",
       "type": "toilet_basic"
+    },
+    {
+      "at": "bld_010",
+      "id": "food_pear_035",
+      "price": 2.0,
+      "stock": 1000,
+      "type": "food_pear"
     }
   ],
   "knowledge": [],
@@ -168,6 +175,14 @@
       "w": 7.75,
       "x": 358.95,
       "y": 230.25
+    },
+    "bld_010": {
+      "h": 21.91,
+      "name": "店铺1号",
+      "type": "shop_small",
+      "w": 21.91,
+      "x": 639.05,
+      "y": 306.09
     }
   },
   "map": {
@@ -291,6 +306,25 @@
           7.746
         ],
         "type": "home_small"
+      },
+      "bld_010": {
+        "center": [
+          650.0,
+          317.046
+        ],
+        "doors": [
+          [
+            650.0,
+            328.0
+          ]
+        ],
+        "floors": 1,
+        "rot": 0.0,
+        "size": [
+          21.909,
+          21.909
+        ],
+        "type": "shop_small"
       }
     },
     "edges": {
@@ -754,16 +788,22 @@
       "bld_004|bld_007": 20,
       "bld_004|bld_008": 23,
       "bld_004|bld_009": 23,
+      "bld_004|bld_010": 29,
       "bld_005|bld_006": 26,
       "bld_005|bld_007": 23,
       "bld_005|bld_008": 24,
       "bld_005|bld_009": 23,
+      "bld_005|bld_010": 23,
       "bld_006|bld_007": 3,
       "bld_006|bld_008": 14,
       "bld_006|bld_009": 16,
+      "bld_006|bld_010": 42,
       "bld_007|bld_008": 12,
       "bld_007|bld_009": 13,
-      "bld_008|bld_009": 1
+      "bld_007|bld_010": 39,
+      "bld_008|bld_009": 1,
+      "bld_008|bld_010": 31,
+      "bld_009|bld_010": 29
     }
   }
 }

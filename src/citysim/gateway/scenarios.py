@@ -330,7 +330,9 @@ def _resolve_home(home: str, locations: dict) -> str:
 def build_scenario(scenario: str | None = None, seed: int = 3,
                    n_npc: int | None = None,
                    tell_p: float | None = None,
-                   listen_p: float | None = None):
+                   listen_p: float | None = None,
+                   tell_same_home: float | None = None,
+                   tell_stranger: float | None = None):
     # 场景来源优先级: 显式文件路径 > 环境变量 CITYSIM_SCENE > 内置默认场景。
     # 路径既可为绝对路径, 也可相对仓库根(如 godot/scene.json)。
     path = _resolve_scene_path(str(scenario)) if scenario else None
@@ -352,4 +354,8 @@ def build_scenario(scenario: str | None = None, seed: int = 3,
         s.tell_p = float(tell_p)
     if listen_p is not None:
         s.listen_p = float(listen_p)
+    if tell_same_home is not None:
+        s.tell_same_home = float(tell_same_home)
+    if tell_stranger is not None:
+        s.tell_stranger = float(tell_stranger)
     return w, s, r

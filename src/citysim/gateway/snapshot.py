@@ -326,7 +326,11 @@ def hello_payload(runner) -> dict:
             "scenario": runner.params["scenario"],
             "seed": runner.params["seed"],
             "n_npc": runner.params["n_npc"],
-            "tell_p": runner.params["tell_p"],
-            "listen_p": runner.params.get("listen_p", 1.0),
+            # 下发【实际生效的】传播参数(不是面板里那个可能没用的默认值):
+            # params 里为 None = 跟随模拟配置 → 这里取 systems 上的真值。
+            "tell_p": runner.systems.tell_p,
+            "listen_p": runner.systems.listen_p,
+            "tell_same_home": runner.systems.tell_same_home,
+            "tell_stranger": runner.systems.tell_stranger,
             "signals": list(SIGNALS),
             "locations": locs}

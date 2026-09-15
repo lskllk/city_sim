@@ -109,8 +109,11 @@ class SimRunner:
         self.event_seq = 0            # drain 兜底 event_id 序号
         # scenario="" = 用「存在的那个」默认场景(见 scenarios.default_scene_path);
         # 写死名字的话, 文件一被删后端就起不来。
+        # tell_p / listen_p【不在这里硬写】: 传 None = 不覆盖, 用场景 JSON
+        # 或 config/sim.toml [social] 的值。以前这里写 0.1, 会把 sim.toml
+        # 的 0.3 悄悄盖掉 —— 配置说的和实际跑的不是一个数。
         self.params = dict(scenario="", seed=3, n_npc=6,
-                           tell_p=0.1, listen_p=1.0)
+                           tell_p=None, listen_p=None)
         self.build_error: str = ""     # 场景加载失败的原因(给 UI 看, 不再闪退)
         self._pushed_tick: int | None = None   # 上次推送时的 tick(None=需重推)
         # 观察驱动: 只下发「渲染状态变了」的 NPC + 当前选中的那个。

@@ -81,12 +81,17 @@ func return_to_launcher() -> void:
 func _try_load_pending() -> void:
 	if _pending_scene == "" or Net.status() != "open":
 		return
-	Commands.cmd("reset", {
+	# 概率类参数: < 0 表示"跟随 config/sim.toml [social]" → 【不下发】,
+	# 免得像以前那样用面板里的默认值把配置文件盖掉。
+	var args := {
 		"scenario": _pending_scene,
 		"seed": int(Settings.get_value("game", "seed", 3)),
-		"tell_p": float(Settings.get_value("game", "tell_p", 0.1)),
-		"listen_p": float(Settings.get_value("game", "listen_p", 1.0)),
-	})
+	}
+	for k in ["tell_p", "listen_p", "tell_same_home", "tell_stranger"]:
+		var v := float(Settings.get_value("game", k, -1.0))
+		if v >= 0.0:
+			args[k] = v
+	Commands.cmd("reset", args)
 	_pending_scene = ""
 
 

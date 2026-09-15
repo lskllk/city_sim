@@ -52,10 +52,15 @@ func _register_defaults() -> void:
 	register("network", "ws_url", Type.STRING, "ws://127.0.0.1:8765/ws", "WebSocket 端点")
 	# 游戏(场景重建参数)
 	register("game", "seed", Type.INT, 3, "随机种子", "场景重建的确定性种子")
-	register("game", "tell_p", Type.FLOAT, 0.1, "想说概率",
-		"我这一轮想开口告诉别人的概率(乘个体 tell_bias)")
-	register("game", "listen_p", Type.FLOAT, 1.0, "愿听概率",
-		"被搭话的人愿意停下来听的概率。搭桥要两次都过(一对一, 说的不听/听的不说)")
+	# -1 = 【跟随 config/sim.toml [social]】(别在这硬写默认值: 那会把配置文件盖掉)
+	register("game", "tell_p", Type.FLOAT, -1.0, "想说概率",
+		"我这一轮想开口告诉别人的概率(乘个体 tell_bias)。-1 = 跟随 sim.toml")
+	register("game", "listen_p", Type.FLOAT, -1.0, "愿听概率",
+		"被搭话的人愿不愿意停下来听。-1 = 跟随 sim.toml")
+	register("game", "tell_same_home", Type.FLOAT, -1.0, "同屋权重",
+		"跟同一个 home(同一层)的人搭话的权重。-1 = 跟随 sim.toml")
+	register("game", "tell_stranger", Type.FLOAT, -1.0, "路人权重",
+		"跟路人搭话的权重。-1 = 跟随 sim.toml")
 	# 显示
 	register("display", "fullscreen", Type.BOOL, false, "全屏")
 	register("display", "vsync", Type.BOOL, true, "垂直同步")

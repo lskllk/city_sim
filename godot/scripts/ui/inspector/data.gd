@@ -124,6 +124,28 @@ static func one_line(ev: Dictionary) -> String:
 		"bought":
 			return "买 %s ×%s" % [Store.name_of(Protocol.s(p.get("item", ""))),
 				str(p.get("qty", 1))]
+		"told":
+			# ★ 以前没有这一条 → 落在 _: return "", 日志里只剩一个英文 kind
+			# 事件 subject 是【说话人】, audience 是【听者】
+			var aud := Protocol.as_array(p.get("audience", []))
+			var who := Protocol.s(ev.get("subject", p.get("from", "")))
+			var to := Protocol.s(aud[0]) if aud.size() > 0 else ""
+			return "%s 告诉 %s：%s（信 %.2f）" % [
+				Store.name_of(who), Store.name_of(to),
+				Store.name_of(Protocol.s(p.get("item_id", ""))),
+				Protocol.num(p.get("believe", 0.0))]
+		"stock_changed":
+			return "%s：%s → %s" % [Store.name_of(Protocol.s(ev.get("subject", ""))),
+				str(int(Protocol.num(p.get("stock_before", 0)))),
+				str(int(Protocol.num(p.get("stock_after", 0))))]
+		"npc_died":
+			return "力竭身亡 · %s" % Protocol.s(p.get("name", ""))
+		"spoiled":
+			return "%s 坏了 · %s" % [Store.name_of(Protocol.s(ev.get("subject", ""))),
+				Protocol.s(p.get("item_type", ""))]
+		"entry_denied":
+			return "进不去 %s：%s" % [Protocol.s(p.get("loc", "")),
+				Protocol.s(p.get("why", ""))]
 		_:
 			return ""
 
@@ -152,6 +174,10 @@ static func event_color(kind: String) -> Color:
 			return Color("c08b6a")
 		"intent_failed", "npc_died":
 			return Color("e05252")
+		"spoiled":
+			return Color("b58a5a")
+		"entry_denied":
+			return Color("e08a5a")
 		"stock_changed":
 			return Color("e8a34d")
 		_:

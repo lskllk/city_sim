@@ -43,9 +43,6 @@ def encode_event(ev: dict) -> dict:
 _ICON_KEYS = {"sleepable": "bed", "toilet": "toilet", "edible": "food",
               "consumable": "meal"}
 _TAG_PRIORITY = ("sleepable", "toilet", "edible", "consumable")
-_EVENT_KINDS = ("interaction_done", "intent_failed", "decision", "perceived",
-                "bought", "stock_changed", "npc_died", "interaction_aborted")
-
 # Event Log 不显示的观测噪声(高频遥测, 不是"任务变更")
 _HIDDEN_EVENT_KINDS = frozenset({"perceived"})
 
@@ -132,7 +129,14 @@ def _recent_events(systems, pid: str) -> list:
     """
     out = []
     for ev in reversed(systems.ui_events):
-        if ev.get("subject") == pid and ev.get("kind") not in _HIDDEN_EVENT_KINDS:
+        if ev.get("kind") in _HIDDEN_EVENT_KINDS:
+            continue
+        # 与自己相关 = 我是 subject(我干的/发生在我身上), 或我在 audience
+        # (别人讲给我听 —— 否则“听谁说”永远不会出现在听者的日志里)
+        aud = (ev.get("payload") or {}).get("audience") or ()
+        if isinstance(aud, str):
+            aud = (aud,)
+        if ev.get("subject") == pid or pid in aud:
             out.append(dict(ev))
             if len(out) >= NPC_EVENT_LIMIT:
                 break

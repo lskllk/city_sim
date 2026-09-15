@@ -19,16 +19,13 @@ const TAG := {
 	"consumable": "消耗品", "work": "工作台",
 }
 
+# 事件 kind -> 中文。★ 后端每个 publish 的 kind 都要在这里有一行 ——
+# 缺了就会把英文 kind 直接显示在 Event Log 里(以前 told 就是这样)。
 const EVENT := {
 	"decision": "决策", "perceived": "感知", "interaction_done": "完成",
 	"intent_failed": "失败", "bought": "购买", "stock_changed": "补货",
 	"interaction_aborted": "中止", "npc_died": "死亡",
-}
-
-const EVENT_TYPE := {
-	"decision": "决策", "perceived": "感知",
-	"bought": "购买", "interaction_done": "完成", "intent_failed": "失败",
-	"stock_changed": "补货", "interaction_aborted": "中止", "npc_died": "死亡",
+	"told": "转述", "spoiled": "变质", "entry_denied": "被拒",
 }
 
 # 角色码 -> 中文(前端语义解释层; 后续可扩展到工程师/老师等)
@@ -115,6 +112,3 @@ static func action_text(intent: String, target_name: String,
 static func kind_zh(k: String) -> String:
 	return KIND.get(k, k)
 
-
-static func event_type_zh(k: String) -> String:
-	return EVENT_TYPE.get(k, k)

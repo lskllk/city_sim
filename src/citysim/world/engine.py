@@ -156,6 +156,65 @@ def _loc_center(loc: Mapping[str, Any]) -> tuple[float, float]:
             float(loc.get("y", 0.0)) + float(loc.get("h", 0.0)) * 0.5)
 
 
+def _company_of_shop(world, shop):
+    """这家店归哪个公司? 先看实体, 再看它所在的建筑(含楼层单元的父建筑)。"""
+    cid = str(getattr(shop, "owner", "")) or ""
+    loc = str(getattr(shop, "location_id", ""))
+    for lid in (loc, (world.locations.get(loc) or {}).get("part_of", "")):
+        if not lid:
+            continue
+        c = str((world.locations.get(str(lid)) or {}).get("company", ""))
+        if c:
+            cid = c
+            break
+    return world.companies.get(cid) if cid else None
+
+
+def _credit_shop(world, shop, amount: float):
+    """把一笔货款记到店铺所属公司的账上。返回 Company 或 None。"""
+    comp = _company_of_shop(world, shop)
+    if comp is None or amount <= 0:
+        return None
+    comp.cash += float(amount)
+    return comp
+
+
+def pay_wages(world, cfg: SimConfig) -> None:
+    """公司给店员发工资(每天一次, 由 tick 在 wage_minute 那一刻调)。
+
+    钱从公司账上出 → 员工个人进账。**发不出就是发不出**(没有"欠薪"概念):
+    公司现金不足 → 发事件 wage_failed, 那个人这天没收入(→ 会穷 → 会饿)。
+    这是"惩罚 = 状态调制产出"的同一套: 不搞门禁, 让钱自己说话。
+    """
+    for cid in sorted(world.companies):
+        comp = world.companies[cid]
+        for npc_id, wage in comp.staff:
+            npc = world.npcs.get(npc_id)
+            if npc is None:
+                continue
+            if comp.cash < wage:
+                world.bus.publish(world.bus.make(
+                    world.clock_tick, "wage_failed", npc_id,
+                    {"audience": [npc_id], "company": cid,
+                     "wage": wage, "cash": round(comp.cash, 2)}))
+                continue
+            comp.cash -= wage
+            npc.earn(wage)
+            world.bus.publish(world.bus.make(
+                world.clock_tick, "wage_paid", npc_id,
+                {"audience": [npc_id], "company": cid, "wage": wage,
+                 "cash": round(comp.cash, 2), "money": round(npc.money, 2)}))
+
+
+def _wage_due(world, cfg: SimConfig, last_tick: int) -> bool:
+    """挂工资那一刻: 恰好跨过当天的 wage_minute。用 tick 判, 不存状态。"""
+    day, minute = divmod(world.clock_tick, max(1, cfg.ticks_per_day))
+    if minute != int(cfg.wage_minute):
+        return False
+    # 同一 tick 只发一次(引擎每 tick 只调一次, 这里再兜一层: 当天未发过)
+    return last_tick < day * cfg.ticks_per_day + cfg.wage_minute
+
+
 def _sign_point(world, bid: str) -> tuple[float, float]:
     """招牌被"挂在"哪里 = 【门口】, 不是建筑中心。
 
@@ -528,6 +587,10 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
         return
     cost = shop.price * qty
     npc.pay(cost)
+    # ★ 双分录: 买家付的钱进【店铺所属公司】的账。
+    #   以前这钱凭空消失 → 城里只有支出没有收入, 所有人慢慢破产饿死。
+    #   没登记公司的店 → 仍然"钱消失"(旧行为; 让店主=公司是下一步的事)。
+    comp = _credit_shop(world, shop, cost)
     if shop.stock != -1:
         shop.stock -= qty
     container = _deliver(world, pid, npc, shop, qty, home)
@@ -535,6 +598,7 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
         world.clock_tick, "bought", pid,
         {"item": shop.entity_id, "qty": qty, "price": cost,
          "home": home, "money": round(npc.money, 2),
+         "company": comp.company_id if comp else "",
          "container": container.entity_id if container else ""}))
     if container is not None:
         # 送货进家: 写记忆时**必须带 afford/value** —— 否则他不知道家里
@@ -648,6 +712,12 @@ def tick(world, systems, cfg: SimConfig) -> None:
     # 0. 场景脉冲(世界脚本): 在 NPC 感知前改库存/停业
     if systems.pulses:
         apply_pulses(world, systems.pulses, world.clock_tick, cfg.ticks_per_day)
+
+    # 0a. 发工资(每天 wage_minute 那一刻): 公司的账 → 员工个人。
+    #     放在最前面: 与任何人的决策无关, 只是世界的收付节奏。
+    if _wage_due(world, cfg, systems.last_wage_tick):
+        pay_wages(world, cfg)
+        systems.last_wage_tick = world.clock_tick
 
     # 0b. 过期变质: 到点的食物 stock 归 0(壳留着 —— 货架/容器可能 persist_empty)。
     #     只在【从有到无】的那一刻发一条事件, 不每 tick 刷。

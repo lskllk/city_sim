@@ -26,6 +26,7 @@ const EVENT := {
 	"intent_failed": "失败", "bought": "购买", "stock_changed": "补货",
 	"interaction_aborted": "中止", "npc_died": "死亡",
 	"told": "转述", "spoiled": "变质", "entry_denied": "被拒",
+	"wage_paid": "发薪", "wage_failed": "欠薪",
 }
 
 # 角色码 -> 中文(前端语义解释层; 后续可扩展到工程师/老师等)

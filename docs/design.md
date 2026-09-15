@@ -147,6 +147,23 @@ act: STATE / INTENT / SURPRISE / DOUBT / DENIED / REPORT
 气泡: 后端决定文字 → 快照 bubble{text,until,kind} → 前端只画; 只在【关注范围】冒
 ```
 
+### 2.12 经济：公司（最小闭环）
+
+```
+数据: config/companies.json  [{id: org_<kind>_<slug>, name, cash, owner,
+                               shops:[建筑 id], staff:[{npc, wage}]}]
+      → 装配时把归属写进 location["company"]（成交时一句话查到公司）
+钱的两条腿:
+  ① 成交: 买家付钱 → 记进【店铺所属公司】的账（双分录；以前这钱凭空消失）
+  ② 工资: 每天 wage_minute(480=08:00) 公司给店员发薪, 钱从公司账出 → 员工个人
+         现金不足 → 发事件 wage_failed, 那个人这天就没收入(没有"欠薪"概念)
+观测: hello.companies(账/老板/员工) + 事件 wage_paid/wage_failed + 地点页显示公司现金
+```
+
+> **为什么是公司**：用户拍板"经济做成公司的单位" —— 店铺属于公司、公司有账、
+> 工资从公司出；老板以后就是玩家化身，经营面板在这个账上做加减。
+> **没登记公司的店**：货款仍然"消失"（旧行为），把"店主=公司"留到经营面板那一步。
+
 ### 2.11 招牌（站在门口的虚拟说者）
 
 ```

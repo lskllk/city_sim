@@ -143,6 +143,12 @@ static func one_line(ev: Dictionary) -> String:
 		"spoiled":
 			return "%s 坏了 · %s" % [Store.name_of(Protocol.s(ev.get("subject", ""))),
 				Protocol.s(p.get("item_type", ""))]
+		"wage_paid":
+			return "发薪 ¥%d（公司余 ¥%.0f）" % [
+				int(Protocol.num(p.get("wage", 0.0))),
+				Protocol.num(p.get("cash", 0.0))]
+		"wage_failed":
+			return "公司发不出工资（现金只剩 ¥%.0f）" % Protocol.num(p.get("cash", 0.0))
 		"entry_denied":
 			return "进不去 %s：%s" % [Protocol.s(p.get("loc", "")),
 				Protocol.s(p.get("why", ""))]
@@ -176,6 +182,10 @@ static func event_color(kind: String) -> Color:
 			return Color("e05252")
 		"spoiled":
 			return Color("b58a5a")
+		"wage_paid":
+			return Color("9ee07a")
+		"wage_failed":
+			return Color("e05252")
 		"entry_denied":
 			return Color("e08a5a")
 		"stock_changed":

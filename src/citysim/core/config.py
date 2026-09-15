@@ -65,6 +65,10 @@ class SimConfig:
     #   tell_p   = 我这一轮想说给谁听的概率(乘个体 tell_bias)
     #   listen_p = 被搭话的人愿意停下来的概率(默认 1.0 = 都愿意听)
     # 实际成交 ≈ tell_p × listen_p。0 = 不传谣。
+    # —— 经济(公司) ——
+    # 每天【几点】发一次工资(游戏分钟; 480 = 08:00)。这是世界的收付节奏,
+    # 不是"NPC 到点去做某事" —— 工资是公司发的, 不改变任何人的计划。
+    wage_minute: int = 480
     tell_p: float = 0.3
     listen_p: float = 1.0
     # 【跟谁说话】的权重: 同屋(同一个 home = 同一层)的人愿意聊, 路人很少搭话。
@@ -130,6 +134,7 @@ class SimConfig:
             cost_lambda=float(util.get("cost_lambda", 0.02)),
             travel_penalty=float(util.get("travel_penalty", 2.0)),
             preempt_ratio=float(util.get("preempt_ratio", 1.5)),
+            wage_minute=int(data.get("economy", {}).get("wage_minute", 480)),
             tell_p=float(data.get("social", {}).get("tell_p", 0.3)),
             listen_p=float(data.get("social", {}).get("listen_p", 1.0)),
             tell_same_home=float(data.get("social", {}).get(

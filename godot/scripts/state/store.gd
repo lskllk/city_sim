@@ -26,6 +26,8 @@ var canvas: Dictionary = {"w": 1280.0, "h": 800.0}
 var scenario: String = ""
 ## 后端场景加载失败的原因(空 = 正常)。后端不闪退了, 原因走这里给界面显示。
 var scene_error: String = ""
+## 公司(只读镜像): [{id,name,cash,owner,shops,staff}] —— 经营面板以后读它
+var companies: Array = []
 var seed_value: int = 0
 var n_npc: int = 0
 var signals_list: Array = []
@@ -67,6 +69,7 @@ func init_hello(h: Dictionary) -> void:
 	scenario = Protocol.s(h.get("scenario"))
 	# 后端场景坏了也能起来(不闪退), 原因走这里; 界面负责显示
 	scene_error = Protocol.s(h.get("scene_error"))
+	companies = Protocol.as_array(h.get("companies", []))
 	seed_value = int(Protocol.num(h.get("seed")))
 	n_npc = int(Protocol.num(h.get("n_npc")))
 	var sigs: Variant = h.get("signals", [])

@@ -328,6 +328,12 @@ def hello_payload(runner) -> dict:
             "n_npc": runner.params["n_npc"],
             # 下发【实际生效的】传播参数(不是面板里那个可能没用的默认值):
             # params 里为 None = 跟随模拟配置 → 这里取 systems 上的真值。
+            # 公司(只读观测): 账 / 老板 / 员工。经营面板以后在此基础上做写侧。
+            "companies": [
+                {"id": cid, "name": comp.name, "cash": round(comp.cash, 2),
+                 "owner": comp.owner, "shops": list(comp.shops),
+                 "staff": [{"npc": n, "wage": w} for n, w in comp.staff]}
+                for cid, comp in sorted(runner.world.companies.items())],
             "tell_p": runner.systems.tell_p,
             "listen_p": runner.systems.listen_p,
             "tell_same_home": runner.systems.tell_same_home,

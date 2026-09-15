@@ -94,6 +94,18 @@ func bind(id: String) -> void:
 
 
 ## 招牌: 归属公司 / 半径 / 相信度 / 挂着的几条消息(最多 3 条, 由后端定)。
+## 公司名 + 现金(来自 hello.companies 的只读镜像)
+func _company_text(cid: String) -> String:
+	if cid == "":
+		return "（未登记）"
+	for c in Store.companies:
+		var d: Dictionary = c
+		if Protocol.s(d.get("id", "")) == cid:
+			return "%s · 现金 ¥%.0f" % [Protocol.s(d.get("name", cid)),
+				Protocol.num(d.get("cash", 0.0))]
+	return cid
+
+
 func _render_sign() -> void:
 	if _sign_body == null:
 		return
@@ -106,7 +118,8 @@ func _render_sign() -> void:
 		return
 	var msgs := Protocol.as_array(sign.get("messages", []))
 	_sign_sec.set_title("招牌 · %d 条" % msgs.size())
-	UiKit.kv(_sign_body, "公司").text = Protocol.s(sign.get("company", ""), "（未登记）")
+	var cid := Protocol.s(sign.get("company", ""))
+	UiKit.kv(_sign_body, "公司").text = _company_text(cid)
 	UiKit.kv(_sign_body, "可见半径").text = "%.0f m" % Protocol.num(sign.get("radius", 0.0))
 	UiKit.kv(_sign_body, "相信度").text = "%.2f" % Protocol.num(sign.get("believe", 0.0))
 	for mid in msgs:

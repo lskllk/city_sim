@@ -137,6 +137,9 @@ class World:
     bus: EventBus = field(default_factory=EventBus)
     _entity_seq: int = 0                  # 自动实体 id 计数(确定性)
     locations: dict[str, dict] = field(default_factory=dict)
+    # 公司(经营单位): id -> Company。店铺的归属写在 location["company"] 上,
+    # 成交时据此把款记进它的账(见 engine._execute_buy)。
+    companies: dict = field(default_factory=dict)
     # TASK001 region 几何: {loc: {"x":..,"y":..,"w":..,"h":..,"name":..,"kind":..}}
     # 来自 scene json 的 x/y/w/h, 直接作为世界坐标; 未注册 region = 无空间语义
 

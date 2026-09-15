@@ -328,6 +328,11 @@ class Person:
         self._money -= amount
         return True
 
+    def earn(self, amount: float) -> None:
+        """进账(工资/卖货)。与 pay 对称 —— 只动自己的钱, 不做别的。"""
+        if amount > 0:
+            self._money += float(amount)
+
     def set_money(self, money: float) -> None:
         self._money = max(0.0, float(money))
 

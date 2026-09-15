@@ -1,9 +1,9 @@
 # page_location.gd —— 建筑详情(观察器)。
 #
 # 模板【按建筑类型绑定】(用户定的口径, 和编辑器同一套):
-#   商铺 shop → 公司(可进"公司运营"页) + 线路(前台/在岗/排队) + 在店里的人
-#               + 物件(含【在售库存】与【工位/销售前台】—— 交易靠它)
-#   住宅 home → 楼层 + 住户 + 家里的东西
+#   商铺 shop → 公司(可进"公司运营"页) + 在店里的人(店员/顾客, 可点进详情)
+#               + 物件(商品/家具/工位, 可点进详情)
+#   住宅 home → 楼层 + 住户 + 家里的东西(都可点进详情)
 #   其它      → 权限 + 在场的人 (市场多一行"无限库存 · 只有公司能采购")
 #
 # 招牌信息【已从详情移除】(那是经营手段 → 归公司运营页的"广告", 后续做)。
@@ -42,6 +42,7 @@ var _reg_hint: Label
 var _reg_name: LineEdit
 var _reg_btn: Button
 var _go_btn: Button
+var _company_id := ""                # 当前店铺已注册到的公司(解析后的真 id)
 var _msg: Label                       # 上一步命令的结果(后端应答)
 var _seen_reply := 0
 
@@ -79,8 +80,10 @@ func build() -> void:
 	_comp_body.add_child(_reg_btn)
 	_go_btn = Button.new()
 	_go_btn.text = "打开运营界面"
+	# 【用解析后的 _company_id】而不是 _room.company —— 房间表只随 hello 下发,
+	# 游戏内注册后不会更新, 直接读它会拿到空串(点了打不开)。
 	_go_btn.pressed.connect(func() -> void:
-		CompanyPanelScript.open_company(Protocol.s(_room.get("company", ""))))
+		CompanyPanelScript.open_company(_company_id))
 	_comp_body.add_child(_go_btn)
 	_msg = UiKit.muted(_comp_body, "")
 
@@ -117,6 +120,12 @@ func bind(id: String) -> void:
 	if bid != _cur_bid:
 		_cur_bid = bid
 		_cur_floor = 1
+		# 【换店就清状态】: 公司名输入框 / 上一步应答 / 已注册公司都是【按店】的,
+		# 不清的话上一家填的名字会带到下一家(实测: 注册一家, 其他全被同一名字覆盖)。
+		_reg_name.text = ""
+		_msg.text = ""
+		_seen_reply = Commands.reply_seq
+		_company_id = ""
 	var multi := Store.is_multi(bid)
 	var is_home := Zh.kind_zh(Protocol.s(room.get("kind", ""))) == "住所"
 	_floor_sec.visible = multi and is_home
@@ -140,6 +149,34 @@ func _on_floor_picked(i: int) -> void:
 	_render()
 
 
+## 点人员行 → 进 NPC 详情(以前忘了连 selected → 点了没反应)。
+func _on_person(id: String) -> void:
+	Store.select("npc", id)
+
+
+## 点物件行 → 进物件详情。
+func _on_item(id: String) -> void:
+	Store.select("entity", id)
+
+
+## 排序权重: 店员(0) 在 顾客/其他(1) 前面。
+func _people_rank(id: String) -> int:
+	var n := Store.npc(id)
+	var w := Protocol.as_dict(n.get("work", {}))
+	if Protocol.s(w.get("company", "")) != "" \
+			or Protocol.s(w.get("station", "")) != "":
+		return 0
+	var role := Protocol.s(n.get("role", ""))
+	if role == "worker" or role == "shopkeeper":
+		return 0
+	return 1
+
+
+## 排序权重: 商品(售价>0) 在 家具/设施 前面。
+func _items_rank(id: String) -> int:
+	return 0 if Protocol.num(Store.entity(id).get("price", 0.0)) > 0.0 else 1
+
+
 func _render() -> void:
 	var bid := _cur_bid
 	var multi := Store.is_multi(bid)
@@ -149,8 +186,7 @@ func _render() -> void:
 		unit_room = _room
 	var kind := Protocol.s(_room.get("kind", ""))
 	var is_home := Zh.kind_zh(kind) == "住所"
-	var is_shop := kind == "shop"
-	# 商铺: 详情只留 基础/权限/公司(经营在弹窗里); 住宅/其它照旧
+	# 商居都把这一层的人和物列出来
 	var people := _at(Store.npcs, unit if is_home else bid)
 	var items := _at(Store.entities, unit if is_home else bid)
 
@@ -158,9 +194,9 @@ func _render() -> void:
 	var title := Protocol.s(_room.get("name", bid))
 	if is_home and multi:
 		title = "%s · %d层" % [title, _cur_floor]
-	# 商铺的副标题只写类型 —— 人数/物件数都归运营界面, 这里"其他什么都不要"
-	_header.set_header(title, Zh.kind_zh(kind) if is_shop else
-		"%s · %d 人 · %d 物件" % [Zh.kind_zh(kind), people.size(), items.size()])
+	# 商铺/住宅都把这一层的【人 + 物】总结出来(用户要的)
+	_header.set_header(title, "%s · %d 人 · %d 物件" % [
+		Zh.kind_zh(kind), people.size(), items.size()])
 
 	_sync_company(kind, bid)
 
@@ -168,8 +204,14 @@ func _render() -> void:
 	_cap_row.visible = not bool(unit_room.get("public", true))
 	_cap.text = "%d 人" % cap
 
-	# --- 在店里的人(商铺不显示: 顾客/店员都在运营界面的"实时监控"里) ---
-	_p_sec.visible = not is_shop
+	# --- 在店里的人 / 住户: 全部显示; 店员在前、顾客在后, 各自按名字排 ---
+	people.sort_custom(func(a, b) -> bool:
+		var ra := _people_rank(String(a))
+		var rb := _people_rank(String(b))
+		if ra != rb:
+			return ra < rb
+		return Store.name_of(String(a)) < Store.name_of(String(b)))
+	_p_sec.visible = true
 	_p_sec.set_title(("住户 %d" if is_home else "在店里的人 %d") % people.size())
 	_p_empty.visible = people.is_empty()
 	for i in people.size():
@@ -179,29 +221,50 @@ func _render() -> void:
 		var hp := clampf(Protocol.num(
 			Protocol.as_dict(n.get("signals", {})).get("hp"), 1.0), 0.0, 1.0)
 		var work := Protocol.as_dict(n.get("work", {}))
+		var staffed := Protocol.s(work.get("company", "")) != "" \
+			or Protocol.s(work.get("station", "")) != ""
 		var act := Protocol.s(n.get("activity", ""))
-		if Protocol.s(work.get("station", "")) != "" and act == "working":
+		if staffed and act == "working":
 			act = "在岗"
-		elif Protocol.s(work.get("station", "")) != "":
+		elif staffed:
 			act = "店员·不在岗"
-		_p.row(i).set_row(k, String(n.get("name", k)),
-			"—" if age < 0.0 else str(int(age)),
-			Zh.role_zh(Protocol.s(n.get("role", ""))), act, hp)
+		# 【字段标注】店里的人写清【店员 / 顾客】, 住宅里标【店员 / 住户】
+		var label := Zh.role_zh(Protocol.s(n.get("role", "")))
+		if not is_home:
+			label = "店员" if staffed else "顾客"
+		elif staffed:
+			label = "店员"
+		var row = _p.row(i)
+		if not row.selected.is_connected(_on_person):
+			row.selected.connect(_on_person)
+		row.set_row(k, String(n.get("name", k)),
+			"—" if age < 0.0 else str(int(age)), label, act, hp)
 	_p.trim(people.size())
 
-	# --- 物件(商铺不显示: 货物/工位都在运营界面的"货物管理"里) ---
-	_i_sec.visible = not is_shop
+	# --- 物件: 商品(售价>0)在前, 家具/设施在后; 各自按名字排 ---
+	items.sort_custom(func(a, b) -> bool:
+		var ra := _items_rank(String(a))
+		var rb := _items_rank(String(b))
+		if ra != rb:
+			return ra < rb
+		return Store.name_of(String(a)) < Store.name_of(String(b)))
+	_i_sec.visible = true
 	_i_sec.set_title("物件 %d" % items.size())
 	_i_empty.visible = items.is_empty()
 	for i in items.size():
 		var e := Store.entity(String(items[i]))
 		var st := int(Protocol.num(e.get("stock", 1.0)))
 		var pr := Protocol.num(e.get("price", 0.0))
-		var lane := Store.entity(String(items[i]))
 		var qty := "∞" if st < 0 else str(st)
+		var nm := String(e.get("name", items[i]))
 		if Protocol.s(e.get("item_type", "")) == "station_counter":
 			qty = "工位"                      # 销售前台: 交易靠它
-		_i.row(i).set_row(String(items[i]), String(e.get("name", items[i])),
+		elif Protocol.as_array(e.get("tags", [])).has("fixture"):
+			nm = "%s（家具）" % nm            # 装修件: 标注一下
+		var row = _i.row(i)
+		if not row.selected.is_connected(_on_item):
+			row.selected.connect(_on_item)
+		row.set_row(String(items[i]), nm,
 			qty, "—" if pr <= 0.0 else "¥%d" % int(pr),
 			Store.name_of(Protocol.s(e.get("claimed_by", ""))))
 	_i.trim(items.size())
@@ -244,6 +307,7 @@ func _sync_company(kind: String, bid: String) -> void:
 				cid = Protocol.s(cd.get("id", ""))
 				break
 	var registered := cid != ""
+	_company_id = cid                  # 供【进入公司管理】按钮使用
 	# 注册组 / 管理组: 二选一, 绝不同时出现
 	_reg_hint.visible = not registered
 	_reg_name.visible = not registered

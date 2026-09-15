@@ -44,7 +44,8 @@ class ItemDef:
     on_complete: tuple[Mapping[str, Any], ...] = ()
     attrs: Mapping[str, Any] = field(default_factory=dict)
     stock: int = 1
-    price: float = 0.0
+    price: float = 0.0           # 零售/批发【售价】(>0 才算可卖的货)
+    build_cost: float = 0.0      # 装修件【放置成本】(只给 tag=fixture 的件用; 不是售价)
     persist_empty: bool = False   # stock 归 0 不被回收(容器/货架持续存在)
     shelf_life_ticks: int = 0     # 保质期(0 = 不会坏)。到点变质 → stock 归 0
 
@@ -62,6 +63,7 @@ def _parse(data: dict) -> ItemDef:
         attrs=dict(data.get("attrs", {})),
         stock=int(data.get("stock", 1)),
         price=float(data.get("price", 0.0)),
+        build_cost=float(data.get("build_cost", 0.0)),
         persist_empty=bool(data.get("persist_empty", False)),
         shelf_life_ticks=int(data.get("shelf_life_ticks", 0)),
     )

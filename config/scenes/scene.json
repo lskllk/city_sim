@@ -6,13 +6,6 @@
   "display_name": "scene",
   "entities": [
     {
-      "at": "bld_007",
-      "id": "meal_simple_023",
-      "price": 8.0,
-      "stock": 1000,
-      "type": "meal_simple"
-    },
-    {
       "at": "bld_004",
       "id": "food_apple_024",
       "price": 5.0,
@@ -20,65 +13,38 @@
       "type": "food_apple"
     },
     {
-      "at": "bld_008_f1",
-      "id": "bed_basic_025",
+      "at": "bld_008",
+      "id": "bed_basic_036",
       "type": "bed_basic"
     },
     {
-      "at": "bld_008_f1",
-      "id": "toilet_basic_026",
+      "at": "bld_008",
+      "id": "toilet_basic_037",
       "type": "toilet_basic"
     },
     {
-      "at": "bld_008_f2",
-      "id": "bed_basic_027",
+      "at": "bld_009",
+      "id": "bed_basic_038",
       "type": "bed_basic"
     },
     {
-      "at": "bld_008_f2",
-      "id": "toilet_basic_028",
+      "at": "bld_009",
+      "id": "toilet_basic_039",
       "type": "toilet_basic"
     },
     {
-      "at": "bld_009_f3",
-      "id": "bed_basic_029",
-      "type": "bed_basic"
+      "at": "bld_008",
+      "id": "meal_simple_040",
+      "price": 1.0,
+      "stock": 500,
+      "type": "meal_simple"
     },
     {
-      "at": "bld_009_f3",
-      "id": "toilet_basic_030",
-      "type": "toilet_basic"
-    },
-    {
-      "at": "bld_009_f1",
-      "id": "bed_basic_031",
-      "owner": "npc_wu_yong",
-      "type": "bed_basic"
-    },
-    {
-      "at": "bld_009_f1",
-      "id": "toilet_basic_032",
-      "owner": "npc_wu_yong",
-      "type": "toilet_basic"
-    },
-    {
-      "at": "bld_009_f2",
-      "id": "bed_basic_033",
-      "owner": "npc_xu_chao",
-      "type": "bed_basic"
-    },
-    {
-      "at": "bld_009_f2",
-      "id": "toilet_basic_034",
-      "owner": "npc_xu_chao",
-      "type": "toilet_basic"
-    },
-    {
-      "at": "bld_010",
-      "id": "food_pear_035",
-      "price": 4.0,
-      "stock": 1000,
-      "type": "food_pear"
+      "at": "bld_009",
+      "id": "meal_simple_041",
+      "price": 1.0,
+      "stock": 100,
+      "type": "meal_simple"
     }
   ],
   "knowledge": [],
@@ -88,38 +54,12 @@
       "name": "店铺1号",
       "type": "shop_small",
       "w": 21.91,
-      "x": 389.05,
+      "x": 549.05,
       "y": 456.09
-    },
-    "bld_007": {
-      "h": 21.91,
-      "name": "店铺2号",
-      "type": "shop_small",
-      "w": 21.91,
-      "x": 243.33,
-      "y": 306.09
     },
     "bld_008": {
       "h": 7.75,
       "name": "小屋1号",
-      "type": "home_small",
-      "w": 7.75,
-      "x": 342.25,
-      "y": 230.25
-    },
-    "bld_008_f1": {
-      "h": 7.75,
-      "name": "小屋1号 · 1层",
-      "part_of": "bld_008",
-      "type": "home_small",
-      "w": 7.75,
-      "x": 342.25,
-      "y": 230.25
-    },
-    "bld_008_f2": {
-      "h": 7.75,
-      "name": "小屋1号 · 2层",
-      "part_of": "bld_008",
       "type": "home_small",
       "w": 7.75,
       "x": 342.25,
@@ -133,72 +73,26 @@
       "x": 358.95,
       "y": 230.25
     },
-    "bld_009_f1": {
-      "h": 7.75,
-      "name": "小屋2号 · 1层",
-      "part_of": "bld_009",
-      "type": "home_small",
-      "w": 7.75,
-      "x": 358.95,
-      "y": 230.25
-    },
-    "bld_009_f2": {
-      "h": 7.75,
-      "name": "小屋2号 · 2层",
-      "part_of": "bld_009",
-      "type": "home_small",
-      "w": 7.75,
-      "x": 358.95,
-      "y": 230.25
-    },
-    "bld_009_f3": {
-      "h": 7.75,
-      "name": "小屋2号 · 3层",
-      "part_of": "bld_009",
-      "type": "home_small",
-      "w": 7.75,
-      "x": 358.95,
-      "y": 230.25
-    },
     "bld_010": {
-      "h": 21.91,
-      "name": "店铺3号",
-      "type": "shop_small",
-      "w": 21.91,
-      "x": 639.05,
-      "y": 306.09
+      "h": 22.36,
+      "name": "批发市场1号",
+      "type": "market_hall",
+      "w": 35.78,
+      "x": 580.32,
+      "y": 455.64
     }
   },
   "map": {
     "buildings": {
       "bld_004": {
         "center": [
-          400.0,
+          560.0,
           467.046
         ],
         "doors": [
           [
-            400.0,
+            560.0,
             478.0
-          ]
-        ],
-        "floors": 1,
-        "rot": 0.0,
-        "size": [
-          21.909,
-          21.909
-        ],
-        "type": "shop_small"
-      },
-      "bld_007": {
-        "center": [
-          254.284,
-          317.046
-        ],
-        "doors": [
-          [
-            254.284,
-            328.0
           ]
         ],
         "floors": 1,
@@ -220,7 +114,7 @@
             238.0
           ]
         ],
-        "floors": 2,
+        "floors": 1,
         "rot": 0.0,
         "size": [
           7.746,
@@ -239,7 +133,7 @@
             238.0
           ]
         ],
-        "floors": 3,
+        "floors": 1,
         "rot": 0.0,
         "size": [
           7.746,
@@ -249,22 +143,22 @@
       },
       "bld_010": {
         "center": [
-          650.0,
-          317.046
+          598.211,
+          466.82
         ],
         "doors": [
           [
-            650.0,
-            328.0
+            598.211,
+            478.001
           ]
         ],
         "floors": 1,
         "rot": 0.0,
         "size": [
-          21.909,
-          21.909
+          35.777,
+          22.361
         ],
-        "type": "shop_small"
+        "type": "market_hall"
       }
     },
     "edges": {
@@ -368,7 +262,7 @@
             330.0
           ],
           [
-            200.0,
+            330.0,
             330.0
           ]
         ],
@@ -404,7 +298,7 @@
             480.0
           ],
           [
-            390.0,
+            540.0,
             480.0
           ]
         ],
@@ -511,7 +405,7 @@
       "n_004": {
         "kind": "junction",
         "xy": [
-          390.0,
+          540.0,
           480.0
         ]
       },
@@ -539,7 +433,7 @@
       "n_008": {
         "kind": "junction",
         "xy": [
-          200.0,
+          330.0,
           330.0
         ]
       },
@@ -581,23 +475,13 @@
   },
   "npcs": [
     {
-      "birthday": "1989-06-03",
-      "gender": "male",
-      "home": "bld_008_f1",
-      "id": "npc_wang_wei_2",
+      "birthday": "1972-05-02",
+      "gender": "female",
+      "home": "bld_008",
+      "id": "npc_sun_yan",
       "init": {},
-      "memory": {
-        "food_apple_024": {
-          "afford": "hunger",
-          "believe": 0.8,
-          "located": "bld_004",
-          "price": 5.0,
-          "stock": 1000.0,
-          "value": 0.35
-        }
-      },
-      "money": 30.0,
-      "name": "王伟",
+      "money": 303.0,
+      "name": "孙燕",
       "personality": {
         "energy": 1.0,
         "hunger": 1.2
@@ -607,83 +491,31 @@
       "traits": {}
     },
     {
-      "birthday": "1977-11-03",
+      "birthday": "2007-05-21",
       "gender": "male",
-      "home": "bld_008_f2",
-      "id": "npc_ma_chao",
+      "home": "bld_008",
+      "id": "npc_lin_san",
       "init": {},
-      "memory": {
-        "meal_simple_023": {
-          "afford": "hunger",
-          "believe": 0.8,
-          "located": "bld_007",
-          "price": 8.0,
-          "stock": 1000.0,
-          "value": 0.5
-        }
-      },
-      "money": 162.0,
-      "name": "马超",
+      "money": 384.0,
+      "name": "林三",
       "personality": {
-        "energy": 1.1,
-        "hunger": 1.3
+        "energy": 1.2,
+        "hunger": 1.2
       },
       "role": "",
       "tell_bias": 1.0,
       "traits": {}
     },
     {
-      "birthday": "1968-01-21",
-      "gender": "male",
-      "home": "bld_009_f1",
-      "id": "npc_wu_yong",
-      "init": {},
-      "memory": {
-        "food_apple_024": {
-          "afford": "hunger",
-          "believe": 0.8,
-          "located": "bld_004",
-          "price": 5.0,
-          "stock": 1000.0,
-          "value": 0.35
-        }
-      },
-      "money": 471.0,
-      "name": "吴勇",
-      "personality": {
-        "energy": 1.1,
-        "hunger": 0.9
-      },
-      "role": "",
-      "tell_bias": 1.0,
-      "traits": {}
-    },
-    {
-      "birthday": "1976-03-10",
-      "gender": "male",
-      "home": "bld_009_f2",
-      "id": "npc_xu_chao",
-      "init": {},
-      "money": 54.0,
-      "name": "徐超",
-      "personality": {
-        "energy": 1.0,
-        "hunger": 1.1
-      },
-      "role": "",
-      "tell_bias": 1.0,
-      "traits": {}
-    },
-    {
-      "birthday": "1958-05-13",
+      "birthday": "1986-04-05",
       "gender": "female",
-      "home": "bld_009_f3",
-      "id": "npc_zhou_xiaomei",
+      "home": "bld_008",
+      "id": "npc_zhang_jing",
       "init": {},
-      "money": 356.0,
-      "name": "周小美",
+      "money": 235.0,
+      "name": "张静",
       "personality": {
-        "energy": 1.1,
+        "energy": 1.2,
         "hunger": 1.0
       },
       "role": "",
@@ -691,26 +523,48 @@
       "traits": {}
     },
     {
-      "birthday": "1960-03-24",
-      "gender": "female",
-      "home": "bld_009_f3",
-      "id": "npc_lin_jing",
+      "birthday": "1965-11-05",
+      "gender": "male",
+      "home": "bld_009",
+      "id": "npc_he_tao",
       "init": {},
-      "memory": {
-        "meal_simple_023": {
-          "afford": "hunger",
-          "believe": 0.4,
-          "located": "bld_007",
-          "price": 8.0,
-          "stock": 1000.0,
-          "value": 0.5
-        }
-      },
-      "money": 476.0,
-      "name": "林静",
+      "money": 486.0,
+      "name": "何涛",
       "personality": {
-        "energy": 0.9,
+        "energy": 0.8,
         "hunger": 1.2
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "1966-09-26",
+      "gender": "male",
+      "home": "bld_009",
+      "id": "npc_li_yang",
+      "init": {},
+      "money": 290.0,
+      "name": "李洋",
+      "personality": {
+        "energy": 1.3,
+        "hunger": 0.9
+      },
+      "role": "",
+      "tell_bias": 1.0,
+      "traits": {}
+    },
+    {
+      "birthday": "2001-11-16",
+      "gender": "male",
+      "home": "bld_009",
+      "id": "npc_he_san",
+      "init": {},
+      "money": 82.0,
+      "name": "何三",
+      "personality": {
+        "energy": 1.0,
+        "hunger": 0.9
       },
       "role": "",
       "tell_bias": 1.0,
@@ -723,16 +577,12 @@
   "travel": {
     "default": 20,
     "pairs": {
-      "bld_004|bld_007": 20,
-      "bld_004|bld_008": 23,
-      "bld_004|bld_009": 23,
-      "bld_004|bld_010": 29,
-      "bld_007|bld_008": 12,
-      "bld_007|bld_009": 13,
-      "bld_007|bld_010": 39,
+      "bld_004|bld_008": 31,
+      "bld_004|bld_009": 30,
+      "bld_004|bld_010": 3,
       "bld_008|bld_009": 1,
-      "bld_008|bld_010": 31,
-      "bld_009|bld_010": 29
+      "bld_008|bld_010": 34,
+      "bld_009|bld_010": 33
     }
   }
 }

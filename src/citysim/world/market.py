@@ -33,11 +33,52 @@ def wholesale_price(world, item_type: str) -> float | None:
     return float(d.price) if d is not None else None
 
 
+def is_fixture(item_type: str) -> bool:
+    """装修件(马桶/销售前台/工位…): 一次买断、摆进店里, 不是可零售的货。
+
+    靠物品定义上的 tag "fixture" 判定 —— 不写死类型清单(加了新装修件
+    只要在 config/items 里打这个 tag, 市场和面板都自动认得)。
+    """
+    from citysim.world.itemdefs import load_item_defs
+    d = load_item_defs().get(item_type)
+    return d is not None and "fixture" in d.tags
+
+
+def fixture_catalog() -> list:
+    """所有可装修件: [{type, name, price}]。前端【装修管理】页读它。"""
+    from citysim.world.itemdefs import load_item_defs
+    out = []
+    for t, d in sorted(load_item_defs().items()):
+        if "fixture" in d.tags:
+            out.append({"type": t, "name": d.name,
+                        "price": float(d.build_cost)})
+    return out
+
+
 def market_items(world) -> list:
-    """市场里有卖什么: 所有可买的物品类型(数据驱动, 不用手写清单)。"""
+    """市场里有卖什么: 所有可【零售】的物品类型(数据驱动, 不用手写清单)。
+
+    装修件不算货(它们走 decorate(), 不进零售货架)。
+    """
     from citysim.world.itemdefs import load_item_defs
     return sorted(t for t, d in load_item_defs().items()
-                  if float(getattr(d, "price", 0.0)) > 0.0)
+                  if float(getattr(d, "price", 0.0)) > 0.0
+                  and "fixture" not in d.tags)
+
+
+def market_catalog() -> list:
+    """批发市场能进什么货: [{type, name, price}]。价格 = 物品定义的基准价。
+
+    前端【货物管理】页按它列“向市场进货”的清单(装修件不算)。
+    """
+    from citysim.world.itemdefs import load_item_defs
+    out = []
+    for t, d in sorted(load_item_defs().items()):
+        if "fixture" in d.tags:
+            continue
+        if float(getattr(d, "price", 0.0)) > 0.0:
+            out.append({"type": t, "name": d.name, "price": float(d.price)})
+    return out
 
 
 def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
@@ -49,6 +90,9 @@ def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
     from citysim.world.itemdefs import load_item_defs
     from citysim.world.world import entity_from_def
 
+    if is_fixture(item_type):
+        return {"ok": False, "why": "这是装修件, 去装修管理里放",
+                "cost": 0.0, "stock": 0}
     if not market_places(world):
         return {"ok": False, "why": "城里还没有市场", "cost": 0.0, "stock": 0}
     if shop_id not in company.shops or shop_id not in world.locations:
@@ -88,6 +132,35 @@ def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
             "shelf": shelf.entity_id}
 
 
+def decorate(world, company, shop_id: str, item_type: str) -> dict:
+    """公司给自己的店【装修】: 摆一件装修件(马桶/销售前台/工位…), 从公司账出钱。
+
+    返回 {"ok": bool, "why": str, "cost": float, "entity": str}。
+    装修件与"货"分开: 它不进货架、不零售, 一次买断地钉在店里(persist_empty)。
+    """
+    from citysim.world.itemdefs import load_item_defs
+    from citysim.world.world import entity_from_def
+
+    if shop_id not in company.shops or shop_id not in world.locations:
+        return {"ok": False, "why": "这家店不是它的", "cost": 0.0, "entity": ""}
+    if not is_fixture(item_type):
+        return {"ok": False, "why": "这不是装修件", "cost": 0.0, "entity": ""}
+    d = load_item_defs().get(item_type)
+    if d is None:
+        return {"ok": False, "why": "没有这种装修件", "cost": 0.0, "entity": ""}
+    price = float(getattr(d, "build_cost", 0.0))
+    if price > 0 and company.cash < price:
+        return {"ok": False, "why": "公司现钱不够", "cost": 0.0, "entity": ""}
+    e = entity_from_def(d, shop_id)
+    e.persist_empty = True                 # 装修件不因空库存被回收
+    world.spawn_entity(e)
+    if price > 0:
+        company.cash -= price
+    world.layout_location(shop_id)
+    return {"ok": True, "why": "", "cost": price,
+            "entity": e.entity_id, "item_type": item_type}
+
+
 def restock_all(world) -> list[dict]:
     """简单经营规则: 开门前把旗下货架补到 restock_to 份(用公司的钱)。
 
@@ -101,7 +174,8 @@ def restock_all(world) -> list[dict]:
             if shop_id not in world.locations:
                 continue
             types = {e.item_type for e in world.entities.values()
-                     if e.location_id == shop_id and e.price > 0 and e.stock != -1}
+                     if e.location_id == shop_id and e.price > 0
+                     and e.stock != -1 and not is_fixture(e.item_type)}
             for itype in sorted(types):
                 have = sum(e.stock for e in world.entities.values()
                            if e.location_id == shop_id and e.item_type == itype

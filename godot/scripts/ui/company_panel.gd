@@ -1,17 +1,24 @@
 # company_panel.gd —— 公司运营界面(居中弹窗, 独立于右侧检查器)。
 #
-# 用户定的结构(先搭框架, 具体内容后做):
-#   TabView 四个 tab:
-#     1 实时监控   2 HR 管理   3 货物管理   4 价格调整
+# 用户定的结构:
+#   TabView 五个 tab:
+#     1 实时监控   工位排(有员工=占位)+ 顾客排队 + 设施(马桶等)
+#     2 HR 管理    员工名单 + 发布/撤回招聘(标题/时薪) + 立刻招一次
+#     3 货物管理   在售货架/库存 + 向批发市场进货
+#     4 价格调整   逐条改售价(只改世界真值)
+#     5 装修管理   摆装修件(马桶/销售前台/工位), 从公司账出钱
 #
 # 打开方式:
 #   · 店铺【注册公司成功】→ 自动弹出
 #   · 店铺详情里点「打开运营界面」→ 再打开
 #
-# 为什么用 CanvasLayer(layer=100): 挂在 autoload 上也一定浮在整个场景之上,
-# 不会因为挂在节点树前面而被场景盖住。关闭只切 visible, 控件【只建一次】
-# (页面/面板的铁律: 别在刷新里增删控件, 否则按钮闪烁点不中)。
+# 铁律:
+#   · 监控页是自绘 Control(每帧只画, 不建控件);
+#   · 货物/价格/装修三个列表只在【打开 / 收到应答】时重建 —— 绝不每帧增删控件;
+#   · 面板只读 Store, 写操作一律走 Commands。
 extends CanvasLayer
+
+const MonitorScript := preload("res://scripts/ui/company_monitor.gd")
 
 static var instance = null                    # 由 App 创建, 页面用静态方法打开
 
@@ -19,8 +26,18 @@ var _dim: ColorRect
 var _panel: PanelContainer
 var _title: Label
 var _sub: Label
+var _msg: Label
 var _tabs: TabContainer
+var _monitor: Control
+var _goods_list: VBoxContainer
+var _price_list: VBoxContainer
+var _hr_list: VBoxContainer
+var _decor_list: VBoxContainer
 var _cid := ""
+var _shop := ""
+var _seen_reply := 0
+# 应答到了但快照还没到 → 等下一帧快照再刷列表(否则会用旧值重建, 比如刚改的售价)
+var _pending_refresh := false
 
 
 ## 页面侧的统一入口(没创建时不报错, 只是打不开)
@@ -34,6 +51,8 @@ func _ready() -> void:
 	layer = 100
 	_build()
 	visible = false
+	set_process(true)
+	Store.snapshot_applied.connect(_on_snapshot)
 
 
 func _build() -> void:
@@ -50,7 +69,6 @@ func _build() -> void:
 	_panel = PanelContainer.new()
 	_panel.custom_minimum_size = Vector2(760, 520)
 	_panel.set_anchors_preset(Control.PRESET_CENTER)
-	# 居中: 用锚点 + 固定尺寸(PRESET_CENTER 会把 pivot 放中间)
 	_panel.offset_left = -380
 	_panel.offset_right = 380
 	_panel.offset_top = -260
@@ -72,6 +90,9 @@ func _build() -> void:
 	_sub = Label.new()
 	_sub.add_theme_color_override("font_color", Color("7f8ea3"))
 	tcol.add_child(_sub)
+	_msg = Label.new()
+	_msg.add_theme_font_size_override("font_size", 12)
+	tcol.add_child(_msg)
 	head.add_child(tcol)
 	var close := Button.new()
 	close.text = "✕ 关闭"
@@ -79,40 +100,124 @@ func _build() -> void:
 	head.add_child(close)
 	box.add_child(head)
 
-	# --- 四个 tab(先只搭框架: 每个 tab 里一句说明) ---
+	# --- TabView ---
 	_tabs = TabContainer.new()
 	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_tabs.add_child(_tab("实时监控",
-		"公司画布: 线路(销售前台) / 员工在不在岗 / 顾客排队"))
-	_tabs.add_child(_tab("HR 管理",
-		"员工名单 · 发布/撤回招聘 · 时薪 · 上下班时间 · 现金"))
-	_tabs.add_child(_tab("货物管理",
-		"在售货架与库存 · 工位(销售前台) · 向市场进货"))
-	_tabs.add_child(_tab("价格调整",
-		"逐条改售价(只改世界真值 —— 顾客要看见/听人说才知道)"))
+	# 1 实时监控: 自绘画布(工位行 + 排队 + 设施)
+	_monitor = MonitorScript.new()
+	_monitor.name = "实时监控"
+	_monitor.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_tabs.add_child(_monitor)
+	# 2 HR 管理(员工名单 + 发布/撤回招聘)
+	_tabs.add_child(_build_hr())
+	# 3 货物管理
+	_tabs.add_child(_build_goods())
+	# 4 价格调整
+	_tabs.add_child(_build_prices())
+	# 5 装修管理
+	_tabs.add_child(_build_decor())
 	box.add_child(_tabs)
 
 
-func _tab(title: String, hint: String) -> Control:
+# --- HR 管理 ---------------------------------------------------------------
+func _build_hr() -> Control:
+	var v := _scroll_tab("HR 管理",
+		"员工名单; 发布招聘启事(几名/时薪) → 每天【招人时刻】媒婆才撮合。")
+	_hr_list = VBoxContainer.new()
+	_hr_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hr_list.add_theme_constant_override("separation", 4)
+	(v.get_child(v.get_child_count() - 1) as ScrollContainer).add_child(_hr_list)
+	return v
+
+
+# --- 货物管理 --------------------------------------------------------------
+func _build_goods() -> Control:
+	var v := _scroll_tab("货物管理",
+		"在售货架就是店里的货; 从【批发市场】进货 → 上架 → 顾客才能买。")
+	_goods_list = VBoxContainer.new()
+	_goods_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_goods_list.add_theme_constant_override("separation", 4)
+	(v.get_child(v.get_child_count() - 1) as ScrollContainer).add_child(_goods_list)
+	return v
+
+
+# --- 价格调整 --------------------------------------------------------------
+func _build_prices() -> Control:
+	var v := _scroll_tab("价格调整",
+		"改的是世界真值 —— 顾客要【看见】或【听人说】才会知道新价格。")
+	_price_list = VBoxContainer.new()
+	_price_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_price_list.add_theme_constant_override("separation", 4)
+	(v.get_child(v.get_child_count() - 1) as ScrollContainer).add_child(_price_list)
+	return v
+
+
+# --- 装修管理 --------------------------------------------------------------
+func _build_decor() -> Control:
+	var v := _scroll_tab("装修管理",
+		"摆装修件(马桶/销售前台/工位…) —— 从公司账出钱, 摆完就一直在店里。")
+	_decor_list = VBoxContainer.new()
+	_decor_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_decor_list.add_theme_constant_override("separation", 4)
+	(v.get_child(v.get_child_count() - 1) as ScrollContainer).add_child(_decor_list)
+	return v
+
+
+## 带提示文字 + 滚动区的 tab 骨架; 滚动区放在最后一个孩子, 调用方往里塞列表。
+func _scroll_tab(title: String, hint: String) -> VBoxContainer:
 	var v := VBoxContainer.new()
 	v.name = title
 	v.add_theme_constant_override("separation", 6)
 	var l := Label.new()
-	l.text = "【%s】%s" % [title, hint]
+	l.text = hint
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.add_theme_color_override("font_color", Color("7f8ea3"))
 	v.add_child(l)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(scroll)
 	return v
+
+
+func _process(_delta: float) -> void:
+	if not visible:
+		return
+	if Commands.reply_seq == _seen_reply:
+		return
+	_seen_reply = Commands.reply_seq
+	var name := Commands.last_cmd
+	if not (name.begins_with("company_") or name == "set_price"
+			or name == "register_company" or name == "hire_now"):
+		return
+	var r: Dictionary = Commands.last_reply
+	var ok := bool(r.get("ok", false))
+	var why := Protocol.s(r.get("why", ""))
+	_msg.text = ("✓ 完成" if ok else "✗ %s" % (why if why != "" else "失败"))
+	_msg.add_theme_color_override("font_color",
+		Color("7fe0a8") if ok else Color("e05252"))
+	_pending_refresh = true          # 等下一帧快照到齐了再重建列表
+
+
+func _on_snapshot() -> void:
+	if visible and _pending_refresh:
+		_pending_refresh = false
+		_refresh_all()
 
 
 func open_for(cid: String) -> void:
 	_cid = cid
+	_shop = _first_shop(cid)
+	_seen_reply = Commands.reply_seq          # 不同步会把进来的旧应答当新的
+	_msg.text = ""
 	var comp := Store.company(cid)
 	_title.text = "%s" % Protocol.s(comp.get("name", cid)) if not comp.is_empty() \
 		else "公司 %s" % cid
-	var shops: Array = Protocol.as_array(comp.get("shops", []))
 	_sub.text = "公司运营 · %s · 店铺 %s" % [cid,
-		", ".join(shops.map(func(s): return Protocol.s(s)))]
+		", ".join(Protocol.as_array(comp.get("shops", [])).map(
+			func(s): return Store.name_of(Protocol.s(s))))]
+	if _monitor != null and _monitor.has_method("setup"):
+		_monitor.call("setup", cid)
+	_refresh_all()
 	visible = true
 
 
@@ -127,3 +232,397 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if (event as InputEventKey).keycode == KEY_ESCAPE:
 		close_panel()
 		get_viewport().set_input_as_handled()
+
+
+func _refresh_all() -> void:
+	_refresh_hr()
+	_refresh_goods()
+	_refresh_prices()
+	_refresh_decor()
+
+
+## 店铺 id 列表的第一家(公司可能有多家店; 面板先只显示第一家)。
+func _first_shop(cid: String) -> String:
+	var comp := Store.company(cid)
+	for s in Protocol.as_array(comp.get("shops", [])):
+		return Protocol.s(s)
+	return ""
+
+
+func _clear(v: Node) -> void:
+	for c in v.get_children():
+		c.queue_free()
+
+
+func _refresh_hr() -> void:
+	if _hr_list == null:
+		return
+	_clear(_hr_list)
+	if _cid == "":
+		return
+	var comp := Store.company(_cid)
+	# 员工名单
+	_hr_list.add_child(_head("员工名单"))
+	var staff := Protocol.as_array(comp.get("staff", []))
+	if staff.is_empty():
+		_hr_list.add_child(_muted("还没招到人 —— 发布招聘启事, 等每天招人时刻匹配"))
+	for it in staff:
+		_hr_list.add_child(_staff_row(it, comp))
+	# 招聘启事
+	_hr_list.add_child(_head("招聘启事"))
+	_hr_list.add_child(_hire_row(comp))
+
+
+func _staff_row(it: Variant, comp: Dictionary) -> Control:
+	var pid := ""
+	var wage := Protocol.num(comp.get("wage_per_hour", 0.0))
+	if typeof(it) == TYPE_DICTIONARY:
+		pid = Protocol.s((it as Dictionary).get("npc", ""))
+		wage = Protocol.num((it as Dictionary).get("wage", wage))
+	else:
+		pid = Protocol.s(it)
+	var station := Protocol.s(Protocol.as_dict(
+		Store.npc(pid).get("work", {})).get("station", ""))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var name := Label.new()
+	name.text = Store.name_of(pid)
+	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(name)
+	# 【分配工位】: 下拉选定这个员工守哪个销售台(或“未分配")
+	var ob := OptionButton.new()
+	var ids: Array = [""]
+	ob.add_item("未分配")
+	var counters := _company_counters()
+	for i in counters.size():
+		var cid2 := Protocol.s((counters[i] as Dictionary).get("id", ""))
+		ids.append(cid2)
+		ob.add_item("销售台 %d%s" % [i + 1,
+			"（占用）" if _station_taken(cid2, pid) else ""])
+		if cid2 == station:
+			ob.select(i + 1)
+	ob.custom_minimum_size.x = 150
+	ob.item_selected.connect(func(k: int) -> void:
+		Commands.cmd("company_assign", {"company": _cid, "npc": pid,
+			"station": Protocol.s(ids[k]) if k < ids.size() else ""}))
+	row.add_child(ob)
+	var w := Label.new()
+	w.text = "¥%.0f/时" % wage
+	w.custom_minimum_size.x = 80
+	row.add_child(w)
+	var act := Protocol.s(Store.npc(pid).get("activity", ""))
+	var st := Label.new()
+	st.text = "在岗" if (station != "" and act == "working") else "不在岗"
+	st.add_theme_color_override("font_color",
+		Color("7fe0a8") if st.text == "在岗" else Color("e8a34d"))
+	row.add_child(st)
+	return row
+
+
+func _hire_row(comp: Dictionary) -> Control:
+	var wage := Protocol.num(comp.get("wage_per_hour", 10.0))
+	var slots := int(Protocol.num(comp.get("hiring_slots", 0)))
+	var is_open := bool(comp.get("hiring_open", false))
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	# 用 GridContainer 两列: 标签列 + 控件列 —— 之前挤在 HBox 里, 短标签被
+	# autowrap 压成一字一行(用户报的"挤成竖着")。
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 6)
+	grid.add_child(_lbl("时薪 ¥/小时"))
+	var le := LineEdit.new()
+	le.text = "%d" % int(wage)
+	le.custom_minimum_size = Vector2(120, 0)
+	le.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	grid.add_child(le)
+	grid.add_child(_lbl("这次招几名"))
+	var sp := SpinBox.new()
+	sp.min_value = 0
+	sp.max_value = 99
+	sp.value = slots
+	sp.custom_minimum_size = Vector2(120, 0)
+	sp.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	grid.add_child(sp)
+	grid.add_child(_lbl("空工位"))
+	grid.add_child(_lbl("%d 个" % _vacant_count()))
+	box.add_child(grid)
+
+	var btns := HBoxContainer.new()
+	btns.add_theme_constant_override("separation", 8)
+	var pub := Button.new()
+	pub.text = "发布 / 更新招聘"
+	pub.pressed.connect(func() -> void:
+		Commands.cmd("company_hire", {"company": _cid,
+			"slots": int(sp.value), "wage_per_hour": le.text.strip_edges().to_float()}))
+	btns.add_child(pub)
+	var stop := Button.new()
+	stop.text = "撤回招聘"
+	stop.pressed.connect(func() -> void:
+		Commands.cmd("company_hire", {"company": _cid, "slots": 0}))
+	btns.add_child(stop)
+	var now := Button.new()
+	now.text = "立刻招一次"
+	now.tooltip_text = "不等招人时刻, 马上让媒婆匹配一次(看效果用)"
+	now.pressed.connect(func() -> void: Commands.cmd("hire_now", {}))
+	btns.add_child(now)
+	box.add_child(btns)
+
+	var state := Label.new()
+	state.text = ("招聘中 · 名额 %d · 时薪 ¥%.0f" % [slots, wage]) if is_open \
+		else "未发布招聘(一个也不会被招进来)"
+	state.add_theme_color_override("font_color",
+		Color("7fe0a8") if is_open else Color("7f8ea3"))
+	box.add_child(state)
+	return box
+
+
+# --- 货物管理 --------------------------------------------------------------
+func _refresh_goods() -> void:
+	if _goods_list == null:
+		return
+	_clear(_goods_list)
+	if _shop == "":
+		_goods_list.add_child(_muted("这家公司还没登记店铺"))
+		return
+	# 在售货架
+	_goods_list.add_child(_head("在售货架"))
+	var shelves := _shelves()
+	if shelves.is_empty():
+		_goods_list.add_child(_muted("货架上还没有货 —— 从下面进一批"))
+	for e in shelves:
+		_goods_list.add_child(_shelf_row(e))
+	# 向市场进货
+	_goods_list.add_child(_head("向批发市场进货"))
+	if not bool(Store.market.get("exists", false)):
+		_goods_list.add_child(_muted("城里还没有批发市场(编辑器放一栋 kind=market 的建筑)"))
+		return
+	for item in Protocol.as_array(Store.market.get("items", [])):
+		_goods_list.add_child(_market_row(item))
+
+
+func _shelf_row(e: Dictionary) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var name := Label.new()
+	name.text = Protocol.s(e.get("name", e.get("id", "")))
+	name.custom_minimum_size.x = 170
+	row.add_child(name)
+	var stock := int(Protocol.num(e.get("stock", 0)))
+	var sl := Label.new()
+	sl.text = "库存 %s" % ("∞" if stock < 0 else str(stock))
+	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sl.add_theme_color_override("font_color", Color("7f8ea3"))
+	row.add_child(sl)
+	var pl := Label.new()
+	pl.text = "售价 ¥%.0f" % Protocol.num(e.get("price", 0.0))
+	row.add_child(pl)
+	return row
+
+
+func _market_row(item: Dictionary) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var name := Label.new()
+	name.text = "%s　批发 ¥%.0f" % [Protocol.s(item.get("name", item.get("type", ""))),
+		Protocol.num(item.get("price", 0.0))]
+	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(name)
+	var qty := SpinBox.new()
+	qty.min_value = 1
+	qty.max_value = 999
+	qty.value = 10
+	qty.custom_minimum_size.x = 80
+	row.add_child(qty)
+	var btn := Button.new()
+	btn.text = "进货"
+	var itype := Protocol.s(item.get("type", ""))
+	btn.pressed.connect(func() -> void:
+		Commands.cmd("company_restock", {"company": _cid, "shop": _shop,
+			"item_type": itype, "qty": int(qty.value)}))
+	row.add_child(btn)
+	return row
+
+
+# --- 价格调整 --------------------------------------------------------------
+func _refresh_prices() -> void:
+	if _price_list == null:
+		return
+	_clear(_price_list)
+	if _shop == "":
+		_price_list.add_child(_muted("这家公司还没登记店铺"))
+		return
+	var shelves := _shelves()
+	if shelves.is_empty():
+		_price_list.add_child(_muted("货架上还没有货 —— 先去【货物管理】进货"))
+		return
+	for e in shelves:
+		_price_list.add_child(_price_row(e))
+
+
+func _price_row(e: Dictionary) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var name := Label.new()
+	name.text = Protocol.s(e.get("name", e.get("id", "")))
+	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(name)
+	var le := LineEdit.new()
+	le.text = "%d" % int(Protocol.num(e.get("price", 0.0)))
+	le.custom_minimum_size.x = 80
+	row.add_child(le)
+	var btn := Button.new()
+	btn.text = "保存"
+	var eid := Protocol.s(e.get("id", ""))
+	btn.pressed.connect(func() -> void:
+		Commands.cmd("set_price", {"entity": eid,
+			"price": le.text.strip_edges().to_float()}))
+	row.add_child(btn)
+	return row
+
+
+# --- 装修管理 --------------------------------------------------------------
+func _refresh_decor() -> void:
+	if _decor_list == null:
+		return
+	_clear(_decor_list)
+	if _shop == "":
+		_decor_list.add_child(_muted("这家公司还没登记店铺"))
+		return
+	if Store.fixtures.is_empty():
+		_decor_list.add_child(_muted("没有可用的装修件(config/items 里打 fixture 标签)"))
+		return
+	for f in Store.fixtures:
+		_decor_list.add_child(_decor_row(f))
+
+
+func _decor_row(fd: Dictionary) -> Control:
+	var itype := Protocol.s(fd.get("type", ""))
+	var price := Protocol.num(fd.get("price", 0.0))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var name := Label.new()
+	name.text = "%s　¥%d" % [Protocol.s(fd.get("name", itype)), int(price)]
+	name.custom_minimum_size.x = 180
+	row.add_child(name)
+	var cnt := Label.new()
+	cnt.text = "已有 %d" % _count_fixture(itype)
+	cnt.add_theme_color_override("font_color", Color("7f8ea3"))
+	cnt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(cnt)
+	var btn := Button.new()
+	btn.text = "放置"
+	btn.pressed.connect(func() -> void:
+		Commands.cmd("company_decorate", {"company": _cid, "shop": _shop,
+			"item_type": itype}))
+	row.add_child(btn)
+	return row
+
+
+# --- 只读镜像查询 ----------------------------------------------------------
+## 店里的【货】(售价 > 0 的实体; 装修件售价为 0, 不算货)。
+func _shelves() -> Array:
+	var out: Array = []
+	for e in Store.entities.values():
+		var d: Dictionary = e
+		if Protocol.num(d.get("price", 0.0)) <= 0.0:
+			continue
+		if Store.building_of(Protocol.s(d.get("loc", ""))) != _shop:
+			continue
+		out.append(d)
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return Protocol.s(a.get("id", "")) < Protocol.s(b.get("id", "")))
+	return out
+
+
+## 公司旗下【空着的】销售前台数(= 还能招几个人)。已绑员工的台不算。
+func _vacant_count() -> int:
+	var taken := {}
+	for it in Protocol.as_array(Store.company(_cid).get("staff", [])):
+		var pid := Protocol.s((it as Dictionary).get("npc", "")) \
+			if typeof(it) == TYPE_DICTIONARY else Protocol.s(it)
+		if pid == "":
+			continue
+		var station := Protocol.s(Protocol.as_dict(
+			Store.npc(pid).get("work", {})).get("station", ""))
+		if station != "":
+			taken[station] = true
+	var n := 0
+	for e in Store.entities.values():
+		var d: Dictionary = e
+		if Protocol.s(d.get("item_type", "")) != "station_counter":
+			continue
+		if not _owns_shop(Protocol.s(d.get("loc", ""))):
+			continue
+		if not taken.has(Protocol.s(d.get("id", ""))):
+			n += 1
+	return n
+
+
+## 这个地点是不是公司旗下的店(按父建筑归)。
+func _owns_shop(loc: String) -> bool:
+	var b := Store.building_of(loc)
+	return Protocol.as_array(
+		Store.company(_cid).get("shops", [])).has(b)
+
+
+## 公司旗下【所有】销售台(按 id 排)—— 分配工位的下拉列表。
+func _company_counters() -> Array:
+	var shops := Protocol.as_array(Store.company(_cid).get("shops", []))
+	var out: Array = []
+	for e in Store.entities.values():
+		var d: Dictionary = e
+		if Protocol.s(d.get("item_type", "")) != "station_counter":
+			continue
+		if not shops.has(Store.building_of(Protocol.s(d.get("loc", "")))):
+			continue
+		out.append(d)
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return Protocol.s(a.get("id", "")) < Protocol.s(b.get("id", "")))
+	return out
+
+
+## 这个台是不是已经被【别人】占了(except_pid = 自己, 不算)。
+func _station_taken(station_id: String, except_pid: String) -> bool:
+	for pid in Store.npcs:
+		if String(pid) == except_pid:
+			continue
+		var w := Protocol.as_dict(Store.npc(pid).get("work", {}))
+		if Protocol.s(w.get("station", "")) == station_id:
+			return true
+	return false
+
+
+## 不换行的短标签(用于表单同行; autowrap 在窄行里会把字挤成一列)。
+func _lbl(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_color_override("font_color", Color("7f8ea3"))
+	return l
+
+
+func _count_fixture(itype: String) -> int:
+	var n := 0
+	for e in Store.entities.values():
+		var d: Dictionary = e
+		if Protocol.s(d.get("item_type", "")) == itype \
+				and Store.building_of(Protocol.s(d.get("loc", ""))) == _shop:
+			n += 1
+	return n
+
+
+func _head(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", UiTheme.FS_HEAD)
+	l.add_theme_color_override("font_color", Color("6fb7ff"))
+	return l
+
+
+func _muted(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.add_theme_color_override("font_color", Color("7f8ea3"))
+	return l

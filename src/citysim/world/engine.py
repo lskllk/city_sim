@@ -480,6 +480,47 @@ def _write_work_plan(world, cfg: SimConfig, npc, comp, shop_id: str,
     ])
 
 
+def assign_station(world, systems, cfg: SimConfig, company,
+                   npc_id: str, station_id: str) -> dict:
+    """把员工【分派到】某个销售台(或 station_id="" 撤销分配)。
+
+    用户要的: 招来的人得能手动指定站哪个台, 否则可能没位置(或分错台)。
+    只改世界真值(work 绑定 + 上班计划表), 不做任何模拟计算。
+    返回 {"ok", "why", "npc", "station"(, "shop")}。
+    """
+    npc = world.npcs.get(npc_id)
+    if npc is None:
+        return {"ok": False, "why": "没有这个人", "npc": npc_id, "station": ""}
+    if npc_id not in [n for n, _w in company.staff]:
+        return {"ok": False, "why": "不是这家公司的员工",
+                "npc": npc_id, "station": ""}
+    if station_id == "":
+        npc.clear_work()
+        return {"ok": True, "why": "", "npc": npc_id, "station": ""}
+    shop_id = ""
+    for sid in company.shops:
+        for c in _counters(world, sid):
+            if c.entity_id == station_id:
+                shop_id = sid
+                break
+        if shop_id:
+            break
+    if not shop_id:
+        return {"ok": False, "why": "这个台不是公司的",
+                "npc": npc_id, "station": ""}
+    for other in world.npcs.values():
+        if other.person_id == npc_id:
+            continue
+        if other.work.get("station") == station_id:
+            return {"ok": False, "why": "这个台已经有别人在守",
+                    "npc": npc_id, "station": ""}
+    npc.set_work(company.company_id, shop_id, station_id,
+                 company.open_minute, company.close_minute)
+    _write_work_plan(world, cfg, npc, company, shop_id, station_id)
+    return {"ok": True, "why": "", "npc": npc_id, "station": station_id,
+            "shop": shop_id}
+
+
 def _hire_due(world, cfg: SimConfig, last_tick: int) -> bool:
     """到点了吗(每天 hire_minute 一次)。"""
     day, minute = divmod(world.clock_tick, max(1, cfg.ticks_per_day))

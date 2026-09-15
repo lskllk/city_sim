@@ -140,6 +140,16 @@ class SimRunner:
         self._push_seq: int = 0
         self._build()
 
+    def note_world_changed(self) -> None:
+        """世界里发生了【不推进 tick】的写(注册公司/改参数/招聘/进货)→
+        下一帧强制推一份快照。
+
+        为什么必须显式叫: push() 在暂停且无事件/无脏 NPC 时会【跳过】
+        (省空转)。注册公司恰好是这样: 不推进 tick、不产生事件, 于是前端
+        永远收不到带新公司的快照 → 注册按钮不消失(实测 bug)。
+        """
+        self._pushed_tick = None
+
     def note_client_joined(self) -> None:
         """新客户端接入 → 下一帧强制推一份完整快照(全部 NPC 重算为 dirty)。"""
         self._pushed_tick = None
@@ -426,8 +436,10 @@ def _admin_company(r, op: str, args: dict) -> dict:
     op:
       register  点一个商铺建筑 → 注册公司 {location, name, cash}
       update    改参数 {company, cash/open_minute/close_minute/wage_per_hour/restock_to}
-      hire      发布/撤回招聘启事 {company, slots}   ← 招不招人是公司说了算
+      hire      发布/撤回招聘启事 {company, slots, wage_per_hour?} ← 招不招人公司说了算
+      assign    给员工分派销售台 {company, npc, station}("" = 撤销)
       restock   向市场进货 {company, shop?, item_type, qty}
+      decorate  给店摆装修件 {company, shop?, item_type}
     注: 招聘只是【发布启事】, 真正撮合还是每天 hire_minute 那次(媒婆)。
     """
     from citysim.world.companies import Company
@@ -484,6 +496,19 @@ def _admin_company(r, op: str, args: dict) -> dict:
         res = purchase(world, comp, shop, item, qty)
         res["company"] = cid
         return res
+    if op == "assign":
+        from citysim.world.engine import assign_station
+        res = assign_station(world, r.systems, r.cfg, comp,
+                             str(args.get("npc", "")), str(args.get("station", "")))
+        res["company"] = cid
+        return res
+    if op == "decorate":
+        from citysim.world.market import decorate
+        shop = str(args.get("shop", "") or (comp.shops[0] if comp.shops else ""))
+        item = str(args.get("item_type", ""))
+        res = decorate(world, comp, shop, item)
+        res["company"] = cid
+        return res
     return {"ok": False, "why": "未知操作 %s" % op, "company": cid}
 
 
@@ -520,23 +545,44 @@ async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
     elif name == "register_company":
         # 游戏内【注册公司】: 点商铺建筑 → 注册。没注册的店不能卖、不能招人。
         admin = _admin_company(r, "register", args)
+        if admin["ok"]:
+            r.note_world_changed()          # 暂停时也要把新公司推给前端
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
                          "ok": admin["ok"], "data": admin, "why": admin["why"]})
     elif name == "company_update":
         admin = _admin_company(r, "update", args)
+        if admin["ok"]:
+            r.note_world_changed()
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
                          "ok": admin["ok"], "data": admin, "why": admin["why"]})
     elif name == "company_hire":
         admin = _admin_company(r, "hire", args)
+        if admin["ok"]:
+            r.note_world_changed()
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
                          "ok": admin["ok"], "data": admin, "why": admin["why"]})
     elif name == "company_restock":
         admin = _admin_company(r, "restock", args)
+        if admin["ok"]:
+            r.note_world_changed()
+        await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
+                         "ok": admin["ok"], "data": admin, "why": admin["why"]})
+    elif name == "company_decorate":
+        admin = _admin_company(r, "decorate", args)
+        if admin["ok"]:
+            r.note_world_changed()
+        await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
+                         "ok": admin["ok"], "data": admin, "why": admin["why"]})
+    elif name == "company_assign":
+        admin = _admin_company(r, "assign", args)
+        if admin["ok"]:
+            r.note_world_changed()
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
                          "ok": admin["ok"], "data": admin, "why": admin["why"]})
     elif name == "hire_now":
         from citysim.world.engine import hire_at
         hired = hire_at(r.world, r.systems, r.cfg)
+        r.note_world_changed()          # 新员工/公司名额变了 → 暂停时也要推
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
                          "ok": True, "data": {"hired": hired}, "why": None})
     elif name == "set_price":
@@ -548,6 +594,7 @@ async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
         else:
             ent.price = max(0.0, float(args.get("price", 0.0)))
             r.world.layout_location(ent.location_id)
+            r.note_world_changed()        # 暂停时也要把新价格推给前端
             await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
                              "ok": True,
                              "data": {"entity": ent.entity_id,

@@ -158,11 +158,13 @@ def economy_block(world, systems) -> dict:
     comps = []
     for cid, c in sorted(world.companies.items()):
         comps.append({
-            "id": cid, "cash": round(c.cash, 2),
+            "id": cid, "name": c.name, "owner": c.owner,
+            "cash": round(c.cash, 2),
             "hiring_open": bool(c.hiring_open), "hiring_slots": int(c.hiring_slots),
             "wage_per_hour": float(c.wage_per_hour),
             "open_minute": int(c.open_minute), "close_minute": int(c.close_minute),
-            "staff": [n for n, _w in c.staff], "shops": list(c.shops),
+            "staff": [{"npc": n, "wage": w} for n, w in c.staff],
+            "shops": list(c.shops),
         })
     on_duty: dict[str, int] = {}
     for shop_id in counters:
@@ -335,6 +337,19 @@ def do_query(runner, args: dict) -> dict | None:
     return None
 
 
+def _fixture_catalog() -> list:
+    from citysim.world.market import fixture_catalog
+    return fixture_catalog()
+
+
+def _market_info(runner) -> dict:
+    """批发市场(静态): 在不在 + 能进什么货/批发价。【货物管理】页读它。"""
+    from citysim.world.market import market_catalog, market_places
+    places = market_places(runner.world)
+    return {"exists": bool(places), "places": places,
+            "items": market_catalog()}
+
+
 def hello_payload(runner) -> dict:
     from citysim.gateway.scenarios import DEFAULT_SCENE, default_scene_path
     import json as _json
@@ -367,6 +382,10 @@ def hello_payload(runner) -> dict:
                  "owner": comp.owner, "shops": list(comp.shops),
                  "staff": [{"npc": n, "wage": w} for n, w in comp.staff]}
                 for cid, comp in sorted(runner.world.companies.items())],
+            # 装修件目录(静态): 【装修管理】页按它列可放的东西与价格。
+            "fixtures": _fixture_catalog(),
+            # 批发市场(静态): 在不在 + 可进货清单。【货物管理】页读它。
+            "market": _market_info(runner),
             "tell_p": runner.systems.tell_p,
             "listen_p": runner.systems.listen_p,
             "tell_same_home": runner.systems.tell_same_home,

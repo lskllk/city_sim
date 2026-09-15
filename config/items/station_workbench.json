@@ -5,6 +5,7 @@
     "work"
   ],
   "affordances": {},
+  "build_cost": 150.0,
   "duration_ticks": 240,
   "on_start": [],
   "on_complete": [],

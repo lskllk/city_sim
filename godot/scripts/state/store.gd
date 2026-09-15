@@ -28,6 +28,10 @@ var scenario: String = ""
 var scene_error: String = ""
 ## 公司(只读镜像): [{id,name,cash,owner,shops,staff}] —— 经营面板读它
 var companies: Array = []
+## 装修件目录(静态, 来自 hello): [{type,name,price}] —— 【装修管理】页列可放的东西
+var fixtures: Array = []
+## 批发市场(静态, 来自 hello): {exists, places, items:[{type,name,price}]}
+var market: Dictionary = {}
 ## 经济观测块(每帧更新, 只有数字): 公司账/前台数/在岗数/排队数
 var economy: Dictionary = {}
 var seed_value: int = 0
@@ -72,6 +76,8 @@ func init_hello(h: Dictionary) -> void:
 	# 后端场景坏了也能起来(不闪退), 原因走这里; 界面负责显示
 	scene_error = Protocol.s(h.get("scene_error"))
 	companies = Protocol.as_array(h.get("companies", []))
+	fixtures = Protocol.as_array(h.get("fixtures", []))
+	market = Protocol.as_dict(h.get("market", {}))
 	seed_value = int(Protocol.num(h.get("seed")))
 	n_npc = int(Protocol.num(h.get("n_npc")))
 	var sigs: Variant = h.get("signals", [])
@@ -100,7 +106,10 @@ func apply_snapshot(snap: Dictionary) -> void:
 	# 【合并】而非整体替换: 后端采用【观察驱动】下发 —— 渲染状态未变的 NPC
 	# (典型: 在家不动的) 不出现在这一帧。不合并的话它们会被清掉。
 	economy = Protocol.as_dict(snap.get("economy", {}))
-	if companies.is_empty():
+	# 公司表【每帧都从 economy 刷新】—— 不能只在为空时读一次:
+	# 注册公司不推进 tick, 首次注册后 companies 非空, 后面再注册的新公司就
+	# 永远进不了镜像 → 注册按钮不消失(实测 bug)。economy 是权威全量列表。
+	if economy.has("companies"):
 		companies = Protocol.as_array(economy.get("companies", []))
 	_merge_into(npcs, snap.get("npcs", []))
 	_merge_into(entities, snap.get("entities", []))

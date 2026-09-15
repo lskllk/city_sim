@@ -99,3 +99,35 @@ def test_already_employed_are_not_rehired(tmp_path) -> None:
     w.companies["org_a"].hiring_open = True
     w.companies["org_a"].hiring_slots = 1
     assert E.hire_at(w, s, CFG) == []                  # 剩下的都已有工作
+
+
+def test_economy_block_exposes_staff_with_wage(tmp_path) -> None:
+    """观测块 economy.companies.staff 带时薪 —— HR 面板直接读它显示员工名单。
+
+    (契约: [{npc, wage}], 和 hello.companies 一致; 以前 economy 只给 npc id。)
+    """
+    from citysim.gateway.snapshot import economy_block
+    w, s = _load(tmp_path, _scene(1), counters=1, hiring_slots=1, wage=60.0)
+    E.hire_at(w, s, CFG)
+    comp = economy_block(w, s)["companies"][0]
+    assert comp["staff"] and comp["staff"][0]["wage"] == 60.0
+    assert comp["staff"][0]["npc"]
+
+
+def test_assign_station_reassigns_and_guards_taken(tmp_path) -> None:
+    """分配工位: 可改到别的台; 台被占 / 非员工 → 拒绝; 空串 = 撤销分配。"""
+    w, s = _load(tmp_path, _scene(2), counters=2, hiring_slots=2)
+    hired = E.hire_at(w, s, CFG)
+    a, b = hired[0]["npc"], hired[1]["npc"]
+    ca, cb = hired[0]["station"], hired[1]["station"]
+    comp = w.companies["org_a"]
+    # 想把 b 的台给 a → b 还占着 → 拒绝
+    assert not E.assign_station(w, s, CFG, comp, a, cb)["ok"]
+    # 撤销 b → 台空出来
+    assert E.assign_station(w, s, CFG, comp, b, "")["ok"]
+    assert w.npcs[b].work.get("station", "") == ""
+    # 现在 b 能回到那个台
+    res = E.assign_station(w, s, CFG, comp, b, cb)
+    assert res["ok"] and w.npcs[b].work["station"] == cb
+    # 非员工拒绝
+    assert not E.assign_station(w, s, CFG, comp, "nobody", ca)["ok"]

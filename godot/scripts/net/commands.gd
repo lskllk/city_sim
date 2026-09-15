@@ -10,6 +10,8 @@ var _sender: Callable = Callable()
 ## 面板把它显示成一行状态; reply_seq 变了说明来了新应答(页面据此决定要不要刷)。
 var last_reply: Dictionary = {}
 var reply_seq: int = 0
+## 最近一条命令名。应答里不带命令名, 面板要靠它判断这条应答是不是自己的。
+var last_cmd: String = ""
 
 
 func note_reply(d: Dictionary) -> void:
@@ -29,4 +31,5 @@ func send(obj: Variant) -> bool:
 
 
 func cmd(name: String, args: Dictionary = {}) -> bool:
+	last_cmd = name
 	return send({"name": name, "args": args, "req_id": 0})

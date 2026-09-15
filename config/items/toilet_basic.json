@@ -2,11 +2,13 @@
   "item_type": "toilet_basic",
   "name": "马桶",
   "tags": [
-    "toilet"
+    "toilet",
+    "fixture"
   ],
   "affordances": {
     "bladder": 0.6
   },
+  "build_cost": 120.0,
   "duration_ticks": 5,
   "on_start": [],
   "on_complete": [],

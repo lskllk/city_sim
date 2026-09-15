@@ -1,8 +1,9 @@
 {
   "item_type": "station_counter",
   "name": "销售前台",
-  "tags": ["work", "station"],
+  "tags": ["work", "station", "fixture"],
   "affordances": {},
+  "build_cost": 300.0,
   "duration_ticks": 600,
   "interruptible": true,
   "persist_empty": true,

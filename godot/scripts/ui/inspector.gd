@@ -10,9 +10,6 @@ class_name InspectorPanel
 extends PanelContainer
 
 const TICK := 0.1
-## 新页面用 preload(而不是靠 class_name): 全局类表要 Godot 编辑器扫过才有,
-## 无头/首次打开时拿不到 → 会报 "Identifier not declared"。
-const CompanyPageScript := preload("res://scripts/ui/inspector/page_company.gd")
 
 var _pages: Dictionary = {}      # kind -> UiPage
 var _cur: UiPage = null
@@ -42,12 +39,10 @@ func _ready() -> void:
 	var npc := InspNpcPage.new()
 	var loc := InspLocationPage.new()
 	var ent := InspEntityPage.new()
-	var comp: UiPage = CompanyPageScript.new()
-	for p: UiPage in [empty, npc, loc, ent, comp]:
+	for p: UiPage in [empty, npc, loc, ent]:
 		p.visible = false
 		stack.add_child(p)
-	_pages = {"": empty, "npc": npc, "location": loc, "entity": ent,
-		"company": comp}
+	_pages = {"": empty, "npc": npc, "location": loc, "entity": ent}
 
 	set_process(true)
 	_update()
@@ -71,8 +66,6 @@ func _update() -> void:
 			id = Store.sel_location
 		"entity":
 			id = Store.sel_entity
-		"company":
-			id = Store.sel_company
 	var page: UiPage = _pages.get(kind, _pages[""])
 	if page == null or not _valid(kind, id):
 		page = _pages[""]
@@ -96,8 +89,6 @@ func _valid(kind: String, id: String) -> bool:
 			return Store.rooms.has(id)
 		"entity":
 			return Store.entities.has(id)
-		"company":
-			return not Store.company(id).is_empty()
 		_:
 			return false
 

@@ -9,6 +9,10 @@
 #   - UI 通过 Commands 发命令, 不直接碰 Net。
 extends Node
 
+## 公司运营界面(居中弹窗)。挂在 autoload 上而不是场景里:
+## 场景会随状态切换被换掉, 弹窗不该跟着没了; CanvasLayer layer=100 保证在最上层。
+const CompanyPanelScript := preload("res://scripts/ui/company_panel.gd")
+
 enum State { LAUNCHER, GAME, EDITOR }
 signal state_changed(state: int)
 
@@ -34,6 +38,7 @@ func _process(delta: float) -> void:
 
 
 func _ready() -> void:
+	add_child(CompanyPanelScript.new())      # 公司运营弹窗(常驻, 默认隐藏)
 	Net.message_received.connect(_on_message)
 	Net.status_changed.connect(_on_status)
 	Commands.set_sender(func(obj: Variant) -> void: Net.send(obj))

@@ -436,7 +436,97 @@ func _header_row(text: String) -> Label:
 	return l
 
 
+## 建筑详情: 分两套模板(用户定的)
+##   · **住宅** → 全量(楼层/住户/物件/招牌/认知… —— 住的人、家里的东西都要编)
+##   · **其它建筑**(商铺/办公/工地/公共/学校/诊所/市场) → 精简版:
+##     只留【基本 / 楼层 / 权限】。
+##   理由: 那些楼里"有什么、谁在里面上班、门口吆喝什么"都归【经营】(游戏内) ——
+##   编辑器只管这栋楼是什么、几层、谁能进。
 func _build_building(bid: String) -> void:
+	if not MapDoc.is_home(bid):
+		_build_building_plain(bid)
+		return
+	_build_building_home(bid)
+
+
+## 非住宅的详情: 基本 / 楼层 / 权限
+func _build_building_plain(bid: String) -> void:
+	var b: Dictionary = MapDoc.buildings[bid]
+	var kind := String(MapDoc.building_types.get(String(b["type"]), {}).get("kind", ""))
+	MapDoc.clamp_cur_floor(bid)
+	var floors: int = MapDoc.unit_ids(bid).size()
+
+	_inspector.add_child(_to_base_button())
+	var title := Label.new()
+	title.text = MapDoc.building_name(bid)
+	title.add_theme_font_size_override("font_size", 16)
+	_inspector.add_child(title)
+	var sub := Label.new()
+	sub.text = "%s%s" % [Zh.kind_zh(kind),
+		("" if floors <= 1 else " · 共 %d 层" % floors)]
+	sub.add_theme_color_override("font_color", MUTED)
+	_inspector.add_child(sub)
+
+	var del_b := Button.new()
+	del_b.text = "删除建筑"
+	del_b.pressed.connect(func() -> void:
+		MapDoc.remove_building(bid)
+		_view.clear_selection())
+	_inspector.add_child(del_b)
+
+	# —— 基本 ——
+	var nsec := _section("基本")
+	_f_bname = LineEdit.new()
+	_f_bname.text = (String(b.get("name", "")) if MapDoc.has_custom_name(bid) else "")
+	_f_bname.placeholder_text = MapDoc.default_building_name(bid)
+	_f_bname.tooltip_text = "留空 = 自动编号（%s）。取名后同类型的其它楼不受影响。" % [
+		MapDoc.default_building_name(bid)]
+	var save_btn := Button.new()
+	save_btn.text = "保存名称"
+	save_btn.pressed.connect(func() -> void:
+		MapDoc.set_building_name(bid, _f_bname.text.strip_edges())
+		_refresh_status("已命名 %s" % MapDoc.building_name(bid)))
+	nsec.add_child(_f_bname)
+	nsec.add_child(save_btn)
+	_kv(nsec, "类型", String(b["type"]))
+	var s: Vector2 = b["size"]
+	_kv(nsec, "尺寸", "%.1f × %.1f m" % [s.x, s.y])
+	_inspector.add_child(nsec)
+
+	# —— 楼层 ——
+	var fsec := _section("楼层")
+	var fnum := _spin(1, MapDoc.MAX_FLOORS, 1)
+	fnum.value = int(b.get("floors", 1))
+	fnum.value_changed.connect(func(v: float) -> void: MapDoc.set_floors(bid, int(v)))
+	fsec.add_child(_lrow("楼层数", fnum))
+	if floors > 1:
+		var fsel := OptionButton.new()
+		for i in range(1, floors + 1):
+			fsel.add_item("第 %d 层" % i)
+		fsel.selected = MapDoc.cur_floor - 1
+		fsel.item_selected.connect(func(i: int) -> void: MapDoc.set_cur_floor(bid, i + 1))
+		fsec.add_child(_lrow("编辑层", fsel))
+	var purge := Button.new()
+	purge.text = "清理无效引用"
+	purge.tooltip_text = "清掉指向已不存在地点的住所/物件(减层、导入旧数据后遗留)"
+	purge.pressed.connect(func() -> void:
+		var r: Dictionary = MapDoc.purge_invalid_refs()
+		_refresh_status("清理: %d 人解除住所 / 删除 %d 件物件" % [
+			r.get("npcs", 0), r.get("items", 0)]))
+	fsec.add_child(purge)
+	_inspector.add_child(fsec)
+
+	# —— 权限 ——
+	var acc := _section("权限")
+	var open_to: Array = b.get("open_to", []) if b.has("open_to") else []
+	_kv(acc, "进入权限", "公共" if open_to.is_empty() else "限 %d 人" % open_to.size())
+	_kv(acc, "容量", "%d 人%s" % [MapDoc.unit_capacity(bid),
+		("" if floors <= 1 else " (每层, 共 %d)" % MapDoc.total_capacity(bid))])
+	_inspector.add_child(acc)
+
+
+## 住宅详情: 全量模板(楼层/住户/物件/招牌/认知/额外记忆)
+func _build_building_home(bid: String) -> void:
 	var b: Dictionary = MapDoc.buildings[bid]
 	var kind := String(MapDoc.building_types.get(String(b["type"]), {}).get("kind", ""))
 	# 楼层: 先夹取当前编辑层(换建筑 → 回 1 层), 再按【当前层】取人员/物件。

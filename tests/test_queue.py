@@ -12,7 +12,7 @@ import json
 from citysim.core.config import load_config
 from citysim.gateway.scenarios import load_scene
 from citysim.world import engine as E
-from helpers import add_counter, register_company
+from helpers import add_counter, register_company, staff_counter
 
 CFG = load_config("config/sim.toml")
 
@@ -29,7 +29,11 @@ def _scene(n_npc: int = 2, open_minute: int = 0, close_minute: int = 1440) -> di
         "entities": [{"id": "food_apple_001", "type": "food_apple", "at": "shop",
                       "price": 5, "stock": 99}],
         "npcs": [{"id": "npc_%d" % i, "name": "顾客%d" % i, "home": "home",
-                  "money": 500, "init": {}} for i in range(n_npc)],
+                  "money": 500, "init": {}} for i in range(n_npc)]
+                + [{"id": "npc_staff", "name": "店员", "home": "home",
+                    "money": 0, "init": {}},
+                   {"id": "npc_staff2", "name": "店员2", "home": "home",
+                    "money": 0, "init": {}}],
         "travel": {"default": 20, "pairs": {}},
     }
 
@@ -39,12 +43,21 @@ def _load(tmp_path, data, counters: int = 1):
     p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     w, s, r = load_scene(p)
     register_company(w, "shop")
-    if counters:
-        add_counter(w, "shop", counters)
+    made = add_counter(w, "shop", counters) if counters else []
+    # 用户定的闸门: 员工站在销售台, 交易才能进行 → 每个前台配一个店员
+    for i, c in enumerate(made):
+        pid = "npc_staff" if i == 0 else "npc_staff2"
+        staff_counter(w, s, pid, "shop", c.entity_id)
+        st = w.npcs[pid]
+        st.set_signals(hunger=1.0, energy=1.0, bladder=1.0)
+    if made:
+        E.tick(w, s, CFG)                  # 热身一 tick: 店员先站上台(claim)
     from citysim.world.companies import Company
     comp = w.companies["org_test"]
     comp.open_minute, comp.close_minute = 0, 1440
     for pid in list(w.npcs):
+        if pid.startswith("npc_staff"):
+            continue
         npc = w.npcs[pid]
         npc.note("food_apple_001", tick=0, located="shop", afford="hunger",
                  value=0.35, price=5.0, stock=99, believe=1.0, source="",

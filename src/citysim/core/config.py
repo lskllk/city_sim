@@ -82,6 +82,10 @@ class SimConfig:
     favor_price_lie_down: float = 0.08    # 价格与听说的不符 → 掉(对应 SURPRISE/DOUBT)
     # 招聘桥接: 每天几点匹配一次(0 = 午夜)
     hire_minute: int = 0
+    # —— 上班时的"强制约束"(用户定: 站在工作台上就绑定住了) ——
+    # 只有【强需求】掉到这个线以下, 才会从工作台上下来(吃饭/上厕所/困到不行)。
+    # 其他任何事都夺不走他 —— 否则"在工作"只是又一个候选, 谁都能把他叫走。
+    work_leave_floor: float = 0.35
     tell_p: float = 0.3
     listen_p: float = 1.0
     # 【跟谁说话】的权重: 同屋(同一个 home = 同一层)的人愿意聊, 路人很少搭话。
@@ -149,6 +153,8 @@ class SimConfig:
             preempt_ratio=float(util.get("preempt_ratio", 1.5)),
             wage_minute=int(data.get("economy", {}).get("wage_minute", 480)),
             hire_minute=int(data.get("economy", {}).get("hire_minute", 0)),
+            work_leave_floor=float(data.get("work", {}).get(
+                "leave_floor", 0.35)),
             **{k: float(data.get("favor", {}).get(k[len("favor_"):], v))
                for k, v in (("favor_neutral", 1.0), ("favor_min", 0.0),
                             ("favor_max", 2.0), ("favor_drift_per_day", 0.08),

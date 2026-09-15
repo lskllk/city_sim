@@ -155,6 +155,7 @@ class Person:
         # 它是慢变量: 交易顺利慢慢涨、被怠慢/买到坏货掉得多、随时间回到中性。
         self._favor: dict[str, float] = {}
         self._work: dict = {}          # {company, shop, station} 被雇佣时绑定
+        self._role: str = ""           # 雇佣后写上的角色(现在只做打工人 "worker")
         self._worked_ticks: int = 0    # 本期在岗 tick(工资按在岗时间算)
         self._last_percept: "PerceptionRecord | None" = None
         self._mem = MemBase()
@@ -619,14 +620,28 @@ class Person:
             else:
                 self._favor[sid] = max(cfg.favor_min, min(cfg.favor_max, v))
 
-    def set_work(self, company_id: str, shop_id: str, station_id: str) -> None:
-        """被雇佣: 绑定公司/店/工位(销售前台)。"""
+    def set_work(self, company_id: str, shop_id: str, station_id: str,
+                 open_minute: int = 0, close_minute: int = 1440) -> None:
+        """被雇佣: 绑定公司/店/工位(销售前台) + 班次时间。
+
+        班次时间存在这里(而不是每次去问世界), 是因为"我什么时候该在岗"
+        必须由【他自己】知道 —— 决策层不查世界(铁律)。
+        """
         self._work = {"company": company_id, "shop": shop_id,
-                      "station": station_id}
+                      "station": station_id,
+                      "open": int(open_minute), "close": int(close_minute)}
 
     @property
     def work(self) -> dict:
         return dict(self._work)
+
+    @property
+    def role(self) -> str:
+        """角色: 雇佣写上的优先, 否则看人设里的 traits.role。"""
+        return self._role or str(self.identity.traits.get("role", ""))
+
+    def set_role(self, role: str) -> None:
+        self._role = str(role)
 
     def clear_work(self) -> None:
         self._work = {}
@@ -710,6 +725,8 @@ class Person:
                can_preempt: bool = True) -> Decision:
         """单轨决策: **需求(utility) > 日程(plan) > idle**。只读记忆+自身。
 
+        开头先做一次跨天处理: daily 计划顺延到今天(上班写一次就不必再动)。
+
         —— 2026-09-14 删双轨 ——
         旧版是“reflex 轨 / plan 轨”两条并行 + 固定优先级抢占。现在只有一条:
         每 tick 算一次“我此刻最想做什么(utility)”, 有就做它; 没有才看日程。
@@ -718,6 +735,16 @@ class Person:
         can_preempt: 世界告知“当前交互能不能被打断”(睡觉等)。
                      需求轨不受此限(命比规矩大); 计划轨尊重它。
         """
+        self._schedule.roll_day(now_tick, cfg.ticks_per_day)
+        # ★ 上班的【强制约束】(用户定): 只要在班次内, 工作就是绑住的 ——
+        #   "自动绑定自己的工作(销售台), 给一次强制约束; 只有很想上厕所/饿了
+        #    要吃饭才从工作下来"。所以班次内【需求不能随便把他叫走】,
+        #   除非强需求掉到线下(hunger/energy/bladder)。
+        #   注意: 这不是门禁 —— 强需求到了照样能下来(见 _need_to_leave_work)。
+        if self._on_shift(now_tick, cfg) and not self._need_to_leave_work(cfg):
+            plan = self._plan_intent(now_tick, cfg)
+            if plan is not None:
+                return self._record(Decision(plan, "plan"))
         while True:
             cand, eff = self._intent_scored(cfg, now_tick)   # 此刻最想做的事
 
@@ -772,6 +799,36 @@ class Person:
             # 承诺也有拉力(参与打分), 不是“指令”: 见 SimConfig.plan_pull
             self._goal = _Goal("plan", e.intent, score=cfg.plan_pull)
             continue
+
+    def _on_shift(self, now_tick: int, cfg: "SimConfig") -> bool:
+        """现在是我的班次吗? (有工作 且 在 open..close 之间)"""
+        if not self._work:
+            return False
+        minute = now_tick % max(1, cfg.ticks_per_day)
+        return int(self._work.get("open", 0)) <= minute < int(self._work.get("close", 1440))
+
+    def _plan_intent(self, now_tick: int, cfg: "SimConfig") -> "Intent | None":
+        """班次内该做的那件事: 还没到店里 → 去店里; 到了 → 站上台。
+
+        就地取计划表里那条 daily 的上班条目(应聘时写一次, 之后不动)。
+        """
+        shop = str(self._work.get("shop", ""))
+        station = str(self._work.get("station", ""))
+        if not station:
+            return None
+        if shop and self._perceived_loc != shop:
+            return MoveTo(dest=shop)
+        return Interact(target_id=station)
+
+    def _need_to_leave_work(self, cfg: "SimConfig") -> bool:
+        """强需求掉到线下 → 允许从工作台上下来。
+
+        只认吃饭/上厕所/困到不行这三种 —— 用户原话:
+        "如果很想上厕所 或者饿了要吃饭 才从工作下来吃饭"。
+        """
+        floor = float(getattr(cfg, "work_leave_floor", 0.35))
+        return any(float(self._signals.get(s, 1.0)) < floor
+                   for s in ("hunger", "energy", "bladder"))
 
     def _hp_low(self, cfg: "SimConfig") -> bool:
         """命快没了 → 日程失去拉力(先顾命)。"""

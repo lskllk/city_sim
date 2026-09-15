@@ -73,37 +73,61 @@ def test_shop_without_company_cannot_sell(tmp_path) -> None:
     assert fail["payload"]["why"] == "这家店没有登记公司"
 
 
+def _employ_one(w, s, wage: float = 60.0) -> None:
+    """走【真实路径】雇一个人: 摆前台 → 公司发布启事 → 媒婆撮合。
+
+    这样他拿到的就是引擎写的那份 daily 上班计划表(而不是测试硬塞的),
+    "站上去就绑定住"的强制约束才成立。
+    """
+    from helpers import add_counter
+    comp = w.companies["org_a"]
+    if not any(e.item_type == "station_counter" for e in w.entities.values()):
+        add_counter(w, "shop")
+    comp.open_minute, comp.close_minute = 0, 1440   # 测试里全天, 省得等到 08:00
+    comp.wage_per_hour = wage
+    comp.hiring_open, comp.hiring_slots = True, 1
+    E.hire_at(w, s, CFG)
+
+
 def test_wage_is_paid_once_a_day(tmp_path) -> None:
-    """到 wage_minute 那一刻发一次; 当天不重复发。"""
-    w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=1000.0,
-                                              staff=(("npc_a", 60.0),))])
+    """一天结一次, 按【在岗时间】算: 在岗 8 小时 × 时薪 60 = ¥480。"""
+    w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=2000.0,
+                                              shops=("shop",), staff=())])
     npc = w.npcs["npc_a"]
+    npc.set_signals(hunger=1.0, energy=1.0, bladder=1.0)
+    _employ_one(w, s, wage=60.0)
     start = npc.money
-    paid = []
+    paid: list = []
     orig = w.bus.publish
+
     def hook(ev):
         if ev.kind == "wage_paid":
-            paid.append(ev.tick)
+            paid.append(ev)
         return orig(ev)
+
     w.bus.publish = hook
-    for _ in range(CFG.ticks_per_day * 2):
+    for _ in range(CFG.wage_minute + 20):
         E.tick(w, s, CFG)
     w.bus.publish = orig
-    assert len(paid) == 2, paid                       # 两天 → 两次
-    assert npc.money == start + 120.0
-    assert w.companies["org_a"].cash == 1000.0 - 120.0
+    assert paid, "一次工资都没发(他应该在岗)"
+    ev = paid[-1]
+    assert ev.payload["hours"] > 7.0, ev.payload          # 在岗 ~8 小时
+    assert npc.money == start + ev.payload["wage"]
+    assert w.companies["org_a"].cash == 2000.0 - ev.payload["wage"]
 
 
 def test_company_without_cash_cannot_pay_wage(tmp_path) -> None:
     """发不出就是发不出: 员工那天的收入是 0, 事件 wage_failed。"""
-    w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=10.0,
-                                              staff=(("npc_a", 60.0),))])
+    w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=1.0,
+                                              shops=("shop",), staff=())])
     npc = w.npcs["npc_a"]
+    npc.set_signals(hunger=1.0, energy=1.0, bladder=1.0)
+    _employ_one(w, s, wage=60.0)
     start = npc.money
-    for _ in range(CFG.ticks_per_day + CFG.wage_minute + 5):
+    for _ in range(CFG.wage_minute + 20):
         E.tick(w, s, CFG)
     assert npc.money == start                        # 没进账
-    assert w.companies["org_a"].cash == 10.0         # 也没扣
+    assert w.companies["org_a"].cash == 1.0          # 也没扣
     assert any(e.get("kind") == "wage_failed" for e in s.ui_events)
 
 
@@ -119,8 +143,15 @@ def test_money_circulates(tmp_path) -> None:
     npc.note("food_apple_001", tick=0, located="shop", afford="hunger",
              value=0.35, price=5.0, stock=99, believe=0.8, source="",
              tags=("edible", "consumable"), shelf_life_ticks=4320)
-    from helpers import add_counter
-    add_counter(w, "shop")           # 卖东西得有前台(每个前台每 tick 1 份)
+    _employ_one(w, s, wage=10.0)     # 雇一个店员守台(交易要有员工在台前)
+    # 顾客得是【别人】—— 员工上班时被绑在台前, 不会跑去买东西(强制约束)
+    from helpers import add_npc
+    npc_buyer = add_npc(w, s, "buyer", location="shop")
+    npc_buyer.set_home("home")
+    npc_buyer.note("food_apple_001", tick=0, located="shop", afford="hunger",
+                   value=0.35, price=5.0, stock=99, believe=0.8, source="",
+                   tags=("edible", "consumable"), shelf_life_ticks=4320)
+    npc_buyer.set_signals(hunger=0.1)
     income = 0.0
     orig = w.bus.publish
     def hook(ev):

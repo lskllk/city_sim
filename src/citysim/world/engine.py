@@ -210,17 +210,51 @@ def _leave_queue(world, systems, pid: str, why: str = "") -> None:
             npc.on_failure(shop_id, why, world.clock_tick)
 
 
-def _serve_shops(world, systems, cfg: SimConfig) -> None:
-    """每 tick 让每个店服务队首: 一个前台最多成交 1 份。
+def _active_at(world, systems, counter_id: str) -> str:
+    """这个前台此刻是谁在守着? 没有 → ""。"""
+    for pid, act in systems.interaction.active.items():
+        if act is not None and act.entity_id == counter_id:
+            return pid
+    return ""
 
-    没开门 / 没前台 / 柜台没人 → 服务不了 → 顾客继续等(QUEUE_GIVEUP 后放弃)。
-    这就是"没人上班就交易不成"的落地处。
+
+def staffed_counters(world, systems, shop_id: str) -> list:
+    """【有员工在岗】的前台 —— 这才算产能。
+
+    ★ 用户定的闸门: 员工站在销售台, 交易才能进行。
+      半个员工的都没有 → 一台也开不了 → 顾客只能排队(等不住就走, 好感掉)。
     """
+    out = []
+    for c in _counters(world, shop_id):
+        pid = _active_at(world, systems, c.entity_id)
+        if not pid:
+            continue
+        npc = world.npcs.get(pid)
+        if npc is None:
+            continue
+        w = npc.work
+        if w.get("station") == c.entity_id:      # 守的是自己该守的台
+            out.append((c, pid))
+    return out
+
+
+def _serve_shops(world, systems, cfg: SimConfig) -> None:
+    """每 tick 让每个店服务队首: 一个【有人的】前台最多成交 1 份。
+
+    没开门 / 没前台 / 前台没人站着 → 服务不了 → 顾客继续等(等不住就走,
+    记一次白跑: 好感掉一截)。这就是"员工在销售台交易才能进行"的落地处。
+    """
+    # 在岗计时(工资按在岗时间算): 有员工站在台上 → 他这一 tick 算上班
+    for shop_id in sorted(world.locations):
+        for _c, pid in staffed_counters(world, systems, shop_id):
+            npc = world.npcs.get(pid)
+            if npc is not None:
+                npc.worked(1)
     for shop_id in sorted(systems.shop_queue):
         queue = list(systems.shop_queue.get(shop_id) or [])
         if not queue:
             continue
-        seats = len(_counters(world, shop_id))
+        seats = len(staffed_counters(world, systems, shop_id))
         open_now = _is_open(world, cfg, shop_id)
         served = 0
         for pid in queue:
@@ -327,18 +361,131 @@ def pay_wages(world, cfg: SimConfig) -> None:
             npc = world.npcs.get(npc_id)
             if npc is None:
                 continue
-            if comp.cash < wage:
+            # ★ 一天结一次, 按【在岗时间】算: 出勤多少小时就领多少小时的钱。
+            #   没到岗 = 没收入(不搞欠薪/扣款 —— 惩罚就是"少拿钱", 见 R2)。
+            hours = npc.reset_worked() / 60.0
+            due = round(hours * float(wage), 2)
+            if due <= 0.0:
+                continue                        # 一天没上班 → 不发也不记
+            if comp.cash < due:
                 world.bus.publish(world.bus.make(
                     world.clock_tick, "wage_failed", npc_id,
                     {"audience": [npc_id], "company": cid,
-                     "wage": wage, "cash": round(comp.cash, 2)}))
+                     "wage": due, "hours": round(hours, 2),
+                     "cash": round(comp.cash, 2)}))
                 continue
-            comp.cash -= wage
-            npc.earn(wage)
+            comp.cash -= due
+            npc.earn(due)
             world.bus.publish(world.bus.make(
                 world.clock_tick, "wage_paid", npc_id,
-                {"audience": [npc_id], "company": cid, "wage": wage,
+                {"audience": [npc_id], "company": cid, "wage": due,
+                 "hours": round(hours, 2),
                  "cash": round(comp.cash, 2), "money": round(npc.money, 2)}))
+
+
+def vacant_counters(world, company) -> list:
+    """公司旗下【空着的】前台(没有任何员工绑定它)。= 岗位数。"""
+    taken = {str(n) for n, _w in company.staff}
+    out = []
+    for shop_id in company.shops:
+        for c in _counters(world, shop_id):
+            if not any(world.npcs.get(pid) is not None
+                       and world.npcs[pid].work.get("station") == c.entity_id
+                       for pid in taken):
+                out.append((shop_id, c))
+    return out
+
+
+def _willing(world, pid: str) -> float:
+    """应聘意愿: 没角色的都愿意(1.0); 已经有工作/角色的 = 0(不跳槽)。"""
+    npc = world.npcs.get(pid)
+    if npc is None:
+        return 0.0
+    if npc.work or npc.role:
+        return 0.0
+    return 1.0
+
+
+def hire_at(world, systems, cfg: SimConfig) -> list[dict]:
+    """每天一次的招聘桥接 —— 外面架构只是【媒婆】。
+
+    ★ 用户定的规矩(这一版按它改):
+      · **招不招人是公司说了算**: 只有【发布了招聘启事】的公司才参与撮合;
+        有空工位 ≠ 要招人。启事上写着这次招几个、时薪多少。
+      · **NPC 有意愿**才可能被匹配: 没角色的人意愿 = 1.0(已有工作的 = 0)。
+      · 媒婆只做撮合: 名额、时薪都由公司给, 这边一个都不自己加。
+
+    匹配规则先按【随机】(架构留好: 以后换成熟练度/距离/工资竞争力都在这一个
+    函数里)。被招到: 写角色 + 绑定销售台 + 记进公司员工 + 写一份上班计划表
+    (daily: 每天重复 → 只在应聘/离职那天改一次)。
+    """
+    hired: list[dict] = []
+    rng = getattr(systems, "rng", None)
+    if rng is None:
+        return hired
+    willing = [pid for pid in sorted(world.npcs) if _willing(world, pid) > 0.0]
+    if not willing:
+        return hired
+    for cid in sorted(world.companies):
+        comp = world.companies[cid]
+        if not comp.hiring_open or comp.hiring_slots <= 0:
+            continue                          # 没发布招聘 → 一个人也不招
+        vac = vacant_counters(world, comp)
+        if not vac:
+            continue
+        staff = list(comp.staff)
+        quota = min(int(comp.hiring_slots), len(vac))
+        got = 0
+        for shop_id, counter in vac[:quota]:
+            if not willing:
+                break
+            pick = willing.pop(rng.randrange(len(willing)))     # ← 随机匹配
+            npc = world.npcs[pick]
+            npc.set_work(cid, shop_id, counter.entity_id,
+                         comp.open_minute, comp.close_minute)
+            npc.set_role("worker")
+            staff.append((pick, float(comp.wage_per_hour)))
+            _write_work_plan(world, cfg, npc, comp, shop_id, counter.entity_id)
+            got += 1
+            hired.append({"company": cid, "npc": pick, "shop": shop_id,
+                          "station": counter.entity_id})
+            world.bus.publish(world.bus.make(
+                world.clock_tick, "hired", pick,
+                {"audience": [pick], "company": cid, "shop": shop_id,
+                 "station": counter.entity_id,
+                 "wage_per_hour": float(comp.wage_per_hour)}))
+        comp.staff = tuple(staff)
+        comp.hiring_slots = max(0, int(comp.hiring_slots) - got)   # 招到几个扣几个
+        if comp.hiring_slots <= 0 or not vacant_counters(world, comp):
+            comp.hiring_open = False           # 招满 / 没空位 → 启事自动撤下
+    return hired
+
+
+def _write_work_plan(world, cfg: SimConfig, npc, comp, shop_id: str,
+                     station_id: str) -> None:
+    """上班计划表(只在应聘/离职时写一次):
+
+        <开门时刻> 去公司  →  <开门时刻> 守台
+    两条都是 daily(每天重复) → 跨天由 Schedule.roll_day 自动顺延,
+    所以"其他时候都保持不动"。
+
+    守台就是一次普通 Interact(可被打断): 饿了/憋了会被需求顶掉 →
+    正是用户要的"很想上厕所或者饿了才从工作下来"。
+    """
+    from citysim.npc.schedule import PlanEntry
+    at = int(comp.open_minute)          # 计划表内部用绝对 tick, roll_day 会顺延
+    npc.set_plan([
+        PlanEntry("work_go", at, MoveTo(dest=shop_id), daily=True),
+        PlanEntry("work_stand", at, Interact(target_id=station_id), daily=True),
+    ])
+
+
+def _hire_due(world, cfg: SimConfig, last_tick: int) -> bool:
+    """到点了吗(每天 hire_minute 一次)。"""
+    day, minute = divmod(world.clock_tick, max(1, cfg.ticks_per_day))
+    if minute != int(cfg.hire_minute):
+        return False
+    return last_tick < day * cfg.ticks_per_day + cfg.hire_minute
 
 
 def _wage_due(world, cfg: SimConfig, last_tick: int) -> bool:
@@ -866,6 +1013,11 @@ def tick(world, systems, cfg: SimConfig) -> None:
 
     # 0a0. 开门前补货: 公司用现钱向市场进货, 把货架补到目标(见 market.restock_all)
     _restock_if_open(world, systems, cfg)
+
+    # 0a-1. 招聘桥接(每天 hire_minute 一次): 空前台 ← 无角色的人(随机匹配)
+    if _hire_due(world, cfg, systems.last_hire_tick):
+        hire_at(world, systems, cfg)
+        systems.last_hire_tick = world.clock_tick
 
     # 0a. 发工资(每天 wage_minute 那一刻): 公司的账 → 员工个人。
     #     放在最前面: 与任何人的决策无关, 只是世界的收付节奏。

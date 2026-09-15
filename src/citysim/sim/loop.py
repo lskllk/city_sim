@@ -36,6 +36,7 @@ class Systems:
     sign_queue: dict[str, list] = field(default_factory=dict)
     last_wage_tick: int = -1     # 上次发工资的 tick(每天只发一次)
     last_restock_day: int = -1   # 上次开市补货的日子(每天只补一次)
+    last_hire_tick: int = -1     # 上次招聘匹配的 tick(每天一次)
     # —— 店铺排队(用户定: 一个前台同时只能服务 1 人, 多的排队) ——
     #   shop_id -> [pid...]   谁在排(先进先出, 两条前台就是两条线)
     #   pid -> shop_id        反查; 排队中的人这轮不决策(他在等)

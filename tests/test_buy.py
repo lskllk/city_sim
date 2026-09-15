@@ -41,7 +41,7 @@ def test_plan_buy_deducts_money_and_merges_stock() -> None:
     npc.set_home("home")
     npc.note("market_1", located="market", believe=1.0)         # 知道店在哪
     npc.set_plan([PlanEntry("e0", 1, Buy("market_1", qty=3))])
-    _run(w, s, rng, 80)
+    _run(w, s, rng, 240)      # 柜台一份一份卖(排队+每 tick 1 份), 多跑一点
 
     # 注(2026-09-14): 现在一次买【缺口】(不是固定 3 件) → 不锁死具体金额,
     # 只验不变量: 钱少了 / 店里少了 / 合并进了家里的同一个容器。
@@ -59,8 +59,12 @@ def test_plan_buy_insufficient_money_fails_and_skips() -> None:
     shop.price = 999.0
     shop.item_type = "meal_simple"
     register_company(w, "market")
-    add_counter(w, "market")
-    npc_extra = None            # 没登记公司的店现在不能卖
+    _c = add_counter(w, "market")[0]
+    _staff = add_npc(w, s, "staff", location="market", rng_pool=rng)
+    from helpers import staff_counter
+    staff_counter(w, s, "staff", "market", _c.entity_id)
+    _staff.set_plan([])
+    _staff.set_signals(hunger=1.0, energy=1.0, bladder=1.0)
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng)
     npc.set_home("home")
     npc.note("market_1", located="market", believe=1.0)

@@ -27,6 +27,10 @@ class Company:
     open_minute: int = 480          # 开门(游戏分钟)
     close_minute: int = 1140        # 关门
     wage_per_hour: float = 10.0     # 时薪: 招聘时确定(按小时算)
+    # —— 招聘启事(公司说了算; 外面架构只做媒婆) ——
+    #   没发布 = 一个人也不会被招进来, 哪怕有工位、也有人愿意干。
+    hiring_open: bool = False
+    hiring_slots: int = 0           # 这次想招几个人(不能超过空着的销售前台)
     slots: int = 2                  # 销售位: 1 位 = 1 tick 成交 1 份, 需要 1 个店员
     restock_to: int = 60            # 开门前把货架补到几份(简单经营规则)
 
@@ -64,6 +68,8 @@ def load_companies(path: str | Path) -> dict[str, Company]:
             open_minute=int(rec.get("open_minute", 480)),
             close_minute=int(rec.get("close_minute", 1140)),
             wage_per_hour=float(rec.get("wage_per_hour", 10.0)),
+            hiring_open=bool(rec.get("hiring_open", False)),
+            hiring_slots=max(0, int(rec.get("hiring_slots", 0))),
             slots=max(0, int(rec.get("slots", 2))),
             restock_to=max(0, int(rec.get("restock_to", 60))),
         )

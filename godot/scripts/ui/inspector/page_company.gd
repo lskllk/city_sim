@@ -31,10 +31,13 @@ var _save_btn: Button
 # 价格管理: 懒增长的行池(每行 = 名称 + 售价输入 + 保存)
 var _price_rows: Array = []        # [{box, label, spin, btn, entity_id}]
 var _price_sec: Control
+var _msg: Label                     # 上一步命令的结果(后端应答)
+var _seen_reply := 0
 
 
 func build() -> void:
 	_header = UiKit.header(self)
+	_msg = UiKit.muted(self, "")
 
 	# ---------------- HR 管理 ----------------
 	var hr := UiKit.section(self, "HR 管理")
@@ -114,6 +117,14 @@ func _spin(mn: float, mx: float, step: float) -> SpinBox:
 
 func bind(id: String) -> void:
 	_cur = id
+	if Commands.reply_seq != _seen_reply:
+		_seen_reply = Commands.reply_seq
+		var r0: Dictionary = Commands.last_reply
+		var ok0 := bool(r0.get("ok", false))
+		var why0 := Protocol.s(r0.get("why", ""))
+		_msg.text = ("✓ 成功" if ok0 else "✗ %s" % (why0 if why0 != "" else "失败"))
+		_msg.add_theme_color_override("font_color",
+			Color("7fe0a8") if ok0 else Color("e05252"))
 	var comp := InspData.company(id)
 	if comp.is_empty():
 		_header.set_header("公司", "（等下一帧快照）")

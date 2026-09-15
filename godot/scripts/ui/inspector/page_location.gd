@@ -46,6 +46,8 @@ var _kv_staff: Label
 var _kv_hours: Label
 var _kv_hire: Label
 var _go_btn: Button
+var _msg: Label                       # 上一步命令的结果(后端应答)
+var _seen_reply := 0
 var _lc_title: Label
 var _lc_rows: Array = []          # 线路行池(Label), 懒增长, 不销毁
 
@@ -88,6 +90,7 @@ func build() -> void:
 		if cid != "":
 			Store.select("company", cid))
 	_comp_body.add_child(_go_btn)
+	_msg = UiKit.muted(_comp_body, "")
 
 	# 线路(商铺): 前台 = 销售位; 有员工守着才开台
 	_lane_sec = UiKit.section(self, "线路")
@@ -218,6 +221,16 @@ func _render() -> void:
 ## 公司块(商铺): 摘要 + 一个按钮进"公司运营"页
 ## ★ 只切 visible / 改文字 —— 绝不在这里 new/free(见文件头的铁律)
 func _sync_company(kind: String, bid: String) -> void:
+	# 后端对最后一条命令的应答(注册公司/改价…): 成功或失败都写出来,
+	# 否则"点了没反应"——分不清是后端拒绝、没重启、还是真没发出去。
+	if _msg != null and Commands.reply_seq != _seen_reply:
+		_seen_reply = Commands.reply_seq
+		var r: Dictionary = Commands.last_reply
+		var ok := bool(r.get("ok", false))
+		var why := Protocol.s(r.get("why", ""))
+		_msg.text = ("✓ 成功" if ok else "✗ %s" % (why if why != "" else "失败"))
+		_msg.add_theme_color_override("font_color",
+			Color("7fe0a8") if ok else Color("e05252"))
 	var cid := Protocol.s(_room.get("company", ""))
 	_comp_sec.visible = kind == "shop"
 	if kind != "shop":

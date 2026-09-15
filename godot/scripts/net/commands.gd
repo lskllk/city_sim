@@ -6,6 +6,16 @@ extends Node
 
 var _sender: Callable = Callable()
 
+## 后端对每条命令的应答(ok / why)。以前被直接丢掉 → 点了没反应时无从判断。
+## 面板把它显示成一行状态; reply_seq 变了说明来了新应答(页面据此决定要不要刷)。
+var last_reply: Dictionary = {}
+var reply_seq: int = 0
+
+
+func note_reply(d: Dictionary) -> void:
+	last_reply = d
+	reply_seq += 1
+
 
 func set_sender(fn: Callable) -> void:
 	_sender = fn

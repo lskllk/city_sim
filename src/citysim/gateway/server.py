@@ -555,7 +555,12 @@ async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
         r.focus_loc = str(args.get("location", ""))
     elif name == "ping":
         await _send(ws, {"kind": "pong", "type": "pong", "req_id": rid})
-    # 未知指令静默忽略
+    else:
+        # 以前是"静默忽略" → 前端点了没反应, 也不知道是自己发错了还是后端太旧。
+        # 现在回一句, 前端会把 why 显示出来(最常见的两种: 后端进程没重启 / 名字拼错)。
+        await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
+                         "ok": False, "data": None,
+                         "why": "未知指令 %s（后端是否需要重启?）" % name})
 
 
 @app.get("/")

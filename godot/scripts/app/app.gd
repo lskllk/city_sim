@@ -124,7 +124,9 @@ func _on_message(envelope: Variant) -> void:
 		"event":
 			# 事件流: 死亡等要反映到镜像上(npcs/entities 的删除)
 			Store.apply_event(Protocol.as_dict(payload))
-		"reply", "pong":
-			pass  # 应答可忽略
+		"reply":
+			Commands.note_reply(Protocol.as_dict(payload))
+		"pong":
+			pass
 		_:
 			push_warning("[App] unknown message kind: %s" % kind)

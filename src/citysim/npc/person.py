@@ -480,7 +480,12 @@ class Person:
         """
         row = self._mem.get(item_id)
         if row is None:
-            row = MemItem(item_id=item_id)
+            # ★ 新建的行没显式传 believe → 按【亲眼所见】算 1.0。
+            # MemItem 的字段默认值是 0.0(空记忆), 而 believe=0 会让这一行
+            # 在打分里 base=…×believe=0 → 永远不可能被选中:
+            # “买回来的东西记不住/不信”就是这么来的(实测过: 买了简餐,
+            # 家里那条 believe 是 0.00, 于是永远不回去吃)。
+            row = MemItem(item_id=item_id, believe=1.0, remember=1.0)
             self._mem.set(row)
         fields: dict = {}
         if located is not None:

@@ -274,14 +274,21 @@ class SimRunner:
         """
         interval = 1.0 / PUSH_HZ
         budget = interval * 0.7
-        acc = 0.0                      # 分数 tick 累加器, 精确实现 1x=1tick/s
+        acc = 0.0                      # 分数 tick 累加器
+        last = time.perf_counter()
         while True:
             t0 = time.perf_counter()
+            # 【用真实经过的时间】累加, 而不是标称 interval。
+            # 用标称值时: 一轮实际耗时 = 计算 + 推送 + sleep > interval
+            # → 循环只有 ~30Hz → 1x 只推进 0.5 tick/s(实测), 游戏时间比
+            # 墙钟慢一半, 而且客户端的本地时钟立刻超到前面去(见前端 _advance_clock)。
+            dt = min(t0 - last, interval * 4.0)      # 夹住, 防长停顿后暴冲
+            last = t0
             tps = SPEED_TPS[self.speed]
             if tps == 0:
                 acc = 0.0
             else:
-                acc += tps * interval
+                acc += tps * dt
                 n = int(acc)
                 done = 0
                 while done < n:

@@ -241,9 +241,21 @@ class World:
                 e.position = _default_anchor(r, e.entity_id or e.name or "?")
 
     def spawn_entity(self, e: Entity) -> Entity:
+        """加入世界; 没 id 的自动编号。
+
+        id 规则见 docs/naming.md §1: ``<itemtype>_<NNN>``(同一类型全局递增)。
+        以前是 ``auto<N>`` —— 玩家在 Inspector 里看到的就是 “auto1”,
+        而且和场景里的 id 不在一个命名空间, 没法对账。
+        递增时要跳过已被占用的 id(场景导入的实体不参与计数)。
+        """
         if not e.entity_id:
-            self._entity_seq += 1
-            e.entity_id = f"auto{self._entity_seq}"
+            while True:
+                self._entity_seq += 1
+                cand = (f"{e.item_type}_{self._entity_seq:03d}"
+                        if e.item_type else f"auto{self._entity_seq}")
+                if cand not in self.entities:
+                    e.entity_id = cand
+                    break
         self.entities[e.entity_id] = e
         return e
 

@@ -216,6 +216,7 @@
           ]
         ],
         "floors": 1,
+        "name": "店铺1号",
         "rot": 0.0,
         "size": [
           21.909,
@@ -235,6 +236,7 @@
           ]
         ],
         "floors": 1,
+        "name": "办公楼1号",
         "rot": 0.0,
         "size": [
           69.282,
@@ -254,6 +256,7 @@
           ]
         ],
         "floors": 1,
+        "name": "工地1号",
         "rot": 0.0,
         "size": [
           32.249,
@@ -273,6 +276,7 @@
           ]
         ],
         "floors": 1,
+        "name": "店铺2号",
         "rot": 0.0,
         "size": [
           21.909,
@@ -292,6 +296,7 @@
           ]
         ],
         "floors": 2,
+        "name": "小屋1号",
         "rot": 0.0,
         "size": [
           7.746,
@@ -311,6 +316,7 @@
           ]
         ],
         "floors": 3,
+        "name": "小屋2号",
         "rot": 0.0,
         "size": [
           7.746,
@@ -2366,7 +2372,17 @@
       "home": "bld_008_f1",
       "id": "npc_wang_wei_2",
       "init": {},
-      "money": 31.0,
+      "memory": {
+        "food_apple_024": {
+          "afford": "hunger",
+          "believe": 0.8,
+          "located": "bld_004",
+          "price": 5.0,
+          "stock": 1000,
+          "value": 0.35
+        }
+      },
+      "money": 30.0,
       "name": "王伟",
       "personality": {
         "energy": 1.0,
@@ -2382,6 +2398,16 @@
       "home": "bld_008_f2",
       "id": "npc_ma_chao",
       "init": {},
+      "memory": {
+        "meal_simple_023": {
+          "afford": "hunger",
+          "believe": 0.8,
+          "located": "bld_007",
+          "price": 8.0,
+          "stock": 1000,
+          "value": 0.5
+        }
+      },
       "money": 162.0,
       "name": "马超",
       "personality": {
@@ -2398,6 +2424,16 @@
       "home": "bld_009_f1",
       "id": "npc_wu_yong",
       "init": {},
+      "memory": {
+        "food_apple_024": {
+          "afford": "hunger",
+          "believe": 0.8,
+          "located": "bld_004",
+          "price": 5.0,
+          "stock": 1000,
+          "value": 0.35
+        }
+      },
       "money": 471.0,
       "name": "吴勇",
       "personality": {
@@ -2446,6 +2482,16 @@
       "home": "bld_009_f3",
       "id": "npc_lin_jing",
       "init": {},
+      "memory": {
+        "meal_simple_023": {
+          "afford": "hunger",
+          "believe": 0.4,
+          "located": "bld_007",
+          "price": 8.0,
+          "stock": 1000,
+          "value": 0.5
+        }
+      },
       "money": 476.0,
       "name": "林静",
       "personality": {

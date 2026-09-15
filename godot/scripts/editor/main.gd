@@ -108,6 +108,16 @@ func _build_menu() -> MenuBar:
 		if id == 0:
 			_view.fit_to_content())
 	mb.add_child(viewm)
+	# 工具: 老场景一键修名的入口(载入时已自动修一遍, 这里是手动兜底)
+	var toolm := PopupMenu.new()
+	toolm.name = "工具"
+	toolm.add_item("重排重复的建筑名", 0)
+	toolm.id_pressed.connect(func(id: int) -> void:
+		if id == 0:
+			var n := MapDoc.dedupe_building_names()
+			_refresh_status(("已把 %d 栋建筑的默认名交回自动编号" % n) if n > 0
+				else "没有需要重排的建筑名"))
+	mb.add_child(toolm)
 	return mb
 
 
@@ -406,12 +416,17 @@ func _build_building(bid: String) -> void:
 	# 名称
 	var nsec := _section("基本")
 	_f_bname = LineEdit.new()
-	_f_bname.text = MapDoc.building_name(bid)
+	# 起过名才填进去; 没起过就【留空 + 灰字提示自动编号】——
+	# 把默认名写进 text 会在保存时把它烤成固定值, 于是同类型全同名。
+	_f_bname.text = (String(b.get("name", "")) if MapDoc.has_custom_name(bid) else "")
+	_f_bname.placeholder_text = MapDoc.default_building_name(bid)
+	_f_bname.tooltip_text = "留空 = 自动编号（%s）。取名后同类型的其它楼不受影响。" % [
+		MapDoc.default_building_name(bid)]
 	var save_btn := Button.new()
 	save_btn.text = "保存名称"
 	save_btn.pressed.connect(func() -> void:
-		MapDoc.set_building_name(bid, _f_bname.text)
-		_refresh_status("已命名 %s" % _f_bname.text))
+		MapDoc.set_building_name(bid, _f_bname.text.strip_edges())
+		_refresh_status("已命名 %s" % MapDoc.building_name(bid)))
 	nsec.add_child(_f_bname)
 	nsec.add_child(save_btn)
 	_kv(nsec, "类型", String(b["type"]))

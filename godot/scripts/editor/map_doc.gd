@@ -553,12 +553,56 @@ func remove_building(id: String) -> void:
 	changed.emit()
 
 
-func building_name(bid: String) -> String:
+## 作者起过名字吗? (等于类型默认名也算“没起” —— 见 from_dict 的归一化)
+func has_custom_name(bid: String) -> bool:
+	if not buildings.has(bid):
+		return false
+	var b: Dictionary = buildings[bid]
+	var nm := String(b.get("name", ""))
+	return nm != "" and nm != type_display(String(b.get("type", "")))
+
+
+## 默认展示名 = 【类型名 + 同类型序号】号 —— 保证不重叠。
+##
+## 为什么不直接用类型名: 同类型十栋楼全叫“小屋”, 地图上分不清谁是谁,
+## 点进去也对不上号(docs/naming.md §1“展示名与编号解耦”)。
+## 序号只数【没起名字的】同类建筑(按 id 排序) → 1 号 2 号 连号, 没有空洞。
+func default_building_name(bid: String) -> String:
 	if not buildings.has(bid):
 		return bid
 	var b: Dictionary = buildings[bid]
-	var custom := String(b.get("name", ""))
-	return custom if custom != "" else type_display(String(b["type"]))
+	var tp := String(b.get("type", ""))
+	var same: Array = []
+	for k in buildings:
+		if String(buildings[k].get("type", "")) == tp 				and not has_custom_name(String(k)):
+			same.append(String(k))
+	same.sort()
+	var idx := same.find(bid) + 1
+	if idx <= 0:
+		idx = 1
+	return "%s%d号" % [type_display(tp), idx]
+
+
+func building_name(bid: String) -> String:
+	if not buildings.has(bid):
+		return bid
+	if has_custom_name(bid):
+		return String(buildings[bid].get("name", ""))
+	return default_building_name(bid)
+
+
+## 把“等于类型默认名的名字”清掉 → 回到自动编号。
+## 老场景(编辑器早期把默认名写进了 name) 用这个一键修好。返回清掉几条。
+func dedupe_building_names() -> int:
+	var n := 0
+	for bid in buildings:
+		if not has_custom_name(String(bid)) and String(buildings[bid].get("name", "")) != "":
+			buildings[bid]["name"] = ""
+			n += 1
+	if n > 0:
+		errors = validate()
+		changed.emit()
+	return n
 
 
 func set_building_name(bid: String, name: String) -> void:
@@ -1236,9 +1280,12 @@ func to_dict() -> Dictionary:
 		var doors := []
 		for d in b["doors"]:
 			doors.append(_v(d))
-		bd[id] = {"type": b["type"], "center": _v(b["center"]),
+		var rec := {"type": b["type"], "center": _v(b["center"]),
 			"size": _v(b["size"]), "rot": b["rot"], "doors": doors,
 			"floors": int(b.get("floors", 1))}
+		if has_custom_name(String(id)):              # 作者起的名字要留在 .map 里
+			rec["name"] = String(b.get("name", ""))
+		bd[id] = rec
 	return {"format": SCHEMA, "version": VERSION,
 		"world": {"unit": "m",
 			"bounds": [bounds.position.x, bounds.position.y, bounds.size.x, bounds.size.y],
@@ -1275,16 +1322,26 @@ func from_dict(d: Dictionary) -> void:
 			"width": float(e.get("width", 4.0)),
 			"speed": float(e.get("speed", 1.3)),
 			"oneway": bool(e.get("oneway", false)), "geom": g}
-	var bld: Dictionary = d.get("buildings", {})
+	# 老场景兼容: 早期编辑器把“类型默认名”写进了 name(于是满城“小屋”)
+	# → 载入时视作【没起名字】, 交给 default_building_name 自动编号。
+	var bld_raw: Dictionary = d.get("buildings", {})
+	for _k in bld_raw:
+		var _b = bld_raw[_k]
+		if _b is Dictionary and String(_b.get("name", "")) != "" 				and String(_b.get("name", "")) == type_display(String(_b.get("type", ""))):
+			_b["name"] = ""
+	var bld: Dictionary = bld_raw
 	for id in bld:
 		var b: Dictionary = bld[id]
 		var doors := []
 		for dd in b.get("doors", []):
 			doors.append(_vec(dd))
-		buildings[String(id)] = {"type": String(b["type"]),
+		var rec := {"type": String(b["type"]),
 			"center": _vec(b["center"]), "size": _vec(b["size"]),
 			"rot": float(b.get("rot", 0.0)), "doors": doors,
 			"floors": maxi(1, int(b.get("floors", 1)))}
+		if String(b.get("name", "")) != "":
+			rec["name"] = String(b["name"])
+		buildings[String(id)] = rec
 	_recount()
 	# 已知类型 → 按 doors 定义重算进出口世界点(不信任导入的旧值)
 	for id in buildings:

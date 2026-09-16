@@ -84,3 +84,19 @@ def test_scene_preassigns_company_staff(tmp_path) -> None:
     assert a.role == "worker" and a.work["station"] == "c"
     assert b.role == "worker" and b.work["station"] in ("c", "c2")
     assert {n for n, _w in w.companies["org_shop"].staff} == {"a", "b"}
+
+
+def test_editor_scene_worker_is_staffed_headless(tmp_path) -> None:
+    """模拟编辑器导出: 公司 + 预置员工 + 装修(前台) → 无头跑起来员工在岗。
+
+    这正是"商铺能编物件"的意义: 没有前台 → 员工没工位 → 永远不上岗。
+    """
+    from citysim.world.engine import staffed_counters
+    scene = _scene()
+    scene["companies"][0].update({"open": "00:00", "close": "24:00",
+                                  "staff": ["a"]})
+    w, s, rng = _load(tmp_path, scene)
+    assert w.npcs["a"].work["station"] == "c"     # 自动挑到店里的前台
+    for _ in range(120):
+        run_tick(w, s, CFG, rng)
+    assert len(staffed_counters(w, s, "shop")) == 1   # 人在台上

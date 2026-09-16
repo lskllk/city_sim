@@ -148,3 +148,18 @@ def test_roaming_cleared_when_leaving() -> None:
     w.place_npc("n", "home")                       # 人走了
     E.tick(w, s, CFG)
     assert "n" not in s.roaming
+
+
+def test_wandering_cools_down_decisions() -> None:
+    """闲逛中(体内有 roam grant) → 决策冷却: 就算饿到底也不切走(committed)。"""
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "meal", location="loc", tags=("edible", "consumable"),
+               affordances={"hunger": 0.5}, duration_ticks=20)
+    npc = add_npc(w, s, "n", location="loc", fun=0.2)
+    npc.set_places({"loc": 1.0, "plaza": 9.0})
+    from citysim.world.perception import build_percept
+    npc.perceive(build_percept(w, npc), 0)
+    grant = _port(w, s).try_wander("n", "loc")     # 已在 loc → 开 roam
+    npc.intake_add(grant)
+    npc.set_signal("hunger", 0.0)
+    assert isinstance(npc.decide(CFG, 100).intent, Idle)

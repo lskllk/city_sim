@@ -96,7 +96,7 @@ hp_override = 0.5                        # hp 低于此 → 日程失去拉力(�
 idle_drop  = 0.0006944444444444444       # 空闲每 tick 掉 (≈1 天掉光)
 work_gain  = 0.0003472222222222222       # 上班每 tick 涨 (≈2 天涨满)
 roam_value = 0.4                         # 一次闲逛总共补多少 fun
-roam_ticks = 120                         # 一次闲逛持续多久 (2 小时)
+roam_ticks = 60                          # 一次闲逛持续多久 (1 小时; 期间冷却决策)
 seek_below = 0.6                         # fun 低于此才想闲逛
 places_top = 3                           # 从“最热闹”前 N 个里随机挑
 

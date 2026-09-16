@@ -825,6 +825,10 @@ class Person:
         if just_started and plan is not None:
             self._goal = _Goal("plan", plan)
             return self._record(Decision(plan, "plan"))
+        # ★ 闲逛中 → 决策冷却(roam_ticks, 默认 1 小时): 期间不重算需求, 就逛着。
+        #   (上班开始那一刻仍能硬抢, 见上。)
+        if any("roam" in ag.grant.tags for ag in self._intake):
+            return self._record(Decision(Idle(), "fun"))
         while True:
             # 1) 手上有事 → 【做完再决策】: 不重算, 不被打断(只有上面的 PLAN 能)。
             #    空闲时才每 tick 决策。

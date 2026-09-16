@@ -52,7 +52,7 @@ class SimConfig:
     fun_idle_drop: float = 0.0006944444444444444   # 空闲每 tick 掉(≈1 天掉光)
     fun_work_gain: float = 0.0003472222222222222   # 上班每 tick 涨(≈2 天涨满)
     fun_roam_value: float = 0.4                    # 一次闲逛总共补多少 fun
-    fun_roam_ticks: int = 120                      # 一次闲逛持续多久
+    fun_roam_ticks: int = 60                       # 一次闲逛持续多久(1 小时; 期间冷却决策)
     fun_seek_below: float = 0.6                    # fun 低于此才想闲逛
     fun_places_top: int = 3                        # 从前 N 个“最热闹”里随机挑
     # —— 成本模型(比价 / 比距离 / 顺路) ——
@@ -149,7 +149,7 @@ class SimConfig:
             fun_idle_drop=float(fun_cfg.get("idle_drop", 0.0006944444444444444)),
             fun_work_gain=float(fun_cfg.get("work_gain", 0.0003472222222222222)),
             fun_roam_value=float(fun_cfg.get("roam_value", 0.4)),
-            fun_roam_ticks=int(fun_cfg.get("roam_ticks", 120)),
+            fun_roam_ticks=int(fun_cfg.get("roam_ticks", 60)),
             fun_seek_below=float(fun_cfg.get("seek_below", 0.6)),
             fun_places_top=int(fun_cfg.get("places_top", 3)),
             cost_lambda=float(util.get("cost_lambda", 0.02)),

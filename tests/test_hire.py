@@ -85,8 +85,11 @@ def test_hired_npc_gets_role_work_and_daily_plan(tmp_path) -> None:
     assert npc.work["shop"] == "shop"
     assert npc.work["station"] == hired[0]["station"]
     plan = npc.plan_snapshot()
-    assert len(plan) == 2, plan
+    # 上班块(去/守台) + 下班块
+    assert len(plan) == 3, plan
+    assert [e["id"] for e in plan] == ["work_go", "work_stand", "work_off"], plan
     assert all(e["intent"] in ("move_to", "interact") for e in plan)
+    assert plan[0]["at_tick"] % 1440 == 480 and plan[2]["at_tick"] % 1440 == 1140
     # 时薪在招聘时确定 = 公司启事上的时薪
     assert w.companies["org_a"].staff[0][1] == 60.0
 

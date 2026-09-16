@@ -82,6 +82,8 @@ def act_class_of(world, systems, pid: str) -> str:
         return "toilet"
     if "edible" in t:
         return "eat"
+    if "work" in t or "station" in t:
+        return "work"          # 在岗(销售台/工位) —— 否则前端只认识 idle, 会显示“空闲”
     return "idle"
 
 

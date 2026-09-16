@@ -21,6 +21,8 @@ static func activity_text(n: Dictionary) -> String:
 			return act_with("睡觉", act)
 		"toilet":
 			return "上厕所"
+		"work":
+			return act_with("在岗", act)
 		_:
 			return "空闲"
 

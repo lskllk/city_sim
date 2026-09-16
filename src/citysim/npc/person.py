@@ -663,6 +663,10 @@ class Person:
                         "status": "active" if on else "pending",
                         "intent": "interact",
                         "target": str(self._work.get("station", ""))})
+            # 下班(以前只画了上班, 没有下班节点)
+            out.append({"id": "work_off", "at_tick": day_start + close_m,
+                        "status": "done" if minute >= close_m else "pending",
+                        "intent": "move_to", "target": self._home or ""})
         return out
 
     def perceive(self, percept: "Percept", tick: int) -> None:
@@ -741,15 +745,17 @@ class Person:
                      只影响【计划条目】的到期推进, 不影响需求目标。
         """
         self._schedule.roll_day(now_tick, cfg.ticks_per_day)
-        # ★ 上班是【唯一能打断当前动作的东西】。
-        #   · 班次内默认守台(plan_intent);
-        #   · 只有强需求(hunger/energy/bladder < floor)才允许离岗;
-        #   · 但【需求目标进行中】不打断(做完再回岗) —— 否则会停在 0.35 上下反复。
+        # ★ 上班【只在两个时刻抢人】:
+        #   ① 我本来就闲着(_goal is None) → 回岗守台;
+        #   ② 刚上班那一刻(minute == open) → 硬抢(上班开始就该在)。
+        #   其他时候(上班途中) 不打断任何已有行为(吃饭/如厕/手头的计划)。
         on_shift = self._on_shift(now_tick, cfg)
         plan = self._plan_intent(now_tick, cfg) if on_shift else None
-        need_goal = self._goal is not None and self._goal.source == "need"
-        if (plan is not None and not need_goal
-                and not self._need_to_leave_work(cfg)):
+        minute = now_tick % max(1, cfg.ticks_per_day)
+        just_started = (on_shift and bool(self._work)
+                        and minute == int(self._work.get("open", -1)))
+        if (plan is not None and not self._need_to_leave_work(cfg)
+                and (self._goal is None or just_started)):
             return self._record(Decision(plan, "plan"))
         while True:
             # 1) 手上有事 → 【做完再决策】: 不重算, 不被打断(只有上面的 PLAN 能)。

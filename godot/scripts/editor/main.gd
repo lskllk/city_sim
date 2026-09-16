@@ -439,12 +439,13 @@ func _header_row(text: String) -> Label:
 ##   home : 住的人 + 家里的东西都要编 → 基本/楼层/权限/人员/物件
 ##   其它  : 编辑器只管"这栋楼是什么、几层、谁能进" → 基本/楼层/权限
 ##
-## 为什么商铺不显示人员/物件: 谁在里面上班、里面摆了什么(销售前台、货架)
-## 都归【经营】 —— 游戏内注册公司后"装修", 不在编辑器里编。
+## 商铺: 编辑器可编【经营·公司】(注册公司 + 勾选员工 → 无头跑也生效);
+## 里面摆什么(销售前台/货架)仍归游戏内经营, 不在这里编。
 ## (认知注入本质也是经营, 代码留在 _sec_knowledge; 想让某类建筑重新显示,
 ##  在本表里写上 "knowledge" 即可。)
 const BLD_SECTIONS := {
 	"home": ["basic", "floors", "access", "people", "items"],
+	"shop": ["basic", "floors", "access", "company"],
 	"_default": ["basic", "floors", "access"],
 }
 
@@ -465,6 +466,7 @@ func _build_building(bid: String) -> void:
 			"people": _sec_people(bid)
 			"items": _sec_items(bid)
 			"knowledge": _sec_knowledge(bid)
+			"company": _sec_company(bid)
 
 
 func _unit_info(bid: String) -> Dictionary:
@@ -676,6 +678,77 @@ func _muted(text: String) -> Label:
 
 
 # --- 人员详情 ------------------------------------------------------------
+
+
+## 经营 · 公司: 作者直选“这栋商铺归哪家公司 + 谁在这上班”。
+## 导出到场景 companies 段 → 无头跑也生效(店/岗位/薪/招聘/成交)。
+func _sec_company(bid: String) -> void:
+	var c := MapDoc.company_for_shop(bid)
+	var sec := _section("经营 · 公司")
+	if c.is_empty():
+		sec.add_child(_muted("未注册 —— 注册后: 有店/岗位/薪/招聘; 场景无头也能跑"))
+	var f_name := _field_row(sec, "公司名", String(c.get("name", "")), "甲店")
+	var f_cash := _field_row(sec, "现金", str(int(c.get("cash", 1000))), "1000")
+	var f_open := _field_row(sec, "开门", String(c.get("open", "08:00")), "08:00")
+	var f_close := _field_row(sec, "关门", String(c.get("close", "19:00")), "19:00")
+	var f_wage := _field_row(sec, "时薪", str(int(float(c.get("wage_per_hour", 10)))), "10")
+	var f_slots := _field_row(sec, "招聘", str(int(c.get("hiring_slots", 0))), "0")
+	var save := Button.new()
+	save.text = "注册公司" if c.is_empty() else "保存公司"
+	save.pressed.connect(func() -> void:
+		MapDoc.set_company({
+			"id": String(c.get("id", "")), "name": f_name.text.strip_edges(),
+			"shops": [bid], "cash": f_cash.text.to_float(),
+			"open": f_open.text.strip_edges(), "close": f_close.text.strip_edges(),
+			"wage_per_hour": f_wage.text.to_float(),
+			"hiring_slots": int(f_slots.text),
+			"staff": (c.get("staff", []) as Array).duplicate()})
+		_rebuild_inspector())
+	sec.add_child(save)
+	if c.is_empty():
+		_inspector.add_child(sec)
+		return
+	var del := Button.new()
+	del.text = "注销公司"
+	del.pressed.connect(func() -> void:
+		MapDoc.remove_company(String(c.get("id", "")))
+		_rebuild_inspector())
+	sec.add_child(del)
+	# 员工: 勾选 = 在这家公司上班(工位自动分配; 相当于运行期的“已招到”)
+	sec.add_child(_muted("员工(勾选 = 在公司上班; 工位自动分配)"))
+	var staff: Array = c.get("staff", [])
+	for pid in MapDoc.npcs:
+		var cb := CheckBox.new()
+		cb.text = String(MapDoc.npcs[pid].get("name", pid))
+		cb.button_pressed = staff.has(pid)
+		var p := String(pid)
+		cb.toggled.connect(func(on: bool) -> void:
+			var cc := MapDoc.company_for_shop(bid)
+			var ss: Array = cc.get("staff", [])
+			if on and not ss.has(p):
+				ss.append(p)
+			elif not on and ss.has(p):
+				ss.erase(p)
+			cc["staff"] = ss
+			MapDoc.set_company(cc))
+		sec.add_child(cb)
+	_inspector.add_child(sec)
+
+
+## 一行输入框(标签 + LineEdit); 返回 LineEdit 供读取。
+func _field_row(parent: Control, label: String, value: String, ph: String) -> LineEdit:
+	var row := HBoxContainer.new()
+	var l := Label.new()
+	l.text = label
+	l.custom_minimum_size.x = 56
+	row.add_child(l)
+	var e := LineEdit.new()
+	e.text = value
+	e.placeholder_text = ph
+	e.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(e)
+	parent.add_child(row)
+	return e
 
 
 func _sec_knowledge(bid: String) -> void:

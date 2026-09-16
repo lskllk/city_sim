@@ -39,6 +39,8 @@ var edges: Dictionary = {}        # id -> {a,b,class,width,speed,oneway,geom:Arr
 var buildings: Dictionary = {}    # id -> {type,center:Vector2,size:Vector2,rot:float,doors:Array[Vector2],floors:int}
 var npcs: Dictionary = {}         # id -> {name,gender,birthday,role,money,home,
 								  #        personality,init,traits,tell_bias,memory}
+var companies: Dictionary = {}    # cid -> {id,name,shops:[bid],cash,open,close,
+								  #          wage_per_hour,hiring_slots,restock_to,staff:[npc]}
 # memory: item_id -> {located/afford/value/price/stock/owner/believe}
 # = 【这个人额外的记忆】。后端 scenarios 的 spec["memory"] 直接读它。
 # 与 knowledge 段的区别: knowledge 是【批量】(所有人 / 一整户),
@@ -239,6 +241,7 @@ func new_map() -> void:
 	edges.clear()
 	buildings.clear()
 	npcs.clear()
+	companies.clear()
 	items.clear()
 	knowledge.clear()
 	errors.clear()
@@ -839,6 +842,31 @@ func remove_item(id: String) -> void:
 	# 指向它的记忆变成悬空引用 → 一起清掉(否则后端拿不到 afford 就永远用不上)
 	for pid in npcs:
 		(memory_of(pid) as Dictionary).erase(id)
+	changed.emit()
+
+
+## ---- 公司(经营) ----------------------------------------------------------
+## 作者直选“这栋商铺归哪家公司 + 谁在这上班”; 导出到场景 companies 段。
+func company_for_shop(bid: String) -> Dictionary:
+	for cid in companies:
+		if (companies[cid].get("shops", []) as Array).has(bid):
+			return companies[cid]
+	return {}
+
+
+func set_company(spec: Dictionary) -> String:
+	var cid := String(spec.get("id", ""))
+	if cid == "":
+		var shops: Array = spec.get("shops", [])
+		cid = "org_%s" % (String(shops[0]) if not shops.is_empty() else "x")
+		spec["id"] = cid
+	companies[cid] = spec
+	changed.emit()
+	return cid
+
+
+func remove_company(cid: String) -> void:
+	companies.erase(cid)
 	changed.emit()
 
 
@@ -1530,10 +1558,16 @@ func to_scene_dict(scene_name_arg: String = "") -> Dictionary:
 			var a: Vector2 = buildings[bids[i]]["center"]
 			var b2: Vector2 = buildings[bids[j]]["center"]
 			pairs["%s|%s" % [bids[i], bids[j]]] = maxi(1, int(a.distance_to(b2) / 10.0))
+	var comps: Array = []
+	var cids: Array = companies.keys()
+	cids.sort()
+	for cid in cids:
+		comps.append((companies[cid] as Dictionary).duplicate(true))
 	return {"scene": nm, "display_name": scene_display if scene_display != "" else nm,
 		"canvas": {"w": bounds.size.x, "h": bounds.size.y},
 		"locations": locs, "travel": {"default": 20, "pairs": pairs},
 		"entities": ents, "pulses": [], "plans": {}, "npcs": ppl,
+		"companies": comps,
 		"knowledge": knowledge.duplicate(true),
 		"map": to_dict()}
 
@@ -1556,6 +1590,10 @@ func load_scene_dict(d: Dictionary) -> bool:
 	scene_display = String(d.get("display_name", ""))
 	new_map()
 	knowledge = (d.get("knowledge", []) as Array).duplicate(true)
+	for c in (d.get("companies", []) as Array):
+		if c is Dictionary and String((c as Dictionary).get("id", "")) != "":
+			companies[String((c as Dictionary).get("id"))] =
+				(c as Dictionary).duplicate(true)
 	var m: Variant = d.get("map")
 	if m is Dictionary and not (m as Dictionary).is_empty():
 		from_dict(m)

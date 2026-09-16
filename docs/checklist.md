@@ -95,8 +95,12 @@
   只影响本人，不动公司营业时间）；`engine.schedule_worker` / `op="schedule"`。
 - **时间线**：引擎每 tick 记 `Systems.activity_log`（当天行为段），只在选中的
   rich 帧里下发；前端画彩色行为带 + 悬浮。
+- **场景可声明公司（作者直选）**：`scenes/*.json` 的 `companies` 段（id/name/
+  shops/cash/open/close/wage_per_hour/hiring_slots/restock_to/**staff**）→
+  `load_scene` 建公司 + 绑店铺 + 预置员工（不用等运行期 `hire_minute`）。
+  编辑器：商铺详情 →「经营 · 公司」段（注册/编辑 + 勾选员工）。**这样场景才能无头跑。**
 - **已知未做**：`favor`（好感度）只记账**未接入决策**；`template_plan` 恒空
-  （无 `config/roles.json`）；DEMO 场景无公司 → 脚本 `buy` 会卡排队。
+  （无 `config/roles.json`）；DEMO 测试场景没写 `companies` → 脚本 `buy` 会卡排队。
 
 ---
 

@@ -77,6 +77,8 @@ def load_scene(path: str | Path | None = None,
     # 建筑: 类型库(config/buildings) + 显式几何或 面积∝容量 自动布局
     world.locations = build_locations(data)
     _materialize_missing_units(world.locations, data)
+    # 公司(场景里声明的 → 无头也能跑): 店铺归属 / 账 / 营业时间 / 招聘启事
+    _load_companies(world, data)
     # 画布尺寸随场景下发(编辑器导出的地图可能不是 1280x800)
     world.canvas = dict(data.get("canvas", {}))
     # 编辑器导出的原始路网/建筑(含 rot/doors), 供观察器按编辑器思路渲染
@@ -223,6 +225,8 @@ def load_scene(path: str | Path | None = None,
     for _p in world.npcs.values():
         _p.set_travel_costs(costs)
         _p.set_places(places)
+    # 公司预置员工(作者直选): 要等【实体 + NPC】都建好才能绑工位/算岗位。
+    _bind_company_staff(world, data)
     return world, systems, rng_pool
 
 
@@ -236,6 +240,94 @@ def _resolve_scene_path(raw: str) -> Path | None:
         return p
     alt = ROOT / raw
     return alt if alt.is_file() else None
+
+
+def _clock_minutes(v, default: int) -> int:
+    """"HH:MM" → 当天分钟(0..1440, 24:00 = 1440); int 直接用; 非法回 default。"""
+    if isinstance(v, int):
+        return v
+    s = str(v or "").strip()
+    hh, sep, mm = s.partition(":")
+    if sep and hh.isdigit() and mm.isdigit():
+        h, m = int(hh), int(mm)
+        if 0 <= h <= 24 and 0 <= m < 60:
+            return h * 60 + m
+    return int(default)
+
+
+def _load_companies(world: World, data: dict) -> None:
+    """场景里声明的公司(编辑器可编) —— 让场景【无头也能跑】(有店主/岗位/交易)。
+
+    shape:
+      "companies": [
+        {"id":"org_x", "name":"甲店", "shops":["bld_004"], "cash":1000,
+         "open":"08:00", "close":"19:00", "wage_per_hour":10,
+         "hiring_slots":2, "slots":2, "restock_to":60}
+      ]
+    兼容旧的 int 写法 open_minute/close_minute。
+    """
+    from citysim.world.companies import Company
+    for spec in (data.get("companies") or []):
+        if not isinstance(spec, dict):
+            continue
+        shops = tuple(str(s) for s in (spec.get("shops") or []))
+        cid = str(spec.get("id") or ("org_%s" % (shops[0] if shops else "x")))
+        slots = int(spec.get("hiring_slots", 0))
+        world.companies[cid] = Company(
+            company_id=cid, name=str(spec.get("name", cid)),
+            cash=float(spec.get("cash", 1000.0)),
+            owner=str(spec.get("owner", "")),
+            shops=shops,
+            open_minute=_clock_minutes(spec.get("open"),
+                                       int(spec.get("open_minute", 480))),
+            close_minute=_clock_minutes(spec.get("close"),
+                                        int(spec.get("close_minute", 1140))),
+            wage_per_hour=float(spec.get("wage_per_hour", 10.0)),
+            hiring_open=bool(spec.get("hiring_open", slots > 0)),
+            hiring_slots=slots,
+            slots=int(spec.get("slots", 2)),
+            restock_to=int(spec.get("restock_to", 60)))
+        for sid in shops:
+            if sid in world.locations:
+                world.locations[sid]["company"] = cid
+
+
+def _bind_company_staff(world: World, data: dict) -> None:
+    """把公司预置的【员工】绑好(作者直选 = 上帝模式, 不等 hire_minute)。
+
+    spec 里: "staff": ["npc_a", {"npc":"npc_b", "station":"station_counter_001"}]
+    · 给了 station 就用它; 没给就自动挑公司第一个【空着的销售台】;
+    · 写 work 绑定 + 角色 + 员工名单(和运行期 hire_at 一样)。
+    """
+    from citysim.world.engine import vacant_counters
+    for spec in (data.get("companies") or []):
+        if not isinstance(spec, dict):
+            continue
+        comp = world.companies.get(str(spec.get("id") or ""))
+        if comp is None:
+            continue
+        staff = list(comp.staff)
+        for entry in (spec.get("staff") or []):
+            nid = str(entry.get("npc") if isinstance(entry, dict) else entry)
+            npc = world.npcs.get(nid)
+            if npc is None:
+                continue
+            station = (str(entry.get("station", ""))
+                       if isinstance(entry, dict) else "")
+            if not station:
+                vac = vacant_counters(world, comp)
+                station = vac[0][1].entity_id if vac else ""
+            shop_id = comp.shops[0] if comp.shops else ""
+            if station:
+                ent = world.entities.get(station)
+                if ent is not None and ent.location_id in comp.shops:
+                    shop_id = ent.location_id
+            npc.set_work(comp.company_id, shop_id, station,
+                         comp.open_minute, comp.close_minute,
+                         wage_per_hour=comp.wage_per_hour)
+            npc.set_role("worker")
+            staff.append((nid, float(comp.wage_per_hour)))
+        comp.staff = tuple(staff)
 
 
 def _materialize_missing_units(locations: dict, data: dict) -> int:

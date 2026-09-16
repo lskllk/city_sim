@@ -1,7 +1,7 @@
 """NPC 年龄(按天更新) + 角色(role) 契约。"""
 from __future__ import annotations
 
-from citysim.gateway.scenarios import load_scene, CFG, DEMO_SCENE, NAV_SCENE
+from citysim.gateway.scenarios import load_scene, CFG, DEMO_SCENE
 
 WANG = "npc_wang_er"
 LI = "npc_li_si"

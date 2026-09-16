@@ -98,6 +98,8 @@ def decide(
     money: float = float("inf"),  # 买不起的就不作为候选(否则反复失败刷屏)
     home: str = "",               # 住址(囤货要看“我家还剩几个”)
     favor: Mapping[str, float] | None = None,   # 对店铺的好感度(0..2, 中性 1.0)
+    workplace: str = "",         # 在班时的工位地点(离岗要算账)
+    leave_cost: float = 0.0,      # 离岗一次的代价(旷工扣日薪; 0=不上班/不计)
 ) -> Intent:
     """决策主算法。纯函数。铁律:
 
@@ -112,7 +114,7 @@ def decide(
     """
     intent, _eff = decide_scored(signals, personality, mem, location_id, cfg,
                                  now_tick, self_id, travel_ticks, money, home,
-                                 favor)
+                                 favor, workplace, leave_cost)
     return intent
 
 
@@ -128,6 +130,8 @@ def decide_scored(
     money: float = float("inf"),
     home: str = "",
     favor: Mapping[str, float] | None = None,
+    workplace: str = "",
+    leave_cost: float = 0.0,
 ) -> tuple[Intent, float]:
     """同 decide, 但多返回【得分】。
 
@@ -141,7 +145,8 @@ def decide_scored(
     scored, ranked, relevant = _score_candidates(
         cands, personality, location_id, cfg, travel_ticks, money, self_id,
         hour_f=(now_tick % max(1, cfg.ticks_per_day)) / 60.0,
-        favor=favor, home=home)
+        favor=favor, home=home,
+        workplace=workplace, leave_cost=leave_cost)
     return _choose(scored, ranked, relevant, cfg, self_id, location_id, home)
 
 
@@ -323,7 +328,9 @@ def _score_candidates(cands, personality: Mapping[str, float],
                       self_id: str = "",
                       hour_f: float = 0.0,
                       favor: Mapping[str, float] | None = None,
-                      home: str = ""):
+                      home: str = "",
+                      workplace: str = "",
+                      leave_cost: float = 0.0):
     """[阶段2+3] 评分 + 排序。
 
         eff = (need^power × 净收益 × personality × believe) / (1 + λ × cost)
@@ -361,7 +368,13 @@ def _score_candidates(cands, personality: Mapping[str, float],
             qty = min(qty, affordable)   # 钱够几件就买几件
         # ★ 净收益: 路上需求在掉 → 补回来的没 value 那么多;
         #   而且是"这一趟"的消耗 → 按份数摊平(买得多, 路费就不是劣势)
-        net = _net_value(cfg, sig, row.value, ticks,
+        # ★ 食物按【真实缺口】封顶: 补不了那么多就不算那么多(补 20 也不虚高)。
+        #   只对 driver="now"(need==1−signal, 同一根轴); future(囤货)的 need
+        #   是“目标存量缺口”, 不是同一轴, 不能夹。
+        val = float(row.value)
+        if driver == "now":
+            val = min(val, need)
+        net = _net_value(cfg, sig, val, ticks,
                          float(personality.get(sig, 1.0)), hour_f, qty=qty)
         # ★ 对【这家店】的好感度(0..2, 中性 1.0): 声誉是店的, 不是商品的。
         #   掉到 0 → 这条直接不成立(再便宜也不去); 高于 1 则是加分项。
@@ -377,6 +390,11 @@ def _score_candidates(cands, personality: Mapping[str, float],
         if for_sale:
             cost = float(row.price) * qty
             cost += float(row.price) * (1.0 - row.believe)   # 不确定的便宜要打折
+        # ★ 上班离岗代价(旷工扣日薪): 在班 + 人在工位 + 目的地不是工位。
+        #   手边的公司货(row.located == workplace)不计。
+        if (leave_cost > 0.0 and workplace and location_id == workplace
+                and row.located and row.located != workplace):
+            cost += leave_cost
         eff = base / (1.0 + cfg.cost_lambda * cost)
         scored.append((row.item_id, sig, eff, row.located, row, qty, driver))
     scored.sort(key=lambda x: (-x[2], x[0]))
@@ -410,7 +428,7 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"记忆: {item_id} 能解 {sig} → 去 {loc}",
-                    used_fact_ids=(), features={"driver": driver},
+                    features={"driver": driver},
                     relevant_signals=relevant)), eff
         if for_sale:                      # 在店里 → 付钱买(不再白拿)
             n = max(1, min(int(qty), MAX_BUY_QTY))   # 一次补到目标存量(且钱够)
@@ -419,19 +437,18 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"买 {item_id} ×{qty} (¥{row.price:g}, score={eff:.3f})",
-                    used_fact_ids=(), features={"driver": driver},
+                    features={"driver": driver},
                     relevant_signals=relevant)), eff
         return Interact(
             target_id=item_id,
             trace=DecisionTrace(
                 ranked=ranked,
                 reason=f"目标 {item_id} (score={eff:.3f})",
-                used_fact_ids=(), features={"driver": driver},
+                features={"driver": driver},
                 relevant_signals=relevant)), eff
     return Idle(
         trace=DecisionTrace(
             ranked=ranked,
             reason="信号充足或没有值得做的目标",
-            used_fact_ids=(),
             relevant_signals=relevant)), 0.0
 

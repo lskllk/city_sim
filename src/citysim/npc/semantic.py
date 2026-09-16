@@ -1,6 +1,6 @@
 """semantic —— NPC 说什么(语义层 M-S1)。
 
-铁律(docs/design.md §2.7):
+铁律:
   1. **随机只在措辞层。** 谁 / 知道什么 / 什么行为 / 什么强度 —— 全部为真、确定。
   2. **准确性靠约束, 不靠更聪明的模型。** 槽位只允许真值, 渲染时不许新增实体。
   3. **语义系统 = 知识系统的可视化 + 传播载体。** 说出的话就是一条带来源的 Fact。
@@ -21,7 +21,7 @@ from typing import Any, Mapping, Sequence
 
 from citysim.core.types import SemanticEvent
 
-# act 集合与说话优先级(docs/design.md §2.7)
+# act 集合与说话优先级
 ACTS: tuple[str, ...] = ("STATE", "INTENT", "SURPRISE", "DOUBT", "DENIED",
                          "REPORT")
 PRIORITY: Mapping[str, int] = {
@@ -160,12 +160,10 @@ def pick_retellable(rows: Sequence[Mapping[str, Any]], *, home: str,
 # 事件构造(调用方给【真值】; 这里只负责组装, 不做任何判断)
 # ---------------------------------------------------------------------------
 def _event(seq: int, tick: int, speaker: str, act: str, topic: str,
-           slots: Mapping[str, Any], *, source: str = "",
-           intensity: float = 0.0) -> SemanticEvent:
+           slots: Mapping[str, Any], *, source: str = "") -> SemanticEvent:
     return SemanticEvent(
         event_id=f"sem{seq}", tick=tick, speaker=speaker, act=act,
-        topic=topic, slots=dict(slots), source=source,
-        intensity=round(float(intensity), 3))
+        topic=topic, slots=dict(slots), source=source)
 
 
 _counter = {"n": 0}
@@ -202,46 +200,37 @@ def fail_word(why: str) -> str:
     return FAIL_WORDS.get(head, head or "没办成")
 
 
-def denied(tick: int, speaker: str, why: str, *, topic: str = "",
-           intensity: float = 0.4) -> SemanticEvent:
+def denied(tick: int, speaker: str, why: str, *, topic: str = "") -> SemanticEvent:
     """我被拒绝了: 没钱 / 没货 / 有人占着 / 白跑一趟。"""
     return _event(_next_seq(), tick, speaker, "DENIED",
-                  topic or "denied", {"why": why}, intensity=intensity)
-
-
-def state(tick: int, speaker: str, signal: str, need_word: str,
-          intensity: float = 0.0) -> SemanticEvent:
-    return _event(_next_seq(), tick, speaker, "STATE",
-                  f"state.{signal}", {"need": need_word},
-                  intensity=intensity)
+                  topic or "denied", {"why": why})
 
 
 def intent(tick: int, speaker: str, goal: str, why: str,
-           topic: str = "", intensity: float = 0.0) -> SemanticEvent:
+           topic: str = "") -> SemanticEvent:
     return _event(_next_seq(), tick, speaker, "INTENT",
-                  topic or "intent", {"goal": goal, "why": why},
-                  intensity=intensity)
+                  topic or "intent", {"goal": goal, "why": why})
 
 
 def surprise(tick: int, speaker: str, item_id: str, item_name: str,
              was: str, now: str, *, fact: Mapping[str, Any] | None = None,
-             topic: str = "", intensity: float = 0.0) -> SemanticEvent:
+             topic: str = "") -> SemanticEvent:
     """fact 是【真值】(item_id/located/price/afford/…) —— 传播时听者抄它,
     措辞时不参与(只填模板里出现过的槽)。"""
     slots = {"item": item_name, "was": was, "now": now}
     slots.update(fact or {})
     return _event(_next_seq(), tick, speaker, "SURPRISE",
-                  topic or f"item.{item_id}", slots, intensity=intensity)
+                  topic or f"item.{item_id}", slots)
 
 
 def doubt(tick: int, speaker: str, item_id: str, item_name: str, who: str,
           was: str, now: str, *, fact: Mapping[str, Any] | None = None,
-          source: str = "", intensity: float = 0.0) -> SemanticEvent:
+          source: str = "") -> SemanticEvent:
     """信念被现实推翻: 这条记忆本来是【别人说的】(source=who) —— 最值得说的事。"""
     slots = {"item": item_name, "who": who, "was": was, "now": now}
     slots.update(fact or {})
     return _event(_next_seq(), tick, speaker, "DOUBT", f"item.{item_id}", slots,
-                  source=source or who, intensity=intensity)
+                  source=source or who)
 
 
 # 说者那半句气泡: “→ 林静：简餐8块”。不是语义事件(不含新信息),

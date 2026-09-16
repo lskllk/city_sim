@@ -5,10 +5,7 @@ M2 定死: Percept / Intent / DecisionTrace / EntityView / EventView。
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal, Mapping
-
-SourceKind = Literal["OBSERVED", "TOLD", "INFERRED"]
-
+from typing import Any, Mapping
 
 @dataclass(frozen=True, slots=True)
 class EntityView:
@@ -54,23 +51,9 @@ class Percept:
 class DecisionTrace:
     ranked: tuple[tuple[str, float], ...] = ()   # (entity_id, utility分) 降序
     reason: str = ""
-    used_fact_ids: tuple[str, ...] = ()          # M5 前恒为 ()
     features: Mapping[str, float] = field(default_factory=dict)  # M8 前为 {}
     # TASK001: 结构化 trace —— 相关信号及其缺口(need=1-signal, 降序)
     relevant_signals: tuple[tuple[str, float], ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class PerceptionRecord:
-    """一次可观察的感知记录(重评构建 percept 时落一份到 Person.last_percept)。
-
-    只读观察用; 不参与决策。observed = 同 region 全部 + 跨 region 距离内可见。
-    """
-    tick: int
-    npc_id: str
-    location_id: str
-    position: tuple[float, float] = (0.0, 0.0)
-    observed_entity_ids: tuple[str, ...] = ()
 
 
 # --- 意图(多态): 每种意图自持字段, 取代单一 kind+target_id ---
@@ -98,11 +81,18 @@ class Buy:
     trace: DecisionTrace = field(default_factory=DecisionTrace)
 
 
-Intent = Idle | MoveTo | Interact | Buy
+@dataclass(frozen=True, slots=True)
+class Wander:
+    """闲逛: 去 dest 待一会儿(补 fun; 最低优先级, 可被任何需求打断)。"""
+    dest: str
+    trace: DecisionTrace = field(default_factory=DecisionTrace)
+
+
+Intent = Idle | MoveTo | Interact | Buy | Wander
 
 
 # ---------------------------------------------------------------------------
-# 语义层契约(docs/design.md §2.7)
+# 语义层契约
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True, slots=True)
 class SemanticEvent:
@@ -118,8 +108,6 @@ class SemanticEvent:
     topic: str                        # 冷却 / 去重键 ^[a-z][a-z0-9_.]*$
     slots: Mapping[str, Any] = field(default_factory=dict)   # 只放真值
     source: str = ""                  # "" = 自身; 否则 fact_id / 来源 npc_id
-    intensity: float = 0.0            # 0..1 → 渲染时映射为强度档
-    listeners: tuple[str, ...] = ()   # 听到的人(同 location)
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +133,8 @@ def intent_kind(intent: Intent) -> str:
         return "interact"
     if isinstance(intent, Buy):
         return "buy"
+    if isinstance(intent, Wander):
+        return "wander"
     raise TypeError(f"unknown intent {intent!r}")
 
 
@@ -156,4 +146,6 @@ def intent_target(intent: Intent) -> str | None:
         return intent.target_id
     if isinstance(intent, Buy):
         return intent.item_id
+    if isinstance(intent, Wander):
+        return intent.dest
     return None

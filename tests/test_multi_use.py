@@ -14,7 +14,6 @@ import json
 from citysim.core.config import load_config
 from citysim.core.types import Interact
 from citysim.gateway.scenarios import load_scene
-from citysim.world.world import Entity
 
 CFG = load_config("config/sim.toml")
 
@@ -120,8 +119,9 @@ def test_eat_consumes_bed_does_not(tmp_path) -> None:
             if e.item_type == "meal_simple"][0]
     meal.duration_ticks = 1
     assert _claim_all(w, s, meal.entity_id) == [True, True, True]
-    for _ in range(2):
-        s.interaction.step(w, CFG)
+    # WP-09: 完成由 NPC 消化驱动(world 只收尾) —— 这里直接触发收尾, 测消耗账。
+    for pid in ("a", "b", "c"):
+        s.interaction.finish(w, pid, s.interaction.active[pid].handle)
     assert meal.stock == 0                       # 3 份被吃光
     assert meal.entity_id not in w.entities      # 空食物回收
     assert meal.claimants == set()
@@ -130,8 +130,8 @@ def test_eat_consumes_bed_does_not(tmp_path) -> None:
     bed = [e for e in w2.entities.values() if e.item_type == "bed_basic"][0]
     bed.duration_ticks = 1
     assert _claim_all(w2, s2, bed.entity_id) == [True, True, True]
-    for _ in range(2):
-        s2.interaction.step(w2, CFG)
+    for pid in ("a", "b", "c"):
+        s2.interaction.finish(w2, pid, s2.interaction.active[pid].handle)
     assert bed.stock == 3                        # 床不消耗, 还是 3 张
     assert bed.entity_id in w2.entities
     assert bed.claimants == set()                # 但都醒了, 名额全空

@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from citysim.world.market import (decorate, fixture_catalog, is_fixture,
-                                  market_catalog, market_items, purchase)
+                                  market_catalog, purchase)
 from helpers import make_runtime, register_company
 
 
@@ -47,7 +47,7 @@ def test_decorate_rejects_bad_inputs() -> None:
 
 def test_market_does_not_sell_fixtures() -> None:
     w, comp = _world()
-    assert "toilet_basic" not in market_items(w)
+    assert "toilet_basic" not in {c["type"] for c in market_catalog()}
     assert not purchase(w, comp, "shop", "toilet_basic", 1)["ok"]
 
 

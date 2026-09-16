@@ -108,7 +108,7 @@ func _build() -> void:
 	_monitor.name = "实时监控"
 	_monitor.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_tabs.add_child(_monitor)
-	# 2 HR 管理(员工名单 + 发布/撤回招聘)
+	# 2 人员管理(员工名单 + 工位分配 + 每人排班 + 发布/撤回招聘)
 	_tabs.add_child(_build_hr())
 	# 3 货物管理
 	_tabs.add_child(_build_goods())
@@ -119,10 +119,10 @@ func _build() -> void:
 	box.add_child(_tabs)
 
 
-# --- HR 管理 ---------------------------------------------------------------
+# --- 人员管理 ---------------------------------------------------------------
 func _build_hr() -> Control:
-	var v := _scroll_tab("HR 管理",
-		"员工名单; 发布招聘启事(几名/时薪) → 每天【招人时刻】媒婆才撮合。")
+	var v := _scroll_tab("人员管理",
+		"员工名单 + 工位分配 + 每人排班(上班/下班时刻); 发布招聘启事(几名/时薪) → 每天【招人时刻】媒婆才撮合。")
 	_hr_list = VBoxContainer.new()
 	_hr_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_hr_list.add_theme_constant_override("separation", 4)
@@ -310,12 +310,29 @@ func _staff_row(it: Variant, comp: Dictionary) -> Control:
 	w.text = "¥%.0f/时" % wage
 	w.custom_minimum_size.x = 80
 	row.add_child(w)
-	var act := Protocol.s(Store.npc(pid).get("activity", ""))
+	var on_post := bool(Store.npc(pid).get("on_post", false))
 	var st := Label.new()
-	st.text = "在岗" if (station != "" and act == "working") else "不在岗"
+	st.text = "在岗" if on_post else "不在岗"
 	st.add_theme_color_override("font_color",
 		Color("7fe0a8") if st.text == "在岗" else Color("e8a34d"))
 	row.add_child(st)
+	# 【排班】: 每人一个班次(上班/下班 HH:MM; 只影响他自己, 不动公司营业时间)
+	var work := Protocol.as_dict(Store.npc(pid).get("work", {}))
+	var oe := LineEdit.new()
+	oe.text = _hm(int(Protocol.num(work.get("open", 0))))
+	oe.custom_minimum_size.x = 48
+	row.add_child(oe)
+	row.add_child(_muted("–"))
+	var ce := LineEdit.new()
+	ce.text = _hm(int(Protocol.num(work.get("close", 1440))))
+	ce.custom_minimum_size.x = 48
+	row.add_child(ce)
+	var sb := Button.new()
+	sb.text = "排班"
+	sb.pressed.connect(func() -> void:
+		Commands.cmd("company", {"op": "schedule", "company": _cid, "npc": pid,
+			"open": _minutes(oe.text), "close": _minutes(ce.text)}))
+	row.add_child(sb)
 	return row
 
 
@@ -534,6 +551,18 @@ func _shelves() -> Array:
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return Protocol.s(a.get("id", "")) < Protocol.s(b.get("id", "")))
 	return out
+
+
+## "HH:MM" <-> 当天分钟数(排班用)。
+func _hm(minutes: int) -> String:
+	return "%02d:%02d" % [minutes / 60, minutes % 60]
+
+
+func _minutes(s: String) -> int:
+	var parts := s.strip_edges().split(":")
+	if parts.size() != 2 or not parts[0].is_valid_int() 			or not parts[1].is_valid_int():
+		return 0
+	return int(parts[0]) * 60 + int(parts[1])
 
 
 ## 公司旗下【空着的】销售前台数(= 还能招几个人)。已绑员工的台不算。

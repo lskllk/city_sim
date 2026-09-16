@@ -18,6 +18,7 @@ from pathlib import Path
 
 from citysim.core.types import intent_kind, intent_target
 from citysim.emojis import SEMANTIC_EMOJI
+from citysim.world.engine import act_class_of
 
 # TASK002: WS 消息协议版本(协议变化时递增; 本契约变更故 +1)
 PROTOCOL_VERSION = 2
@@ -64,25 +65,6 @@ def icon_of(entity) -> str:
     return SEMANTIC_EMOJI["box"]
 
 
-
-
-def act_class_of(world, systems, pid: str) -> str:
-    if pid in systems.travel:
-        return "move"
-    act = systems.interaction.active.get(pid)
-    if act is None:
-        return "idle"
-    ent = world.entities.get(act.entity_id)
-    if ent is None:
-        return "idle"
-    t = ent.tags
-    if "sleepable" in t:
-        return "sleep"
-    if "toilet" in t:
-        return "toilet"
-    if "edible" in t:
-        return "eat"
-    return "idle"
 
 
 def _intent_detail(it) -> dict | None:
@@ -162,6 +144,9 @@ def _npc_core(world, systems, pid: str, p) -> dict:
     tv = systems.travel.get(pid)
     loc = world.loc_of(pid)
     center = world.region_center(loc) or (0.0, 0.0)
+    station = str((p.work or {}).get("station", ""))
+    # 在岗 = 当前交互就是自己绑的那个工位(不是“有工作绑定”就算在岗)
+    on_post = bool(act is not None and station and act.entity_id == station)
     return {
         "id": pid, "name": p.name, "loc": loc,
         "gender": p.gender,
@@ -169,25 +154,30 @@ def _npc_core(world, systems, pid: str, p) -> dict:
         "activity": p.current_activity,
         # 上岗信息(公司画布要画"谁守着哪个台"): 空 = 没工作
         "work": p.work or None,
+        "on_post": on_post,
         "role": p.role,
         "act_class": act_class_of(world, systems, pid),
         "money": round(p.money, 2),
         "age": p.age,
         "role": p.role,
         "signals": dict(p.signals),
-        "active": None if act is None else {
-            "entity": act.entity_id, "remaining": act.remaining_ticks,
-            "total": act.total_ticks},
+        "active": None if act is None else _active_view(p, act),
         "travel": None if tv is None else {
             "from": tv.from_loc, "to": tv.to_loc,
             "depart": tv.depart_tick, "arrive": tv.arrive_tick,
             "waypoints": [[round(x, 2), round(y, 2)]
                           for x, y in tv.waypoints]},
-        "plan": p.plan_snapshot(),      # 当天计划表(时间线 viz; 每天才变)
+        "plan": p.plan_snapshot(world.clock_tick),      # 当天计划表(时间线 viz; 每天才变)
         # 气泡: 瞬时事件(~40 tick)。前端自己按 until 决定何时消失,
         # 所以过期不需要再推一帧“空气泡”。
         "bubble": _bubble_of(p),
     }
+
+
+def _active_view(p, act) -> dict:
+    """进度来自 NPC 自己的 intake(WP-08); world 的 ActiveInteraction 不再存进度。"""
+    rem, total = p.intake_progress(act.entity_id)
+    return {"entity": act.entity_id, "remaining": rem, "total": total}
 
 
 def _bubble_of(p) -> dict | None:
@@ -211,6 +201,7 @@ def _npc_rich(world, systems, pid: str, p) -> dict:
     d["memory"] = mem
     d["memory_counts"] = len(mem)
     d["events"] = _recent_events(systems, pid)
+    d["timeline"] = list(getattr(systems, "activity_log", {}).get(pid, ()))
     return d
 
 

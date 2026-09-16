@@ -5,18 +5,11 @@
     "sleepable"
   ],
   "affordances": {
-    "energy": 0.7
+    "energy": 1.0
   },
-  "duration_ticks": 480,
-  "interruptible": false,
+  "duration_ticks": 800,
   "on_start": [],
-  "on_complete": [
-    {
-      "op": "add_signal",
-      "signal": "energy",
-      "delta": 1.0
-    }
-  ],
+  "on_complete": [],
   "attrs": {},
   "stock": 1
 }

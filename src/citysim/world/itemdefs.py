@@ -39,7 +39,6 @@ class ItemDef:
     tags: frozenset[str] = frozenset()
     affordances: Mapping[str, float] = field(default_factory=dict)
     duration_ticks: int = 30
-    interruptible: bool = True
     on_start: tuple[Mapping[str, Any], ...] = ()
     on_complete: tuple[Mapping[str, Any], ...] = ()
     attrs: Mapping[str, Any] = field(default_factory=dict)
@@ -57,7 +56,6 @@ def _parse(data: dict) -> ItemDef:
         tags=frozenset(data.get("tags", [])),
         affordances=dict(data.get("affordances", {})),
         duration_ticks=int(data.get("duration_ticks", 30)),
-        interruptible=bool(data.get("interruptible", True)),
         on_start=tuple(dict(x) for x in data.get("on_start", [])),
         on_complete=tuple(dict(x) for x in data.get("on_complete", [])),
         attrs=dict(data.get("attrs", {})),

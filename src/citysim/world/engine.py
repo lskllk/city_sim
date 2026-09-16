@@ -15,55 +15,75 @@ from citysim.core.config import SimConfig
 from citysim.core.types import (
     Buy,
     Idle,
-    Interact,
-    MoveTo,
     intent_kind,
     intent_target,
 )
 from citysim.world.drive import due_npcs
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.pulses import apply as apply_pulses
-from citysim.world.perception import build_percept
-from citysim.world.travel import Travel
+from citysim.world.port import WorldPortImpl
 from citysim.world.world import entity_from_def
 
 
-def _travel_cost(systems, cfg: SimConfig, a: str, b: str) -> int:
-    """跨地点移动耗时: 优先 travel_costs 矩阵, 缺省回落 cfg.move_ticks。"""
-    if systems.travel_costs:
-        c = systems.travel_costs.get(f"{a}|{b}") or \
-            systems.travel_costs.get(f"{b}|{a}")
-        if c is not None:
-            return c
-    # 场景自己声明的 travel.default 优先于全局 move_ticks
-    if int(getattr(systems, "travel_default", 0) or 0) > 0:
-        return int(systems.travel_default)
-    return cfg.move_ticks
-
-
-def _route_between(world, systems, a: str, b: str):
-    """有路网且两端都接得上 → 沿路最短路径; 否则 None(上层降级)。"""
-    roads = getattr(systems, "roads", None)
-    if roads is None or not roads.ok:
-        return None
-    pa, pb = world.door_point(a), world.door_point(b)
-    if pa is None or pb is None:
-        return None
-    return roads.route(pa, pb)
-
-
-def _sleeping(world, systems, pid: str) -> bool:
-    act = systems.interaction.active.get(pid)
-    if act is None:
-        return False
-    ent = world.entities.get(act.entity_id)
-    return ent is not None and ent.is_sleepable
+# 移动耗时 / 路线 / 抢占 的共享 helper 已搬到 world/port.py(WP-02)。
 
 
 def _busy(world, systems, pid: str) -> bool:
-    """忙碌 = 有进行中交互 或 正在跨地点移动。"""
+    """忙碌 = 有进行中交互 或 正在跨地点移动 或 正在闲逛。"""
     return (systems.interaction.active.get(pid) is not None
-            or pid in systems.travel)
+            or pid in systems.travel
+            or pid in systems.roaming)
+
+
+def act_class_of(world, systems, pid: str) -> str:
+    """这个 NPC 此刻在【做什么】(行为大类): move/eat/sleep/toilet/work/wander/idle。
+
+    快照/时间线用; 纯读, 不改任何状态。
+    """
+    if pid in systems.travel:
+        return "move"
+    if pid in getattr(systems, "roaming", {}):
+        return "wander"
+    act = systems.interaction.active.get(pid)
+    if act is None:
+        return "idle"
+    ent = world.entities.get(act.entity_id)
+    if ent is None:
+        return "idle"
+    t = ent.tags
+    if "sleepable" in t:
+        return "sleep"
+    if "toilet" in t:
+        return "toilet"
+    if "edible" in t:
+        return "eat"
+    if "work" in t or "station" in t:
+        return "work"
+    return "idle"
+
+
+def _record_activity(world, systems, cfg: SimConfig) -> None:
+    """给每个 NPC 记一份【当天实际行为段】(时间线 viz 用; 只保留今天)。
+
+    段 = {from, to, cls, text}; cls 变化就开新段。纯观测, 不改模拟。
+    """
+    tick = world.clock_tick
+    day_start = (tick // max(1, cfg.ticks_per_day)) * cfg.ticks_per_day
+    log = systems.activity_log
+    for pid, npc in world.npcs.items():
+        cls = act_class_of(world, systems, pid)
+        text = npc.current_activity or ""
+        segs = log.setdefault(pid, [])
+        if segs and segs[-1]["cls"] == cls and segs[-1]["text"] == text:
+            segs[-1]["to"] = tick                       # 同段延续
+        else:
+            if segs:
+                segs[-1]["to"] = tick
+            segs.append({"from": tick, "to": tick, "cls": cls, "text": text})
+        while len(segs) > 1 and segs[0]["to"] < day_start:
+            segs.pop(0)                                 # 剪掉今天之前的
+    for pid in [p for p in log if p not in world.npcs]:
+        log.pop(pid, None)
 
 
 def _kill(world, systems, pid: str) -> None:
@@ -81,7 +101,7 @@ def _kill(world, systems, pid: str) -> None:
 
 # --- 传播(传闻) -----------------------------------------------------------
 #
-# 规则(docs/design.md §2.6):
+# 规则:
 #   - 信任只有两档: 同址(同一个 home) 0.9~1.0; 否则 0.4~0.7
 #   - 按 (a,b) **确定性派生** —— 每对人一个固定值, 零存储、可回放
 #   - 传出去的 believe = 说话人自己信的程度 × 对听者的信任
@@ -373,8 +393,8 @@ def hire_at(world, systems, cfg: SimConfig) -> list[dict]:
       · 媒婆只做撮合: 名额、时薪都由公司给, 这边一个都不自己加。
 
     匹配规则先按【随机】(架构留好: 以后换成熟练度/距离/工资竞争力都在这一个
-    函数里)。被招到: 写角色 + 绑定销售台 + 记进公司员工 + 写一份上班计划表
-    (daily: 每天重复 → 只在应聘/离职那天改一次)。
+    函数里)。被招到: 写角色 + 绑定销售台 + 记进公司员工(守台由【班次闸门】驱动,
+    不写进计划表 —— 见 Person.decide / plan_snapshot)。
     """
     hired: list[dict] = []
     rng = getattr(systems, "rng", None)
@@ -399,10 +419,10 @@ def hire_at(world, systems, cfg: SimConfig) -> list[dict]:
             pick = willing.pop(rng.randrange(len(willing)))     # ← 随机匹配
             npc = world.npcs[pick]
             npc.set_work(cid, shop_id, counter.entity_id,
-                         comp.open_minute, comp.close_minute)
+                         comp.open_minute, comp.close_minute,
+                         wage_per_hour=comp.wage_per_hour)
             npc.set_role("worker")
             staff.append((pick, float(comp.wage_per_hour)))
-            _write_work_plan(world, cfg, npc, comp, shop_id, counter.entity_id)
             got += 1
             hired.append({"company": cid, "npc": pick, "shop": shop_id,
                           "station": counter.entity_id})
@@ -418,31 +438,12 @@ def hire_at(world, systems, cfg: SimConfig) -> list[dict]:
     return hired
 
 
-def _write_work_plan(world, cfg: SimConfig, npc, comp, shop_id: str,
-                     station_id: str) -> None:
-    """上班计划表(只在应聘/离职时写一次):
-
-        <开门时刻> 去公司  →  <开门时刻> 守台
-    两条都是 daily(每天重复) → 跨天由 Schedule.roll_day 自动顺延,
-    所以"其他时候都保持不动"。
-
-    守台就是一次普通 Interact(可被打断): 饿了/憋了会被需求顶掉 →
-    正是用户要的"很想上厕所或者饿了才从工作下来"。
-    """
-    from citysim.npc.schedule import PlanEntry
-    at = int(comp.open_minute)          # 计划表内部用绝对 tick, roll_day 会顺延
-    npc.set_plan([
-        PlanEntry("work_go", at, MoveTo(dest=shop_id), daily=True),
-        PlanEntry("work_stand", at, Interact(target_id=station_id), daily=True),
-    ])
-
-
 def assign_station(world, systems, cfg: SimConfig, company,
                    npc_id: str, station_id: str) -> dict:
     """把员工【分派到】某个销售台(或 station_id="" 撤销分配)。
 
     用户要的: 招来的人得能手动指定站哪个台, 否则可能没位置(或分错台)。
-    只改世界真值(work 绑定 + 上班计划表), 不做任何模拟计算。
+    只改世界真值(work 绑定), 不做任何模拟计算(守台由班次闸门驱动)。
     返回 {"ok", "why", "npc", "station"(, "shop")}。
     """
     npc = world.npcs.get(npc_id)
@@ -472,10 +473,29 @@ def assign_station(world, systems, cfg: SimConfig, company,
             return {"ok": False, "why": "这个台已经有别人在守",
                     "npc": npc_id, "station": ""}
     npc.set_work(company.company_id, shop_id, station_id,
-                 company.open_minute, company.close_minute)
-    _write_work_plan(world, cfg, npc, company, shop_id, station_id)
+                 int(npc.work.get("open", company.open_minute)),
+                 int(npc.work.get("close", company.close_minute)),
+                 wage_per_hour=company.wage_per_hour)
     return {"ok": True, "why": "", "npc": npc_id, "station": station_id,
             "shop": shop_id}
+
+
+def schedule_worker(world, systems, cfg: SimConfig, company,
+                    npc_id: str, open_minute: int, close_minute: int) -> dict:
+    """给某员工【排班】(只改他自己的班次, 不动公司营业时间)。
+
+    只改世界真值(_work.open/close); 守台仍由班次闸门驱动。
+    返回 {"ok", "why", "npc", "open", "close"}。
+    """
+    npc = world.npcs.get(npc_id)
+    if npc is None:
+        return {"ok": False, "why": "没有这个人", "npc": npc_id}
+    if npc_id not in [n for n, _w in company.staff]:
+        return {"ok": False, "why": "不是这家公司的员工", "npc": npc_id}
+    npc.set_shift(int(open_minute), int(close_minute))
+    return {"ok": True, "why": "", "npc": npc_id,
+            "open": int(npc.work.get("open", 0)),
+            "close": int(npc.work.get("close", 1440))}
 
 
 def _hire_due(world, cfg: SimConfig, last_tick: int) -> bool:
@@ -507,7 +527,7 @@ def _notify_due(world, systems, npc, ev) -> None:
     而且【只搭一条桥】: 说的人这轮不再听、听的人这轮不再说(说的不听/听的不说),
     一个场地里只有"在说的"和"在听的"才配对。
 
-    说什么由语义层决定(见 docs/design.md §2.7): `ev` 是 Person
+    说什么由语义层决定(见 : `ev` 是 Person
     攒好的 SemanticEvent(DOUBT > SURPRISE > INTENT > STATE), 没话可说就不说。
     """
     tick = world.clock_tick
@@ -753,119 +773,24 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
     if shop.stock != -1:
         shop.stock -= qty
     container = _deliver(world, pid, npc, shop, qty, home)
+    # WP-13: 送货信息随 `bought` 事件交回 NPC —— 由 NPC 自己写记忆,
+    # world 不再反写 NPC。(afford/value 必须带上: 否则他不知道家里这堆能吃。)
+    cafford, cvalue = (next(iter(container.affordances.items()), ("", 0.0))
+                       if container is not None else ("", 0.0))
     world.bus.publish(world.bus.make(
         world.clock_tick, "bought", pid,
         {"item": shop.entity_id, "qty": qty, "price": cost,
          "home": home, "money": round(npc.money, 2),
          "company": comp.company_id if comp else "",
-         "container": container.entity_id if container else ""}))
-    if container is not None:
-        # 送货进家: 写记忆时**必须带 afford/value** —— 否则他不知道家里
-        # 这堆东西能吃, 就永远不会回家吃(买了也饿死)。
-        cafford, cvalue = next(iter(container.affordances.items()), ("", 0.0))
-        npc.note(container.entity_id, tick=world.clock_tick,
-                 located=home, owner=pid, stock=container.stock,
-                 afford=cafford, value=float(cvalue),
-                 believe=1.0,                      # 自己买回来的 = 亲眼所见
-                 item_type=container.item_type, tags=container.tags, source="",
-                 shelf_life_ticks=int(container.shelf_life_ticks),
-                 expires_tick=int(container.expires_tick))
+         "container": container.entity_id if container else "",
+         "afford": cafford, "value": float(cvalue),
+         "stock": int(container.stock) if container is not None else 0,
+         "item_type": container.item_type if container is not None else "",
+         "tags": list(container.tags) if container is not None else [],
+         "shelf_life_ticks": int(container.shelf_life_ticks) if container else 0,
+         "expires_tick": int(container.expires_tick) if container else 0}))
     npc.on_interaction_done(intent.item_id, world.clock_tick)
 
-
-
-def _can_preempt(world, systems, pid) -> bool:
-    """能不能中止当前交互: 只有可打断的才行(睡觉不可打断)。"""
-    act = systems.interaction.active.get(pid)
-    if act is None:
-        return True
-    ent = world.entities.get(act.entity_id)
-    return bool(ent is not None and ent.interruptible)
-
-
-def _preempt(world, systems, pid) -> None:
-    """中止当前交互(唯一能打断的是 PLAN: 上班)。"""
-    systems.interaction.abort(world, pid)
-
-
-def _apply(world, systems, cfg, pid, npc, decision) -> None:
-    """执行一条 Decision: 继续(同目标)/挂起/中止/提交。"""
-    intent = decision.intent
-    active = systems.interaction.active.get(pid)
-
-    if isinstance(intent, MoveTo):
-        dest = intent.dest or world.loc_of(pid)
-        trv = systems.travel.get(pid)
-        if trv is not None and trv.to_loc == dest:
-            return                                   # 已在去往该地途中
-        if active is not None:
-            if not _can_preempt(world, systems, pid):
-                return
-            _preempt(world, systems, pid)
-        here = world.loc_of(pid)
-        if dest == here:
-            return
-        ok, why = world.entry_check(dest, pid)
-        if not ok:                               # 无权/已满: 不出发, 记一次失败
-            world.bus.publish(world.bus.make(
-                world.clock_tick, "intent_failed", pid,
-                {"target": dest, "why": why}))
-            npc.on_failure(dest, why, world.clock_tick)
-            return
-        route = _route_between(world, systems, here, dest)
-        if route is None:                        # 无路网 → 直线/固定耗时降级
-            cost = _travel_cost(systems, cfg, here, dest)
-            wps: tuple[tuple[float, float], ...] = ()
-        else:
-            cost = route.ticks
-            wps = route.waypoints
-        systems.travel[pid] = Travel(
-            from_loc=here, to_loc=dest,
-            depart_tick=world.clock_tick,
-            arrive_tick=world.clock_tick + cost,
-            waypoints=wps)
-        return
-    if isinstance(intent, Buy):
-        # ★ 交易不再是"点一下就成交": 到店 → 排队 → 柜台一份一份地卖。
-        #   一个前台同时只服务 1 人(多的排后面), 两条前台就是两条队;
-        #   没开门/没前台/柜台没人 → 服务不了(等不住就走, 记一次白跑)。
-        shop = world.entities.get(intent.item_id)
-        if shop is None or shop.location_id != world.loc_of(pid):
-            _execute_buy(world, systems, cfg, pid, npc, intent)   # 兜底: 不在店里的异常情形
-            return
-        if active is not None:
-            _preempt(world, systems, pid)
-        enqueue_buy(world, systems, pid, shop.location_id,
-                    intent.item_id, int(getattr(intent, "qty", 1)))
-        _set_bubble(systems, npc, "老板，来 %d 份" % max(1, int(getattr(intent, "qty", 1))),
-                    "queue", world.clock_tick)
-        return
-
-    if isinstance(intent, Interact):
-        tid = intent.target_id
-        # 防御: 在售商品不能拿 Interact “白拿” —— 得走 Buy 付钱。
-        # (模板计划器已不再挑它们; 但 ScriptedPlanner / LLM 计划可能写错。)
-        # ★ 例外(定死三条规则): 住所授权 / 公共无主 / 本公司店员 → 免费直接用,
-        #   不算“白拿”。否则才需要走 Buy 付钱。
-        ent = world.entities.get(tid)
-        if (ent is not None and ent.price > 0 and ent.owner != pid
-                and not world.free_use(ent, pid)):
-            why = "在售商品·需购买"
-            world.bus.publish(world.bus.make(
-                world.clock_tick, "intent_failed", pid,
-                {"target": tid, "why": why}))
-            npc.on_failure(tid, why, world.clock_tick)
-            return
-        if active is not None and active.entity_id == tid:
-            return                                   # 继续当前交互
-        if active is not None:
-            if not _can_preempt(world, systems, pid):
-                return
-            _preempt(world, systems, pid)
-        systems.interaction.submit(world, npc, intent)
-        return
-
-    # Idle: 不主动释放(由 Person 决定何时结束); 仅空转
 
 
 def tick(world, systems, cfg: SimConfig) -> None:
@@ -910,7 +835,6 @@ def tick(world, systems, cfg: SimConfig) -> None:
     died: list[str] = []
     for pid, npc in world.npcs.items():
         alive = npc.heartbeat(world.clock_tick, cfg,
-                              sleep=_sleeping(world, systems, pid),
                               busy=_busy(world, systems, pid))
         if not alive:
             died.append(pid)
@@ -936,27 +860,25 @@ def tick(world, systems, cfg: SimConfig) -> None:
                 if npc is not None:
                     npc.on_failure(trv.to_loc, why, world.clock_tick)
 
+    # 5a2. 闲逛到期 / 人已离开那个地方(world 侧会话; fun 由 NPC 自己消化)
+    for pid in [p for p, r in systems.roaming.items()
+                if r.until <= world.clock_tick or world.loc_of(p) != r.dest]:
+        systems.roaming.pop(pid, None)
 
     # 5a3. 柜台服务: 每个店按前台数服务队首(每 tick 每个前台成交 1 份)
     _serve_shops(world, systems, cfg)
 
-    # 5b. 决策: 先对全部该决策者算 Decision(同一世界快照), 再统一仲裁执行
-    #     仲裁 = 继续/挂起/中止/提交。
+    # 5b. 决策: NPC 主动拉(WP-05/06; WP-00 选 B: 顺序执行, due 已排序 → 确定性仍在)。
+    #     每人一轮: observe → decide → try_*(端口立即落账, 失败自己处理)。
+    port = WorldPortImpl(world, systems, cfg)
     due = due_npcs(world, systems)
-    decisions: list[tuple[str, Any, Any]] = []
     for npc_id in due:
         npc = world.npcs.get(npc_id)
         if npc is None:
             continue
-        active = systems.interaction.active.get(npc_id)
-        can_preempt = True
-        if active is not None:
-            aent = world.entities.get(active.entity_id)
-            can_preempt = bool(aent is not None and aent.interruptible)
-        percept = build_percept(world, npc)
-        decision = npc.process(percept, cfg, can_preempt)
+        decision = npc.step(port, cfg)
         # 语义层: 攒下的“值得说的话”变成头顶气泡。
-        # 放在 process 之后 —— 感知(预期 vs 观察)就在 process 里发生,
+        # 放在 step 之后 —— 感知(预期 vs 观察)就在 step 里发生,
         # 同一 tick 冒出来才跟得上画面。【谁都可能冒】, 不看闲不闲。
         said = npc.pending_speech(world.clock_tick, SAY_COOLDOWN)
         if said is not None:
@@ -983,10 +905,6 @@ def tick(world, systems, cfg: SimConfig) -> None:
                     "target": target or "", "source": decision.source,
                     "payload": {},
                 })
-        decisions.append((npc_id, npc, decision))
-
-    for npc_id, npc, decision in decisions:
-        _apply(world, systems, cfg, npc_id, npc, decision)
 
     # 5.5 遗忘(0 点) + 夜间计划(LLM/规则模板生成次日计划)
     if world.clock_tick % cfg.ticks_per_day == 0:
@@ -997,3 +915,6 @@ def tick(world, systems, cfg: SimConfig) -> None:
             for npc in world.npcs.values():
                 res = planner.plan_for_person(npc, world.clock_tick)
                 npc.set_plan(res.entries)
+
+    # 6. 行为段记录(时间线 viz; 纯观测)
+    _record_activity(world, systems, cfg)

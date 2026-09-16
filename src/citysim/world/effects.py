@@ -94,3 +94,30 @@ def apply_effects(world: World, npc: Person, entity: Entity,
             log.warning("未知 effect op=%s (entity=%s)",
                         eff.get("op"), entity.entity_id)
 
+
+# ---------------------------------------------------------------------------
+# 效果边界(WP-10): 把一列 effect 拆成【NPC 侧(结构化, 无 op 名)】与【world 侧】。
+#
+#   NPC 侧 → 编译进 Grant.pending(on_start), 由 Person 开始消化时应用
+#            (npc/ 不认识 op 字符串, 只认 signal/set/add/field/amount)
+#   world 侧 → 留 world 应用(spawn_item / consume_self)
+# ---------------------------------------------------------------------------
+def compile_effects(effects) -> tuple[tuple[dict, ...], list[dict]]:
+    """(npc_effects_neutral, world_effects) —— 分解 on_start / on_complete。"""
+    npc: list[dict] = []
+    world: list[dict] = []
+    for e in (effects or ()):
+        op = e.get("op")
+        if op == "add_signal":
+            npc.append({"signal": e["signal"],
+                        "add": float(e.get("delta", e.get("value", 0.0)))})
+        elif op == "set_signal":
+            npc.append({"signal": e["signal"],
+                        "set": float(e.get("value", 0.0))})
+        elif op == "add_pending":
+            npc.append({"field": str(e.get("field", "")),
+                        "amount": float(e.get("amount", 0.0))})
+        else:
+            world.append(e)
+    return tuple(npc), world
+

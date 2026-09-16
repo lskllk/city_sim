@@ -1,7 +1,7 @@
 """场景初始记忆(memory 段)加载契约 + 同商品合并规则。"""
 from __future__ import annotations
 
-from citysim.gateway.scenarios import load_scene, DEMO_SCENE, NAV_SCENE
+from citysim.gateway.scenarios import load_scene, DEMO_SCENE
 
 NPC = "npc_wang_er"
 SHOP = "meal_simple_003"

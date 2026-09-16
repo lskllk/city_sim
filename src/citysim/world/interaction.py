@@ -7,18 +7,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from citysim.core.config import SIGNALS
 from citysim.core.types import Idle, Interact
 from citysim.npc.person import Person
-from citysim.world.effects import apply_effects
+from citysim.world.effects import apply_effects, compile_effects
 from citysim.world.world import Entity, World
 
 
 @dataclass
 class ActiveInteraction:
     entity_id: str
-    remaining_ticks: int
-    total_ticks: int
+    handle: str = ""          # world 签发的唯一持有凭证(WP-10: handle 不撞车)
+    # 注: 进度(remaining/total)归 NPC 自己的 intake(WP-08); 这里不再存。
 
 
 def _clamp(v: float) -> float:
@@ -30,6 +29,11 @@ class InteractionSystem:
 
     def __init__(self) -> None:
         self.active: dict[str, ActiveInteraction] = {}   # key = npc_id
+        # 最近一次 submit 失败的原因(供 NPC 侧 on_failure 用)。
+        # (reason, retry_ticks); 成功时不计。
+        self.last_fail: tuple[str, int] = ("", 0)
+        # 唯一 handle 序号(确定性: 单线程递增)
+        self._seq: int = 0
 
     # --- 提交 ---------------------------------------------------------
     def submit(self, world: World, npc: Person, intent) -> bool:
@@ -66,56 +70,58 @@ class InteractionSystem:
         if old is not None and old.entity_id == tid:
             return True
 
-        # rule 4: 旧 active 且 target 不同 → 先释放(除非旧交互不可打断)
+        # rule 4: 旧 active 且 target 不同 → 先释放(新交互直接顶掉旧的)
         if old is not None and old.entity_id != tid:
-            old_ent = world.entities.get(old.entity_id)
-            if old_ent is not None and not old_ent.interruptible:
-                # m5-rectify 16: 床等不可打断交互 → 拒绝被新意图顶掉
-                self._fail(world, pid, tid, "当前交互不可打断")
-                return False
             self._release(world, pid, cancel=True)
 
         # 登记(rule 3)
-        dur = max(1, ent.duration_ticks)
+        self._seq += 1
         self.active[pid] = ActiveInteraction(
-            entity_id=tid, remaining_ticks=dur, total_ticks=dur,
+            entity_id=tid, handle=f"{tid}#{self._seq}",
         )
         ent.claimants.add(pid)
         npc.set_activity(ent.name)
-        # 数据化开始效果(M4): on_start(如 add_pending 膀胱负荷)在开始 tick 应用
-        if ent.on_start:
-            apply_effects(world, npc, ent, ent.on_start)
+        # on_start 的 NPC 侧效果改由 Person 应用(WP-10: 编译进 Grant.pending);
+        # world 侧 on_start(如 spawn_item)很少见, 这里不再处理。
+        _npc_start, _world_start = compile_effects(ent.on_start)
+        if _world_start:
+            apply_effects(world, npc, ent, _world_start)
         return True
 
     # --- 每 tick 推进 --------------------------------------------------
     def step(self, world: World, cfg) -> None:
+        """[WP-09] 不再管信号/进度 —— NPC 自己消化(heartbeat), 这里只做收尾与清理。
+
+        ① NPC 消化完的 intake → 扣货 / on_complete / 事件 / 回收(自然完成);
+        ② 目标消失 / NPC 死亡 → 撤 claim。
+        """
+        for pid in list(world.npcs):
+            npc = world.npcs[pid]
+            for handle in npc.take_finished():
+                self.finish(world, pid, handle, aborted=False)
         for pid in list(self.active.keys()):
             act = self.active[pid]
-            ent = world.entities.get(act.entity_id)
-            if ent is None:
+            if world.entities.get(act.entity_id) is None:
                 self.active.pop(pid, None)
                 continue
             npc = world.npcs.get(pid)
             if npc is None or not npc.is_alive():
                 self._release(world, pid, cancel=True)
-                continue
-            # 1. 分摊 affordances(仅信号键)
-            for s, delta in ent.affordances.items():
-                if s not in SIGNALS or delta == 0.0:
-                    continue
-                step = delta / act.total_ticks
-                if step:
-                    npc.add_signal(s, step)
-            # 3. remaining - 1
-            act.remaining_ticks -= 1
-            if act.remaining_ticks <= 0:
-                self._complete(world, pid, ent, act)
+
+    def finish(self, world: World, pid: str, handle: str, *,
+               aborted: bool = False) -> bool:
+        """NPC 消化完毕(或 world 主动中止) → 收尾。校验“确实在持有”后才 _finalize。"""
+        act = self.active.get(pid)
+        if act is None or act.handle != handle:
+            return False
+        ent = world.entities.get(act.entity_id)
+        if ent is None:
+            self.active.pop(pid, None)
+            return False
+        self._finalize(world, pid, ent, act, aborted=aborted)
+        return True
 
     # --- 完成 ---------------------------------------------------------
-    def _complete(self, world: World, pid: str, ent: Entity,
-                  act: ActiveInteraction) -> None:
-        self._finalize(world, pid, ent, act, aborted=False)
-
     def abort(self, world: World, pid: str) -> None:
         """硬中止(计划截止抢占): 同样触发 on_complete + 消耗 + 回收。"""
         act = self.active.get(pid)
@@ -141,13 +147,15 @@ class InteractionSystem:
             return any((eff or {}).get("op") == "consume_self"
                        for eff in ent.on_complete)
 
-        # 2. 消耗品扣库存; 若 on_complete 自带 consume_self 则交 op 扣(防双扣)
-        #    回收统一在第 5 步之后(事件先于回收, 观察者可按 tags 分类)
-        if (ent.is_consumable and ent.stock > 0 and not _self_consumes(ent)):
-            ent.stock -= 1
-        # 3. 数据化完成效果(M4 4.1): on_complete(consume_self 只扣库存, 不 pop)
-        if ent.on_complete:
-            apply_effects(world, npc, ent, ent.on_complete)
+        # 2.+3. 自然完成才扣货 / 跑 world 侧 on_complete;
+        #   中止(aborted) = 没吃完 → 不扣货、不触发 on_complete(WP-12:
+        #   不再“中止也扣一份饭”)。claim 已释放 → 东西回到世界。
+        if not aborted:
+            if (ent.is_consumable and ent.stock > 0 and not _self_consumes(ent)):
+                ent.stock -= 1
+            if ent.on_complete:
+                _npc_done, world_o = compile_effects(ent.on_complete)
+                apply_effects(world, npc, ent, world_o)
 
         # 4. 完成 → idle(下一 tick 由 drive 自然重评)
         npc.set_activity("idle")
@@ -183,10 +191,7 @@ class InteractionSystem:
         world.bus.publish(world.bus.make(
             world.clock_tick, "intent_failed", pid,
             {"target": tid, "why": why}))
-        # 失败→记忆: 证伪只在失败后(目标不存在/已空→删; 被占/不可打断→冷却到实体时长)
+        # 只把“为什么失败 + 冷却提示”记下; 写记忆/放弃 goal 归 NPC 自己(WP-05)。
         npc = world.npcs.get(pid)
-        if npc is not None and tid:
-            ent = world.entities.get(tid)
-            npc.on_failure(tid, why, world.clock_tick,
-                           retry_ticks=ent.duration_ticks if ent is not None
-                           else None)
+        ent = world.entities.get(tid) if tid else None
+        self.last_fail = (why, ent.duration_ticks if ent is not None else 0)

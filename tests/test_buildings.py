@@ -1,7 +1,7 @@
 """建筑类型库 + 自动布局: 面积∝容量、零重叠、不出画布。"""
 from __future__ import annotations
 
-from citysim.gateway.scenarios import load_scene, DEMO_SCENE, NAV_SCENE
+from citysim.gateway.scenarios import load_scene, DEMO_SCENE
 from citysim.world.buildings import (DOOR_SIDES, build_locations,
                                      load_building_types)
 

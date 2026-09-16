@@ -4,9 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from citysim.core.config import load_config
-from citysim.core.types import Decision, MoveTo
-from citysim.gateway.scenarios import load_scene, DEMO_SCENE, NAV_SCENE
-from citysim.world.engine import _apply
+from citysim.gateway.scenarios import load_scene, DEMO_SCENE
+from citysim.world.port import WorldPortImpl
 
 from helpers import add_npc, make_runtime
 
@@ -54,12 +53,10 @@ def test_move_blocked_forbidden_but_public_ok() -> None:
     add_npc(w, s, "npc_a", location="home_a", rng_pool=rng)
     b = add_npc(w, s, "npc_b", location="plaza", rng_pool=rng)
     # 进别人家 → 不出发
-    _apply(w, s, CFG, "npc_b", b,
-           Decision(intent=MoveTo(dest="home_a"), source="plan"))
+    WorldPortImpl(w, s, CFG).try_move("npc_b", "home_a")
     assert "npc_b" not in s.travel
     # 公共场所 → 正常出发
-    _apply(w, s, CFG, "npc_b", b,
-           Decision(intent=MoveTo(dest="market"), source="plan"))
+    WorldPortImpl(w, s, CFG).try_move("npc_b", "market")
     assert s.travel["npc_b"].to_loc == "market"
 
 
@@ -72,6 +69,5 @@ def test_resident_can_enter_own_home() -> None:
                   "owner": "", "open_to": [], "public": True},
     }
     a = add_npc(w, s, "npc_a", location="plaza", rng_pool=rng)
-    _apply(w, s, CFG, "npc_a", a,
-           Decision(intent=MoveTo(dest="home_a"), source="reflex"))
+    WorldPortImpl(w, s, CFG).try_move("npc_a", "home_a")
     assert s.travel["npc_a"].to_loc == "home_a"

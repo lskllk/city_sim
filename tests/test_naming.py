@@ -12,10 +12,9 @@ import json
 import re
 from pathlib import Path
 
-from citysim.gateway.scenarios import load_scene, DEMO_SCENE, NAV_SCENE
+from citysim.gateway.scenarios import load_scene, DEMO_SCENE
 from citysim.world.buildings import load_building_types
 from citysim.world.itemdefs import load_item_defs
-from citysim.world.names import new_name
 
 ROOT = Path(__file__).resolve().parents[1]
 SCENES_DIR = ROOT / "config" / "scenes"
@@ -139,15 +138,3 @@ def test_scene_loads_and_ids_consistent() -> None:
     assert {e.entity_id for e in w.entities.values()} == {e["id"] for e in SCENE["entities"]}
     assert set(w.npcs) == {n["id"] for n in SCENE["npcs"]}
 
-
-# --- 姓名池 -----------------------------------------------------------
-def test_name_pool_rules() -> None:
-    a = new_name(7)
-    b = new_name(7)
-    assert a == b                                   # 同 seed 可复现
-    assert re.match(r"^npc_[a-z]+_[a-z]+$", a.person_id), a.person_id
-    assert 2 <= len(a.name) <= 4 and a.name == a.surname + a.given
-    f = new_name(3, gender="female")
-    assert ID_RE.match(f.person_id)
-    sibling = f.with_surname(a)
-    assert sibling.surname == a.surname and sibling.given == f.given

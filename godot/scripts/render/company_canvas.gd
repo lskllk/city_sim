@@ -134,8 +134,10 @@ func _counters_of(shop: String) -> Array:
 
 ## 这个台此刻是谁在守?(看 NPC 的 work 绑定 + 他是不是正站在那)
 func _staff_at(counter_id: String) -> String:
+	# 只有【此刻人真的在那个台前】(on_post)才显示; 光有工位绑定不算。
 	for pid in Store.npcs:
-		var w := Protocol.as_dict(Protocol.as_dict(Store.npc(pid)).get("work", {}))
-		if Protocol.s(w.get("station", "")) == counter_id:
+		var n := Protocol.as_dict(Store.npc(pid))
+		var w := Protocol.as_dict(n.get("work", {}))
+		if bool(n.get("on_post", false)) 				and Protocol.s(w.get("station", "")) == counter_id:
 			return String(pid)
 	return ""

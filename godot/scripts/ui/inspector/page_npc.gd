@@ -53,8 +53,7 @@ func bind(id: String) -> void:
 		return
 	_header.set_header(Protocol.s(n.get("name", id)),
 		"%s · %s" % [Store.name_of(Protocol.s(n.get("loc", ""))),
-			InspData.first_nonempty(Protocol.s(n.get("act_class")),
-				Protocol.s(n.get("activity")))])
+			InspData.activity_text(n)])
 
 	_act["doing"].text = InspData.activity_text(n)
 	_act["home"].text = InspData.home_text(n)
@@ -66,8 +65,7 @@ func bind(id: String) -> void:
 			int(Protocol.num(active.get("remaining"))),
 			int(Protocol.num(active.get("total")))]
 	var intent := Protocol.as_dict(n.get("intent", {}))
-	_act["intent"].text = "%s → %s" % [Protocol.s(intent.get("kind", "—")),
-		Store.name_of(Protocol.s(intent.get("target", "")))]
+	_act["intent"].text = InspData.intent_text(n)
 
 	var signals := Protocol.as_dict(n.get("signals", {}))
 	var keys := InspData.signal_keys(signals)

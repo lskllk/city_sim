@@ -3,7 +3,7 @@
     货有保质期 → 到点变质(stock 归 0)
     → 目标存量由【保质期】推导(不再是“每种囤几个”的魔法数字)
 
-设计见 docs/design.md §2。加保质期的目的不是“限制买多少”,
+设计见 。加保质期的目的不是“限制买多少”,
 而是让“买多少”变成真决策 —— 且给店主开了“新鲜度 / 临期促销”这条玩法线。
 """
 from __future__ import annotations
@@ -38,8 +38,8 @@ def test_deliver_stamps_expiry() -> None:
                       affordances={"hunger": 0.5}, stock=50)
     shop.item_type = "meal_simple"
     shop.shelf_life_ticks = 1440
-    npc = add_npc(w, s, "npc", location="home")
-    npc.set_home("home")
+    npc = add_npc(w, s, "npc", location="home", home="home")
+
     w.clock_tick = 1000
     c = _deliver(w, "npc", npc, shop, 2, "home")
     assert c is not None
@@ -55,8 +55,8 @@ def test_merge_takes_earliest_expiry() -> None:
                       affordances={"hunger": 0.5}, stock=50)
     shop.item_type = "meal_simple"
     shop.shelf_life_ticks = 1440
-    npc = add_npc(w, s, "npc", location="home")
-    npc.set_home("home")
+    npc = add_npc(w, s, "npc", location="home", home="home")
+
     w.clock_tick = 0
     c1 = _deliver(w, "npc", npc, shop, 1, "home")
     assert c1.expires_tick == 1440
@@ -77,8 +77,8 @@ def test_food_spoils_and_emits_once() -> None:
     shop.shelf_life_ticks = 10                  # 让它很快坏
     add_entity(w, "bed", location="home", tags=("sleepable",),
                affordances={"energy": 0.7}, duration_ticks=100)
-    npc = add_npc(w, s, "npc", location="home", rng_pool=rng)
-    npc.set_home("home")
+    npc = add_npc(w, s, "npc", location="home", rng_pool=rng, home="home")
+
     c = _deliver(w, "npc", npc, shop, 3, "home")
     assert c.stock == 3
 

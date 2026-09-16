@@ -5,7 +5,7 @@
   · 启事上写着这次招几个、时薪多少(时薪在招聘时确定, 之后按在岗小时结算)
   · NPC 有意愿才可能被匹配(没角色 = 意愿 1.0; 已有工作 = 0)
   · 媒婆只撮合, 名额/时薪都由公司给
-  · 招到: 写角色 + 绑定销售台 + 记进员工 + 写一份【上班计划表】(daily, 只写一次)
+  · 招到: 写角色 + 绑定销售台 + 记进员工(守台由班次闸门驱动; 计划表从 work 派生)
 """
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def test_notice_hires_only_the_posted_number(tmp_path) -> None:
 
 
 def test_hired_npc_gets_role_work_and_daily_plan(tmp_path) -> None:
-    """被招到的人: 角色 + 工位绑定 + 上班计划表(daily, 写一次天天生效)。"""
+    """被招到的人: 角色 + 工位绑定 + 计划时间线上能看到上班块(从 work 派生)。"""
     w, s = _load(tmp_path, _scene(1), counters=1, hiring_slots=1)
     hired = E.hire_at(w, s, CFG)
     assert len(hired) == 1
@@ -85,8 +85,11 @@ def test_hired_npc_gets_role_work_and_daily_plan(tmp_path) -> None:
     assert npc.work["shop"] == "shop"
     assert npc.work["station"] == hired[0]["station"]
     plan = npc.plan_snapshot()
-    assert len(plan) == 2, plan
+    # 上班块(去/守台) + 下班块
+    assert len(plan) == 3, plan
+    assert [e["id"] for e in plan] == ["work_go", "work_stand", "work_off"], plan
     assert all(e["intent"] in ("move_to", "interact") for e in plan)
+    assert plan[0]["at_tick"] % 1440 == 480 and plan[2]["at_tick"] % 1440 == 1140
     # 时薪在招聘时确定 = 公司启事上的时薪
     assert w.companies["org_a"].staff[0][1] == 60.0
 
@@ -131,3 +134,16 @@ def test_assign_station_reassigns_and_guards_taken(tmp_path) -> None:
     assert res["ok"] and w.npcs[b].work["station"] == cb
     # 非员工拒绝
     assert not E.assign_station(w, s, CFG, comp, "nobody", ca)["ok"]
+
+
+def test_schedule_worker_sets_personal_shift(tmp_path) -> None:
+    """排班: 只改本人 _work.open/close, 立即影响 _on_shift(不影响公司营业时间)。"""
+    w, s = _load(tmp_path, _scene(1), counters=1, hiring_slots=1)
+    E.hire_at(w, s, CFG)
+    npc = w.npcs[next(iter(w.npcs))]
+    comp = w.companies["org_a"]
+    res = E.schedule_worker(w, s, CFG, comp, npc.person_id, 600, 900)
+    assert res["ok"] and res["open"] == 600 and res["close"] == 900
+    assert npc.work["open"] == 600 and npc.work["close"] == 900
+    assert npc._on_shift(600, CFG) and not npc._on_shift(500, CFG)
+    assert comp.open_minute == 480                    # 公司营业时间没动

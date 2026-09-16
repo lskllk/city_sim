@@ -216,9 +216,13 @@ def load_scene(path: str | Path | None = None,
         for pid, p in world.npcs.items():
             res = systems.planner.plan_for_person(p, 0)       # 应用当天计划
             p.set_plan(res.entries)
-    # ---- 位移成本矩阵: 建完所有 NPC 之后再注入(打分要用它算"走这一趟多贵") ----
+    # ---- 位移成本矩阵 + 【可闲逛的公共建筑】(建完所有 NPC 之后再注入) ----
+    #   places = 所有【非住所】地点 id。闲逛时从里面随机选一个走过去。
+    places = [lid for lid in sorted(world.locations)
+              if not world.is_residence(lid)]
     for _p in world.npcs.values():
         _p.set_travel_costs(costs)
+        _p.set_places(places)
     return world, systems, rng_pool
 
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 
-from citysim.core.types import Interact, MoveTo
 from citysim.npc.person import Identity, Person
 from citysim.npc.planner import (KnownItem, Planner, PlannerInput, build_input,
                                  entries_from_spec, parse_clock, template_plan)

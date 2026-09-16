@@ -11,7 +11,7 @@
 src/citysim/
   core/config.py     SIGNALS 信号全集 + SimConfig(读 config/sim.toml)
   core/types.py      NPC↔世界数据契约(frozen+slots) + 意图多态 Intent=Idle|MoveTo|Interact|Buy
-  core/ids.py        占位(空)
+  core/ports.py      world↔npc 主动拉契约(WorldPort 动词 + Ack/Deny/Grant)
 
   npc/person.py      Person 门面: signals 单一真源 + 计划表执行/中断仲裁 + 失败日志
   npc/brain.py       决策纯函数: 候选搜集/打分/选优(用=免费自用, 买=只补货)
@@ -20,31 +20,27 @@ src/citysim/
 
   world/world.py     World 容器 + Entity + itemdef→Entity(世界唯一事实源)
   world/buildings.py 建筑类型库(config/buildings) + 面积∝容量 自动布局
-  world/names.py     中文姓名池(config/names) + 生成规则(姓+名, id=拼音)
   world/itemdefs.py  config/items/*.json 校验+加载(ItemDef)
-  world/effects.py   副作用 op 表 + apply_effects
-  world/interaction.py InteractionSystem: 执行/claim(容量=stock)/affordance 推进/消耗/睡眠唤醒
-                       + abort(换目标时中止当前交互)
+  world/effects.py   副作用 op 表 + apply_effects + compile_effects(NPC 侧编译)
+  world/port.py      WorldPortImpl: observe/try_move/try_take/try_buy(权限/仲裁在这里)
+  world/interaction.py InteractionSystem: claim(容量=stock)/收尾(finish)/abort
+                       + 进度归 NPC(_intake); world 不再应用信号
   world/perception.py 建 Percept + 感知→记忆写入
   world/events.py    EventBus 事件→NPC 信箱
   world/drive.py     执行驱动: 每 tick 所有非旅行 NPC 决策(做完再决策, 空闲才重算)
 
   sim/loop.py        run_tick 唯一推进入口 + Travel + 购物成交 + 传闻gossip
   sim/pulses.py      世界侧定时脚本(set_stock/close_forever)
-  sim/lod.py, sim/soa.py, nn/*(features/modulator) = M7/M8 占位(空)
 
   gateway/server.py  FastAPI+WS, SimRunner 独占推进(纯读观察器)
-  gateway/scenarios.py 场景装配(读 scenes/elm_lane.json)
+  gateway/scenarios.py 场景装配(读 config/scenes/*.json)
   gateway/snapshot.py 纯读 world→JSON 快照/query(禁 build_percept/碰 rng)
-  viz/kb_export.py   知识图 JSON/DOT 导出
-  viz/trace_export.py 决策追溯链导出
 
 config/
   sim.toml            魔法数字(改数值首选这里)
   items/*.json        物品定义(含副作用 on_start/on_complete)
   buildings/*.json    建筑类型库(kind/capacity/pattern/aspect)
-  names/names.json    姓名池(姓/名, hanzi+pinyin)
-  scenes/elm_lane.json 单场景装配: locations(只写 type)/entities/npcs/travel/pulses
+  scenes/*.json       场景装配: locations(只写 type)/entities/npcs/travel/pulses
   (无 archetypes/: 出生空白记忆, NPC 特质/初始记忆走场景 memory 段或建居民接口)
 
 tests/

@@ -22,6 +22,8 @@ class Systems:
     """执行环境(世界侧容器; 由 engine.tick duck 消费)。"""
     interaction: InteractionSystem
     travel: dict[str, Travel] = field(default_factory=dict)  # npc_id -> Travel
+    roaming: dict[str, object] = field(default_factory=dict)  # npc_id -> Roam(闲逛会话)
+    activity_log: dict = field(default_factory=dict)  # pid -> 当天行为段(时间线 viz)
     log_lines: list[str] | None = None   # 录制/回放(非 None 即开启)
     ui_events: RingBuffer = field(default_factory=RingBuffer)  # 事件环形缓冲(定长)
     tell_p: float = 0.0                  # 我这一轮想开口的概率(乘 tell_bias)

@@ -15,13 +15,13 @@ except ModuleNotFoundError:  # Python 3.10
 
 # 信号全集（0..1 float, 1=充足/健康, 0=耗尽）。唯一表示, 禁 0..100 int 存储。
 SIGNALS: tuple[str, ...] = (
-    "energy", "hunger", "bladder", "hp",
+    "energy", "hunger", "bladder", "hp", "fun",
 )
 
 # 注: REFLEX_SIGNALS(致命信号白名单)已在 2026-09-14 删除。
 # 注: 迟滞(preempt_ratio)/plan_pull 也已删除 —— 手上有事就【做完再决策】,
 # 不再每 tick 重算比较; 唯一能打断当前动作的是 PLAN(上班)。
-# 详见 docs/design.md §2。
+# 详见 。
 
 
 @dataclass(frozen=True)
@@ -39,15 +39,21 @@ class SimConfig:
     utility_threshold: float = 0.05
     move_ticks: int = 30           # 跨地点移动耗时(无路网时的降级)
     move_m_per_tick: float = 10.0  # 有路网时: 每 tick 可走米数
-    # —— 生命三态(docs/design.md §2) ——
+    # —— 生命三态 ——
     #   hp ↓  hunger==0 或 energy==0
     #   hp ↑  hunger ≥ floor 且 energy ≥ floor
     #   其他  不动(中间带 —— 否则咬一口饭 hp 就开始涨, “饿死”永远发生不了)
-    hp_decay: float = 0.0005        # 饥饿/精力归零时 hp 每 tick 下降
-    hp_regen: float = 0.0005        # 两者都满足到阀值时 hp 回升最大速率(×均值)
-    hp_regen_floor: float = 0.5     # “吃饱/睡够”的阀值(中间带下界)
+    hp_decay: float = 0.0005        # 饥饿连续为 0 满宽限后, hp 每 tick 下降
+    #   3 天宽限后开始掉, 1 天(1440t)掉完 → 第 4 天 die。
+    hp_starve_grace_ticks: float = 4320.0
     # hp 低于此 → 日程失去拉力(命比钱大): 计划不执行、也让位给需求
     hp_override: float = 0.5
+    # —— fun(娱乐): 上班涨 / 空闲掉; 吃/睡/厕所不变 ——
+    fun_idle_drop: float = 0.0006944444444444444   # 空闲每 tick 掉(≈1 天掉光)
+    fun_work_gain: float = 0.0003472222222222222   # 上班每 tick 涨(≈2 天涨满)
+    fun_roam_value: float = 0.4                    # 一次闲逛总共补多少 fun
+    fun_roam_ticks: int = 60                       # 一次闲逛持续多久(1 小时; 期间冷却决策)
+    fun_seek_below: float = 0.6                    # fun 低于此才想闲逛
     # —— 成本模型(比价 / 比距离 / 顺路) ——
     # eff = (need^power × value × personality × believe) / (1 + cost_lambda × cost)
     # cost = price×qty + price×(1−believe)     (纯钱 + 不确定性)
@@ -71,7 +77,6 @@ class SimConfig:
     favor_neutral: float = 1.0
     favor_min: float = 0.0
     favor_max: float = 2.0
-    favor_drift_per_day: float = 0.08     # 每天朝中性回归多少(慢)
     favor_trade_up: float = 0.02          # 顺利买到 → 涨
     favor_no_service_down: float = 0.15   # 到店却没人招待(白跑) → 掉得多
     # 招聘桥接: 每天几点匹配一次(0 = 午夜)
@@ -123,8 +128,10 @@ class SimConfig:
         full_meta = {s: float(meta.get(s, 0.0)) for s in SIGNALS}
         health = data.get("health", {})
         util = data.get("utility", {})
+        fun_cfg = data.get("fun", {})
+        tpd = int(data["time"]["ticks_per_day"])
         return cls(
-            ticks_per_day=int(data["time"]["ticks_per_day"]),
+            ticks_per_day=tpd,
             metabolism=full_meta,
             bladder_convert=float(data["bladder"]["convert_per_tick"]),
             half_life_ticks=int(data.get("knowledge", {}).get("half_life_ticks", 2880)),
@@ -135,9 +142,14 @@ class SimConfig:
             move_ticks=int(data.get("motion", {}).get("move_ticks", 30)),
             move_m_per_tick=float(data.get("motion", {}).get("move_m_per_tick", 10.0)),
             hp_decay=float(health.get("hp_decay", health.get("decay", 0.0005))),
-            hp_regen=float(health.get("hp_regen", health.get("regen", 0.0005))),
-            hp_regen_floor=float(health.get("hp_regen_floor", 0.5)),
+            hp_starve_grace_ticks=float(
+                health.get("starve_grace_days", 3.0)) * tpd,
             hp_override=float(health.get("hp_override", 0.5)),
+            fun_idle_drop=float(fun_cfg.get("idle_drop", 0.0006944444444444444)),
+            fun_work_gain=float(fun_cfg.get("work_gain", 0.0003472222222222222)),
+            fun_roam_value=float(fun_cfg.get("roam_value", 0.4)),
+            fun_roam_ticks=int(fun_cfg.get("roam_ticks", 60)),
+            fun_seek_below=float(fun_cfg.get("seek_below", 0.6)),
             cost_lambda=float(util.get("cost_lambda", 0.02)),
             travel_penalty=float(util.get("travel_penalty", 2.0)),
             wage_minute=int(data.get("economy", {}).get("wage_minute", 480)),
@@ -146,7 +158,7 @@ class SimConfig:
                 "leave_floor", 0.35)),
             **{k: float(data.get("favor", {}).get(k[len("favor_"):], v))
                for k, v in (("favor_neutral", 1.0), ("favor_min", 0.0),
-                            ("favor_max", 2.0), ("favor_drift_per_day", 0.08),
+                            ("favor_max", 2.0),
                             ("favor_trade_up", 0.02),
                             ("favor_no_service_down", 0.15))},
             tell_p=float(data.get("social", {}).get("tell_p", 0.3)),

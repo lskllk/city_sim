@@ -1,7 +1,7 @@
-"""energy = 白天基本不掉 + 入夜 2 小时掉光(昼夜倍率)。
+"""energy = 白天按基础速度消耗 + 入夜 2 小时再掉一大块(昼夜倍率)。
 
-设计: 白天几乎平(0.1x), 20:00–22:00 阶跃拉满(24x)一口气掉完 → 困 → 去睡。
-不是"到点睡觉"的脚本, 只说"这时候困得快"。
+设计: 基础速率稳定消耗(白天 1.0x), 20:00–22:00 阶跃到 9x 一口气掉完剩下的
+→ 困 → 去睡。不是"到点睡觉"的脚本。具体百分比是调参(现基准 ~50%/天)。
 """
 from __future__ import annotations
 
@@ -24,34 +24,32 @@ def _daily_drain() -> float:
 # ---------------------------------------------------------------------------
 # 曲线
 # ---------------------------------------------------------------------------
-def test_day_is_flat_and_dusk_spikes() -> None:
-    assert CFG.rhythm_at(12.0) < 0.2                       # 白天几乎不掉
-    assert CFG.rhythm_at(21.0) > CFG.rhythm_at(12.0) * 50  # 入夜 >> 白天
-    assert CFG.rhythm_at(21.0) > CFG.rhythm_at(19.0) * 50  # 是阶跃, 不是慢升
+def test_day_is_baseline_and_dusk_spikes() -> None:
+    assert abs(CFG.rhythm_at(12.0) - 1.0) < 1e-9         # 白天 = 基础 1.0x
+    assert CFG.rhythm_at(21.0) == 9.0                     # 入夜 9x
+    assert CFG.rhythm_at(21.0) > CFG.rhythm_at(12.0) * 5  # 入夜明显更快
+    assert CFG.rhythm_at(20.0) > CFG.rhythm_at(19.98) * 5  # 是阶跃, 不是慢升
 
 
-def test_dusk_two_hours_empties_the_bar() -> None:
-    """20:00–22:00 正好掉光 1.0。“快晚了两小时掉完”。"""
-    base = CFG.metabolism["energy"]
-    dusk = -base * sum(CFG.rhythm_at(t / 60.0) for t in range(1200, 1320))
-    assert 0.9 < dusk < 1.1, dusk
+def test_dusk_spike_drains_a_big_chunk() -> None:
+    """入夜 2h 掉的量 ≫ 白天同一长度掉的量(陡降真的存在)。"""
+    b = CFG.metabolism["energy"]
+    dusk = -b * sum(CFG.rhythm_at(t / 60.0) for t in range(1200, 1320))
+    day2 = -b * sum(CFG.rhythm_at(t / 60.0) for t in range(720, 840))
+    assert dusk > day2 * 4, (dusk, day2)
 
 
-def test_energy_is_one_day_not_four() -> None:
-    """【两天的基准 + 入夜陡增】合成"一天一条命"。
-
-    基准(-0.5/1440)光靠自己 2 天才耗光 1.0; 是 20:00–22:00 那段 24 倍把人放倒的,
-    合起来 24h 不睡 ≈ 1.0(既不是 4 天, 也不是半天)。
-    """
+def test_energy_is_about_one_day() -> None:
+    """24h 总消耗量级合理: 不是半天就没, 也不是四天才空。"""
     d = _daily_drain()
-    assert 0.9 < d < 1.1, d
+    assert 0.6 < d < 1.3, d
 
 
-def test_daytime_alone_does_not_empty_the_bar() -> None:
-    """一整个白天(07:00–19:00)基本不动精力。"""
-    base = CFG.metabolism["energy"]
-    day = -base * sum(CFG.rhythm_at(t / 60.0) for t in range(420, 1140))
-    assert day < 0.1, day
+def test_base_is_around_half_a_bar_per_day() -> None:
+    """白天那一整段(1.0x)24h 大致半条命(可调; 现在 ~50%)。"""
+    b = CFG.metabolism["energy"]
+    base24 = -b * 1440
+    assert 0.4 < base24 < 0.7, base24
 
 
 # ---------------------------------------------------------------------------

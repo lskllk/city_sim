@@ -90,6 +90,23 @@ static func user_text(e: Dictionary) -> String:
 	return Store.name_of(claimed) if claimed != "" else "--"
 
 
+## 一条记忆/物件的【所属】: 公共 / 自己 / 自家 / 公司·X / 某人。
+static func owner_text(d: Dictionary, self_id: String) -> String:
+	var owner := Protocol.s(d.get("owner", ""))
+	if owner == self_id and self_id != "":
+		return "自己"
+	if owner != "":
+		var c := company(owner)
+		if not c.is_empty():
+			return "公司·%s" % Protocol.s(c.get("name", owner))
+		return Store.name_of(owner)
+	if bool(d.get("household", false)):
+		return "自家"
+	if Protocol.num(d.get("price")) > 0.0:
+		return "店家"          # 货架上的商品 → 售出方是那家店
+	return "公共"
+
+
 static func signal_keys(signals: Dictionary) -> Array:
 	var keys := []
 	for k in SIGNAL_ORDER:

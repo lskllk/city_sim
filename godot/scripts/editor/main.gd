@@ -650,19 +650,52 @@ func _sec_items(bid: String) -> void:
 	ih.add_child(_f_item_type)
 	ih.add_child(add_i)
 	isec.add_child(ih)
-	isec.add_child(_header_row("名称            数量   价格"))
+	isec.add_child(_header_row("名称            数量   价格    归属"))
 	if items.is_empty():
 		isec.add_child(_muted("无 —— 选类型后新增"))
 	else:
+		# 按【归属】分两区: 内部(有主: 公司/NPC) 与 公共(谁都能用)
+		var own: Array = []
+		var pub: Array = []
 		for iid in items:
-			var it: Dictionary = MapDoc.items[iid]
-			var st := int(it.get("stock", 1))
-			psec_append(isec, _row_button("%s    %s    %s" % [
-				MapDoc.item_display(String(it.get("type", ""))),
-				"∞" if st < 0 else str(st),
-				"—" if float(it.get("price", 0.0)) <= 0.0 else "¥%d" % int(it.get("price", 0.0))],
-				func() -> void: _view.select("item", String(iid))))
+			if String((MapDoc.items[iid] as Dictionary).get("owner", "")) == "":
+				pub.append(iid)
+			else:
+				own.append(iid)
+		if pub.is_empty() or own.is_empty():
+			_list_items(isec, items)
+		else:
+			isec.add_child(_muted("── 内部 · 有主(公司/NPC) %d ──" % own.size()))
+			_list_items(isec, own)
+			isec.add_child(_muted("── 公共 · 谁都能用 %d ──" % pub.size()))
+			_list_items(isec, pub)
 	_inspector.add_child(isec)
+
+
+## 一区里的物件行(名称 数量 价格 归属)。
+func _list_items(sec: Control, ids: Array) -> void:
+	for iid in ids:
+		var it: Dictionary = MapDoc.items[iid]
+		var st := int(it.get("stock", 1))
+		var p := float(it.get("price", 0.0))
+		psec_append(sec, _row_button("%s    %s    %s    %s" % [
+			MapDoc.item_display(String(it.get("type", ""))),
+			"∞" if st < 0 else str(st),
+			"—" if p <= 0.0 else "¥%d" % int(p),
+			_owner_label(String(it.get("owner", "")))],
+			func() -> void: _view.select("item", String(iid))))
+
+
+## 归属显示: 公共 / 公司·X / 人名。
+func _owner_label(owner: String) -> String:
+	if owner == "":
+		return "公共"
+	if MapDoc.companies.has(owner):
+		return "公司·%s" % String((MapDoc.companies[owner] as Dictionary).get("name", owner))
+	for pid in MapDoc.npcs:
+		if String(pid) == owner:
+			return String((MapDoc.npcs[pid] as Dictionary).get("name", owner))
+	return owner
 
 
 ## 小工具: 给容器追加一个已构造的控件(避免嵌套表达式过长)。

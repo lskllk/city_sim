@@ -507,34 +507,114 @@ func _refresh_decor() -> void:
 	if _shop == "":
 		_decor_list.add_child(_muted("这家公司还没登记店铺"))
 		return
+	# 店里【已摆】的装修件 —— 按【所属】分两区: 内部(公司) / 公共(谁都能用)
+	var mine: Array = []
+	var pub: Array = []
+	var other: Array = []
+	for e in Store.entities.values():
+		var d: Dictionary = e
+		if not _is_fixture(Protocol.s(d.get("item_type", ""))):
+			continue
+		if Store.building_of(Protocol.s(d.get("loc", ""))) != _shop:
+			continue
+		var o := Protocol.s(d.get("owner", ""))
+		if o == "":
+			pub.append(d)
+		elif o == _cid:
+			mine.append(d)
+		else:
+			other.append(d)
+	_decor_list.add_child(_head("内部 · 公司自有 (%d)" % mine.size()))
+	_decor_list.add_child(_muted("owner=公司 → 只有本公司店员能免费用"))
+	_decor_list.add_child(_placed_rows(mine))
+	_decor_list.add_child(HSeparator.new())
+	_decor_list.add_child(_head("公共 · 谁都能用 (%d)" % pub.size()))
+	_decor_list.add_child(_muted("owner 留空 → 路人/顾客/谁都行(如门口马桶、过道长凳)"))
+	_decor_list.add_child(_placed_rows(pub))
+	if not other.is_empty():
+		_decor_list.add_child(HSeparator.new())
+		_decor_list.add_child(_head("个人 · 别人的 (%d)" % other.size()))
+		_decor_list.add_child(_placed_rows(other, true))
+	_decor_list.add_child(HSeparator.new())
+	_decor_list.add_child(_head("装修件目录 · 放置"))
 	if Store.fixtures.is_empty():
 		_decor_list.add_child(_muted("没有可用的装修件(config/items 里打 fixture 标签)"))
-		return
 	for f in Store.fixtures:
 		_decor_list.add_child(_decor_row(f))
+
+
+## 一区里已摆的装修件: 按类型汇总成 "· 销售前台 ×2"。
+func _placed_rows(rows: Array, show_owner: bool = false) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	if rows.is_empty():
+		box.add_child(_muted("  （空）"))
+		return box
+	var by := {}
+	for r in rows:
+		var d: Dictionary = r
+		var t := Protocol.s(d.get("item_type", ""))
+		var o := Protocol.s(d.get("owner", "")) if show_owner else ""
+		by["%s|%s" % [t, o]] = int(by.get("%s|%s" % [t, o], 0)) + 1
+	var keys := by.keys()
+	keys.sort()
+	for k in keys:
+		var parts := String(k).split("|")
+		var txt := "  · %s ×%d" % [_type_name(parts[0]), by[k]]
+		if parts.size() > 1 and parts[1] != "":
+			txt += "（%s）" % Store.name_of(parts[1])
+		var l := Label.new()
+		l.text = txt
+		l.add_theme_color_override("font_color", Color("9fb0c4"))
+		box.add_child(l)
+	return box
 
 
 func _decor_row(fd: Dictionary) -> Control:
 	var itype := Protocol.s(fd.get("type", ""))
 	var price := Protocol.num(fd.get("price", 0.0))
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", 6)
 	var name := Label.new()
 	name.text = "%s　¥%d" % [Protocol.s(fd.get("name", itype)), int(price)]
-	name.custom_minimum_size.x = 180
+	name.custom_minimum_size.x = 170
 	row.add_child(name)
 	var cnt := Label.new()
 	cnt.text = "已有 %d" % _count_fixture(itype)
 	cnt.add_theme_color_override("font_color", Color("7f8ea3"))
 	cnt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(cnt)
-	var btn := Button.new()
-	btn.text = "放置"
-	btn.pressed.connect(func() -> void:
-		Commands.cmd("company_decorate", {"company": _cid, "shop": _shop,
-			"item_type": itype}))
-	row.add_child(btn)
+	row.add_child(_place_btn(itype, false, "摆内部"))
+	row.add_child(_place_btn(itype, true, "摆公共"))
 	return row
+
+
+func _place_btn(itype: String, public: bool, text: String) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.tooltip_text = "任何人都能用(owner 留空)" if public \
+		else "只有本公司店员免费用(owner=公司)"
+	b.pressed.connect(func() -> void:
+		Commands.cmd("company_decorate", {"company": _cid, "shop": _shop,
+			"item_type": itype, "public": public}))
+	return b
+
+
+## 这个物品类型是不是装修件(在 fixtures 目录里)。
+func _is_fixture(itype: String) -> bool:
+	for f in Store.fixtures:
+		if Protocol.s((f as Dictionary).get("type", "")) == itype:
+			return true
+	return false
+
+
+## 装修件类型的显示名。
+func _type_name(itype: String) -> String:
+	for f in Store.fixtures:
+		var d: Dictionary = f
+		if Protocol.s(d.get("type", "")) == itype:
+			return Protocol.s(d.get("name", itype))
+	return itype
 
 
 # --- 只读镜像查询 ----------------------------------------------------------

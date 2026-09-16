@@ -87,6 +87,7 @@
     {
       "at": "bld_004",
       "id": "food_apple_048",
+      "owner": "org_bld_004",
       "price": 3.0,
       "stock": 1000,
       "type": "food_apple"

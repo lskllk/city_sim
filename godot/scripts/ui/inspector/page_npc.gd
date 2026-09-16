@@ -102,6 +102,7 @@ func bind(id: String) -> void:
 		_mem.row(i).set_row(
 			Store.name_of(Protocol.s(d.get("item_id", ""))),
 			Store.name_of(Protocol.s(d.get("located", ""))),
+			InspData.owner_text(d, id),
 			Protocol.num(d.get("believe")), Protocol.num(d.get("remember")))
 	_mem.trim(memory.size())
 	_mem_empty.visible = memory.is_empty()

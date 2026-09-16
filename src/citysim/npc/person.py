@@ -281,12 +281,17 @@ class Person:
                          rhythm_mul=rhythm_mul)
 
     def heartbeat(self, now_tick: int, cfg: "SimConfig", *,
-                  sleep: bool = False, busy: bool = False) -> bool:
+                  sleep: bool | None = None, busy: bool = False) -> bool:
         """身体每 tick 演化(世界广播心跳, Person 内部自己做, 上帝不改 signals)。
 
-        顺序 = 代谢(睡眠冻结 energy; busy 暂不对任何信号生效) → hp(饿死/恢复) → 排泄(pending→膀胱)。
+        顺序 = 代谢(睡眠冻结 energy; busy 暂不对任何信号生效) → hp(饿死/恢复) → 排泄(pending→膀胱) → 消化。
         返回是否仍存活(死则不再往下)。
+
+        sleep=None(默认) 时【自己判】: 体内 intake 里有没有 sleepable 的东西
+        (WP-11: 不再由 world 反向告诉 NPC“你在睡”)。
         """
+        if sleep is None:
+            sleep = any("sleepable" in ag.grant.tags for ag in self._intake)
         # 活动系数: 睡着冻结 energy; 在做事(交互/赶路)掉得更快; 空闲就是基准
         amul: dict[str, float] = {}
         if sleep:

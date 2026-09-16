@@ -95,3 +95,17 @@ def test_on_start_pending_applied_by_npc_once() -> None:
     assert npc.bladder_pending == 0.3            # 只应用一次
     npc.heartbeat(0, CFG)
     assert npc.bladder_pending < 0.3             # 开始转为膀胱
+
+
+# --- WP-11: sleep/busy 自持 -------------------------------------------------
+def test_sleep_freezes_energy_self_derived() -> None:
+    """体内 intake 带 sleepable → 自己判“在睡”, 冻结 energy(不再由 world 注入)。"""
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "bed", location="loc", tags=("sleepable",), affordances={},
+               duration_ticks=100,
+               on_complete=[{"op": "add_signal", "signal": "energy",
+                             "delta": 1.0}])
+    npc = add_npc(w, s, "npc", location="loc", energy=0.3)
+    npc.intake_add(_port(w, s).try_take("npc", "bed"))
+    npc.heartbeat(1260, CFG)                     # 21:00 入夜, 本会掉很快
+    assert npc.signal("energy") == 0.3           # 睡着 → 冻结

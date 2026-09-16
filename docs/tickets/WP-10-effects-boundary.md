@@ -1,6 +1,6 @@
 # WP-10 `effects.py` 边界：`on_start`/`on_complete` 编译进 Grant
 
-- 状态：todo
+- 状态：done
 - 阶段：Step 2
 - 依赖：WP-08
 - 大小：M

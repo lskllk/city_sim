@@ -1,6 +1,6 @@
 # WP-11 `sleep` / `busy` 由 NPC 自持
 
-- 状态：todo
+- 状态：done
 - 阶段：Step 2
 - 依赖：WP-09
 - 大小：S

@@ -30,14 +30,6 @@ from citysim.world.world import entity_from_def
 # 移动耗时 / 路线 / 抢占 的共享 helper 已搬到 world/port.py(WP-02)。
 
 
-def _sleeping(world, systems, pid: str) -> bool:
-    act = systems.interaction.active.get(pid)
-    if act is None:
-        return False
-    ent = world.entities.get(act.entity_id)
-    return ent is not None and ent.is_sleepable
-
-
 def _busy(world, systems, pid: str) -> bool:
     """忙碌 = 有进行中交互 或 正在跨地点移动。"""
     return (systems.interaction.active.get(pid) is not None
@@ -794,7 +786,6 @@ def tick(world, systems, cfg: SimConfig) -> None:
     died: list[str] = []
     for pid, npc in world.npcs.items():
         alive = npc.heartbeat(world.clock_tick, cfg,
-                              sleep=_sleeping(world, systems, pid),
                               busy=_busy(world, systems, pid))
         if not alive:
             died.append(pid)

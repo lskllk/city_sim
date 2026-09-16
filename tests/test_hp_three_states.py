@@ -1,11 +1,11 @@
-"""hp 三态 + 饥饿宽限 + hp_override(docs/design.md §2)。
+"""hp: 只有【饥饿】参与 —— 连续 hunger==0 满宽限(3 天)才开始渐降。
 
-    下降   hunger == 0 或 energy == 0 【连续满 starve_grace_days 天】
-    上升   hunger ≥ hp_regen_floor 且 energy ≥ hp_regen_floor
-    不动   其他(中间带 + 宽限期 —— 归零不立刻掉命)
-    不参与 bladder
+    · 归零不立刻掉血: 连续 hunger==0 满 starve_grace_days 天才开始掉
+    · 中途吃了饭(hunger>0) → 计数清零, 下次归零重新计
+    · 睡眠/精力【不参与 hp】(旧三态: 衰减/回升/中间带 已删)
+    · hp < hp_override → 日程失去拉力(命比钱大): 计划不执行
 
-    hp < hp_override → 日程失去拉力(命比钱大): 计划不执行。
+注: 文件名沿用作历史; 现在没有“三态”了。
 """
 from __future__ import annotations
 
@@ -22,18 +22,17 @@ CFG = load_config(ROOT / "config" / "sim.toml")
 
 
 # ---------------------------------------------------------------------------
-# 三态
+# 饥饿 → hp
 # ---------------------------------------------------------------------------
-def test_starving_does_not_drop_hp_immediately() -> None:
-    """饥饿归零【不立刻掉命】—— 宽限期内 hp 不动。"""
+def test_hunger_zero_does_not_drop_hp_immediately() -> None:
     w, s, _ = make_runtime(CFG)
     npc = add_npc(w, s, "n", hunger=0.0, energy=1.0, hp=0.8)
     npc.heartbeat(0, CFG)
     assert npc.signal("hp") == 0.8
 
 
-def test_starving_drops_hp_after_grace() -> None:
-    """连续 hunger==0 满 starve_grace_days 天 → hp 才开始掉。"""
+def test_hp_drops_after_grace() -> None:
+    """连续 hunger==0 满 starve_grace_days 天 → hp 才开始掉(渐降)。"""
     w, s, _ = make_runtime(CFG)
     npc = add_npc(w, s, "n", hunger=0.0, energy=1.0, hp=0.8)
     grace = int(CFG.hp_starve_grace_ticks)
@@ -44,8 +43,8 @@ def test_starving_drops_hp_after_grace() -> None:
     assert npc.signal("hp") < 0.8
 
 
-def test_recovering_resets_the_grace() -> None:
-    """中间恢复就不掉: 计数器重置, 重新开始算。"""
+def test_eating_resets_the_counter() -> None:
+    """中途吃了饭 → 计数清零; 下次归零重新计。"""
     w, s, _ = make_runtime(CFG)
     npc = add_npc(w, s, "n", hunger=0.0, energy=1.0, hp=0.8)
     for _ in range(1000):
@@ -57,40 +56,24 @@ def test_recovering_resets_the_grace() -> None:
     npc.set_signal("hunger", 0.0)
     for _ in range(1000):
         npc.heartbeat(0, CFG)
-    assert npc.signal("hp") >= hp_after        # 重新计时, 还没到宽限 → 不掉
+    assert npc.signal("hp") >= hp_after        # 重新计时, 还没到宽限
 
 
-def test_exhausted_drops_hp_after_grace() -> None:
-    """energy==0 同理: 宽限期内不掉。"""
+def test_energy_never_affects_hp() -> None:
+    """睡眠/精力【不参与】: energy 一直 0 也不掉血。"""
     w, s, _ = make_runtime(CFG)
     npc = add_npc(w, s, "n", hunger=1.0, energy=0.0, hp=0.8)
-    npc.heartbeat(0, CFG)
-    assert npc.signal("hp") == 0.8
-    for _ in range(int(CFG.hp_starve_grace_ticks)):
+    for _ in range(int(CFG.hp_starve_grace_ticks) + 10):
         npc.heartbeat(0, CFG)
-        npc.set_signal("energy", 0.0)         # 保持归零
-    assert npc.signal("hp") < 0.8
+        npc.set_signal("energy", 0.0)          # 一直熬夜
+        npc.set_signal("hunger", 1.0)          # 但不饿
+    assert npc.signal("hp") == 0.8
 
 
-def test_both_satisfied_heals() -> None:
+def test_no_regen_eating_does_not_heal() -> None:
+    """没有回血: 吃饱也不涨 hp(旧三态的“回升”已删)。"""
     w, s, _ = make_runtime(CFG)
     npc = add_npc(w, s, "n", hunger=1.0, energy=1.0, hp=0.5)
-    npc.heartbeat(0, CFG)
-    assert npc.signal("hp") > 0.5
-
-
-def test_middle_band_does_nothing() -> None:
-    """吃了但没吃饱(0.3) → hp 不动。这条是“饿得死”能不能发生的关键。"""
-    w, s, _ = make_runtime(CFG)
-    npc = add_npc(w, s, "n", hunger=0.3, energy=0.8, hp=0.5)
-    npc.heartbeat(0, CFG)
-    assert npc.signal("hp") == 0.5
-
-
-def test_partially_satisfied_is_still_middle_band() -> None:
-    """一个够、一个不够 → 还是在中间带。"""
-    w, s, _ = make_runtime(CFG)
-    npc = add_npc(w, s, "n", hunger=1.0, energy=0.4, hp=0.5)
     npc.heartbeat(0, CFG)
     assert npc.signal("hp") == 0.5
 
@@ -100,24 +83,14 @@ def test_bladder_not_involved() -> None:
     w, s, _ = make_runtime(CFG)
     npc = add_npc(w, s, "n", hunger=1.0, energy=1.0, bladder=0.0, hp=0.9)
     npc.heartbeat(0, CFG)
-    assert npc.signal("hp") > 0.9
-
-
-def test_floor_boundary() -> None:
-    """正好等于 floor → 算满足(≥)。"""
-    w, s, _ = make_runtime(CFG)
-    npc = add_npc(w, s, "n", hunger=CFG.hp_regen_floor,
-                  energy=CFG.hp_regen_floor, hp=0.5)
-    npc.heartbeat(0, CFG)
-    # 代谢会先把 hunger/energy 往下拉一点点 → 落到中间带; 所以只断言“不下降”
-    assert npc.signal("hp") >= 0.5
+    assert npc.signal("hp") == 0.9
 
 
 # ---------------------------------------------------------------------------
 # hp_override: 日程失去拉力
 # ---------------------------------------------------------------------------
 def _plan_bench(w, s, hp: float):
-    add_entity(w, "bench", tags=("work",), affordances={"energy": 0.5})
+    add_entity(w, "bench", tags=("work",), affordances={})
     npc = add_npc(w, s, "n", hp=hp, energy=1.0, hunger=0.7)   # 无需求在阈上
     npc.set_plan([PlanEntry("e0", 1, Interact("bench"))])
     return npc
@@ -134,5 +107,3 @@ def test_plan_loses_pull_when_hp_low() -> None:
     w, s, _ = make_runtime(CFG)
     npc = _plan_bench(w, s, 0.3)
     assert isinstance(npc.decide(CFG, 5).intent, Idle)
-
-

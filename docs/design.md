@@ -81,14 +81,17 @@ energy 消耗 = 基准 × 昼夜倍率 × 活动倍率
 **睡觉必须回血**：`bed_basic.json` 的 `on_complete: add_signal energy +1.0`。
 （不回血 = 睡醒还是 0.3，作息永远立不起来 —— 踩过。）
 
-### 2.3 生命 `hp` 三态（`[health]`）
+### 2.3 生命 `hp`（`[health]`）—— 只有饥饿参与
 
 ```
-hp ↓    hunger == 0  或  energy == 0
-hp ↑    hunger ≥ hp_regen_floor(0.5)  且  energy ≥ 0.5
-其他    不动（中间带 —— 否则咬一口饭 hp 就开始涨，"饿死"永远发生不了）
-hp < hp_override(0.5) → 日程失去拉力（命比钱大）。bladder 不参与 hp。
+hp ↓    hunger 连续为 0 满 starve_grace_days(3) 天 → hp 每 tick 渐降 hp_decay
+        吃了饭(hunger>0) → 计数清零, 下次归零重新计
+hp < hp_override(0.5) → 日程失去拉力（命比钱大）
 ```
+
+- **无三态**：旧“归零衰减 / 吃饱回升 / 中间带不动”已删；hp **不回血**。
+- **睡眠/精力不参与 hp**；`bladder` 也不参与（憋不住不致命）。
+- 即：**一直不吃东西 → 3 天后开始掉血，1 天掉完 → 第 4 天 die**（中途吃饭则计数清零重计）。
 
 ### 2.4 知识与记忆（`npc/memory.py`）
 

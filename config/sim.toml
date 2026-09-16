@@ -82,16 +82,13 @@ move_ticks = 30                # ⚠ 基本【不生效】: 只兜底"travel 矩
                                # 手写老场景才用得上(那时优先用场景的 travel.default)。
 move_m_per_tick = 10.0         # 有路网时: 每 tick 可走米数(等价编辑器 travel 降级的 距离/10)
 
-[health]                       # 生命【三态】
-#   ↓   hunger==0 或 energy==0 【连续满 starve_grace_days 天】
-#   ↑   hunger ≥ hp_regen_floor 且 energy ≥ hp_regen_floor
-#   不动  中间带 + 宽限期(否则咬一口饭 hp 就开始涨 => “饿死”永远发生不了)
-# 注: bladder 不参与 hp(憋不住不致命)。
-# 注: 归零【不立刻掉命】: 得连续 3 天不吃不睡 hp 才开始掉(中间恢复就不掉)。
-starve_grace_days = 3.0
-hp_decay = 0.00034722222222222222        # 1/2880: 宽限期过后约 2 天掉光 hp
-hp_regen = 0.00034722222222222222        # 回升最大速率(× 饱食/精力的均值)
-hp_regen_floor = 0.5                     # “吃饱/睡够”的阀值
+[health]                       # 生命 = 只有【饥饿】参与(无三态/无回血)
+#   一直不吃东西: 3 天后开始掉 hp, 1 天掉完 → 第 4 天 die。
+#   (中途吃了饭 hunger>0 → 计数清零, 下次归零重新计)
+# 注: 睡眠/精力【不参与 hp】; bladder 也不参与(憋不住不致命)。
+# 注: 旧“三态”(归零衰减/吃饱回升/中间带不动)已删。
+starve_grace_days = 3.0                  # 满 3 天才开始掉血
+hp_decay = 0.0006944444444444444         # 1/1440: 1 天(1440t)把 hp 从 1 掉到 0
 hp_override = 0.5                        # hp 低于此 → 日程失去拉力(命比钱大)
 
 [work]                         # 上班时的"强制约束"

@@ -286,22 +286,14 @@ class Person:
                          personality_mul=self._personality,
                          activity_mul=amul or None,
                          rhythm_mul=rmul)
-        # hp 三态(plan.md §3.7) + 【饥饿宽限】:
-        #   · 归零不立刻掉命: 连续 (hunger==0 或 energy==0) 满 grace 天才开始掉;
-        #   · 两者都 ≥ floor → 升;  中间带/宽限期 → 不动。
-        # 注: bladder 不参与(憋不住不致命)。
+        # hp: 只有【饥饿】参与 —— 连续 hunger==0 满宽限(默认 3 天)才开始掉血;
+        #   中途吃了饭(hunger>0)就清零, 下次归零重新计数。渐降, 不是一下掉光。
+        #   ★ 睡眠/精力【不参与 hp】; 旧三态(衰减/回升/中间带)已删。
         hunger = self._signals.get("hunger", 1.0)
-        energy = self._signals.get("energy", 1.0)
-        hp = self._signals.get("hp", 1.0)
-        floor = cfg.hp_regen_floor
-        starving = hunger <= 0.0 or energy <= 0.0
-        self._starve_ticks = self._starve_ticks + 1 if starving else 0
-        if starving and self._starve_ticks >= cfg.hp_starve_grace_ticks:
-            self._signals["hp"] = max(0.0, hp - cfg.hp_decay)
-        elif hunger >= floor and energy >= floor:
-            rate = (hunger + energy) / 2.0
-            self._signals["hp"] = min(1.0, hp + cfg.hp_regen * rate)
-        # else: 中间带 / 宽限期 —— 不动
+        self._starve_ticks = self._starve_ticks + 1 if hunger <= 0.0 else 0
+        if self._starve_ticks >= cfg.hp_starve_grace_ticks:
+            self._signals["hp"] = max(
+                0.0, self._signals.get("hp", 1.0) - cfg.hp_decay)
         if self._signals.get("hp", 1.0) <= 0.0:
             return False
         # 排泄: pending → 膀胱

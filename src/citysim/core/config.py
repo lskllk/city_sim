@@ -43,11 +43,8 @@ class SimConfig:
     #   hp ↓  hunger==0 或 energy==0
     #   hp ↑  hunger ≥ floor 且 energy ≥ floor
     #   其他  不动(中间带 —— 否则咬一口饭 hp 就开始涨, “饿死”永远发生不了)
-    hp_decay: float = 0.0005        # 饥饿/精力归零时 hp 每 tick 下降
-    hp_regen: float = 0.0005        # 两者都满足到阀值时 hp 回升最大速率(×均值)
-    hp_regen_floor: float = 0.5     # “吃饱/睡够”的阀值(中间带下界)
-    # 饥饿/精力归零【宽限】多久 hp 才掉: 3 天连续不吃不睡才掉命
-    # (归零不立刻掉血; 中间只要恢复就不掉)。
+    hp_decay: float = 0.0005        # 饥饿连续为 0 满宽限后, hp 每 tick 下降
+    #   3 天宽限后开始掉, 1 天(1440t)掉完 → 第 4 天 die。
     hp_starve_grace_ticks: float = 4320.0
     # hp 低于此 → 日程失去拉力(命比钱大): 计划不执行、也让位给需求
     hp_override: float = 0.5
@@ -138,8 +135,6 @@ class SimConfig:
             move_ticks=int(data.get("motion", {}).get("move_ticks", 30)),
             move_m_per_tick=float(data.get("motion", {}).get("move_m_per_tick", 10.0)),
             hp_decay=float(health.get("hp_decay", health.get("decay", 0.0005))),
-            hp_regen=float(health.get("hp_regen", health.get("regen", 0.0005))),
-            hp_regen_floor=float(health.get("hp_regen_floor", 0.5)),
             hp_starve_grace_ticks=float(
                 health.get("starve_grace_days", 3.0)) * tpd,
             hp_override=float(health.get("hp_override", 0.5)),

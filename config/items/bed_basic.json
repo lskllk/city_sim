@@ -7,7 +7,7 @@
   "affordances": {
     "energy": 1.0
   },
-  "duration_ticks": 480,
+  "duration_ticks": 800,
   "interruptible": false,
   "on_start": [],
   "on_complete": [],

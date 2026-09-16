@@ -7,7 +7,7 @@
     {
       "cash": 1000.0,
       "close": "19:00",
-      "hiring_slots": 0.0,
+      "hiring_slots": 0,
       "id": "org_bld_004",
       "name": "吵吵小店",
       "open": "08:00",
@@ -15,7 +15,10 @@
         "bld_004"
       ],
       "staff": [
-        "npc_sun_yan"
+        {
+          "npc": "npc_sun_yan",
+          "wage": 1.1
+        }
       ],
       "wage_per_hour": 10.0
     }

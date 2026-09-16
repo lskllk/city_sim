@@ -870,6 +870,54 @@ func remove_company(cid: String) -> void:
 	changed.emit()
 
 
+## 城市总览(点空白处右侧显示): 各类建筑/公司/人/物件/路网 —— 纯统计。
+func city_stats() -> Dictionary:
+	var kinds := {}          # kind(home/shop/market/..) -> 栋数
+	var by_type := {}        # 建筑类型 -> 栋数
+	var homes := 0
+	var beds := 0
+	var shops := 0
+	for bid in buildings:
+		var tp := String(buildings[bid].get("type", ""))
+		var t: Dictionary = building_types.get(tp, {})
+		var k := String(t.get("kind", "?"))
+		kinds[k] = int(kinds.get(k, 0)) + 1
+		by_type[tp] = int(by_type.get(tp, 0)) + 1
+		if k == "home":
+			homes += 1
+			beds += total_capacity(String(bid))
+		elif k == "shop":
+			shops += 1
+	var housed := 0
+	for pid in npcs:
+		var h := String(npcs[pid].get("home", ""))
+		if h != "" and is_home(building_of(h)):
+			housed += 1
+	var reg := {}            # 挂了公司的店
+	var staff := 0
+	for cid in companies:
+		for sid in (companies[cid].get("shops", []) as Array):
+			reg[String(sid)] = true
+		staff += (companies[cid].get("staff", []) as Array).size()
+	var goods := 0
+	var decor := 0
+	var i_by_type := {}
+	for iid in items:
+		var it := String(items[iid].get("type", ""))
+		if is_fixture(it):
+			decor += 1
+		else:
+			goods += 1
+		i_by_type[it] = int(i_by_type.get(it, 0)) + 1
+	return {"kinds": kinds, "by_type": by_type, "homes": homes,
+		"beds": beds, "housed": housed, "homeless": npcs.size() - housed,
+		"shops": shops, "shops_registered": reg.size(), "companies": companies.size(),
+		"staff": staff, "npcs": npcs.size(), "items": items.size(),
+		"goods": goods, "decor": decor, "i_by_type": i_by_type,
+		"nodes": nodes.size(), "edges": edges.size(),
+		"knowledge": knowledge.size()}
+
+
 ## 这个物件类型是不是【装修件】(fixture): 销售前台/货架/马桶…
 func is_fixture(type_id: String) -> bool:
 	var d: Dictionary = item_types.get(type_id, {})

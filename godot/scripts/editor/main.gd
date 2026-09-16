@@ -45,6 +45,7 @@ var _f_price: SpinBox
 var _f_owner: OptionButton
 var _f_owner_ids: Array = []
 var _homeless_sec: VBoxContainer   # 「无住所的人」区(每次刷新重建)
+var _city_sec: VBoxContainer       # 「城市总览」区(点空白处看; 每次刷新重建)
 var _f_mem_item: OptionButton      # 额外记忆: 选一个场景里的物件
 var _f_mem_believe: SpinBox        # 他有多信这条
 var _mem_item_ids: Array = []      # 与 _f_mem_item 的条目一一对应
@@ -147,6 +148,11 @@ func _build_right_panel() -> VBoxContainer:
 	_base_page = VBoxContainer.new()
 	_base_page.add_theme_constant_override("separation", 6)
 
+	# 【城市总览】放最上面: 点空白处第一眼就是“这城多大”(点建筑后基础页藏起来)
+	_city_sec = VBoxContainer.new()
+	_city_sec.add_theme_constant_override("separation", 6)
+	_base_page.add_child(_city_sec)
+
 	_base_page.add_child(_header("工具"))
 	var tools := HBoxContainer.new()
 	tools.add_theme_constant_override("separation", 4)
@@ -170,6 +176,7 @@ func _build_right_panel() -> VBoxContainer:
 	_homeless_sec.add_theme_constant_override("separation", 4)
 	_base_page.add_child(_homeless_sec)
 	_rebuild_homeless()
+	_rebuild_city_summary()      # 城市总览(_city_sec 在上面) 初次填
 	_base_page.add_child(_header("选中"))
 	_del_selected_btn = Button.new()
 	_del_selected_btn.text = "删除选中 (Del)"
@@ -235,6 +242,7 @@ func _show_page(detail: bool) -> void:
 func _on_doc_changed() -> void:
 	_dirty = true
 	_rebuild_homeless()          # 人数/住所会变 → 这块要跟着刷
+	_rebuild_city_summary()      # 总览也跟着刷
 	if _detail_page.visible:
 		_rebuild_inspector()
 
@@ -300,16 +308,14 @@ func _on_selection_changed() -> void:
 			detail = MapDoc.buildings.has(_view.sel_id)
 		"npc":
 			var n: Dictionary = MapDoc.npcs.get(_view.sel_id, {})
-			var h := String(n.get("home", ""))
-			if MapDoc.buildings.has(h):
-				_context_building = h
+			_context_building = MapDoc.building_of(String(n.get("home", "")))
 			detail = MapDoc.npcs.has(_view.sel_id)
 		"item":
 			var it: Dictionary = MapDoc.items.get(_view.sel_id, {})
-			var a := String(it.get("at", ""))
-			if MapDoc.buildings.has(a):
-				_context_building = a
+			_context_building = MapDoc.building_of(String(it.get("at", "")))
 			detail = MapDoc.items.has(_view.sel_id)
+		_:
+			_context_building = ""      # 点空白/路网 → 回【城市总览】
 	_show_page(detail)
 	if _del_selected_btn != null:
 		_del_selected_btn.disabled = not (_view.sel_kind in ["node", "edge"])
@@ -341,6 +347,68 @@ func _rebuild_inspector() -> void:
 		hint.text = "点建筑查看人员与物件\n\n流程: 画路 → 放建筑 → 点建筑加人/物件"
 		hint.add_theme_color_override("font_color", MUTED)
 		_inspector.add_child(hint)
+
+
+## 城市总览(点【空白处】右侧基础页显示): 住房/公司/人/店铺… 一眼看全场景规模。
+func _rebuild_city_summary() -> void:
+	if _city_sec == null:
+		return
+	for c in _city_sec.get_children():
+		_city_sec.remove_child(c)
+		c.queue_free()
+	if MapDoc.buildings.is_empty() and MapDoc.nodes.is_empty():
+		return                       # 空地图不占地方
+	var s := MapDoc.city_stats()
+	var sec := _section("城市总览")
+	_kv(sec, "路网", "%d 节点 · %d 路段" % [s["nodes"], s["edges"]])
+	_kv(sec, "建筑", "%d 栋" % MapDoc.buildings.size())
+	var kinds: Dictionary = s["kinds"]
+	if not kinds.is_empty():
+		var kk: Array = kinds.keys()
+		kk.sort()
+		var parts: Array = []
+		for k in kk:
+			parts.append("%s %d" % [_kind_zh(String(k)), kinds[k]])
+		sec.add_child(_muted("　" + " · ".join(PackedStringArray(parts))))
+	_kv(sec, "住宅", "%d 栋 · 床位 %d(已住 %d / 空 %d)" % [
+		s["homes"], s["beds"], s["housed"], int(s["beds"]) - int(s["housed"])])
+	_kv(sec, "商铺", "%d 栋(已注册公司 %d)" % [s["shops"], s["shops_registered"]])
+	_kv(sec, "公司", "%d 家 · 员工 %d 人" % [s["companies"], s["staff"]])
+	_kv(sec, "居民", "%d 人%s" % [s["npcs"],
+		("  ← 无住所 %d" % s["homeless"]) if int(s["homeless"]) > 0 else ""])
+	_kv(sec, "物件", "%d 件(货 %d / 装修 %d)" % [s["items"], s["goods"], s["decor"]])
+	_kv(sec, "初始认知", "%d 条" % s["knowledge"])
+	_city_sec.add_child(sec)
+	var by_type: Dictionary = s["by_type"]
+	if not by_type.is_empty():
+		var ts := _section("建筑类型")
+		var tt: Array = by_type.keys()
+		tt.sort()
+		for t in tt:
+			_kv(ts, MapDoc.type_display(String(t)), "%d 栋" % by_type[t])
+		_city_sec.add_child(ts)
+	var iby: Dictionary = s["i_by_type"]
+	if not iby.is_empty():
+		var isec := _section("物件明细")
+		var ii: Array = iby.keys()
+		ii.sort()
+		for t in ii:
+			_kv(isec, MapDoc.item_display(String(t)), "%d 件" % iby[t])
+		_city_sec.add_child(isec)
+
+
+## 建筑 kind → 中文(总览用)。
+func _kind_zh(k: String) -> String:
+	match k:
+		"home":
+			return "住宅"
+		"shop":
+			return "商铺"
+		"market":
+			return "市场"
+		"office":
+			return "办公"
+	return k if k != "" and k != "?" else "其它"
 
 
 ## 「无住所的人 (N)」: 列名字(点了进详情) + 分配 / 清空。

@@ -9,7 +9,7 @@
       "close": "19:00",
       "hiring_slots": 0,
       "id": "org_bld_004",
-      "name": "1",
+      "name": "吵吵小店",
       "open": "08:00",
       "shops": [
         "bld_004"
@@ -77,6 +77,7 @@
     {
       "at": "bld_004",
       "id": "station_counter_046",
+      "owner": "org_bld_004",
       "type": "station_counter"
     },
     {

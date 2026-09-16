@@ -21,7 +21,7 @@ SIGNALS: tuple[str, ...] = (
 # 注: REFLEX_SIGNALS(致命信号白名单)已在 2026-09-14 删除。
 # 注: 迟滞(preempt_ratio)/plan_pull 也已删除 —— 手上有事就【做完再决策】,
 # 不再每 tick 重算比较; 唯一能打断当前动作的是 PLAN(上班)。
-# 详见 docs/design.md §2。
+# 详见 。
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class SimConfig:
     utility_threshold: float = 0.05
     move_ticks: int = 30           # 跨地点移动耗时(无路网时的降级)
     move_m_per_tick: float = 10.0  # 有路网时: 每 tick 可走米数
-    # —— 生命三态(docs/design.md §2) ——
+    # —— 生命三态 ——
     #   hp ↓  hunger==0 或 energy==0
     #   hp ↑  hunger ≥ floor 且 energy ≥ floor
     #   其他  不动(中间带 —— 否则咬一口饭 hp 就开始涨, “饿死”永远发生不了)

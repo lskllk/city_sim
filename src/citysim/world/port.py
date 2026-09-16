@@ -42,15 +42,6 @@ def route_between(world, systems, a: str, b: str):
     return roads.route(pa, pb)
 
 
-def can_preempt(world, systems, pid: str) -> bool:
-    """能不能中止当前交互: 只有可打断的才行(睡觉不可打断)。"""
-    act = systems.interaction.active.get(pid)
-    if act is None:
-        return True
-    ent = world.entities.get(act.entity_id)
-    return bool(ent is not None and ent.interruptible)
-
-
 def preempt(world, systems, pid: str) -> None:
     """中止当前交互(唯一能打断的是 PLAN: 上班)。"""
     systems.interaction.abort(world, pid)
@@ -84,8 +75,6 @@ class WorldPortImpl:
             return Ack()                             # 已在去往该地途中
         active = systems.interaction.active.get(pid)
         if active is not None:
-            if not can_preempt(world, systems, pid):
-                return Ack(ok=False, reason="当前交互不可打断")
             preempt(world, systems, pid)
         here = world.loc_of(pid)
         if dest == here:
@@ -135,8 +124,6 @@ class WorldPortImpl:
             # 往体内塞一份, 信号会爆)。
             return Ack(ok=True, reason="continuing")
         if active is not None:
-            if not can_preempt(world, systems, pid):
-                return Deny("当前交互不可打断")
             preempt(world, systems, pid)
         ok = systems.interaction.submit(world, npc, Interact(target_id=entity_id))
         if not ok:

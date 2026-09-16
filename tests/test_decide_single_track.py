@@ -1,6 +1,6 @@
 """单轨决策(删双轨后的简单回归)。
 
-覆盖 docs/design.md §2 的核心约定:
+覆盖  的核心约定:
 
     **需求(utility) > 日程(plan) > idle**, 只有一条轨; 阈值只在得分上。
 
@@ -103,7 +103,6 @@ def test_action_is_committed_until_done() -> None:
     # 无信号 affordance: 保证 plan 这条交互不会被“满了优先结束”提前收掉
     bed = add_entity(w, "bed", tags=("sleepable",),
                      affordances={}, duration_ticks=100)
-    bed.interruptible = False
     add_entity(w, "food", tags=("edible",), affordances={"hunger": 0.5})
     npc = add_npc(w, s, "npc", energy=1.0, hunger=1.0)
     npc.set_plan([PlanEntry("e0", 1, Interact("bed"))])

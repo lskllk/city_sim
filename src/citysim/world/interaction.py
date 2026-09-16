@@ -70,13 +70,8 @@ class InteractionSystem:
         if old is not None and old.entity_id == tid:
             return True
 
-        # rule 4: 旧 active 且 target 不同 → 先释放(除非旧交互不可打断)
+        # rule 4: 旧 active 且 target 不同 → 先释放(新交互直接顶掉旧的)
         if old is not None and old.entity_id != tid:
-            old_ent = world.entities.get(old.entity_id)
-            if old_ent is not None and not old_ent.interruptible:
-                # m5-rectify 16: 床等不可打断交互 → 拒绝被新意图顶掉
-                self._fail(world, pid, tid, "当前交互不可打断")
-                return False
             self._release(world, pid, cancel=True)
 
         # 登记(rule 3)

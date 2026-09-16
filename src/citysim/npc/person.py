@@ -78,7 +78,7 @@ class _Goal:
     以前是 _reflex_goal / _plan_goal 两条轨 + 固定优先级抢占; 现在只有一个。
     source 只用来区分“谁在维持它”:
       "need" —— 需求(utility)驱动的, 做完再决策
-      "plan" —— 日程/承诺驱动的, 到点会被下一条硬中止, 也尊重 can_preempt
+      "plan" —— 日程/承诺驱动的, 到点会被下一条硬中止
 
     phase: to_dest=还没到目标地(异地), doing=已在目标地/正在交互。
     """
@@ -787,17 +787,13 @@ class Person:
             workplace=workplace, leave_cost=leave_cost)
         return (None if isinstance(intent, Idle) else intent), eff
 
-    def decide(self, cfg: "SimConfig", now_tick: int,
-               can_preempt: bool = True) -> Decision:
+    def decide(self, cfg: "SimConfig", now_tick: int) -> Decision:
         """单轨决策: **需求(utility) > 日程(plan) > idle**。只读记忆+自身。
 
         开头先做一次跨天处理: daily 计划顺延到今天(上班写一次就不必再动)。
 
         节奏: **手上有事就做完再决策** —— 只有空闲时才每 tick 重算。
         唯一能打断当前动作的是 **PLAN(上班)**; 不再有迟滞/reflex 抢占。
-
-        can_preempt: 世界告知“当前交互能不能被打断”(睡觉等)。
-                     只影响【计划条目】的到期推进, 不影响需求目标。
         """
         self._schedule.roll_day(now_tick, cfg.ticks_per_day)
         # ★ 上班只在【上班开始那一刻】硬抢(不管在做什么 → 去上班)。
@@ -816,7 +812,7 @@ class Person:
             #    空闲时才每 tick 决策。
             if self._goal is not None:
                 # 日程条目的窗口到期(下一条已到点) → 中止当前条目, 推进计划
-                if self._goal.source == "plan" and can_preempt:
+                if self._goal.source == "plan":
                     dl = self._schedule.deadline()
                     if dl is not None and now_tick >= dl:
                         self._schedule.drop()
@@ -988,8 +984,7 @@ class Person:
         if g is not None and intent_target(g.intent) == target_id:
             self._abandon()
 
-    def step(self, port, cfg: "SimConfig",
-             can_preempt: bool = True) -> Decision:
+    def step(self, port, cfg: "SimConfig") -> Decision:
         """★ 主动拉(WP-05): 观察 → 感知 → 决策 → 执行。
 
         与 process 的区别: 不再等 world 把 Percept 推过来; NPC 自己
@@ -998,7 +993,7 @@ class Person:
         """
         percept = port.observe(self.person_id)
         self.perceive(percept, percept.tick)
-        d = self.decide(cfg, percept.tick, can_preempt)
+        d = self.decide(cfg, percept.tick)
         self._execute(port, d, percept.tick)
         return d
 

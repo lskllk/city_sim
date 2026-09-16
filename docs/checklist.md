@@ -1,6 +1,6 @@
 # 现状与拍板记录
 
-> 设计与机制见 `docs/design.md`（真源）。本文件只写：**定过什么 / 到哪了 / 下一步做什么**。
+> 本文件 = 设计真源 + 现状：**定过什么 / 机制是什么 / 到哪了 / 下一步做什么**。
 
 ---
 
@@ -95,8 +95,8 @@
 
 ## 4 文档
 
-活文档：`design.md`（真源）· `checklist.md`（本文）· `naming.md` · `plan_timeline_viz.md`。
+活文档：`checklist.md`（本文）· `naming.md` · `plan_timeline_viz.md`。
 
-**已删除**（2026-09-15，有价值的部分已进 `design.md`）：
+**已删除**（历史讨论，与实现脱节）：
 `20260910/requirements.md`、`20260913/{semantic_event,mind,memory,plan}.md`、
 `20260914/{game,plan,mvp,bubble,observe}.md`、`Vision.md`。

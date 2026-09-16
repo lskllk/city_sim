@@ -92,7 +92,7 @@ Intent = Idle | MoveTo | Interact | Buy | Wander
 
 
 # ---------------------------------------------------------------------------
-# 语义层契约(docs/design.md §2.7)
+# 语义层契约
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True, slots=True)
 class SemanticEvent:

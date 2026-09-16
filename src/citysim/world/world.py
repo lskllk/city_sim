@@ -52,7 +52,6 @@ class Entity:
                                           # ★ 同时可被多少人占用 = stock(-1=无限)。
                                           #   3 张床合并成 stock=3 → 3 人能同时睡;
     attrs: dict[str, Any] = field(default_factory=dict)  # 如 bladder_load
-    interruptible: bool = True            # M3 睡眠泛化: 床 False
     on_start: list[dict] = field(default_factory=list)       # M4 数据化效果
     on_complete: list[dict] = field(default_factory=list)    # M4 数据化效果
     price: float = 0.0                      # 价格(0=免费)
@@ -137,7 +136,6 @@ def entity_from_def(d: ItemDef, location_id: str) -> Entity:
         entity_id="", name=d.name, tags=set(d.tags),
         affordances=dict(d.affordances), duration_ticks=d.duration_ticks,
         location_id=location_id, stock=d.stock, attrs=dict(d.attrs),
-        interruptible=d.interruptible,
         on_start=list(d.on_start), on_complete=list(d.on_complete),
         price=d.price, item_type=d.item_type,
         persist_empty=d.persist_empty,

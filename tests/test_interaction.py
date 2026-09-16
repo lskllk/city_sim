@@ -1,4 +1,4 @@
-"""M3 DoD: claim 仲裁 / 消耗品 / 睡眠唤醒 / 不可打断交互(走主循环集成)。"""
+"""M3 DoD: claim 仲裁 / 消耗品 / 睡眠唤醒(走主循环集成)。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -71,26 +71,35 @@ def test_sleep_restores_energy() -> None:
     assert systems.interaction.active.get("npc") is None
 
 
-def test_interruptible_false_refuses_override() -> None:
-    """interruptible=False(床) 进行中 → 拒绝被新意图顶掉, claim 不悬挂。"""
+def test_new_interaction_replaces_old() -> None:
+    """换目标 → 直接顶掉旧交互(不再有“不可打断”这个概念)。"""
     world = World()
     bed = world.spawn_item_type("bed_basic", "home")
     toilet = world.spawn_item_type("toilet_basic", "home")
     npc = Person(identity=Identity(person_id="p", name="p"))
     world.npcs["p"] = npc
+    world.place_npc("p", "home")           # 得先在同 region 才能提交
     bed.claimed_by = "p"
     isys = InteractionSystem()
     isys.active["p"] = ActiveInteraction(entity_id=bed.entity_id)
-    failed: list[str] = []
+    ok = isys.submit(world, npc, Interact(target_id=toilet.entity_id))
+    assert ok is True                       # 新交互顶掉旧的
+    assert isys.active["p"].entity_id == toilet.entity_id
+    assert bed.claimed_by is None           # 旧的 claim 已释放
 
-    def _on(ev):
-        if ev.kind == "intent_failed":
-            failed.append(ev.kind)
 
-    world.bus.subscribe_log(_on)
-    ok = isys.submit(world, npc,
-                     Interact(target_id=toilet.entity_id))
-    assert ok is False                     # 不可打断 → 拒绝
-    assert failed == ["intent_failed"]
-    assert bed.claimed_by == "p"           # 未被顶替
-    assert isys.active["p"].entity_id == bed.entity_id
+def test_sleep_is_interruptible_by_new_action() -> None:
+    """睡觉不再是“不可打断”: 上班/换目标能把他从床上叫起来。"""
+    from citysim.world.port import WorldPortImpl
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "bed", location="home", tags=("sleepable",),
+               affordances={}, duration_ticks=1000)
+    add_entity(w, "station", location="shop", tags=("work", "station"),
+               affordances={}, duration_ticks=600)
+    npc = add_npc(w, s, "n", location="home", energy=0.2)
+    port = WorldPortImpl(w, s, CFG)
+    npc.intake_add(port.try_take("n", "bed"))
+    assert "n" in s.interaction.active                # 睡着
+    assert port.try_move("n", "shop").ok              # 能起床走了
+    assert "n" not in s.interaction.active
+    assert s.travel["n"].to_loc == "shop"

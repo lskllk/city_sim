@@ -175,9 +175,7 @@ def _npc_core(world, systems, pid: str, p) -> dict:
         "age": p.age,
         "role": p.role,
         "signals": dict(p.signals),
-        "active": None if act is None else {
-            "entity": act.entity_id, "remaining": act.remaining_ticks,
-            "total": act.total_ticks},
+        "active": None if act is None else _active_view(p, act),
         "travel": None if tv is None else {
             "from": tv.from_loc, "to": tv.to_loc,
             "depart": tv.depart_tick, "arrive": tv.arrive_tick,
@@ -188,6 +186,12 @@ def _npc_core(world, systems, pid: str, p) -> dict:
         # 所以过期不需要再推一帧“空气泡”。
         "bubble": _bubble_of(p),
     }
+
+
+def _active_view(p, act) -> dict:
+    """进度来自 NPC 自己的 intake(WP-08); world 的 ActiveInteraction 不再存进度。"""
+    rem, total = p.intake_progress(act.entity_id)
+    return {"entity": act.entity_id, "remaining": rem, "total": total}
 
 
 def _bubble_of(p) -> dict | None:

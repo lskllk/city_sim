@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from citysim.core.config import SIGNALS
 from citysim.core.types import Idle, Interact
 from citysim.npc.person import Person
 from citysim.world.effects import apply_effects, compile_effects
@@ -17,9 +16,8 @@ from citysim.world.world import Entity, World
 @dataclass
 class ActiveInteraction:
     entity_id: str
-    remaining_ticks: int
-    total_ticks: int
     handle: str = ""          # world 签发的唯一持有凭证(WP-10: handle 不撞车)
+    # 注: 进度(remaining/total)归 NPC 自己的 intake(WP-08); 这里不再存。
 
 
 def _clamp(v: float) -> float:
@@ -82,11 +80,9 @@ class InteractionSystem:
             self._release(world, pid, cancel=True)
 
         # 登记(rule 3)
-        dur = max(1, ent.duration_ticks)
         self._seq += 1
         self.active[pid] = ActiveInteraction(
-            entity_id=tid, remaining_ticks=dur, total_ticks=dur,
-            handle=f"{tid}#{self._seq}",
+            entity_id=tid, handle=f"{tid}#{self._seq}",
         )
         ent.claimants.add(pid)
         npc.set_activity(ent.name)

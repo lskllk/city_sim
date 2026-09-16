@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from citysim.core.config import load_config
-from citysim.gateway.scenarios import load_scene, DEMO_SCENE, NAV_SCENE
+from citysim.gateway.scenarios import load_scene, DEMO_SCENE
 from citysim.world.port import WorldPortImpl
 
 from helpers import add_npc, make_runtime

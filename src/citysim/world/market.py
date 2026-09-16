@@ -55,17 +55,6 @@ def fixture_catalog() -> list:
     return out
 
 
-def market_items(world) -> list:
-    """市场里有卖什么: 所有可【零售】的物品类型(数据驱动, 不用手写清单)。
-
-    装修件不算货(它们走 decorate(), 不进零售货架)。
-    """
-    from citysim.world.itemdefs import load_item_defs
-    return sorted(t for t, d in load_item_defs().items()
-                  if float(getattr(d, "price", 0.0)) > 0.0
-                  and "fixture" not in d.tags)
-
-
 def market_catalog() -> list:
     """批发市场能进什么货: [{type, name, price}]。价格 = 物品定义的基准价。
 

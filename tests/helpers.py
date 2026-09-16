@@ -20,8 +20,9 @@ def make_runtime(cfg: SimConfig, *, log: bool = False):
 
 
 def add_npc(world: World, systems, person_id: str, *, location: str = "loc",
-            rng_pool: dict | None = None, seed: int = 1, **kw) -> Person:
-    p = Person(identity=Identity(person_id=person_id, name=person_id))
+            rng_pool: dict | None = None, seed: int = 1, home: str = "",
+            **kw) -> Person:
+    p = Person(identity=Identity(person_id=person_id, name=person_id), home=home)
     if kw:
         p.set_signals(**kw)
     world.npcs[person_id] = p
@@ -56,7 +57,7 @@ def is_asleep(world: World, systems, person_id: str) -> bool:
     if act is None:
         return False
     ent = world.entities.get(act.entity_id)
-    return ent is not None and ent.is_sleepable
+    return ent is not None and "sleepable" in ent.tags
 
 
 def register_company(world: World, shop_ids, cash: float = 1000.0,

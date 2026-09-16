@@ -11,7 +11,7 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
 from citysim.core.types import Percept
@@ -47,7 +47,6 @@ class Grant:
     signal: str = ""                       # 作用在哪个信号("hunger"/"energy"/…)
     value: float = 0.0                     # 总共补多少
     duration_ticks: int = 1                # 分多少 tick 补
-    mode: str = "add"                      # "add"=逐 tick 加 / "freeze"=期间冻结
     pending: tuple[Mapping[str, Any], ...] = ()   # on_start 编译结果(结构化, 不用 op 名)
     on_done: tuple[Mapping[str, Any], ...] = ()   # on_complete 编译结果
     tags: tuple[str, ...] = ()             # 供 NPC 判断用途(edible/sleepable/toilet)
@@ -73,12 +72,4 @@ class WorldPort(Protocol):
 
     def try_buy(self, pid: str, item_id: str, qty: int) -> Ack:
         """请求购买。★ 异步: `ok=True` 只表示【已入队】, 成交另走事件。"""
-        ...
-
-    def release(self, pid: str, handle: str) -> Ack:
-        """归还/放弃一个持有(不消耗): 还回容器或丢下。"""
-        ...
-
-    def consume(self, pid: str, handle: str) -> Ack:
-        """消耗掉一个持有(吃完/用完): 世界据此回收实体。"""
         ...

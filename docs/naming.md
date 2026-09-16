@@ -46,8 +46,7 @@ public_plaza   school_basic   clinic_basic
 
 - 结构：`姓(1) + 名(1~2)`（`王二`、`李四`、`王小明`）。
 - 字段：`surname` / `given` / `name`(=姓+名) / `id`(=`npc_<拼音>`)，另有 `gender` / `birthday`（独立字段，不进 id）。
-- 数据：`config/names/names.json`（hanzi + pinyin）。
-- 生成：`citysim.world.names.new_name(seed, gender)`，**同 seed 可复现**；`with_surname()` 用于兄弟姐妹/子女同姓。
+- 名字**由场景 JSON 直接给**（`npcs[].name` / `npcs[].id`）。早期的 `config/names/names.json` + `world/names.py` 生成器已删（无生产调用）。
 - 年龄：`Person.age` 由 `birthday` 每天 0:00 重算（游戏纪元 `2026-01-01`）。
 
 ## 4. 强制校验

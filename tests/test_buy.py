@@ -41,8 +41,7 @@ def test_plan_buy_deducts_money_and_merges_stock() -> None:
     _staff.set_signals(hunger=1.0, energy=1.0, bladder=1.0)
     _run(w, s, rng, 2)                  # 热身: 店员先站上台(claim)
 
-    npc = add_npc(w, s, "npc", location="home", rng_pool=rng)   # money=100
-    npc.set_home("home")
+    npc = add_npc(w, s, "npc", location="home", rng_pool=rng, home="home")   # money=100
     npc.note("market_1", located="market", believe=1.0)         # 知道店在哪
     npc.set_plan([PlanEntry("e0", 1, Buy("market_1", qty=3))])
     _run(w, s, rng, 240)      # 柜台一份一份卖(排队+每 tick 1 份), 多跑一点
@@ -69,8 +68,8 @@ def test_plan_buy_insufficient_money_fails_and_skips() -> None:
     staff_counter(w, s, "staff", "market", _c.entity_id)
     _staff.set_signals(hunger=1.0, energy=1.0, bladder=1.0)
     _run(w, s, rng, 2)          # 热身: 店员先站上台(claim)
-    npc = add_npc(w, s, "npc", location="home", rng_pool=rng)
-    npc.set_home("home")
+    npc = add_npc(w, s, "npc", location="home", rng_pool=rng, home="home")
+
     npc.note("market_1", located="market", believe=1.0)
     npc.set_plan([PlanEntry("e0", 1, Buy("market_1", qty=3))])
     _run(w, s, rng, 80)

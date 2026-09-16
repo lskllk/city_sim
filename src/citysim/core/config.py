@@ -71,7 +71,6 @@ class SimConfig:
     favor_neutral: float = 1.0
     favor_min: float = 0.0
     favor_max: float = 2.0
-    favor_drift_per_day: float = 0.08     # 每天朝中性回归多少(慢)
     favor_trade_up: float = 0.02          # 顺利买到 → 涨
     favor_no_service_down: float = 0.15   # 到店却没人招待(白跑) → 掉得多
     # 招聘桥接: 每天几点匹配一次(0 = 午夜)
@@ -146,7 +145,7 @@ class SimConfig:
                 "leave_floor", 0.35)),
             **{k: float(data.get("favor", {}).get(k[len("favor_"):], v))
                for k, v in (("favor_neutral", 1.0), ("favor_min", 0.0),
-                            ("favor_max", 2.0), ("favor_drift_per_day", 0.08),
+                            ("favor_max", 2.0),
                             ("favor_trade_up", 0.02),
                             ("favor_no_service_down", 0.15))},
             tell_p=float(data.get("social", {}).get("tell_p", 0.3)),

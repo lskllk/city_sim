@@ -100,10 +100,6 @@ class Entity:
         return "consumable" in self.tags
 
     @property
-    def is_sleepable(self) -> bool:
-        return "sleepable" in self.tags
-
-    @property
     def claimed_by(self) -> str | None:
         """“谁在用”的展示用主占用者(多人并发时取 id 最小者)。
 

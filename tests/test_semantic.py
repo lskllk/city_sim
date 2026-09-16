@@ -9,7 +9,6 @@
 """
 from __future__ import annotations
 
-import random
 from pathlib import Path
 
 from citysim.core.config import load_config
@@ -125,9 +124,9 @@ def test_doubt_beats_intent() -> None:
 def test_topic_cooldown() -> None:
     w, s, _ = make_runtime(CFG)
     npc = add_npc(w, s, "npc", location="loc")
-    npc._push_speech(semantic.state(1, "npc", "hunger", "饿"))
+    npc._push_speech(semantic.intent(1, "npc", "吃", "饿", topic="hunger"))
     assert npc.pending_speech(10) is not None       # 第一次说
-    npc._push_speech(semantic.state(11, "npc", "hunger", "饿"))
+    npc._push_speech(semantic.intent(11, "npc", "吃", "饿", topic="hunger"))
     assert npc.pending_speech(20) is None           # 冷却内不复读
     assert npc.pending_speech(10 + 600) is not None  # 冷却过了再说
 
@@ -138,8 +137,8 @@ def test_topic_cooldown() -> None:
 def test_gossip_carries_a_fact_not_my_own_furniture() -> None:
     """能转述的是“外面的货”, 不是我家里的床/马桶。"""
     w, s, _ = make_runtime(CFG)
-    npc = add_npc(w, s, "npc", location="loc")
-    npc.set_home("home")
+    npc = add_npc(w, s, "npc", location="loc", home="home")
+
     npc.note("bed_1", located="home", afford="energy", value=0.7)   # 自家家具
     npc.note("apple", located="market", afford="hunger", value=0.5,
              price=5.0, source="npc_wang")                          # 外面的新闻
@@ -151,8 +150,8 @@ def test_gossip_carries_a_fact_not_my_own_furniture() -> None:
 def test_no_worthwhile_news_stays_silent() -> None:
     """没话可说就不说 —— 旧版是“硬抄一行记忆”(于是张嘴就是自家马桶)。"""
     w, s, _ = make_runtime(CFG)
-    npc = add_npc(w, s, "npc", location="loc")
-    npc.set_home("home")
+    npc = add_npc(w, s, "npc", location="loc", home="home")
+
     npc.note("bed_1", located="home", afford="energy", value=0.7)
     assert semantic.pick_retellable(npc.memory_dicts(), home="home",
                                     knows=lambda _i: False) is None

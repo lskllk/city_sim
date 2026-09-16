@@ -80,8 +80,7 @@ def test_interruptible_false_refuses_override() -> None:
     world.npcs["p"] = npc
     bed.claimed_by = "p"
     isys = InteractionSystem()
-    isys.active["p"] = ActiveInteraction(entity_id=bed.entity_id,
-                                         remaining_ticks=480, total_ticks=480)
+    isys.active["p"] = ActiveInteraction(entity_id=bed.entity_id)
     failed: list[str] = []
 
     def _on(ev):

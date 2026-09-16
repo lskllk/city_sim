@@ -410,7 +410,7 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"记忆: {item_id} 能解 {sig} → 去 {loc}",
-                    used_fact_ids=(), features={"driver": driver},
+                    features={"driver": driver},
                     relevant_signals=relevant)), eff
         if for_sale:                      # 在店里 → 付钱买(不再白拿)
             n = max(1, min(int(qty), MAX_BUY_QTY))   # 一次补到目标存量(且钱够)
@@ -419,19 +419,18 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
                 trace=DecisionTrace(
                     ranked=ranked,
                     reason=f"买 {item_id} ×{qty} (¥{row.price:g}, score={eff:.3f})",
-                    used_fact_ids=(), features={"driver": driver},
+                    features={"driver": driver},
                     relevant_signals=relevant)), eff
         return Interact(
             target_id=item_id,
             trace=DecisionTrace(
                 ranked=ranked,
                 reason=f"目标 {item_id} (score={eff:.3f})",
-                used_fact_ids=(), features={"driver": driver},
+                features={"driver": driver},
                 relevant_signals=relevant)), eff
     return Idle(
         trace=DecisionTrace(
             ranked=ranked,
             reason="信号充足或没有值得做的目标",
-            used_fact_ids=(),
             relevant_signals=relevant)), 0.0
 

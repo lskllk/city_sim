@@ -14,7 +14,6 @@ import json
 from citysim.core.config import load_config
 from citysim.core.types import Interact
 from citysim.gateway.scenarios import load_scene
-from citysim.world.world import Entity
 
 CFG = load_config("config/sim.toml")
 

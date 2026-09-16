@@ -49,6 +49,5 @@ def test_world_port_exposes_verbs_not_data() -> None:
     """端口只暴露动词; 不得出现把 world/entity 交出去的返回类型。"""
     hints = get_type_hints(ports.WorldPort.observe)
     assert hints["return"].__name__ == "Percept"
-    for name in ("try_move", "try_take", "try_buy", "release", "consume",
-                 "observe"):
+    for name in ("try_move", "try_take", "try_buy", "observe"):
         assert hasattr(ports.WorldPort, name), name

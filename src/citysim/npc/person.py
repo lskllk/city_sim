@@ -27,7 +27,6 @@ from citysim.core.types import (
     Idle,
     Interact,
     MoveTo,
-    PerceptionRecord,
     intent_kind,
     intent_target,
 )
@@ -102,7 +101,7 @@ class _ActiveGrant:
 # 视图/消耗纯函数(模块级, 供外部工具与测试用; 非 Person 私有)
 # ----------------------------------------------------------------------
 def signals_as_percent(signals: Mapping[str, float]) -> dict[str, int]:
-    """显示视图: 0..1 float → 0..100 int(永不进入存储路径)。"""
+    """显示视图: 0..1 float → 0..100 int(永不进入存储路径)。供 tools 用。"""
     return {k: round(_clamp(float(v)) * 100) for k, v in signals.items()}
 
 
@@ -169,7 +168,6 @@ class Person:
         self._work: dict = {}          # {company, shop, station} 被雇佣时绑定
         self._role: str = ""           # 雇佣后写上的角色(现在只做打工人 "worker")
         self._worked_ticks: int = 0    # 本期在岗 tick(工资按在岗时间算)
-        self._last_percept: "PerceptionRecord | None" = None
         self._mem = MemBase()
         self._perceived_loc: str = ""   # 最近一次感知到自己在哪(自身认知, 不长期维护坐标)
         self._schedule = Schedule()     # 当天计划表(空 = 纯需求驱动)
@@ -214,11 +212,6 @@ class Person:
         return self._age
 
     @property
-    def role(self) -> str:
-        """角色码(如 "worker"/"student"), 由场景写入 Identity.traits。"""
-        return str(self._identity.traits.get("role", ""))
-
-    @property
     def gender(self) -> str:
         """性别码("male"/"female"/""), 来自场景人设。"""
         return self._identity.gender
@@ -240,10 +233,6 @@ class Person:
     def signals(self) -> Mapping[str, float]:
         """只读视图(调用方要按名读信号用 signal() 更省)。"""
         return dict(self._signals)
-
-    @property
-    def personality(self) -> Mapping[str, float]:
-        return dict(self._personality)
 
     def signal(self, name: str) -> float:
         return self._signals.get(name, 1.0)
@@ -270,15 +259,6 @@ class Person:
         if signal in SIGNALS:
             self._signals[signal] = _clamp(self._signals.get(signal, 1.0) + delta)
 
-
-    def apply_metabolism(self, deltas: Mapping[str, float],
-                         activity_mul: Mapping[str, float] | None = None,
-                         rhythm_mul: Mapping[str, float] | None = None) -> None:
-        """一 tick 基础消耗(内部走模块 apply_metabolism + 自身 personality)。"""
-        apply_metabolism(self._signals, deltas,
-                         personality_mul=self._personality,
-                         activity_mul=activity_mul,
-                         rhythm_mul=rhythm_mul)
 
     def heartbeat(self, now_tick: int, cfg: "SimConfig", *,
                   sleep: bool | None = None, busy: bool = False) -> bool:
@@ -373,14 +353,22 @@ class Person:
         self._finished = []
         return out
 
+    def intake_progress(self, entity_id: str = "") -> tuple[int, int]:
+        """当前在消化那份的 (剩余, 总时长); 没在消化/不匹配 → (0, 0)。
+
+        WP-08 之后进度归 NPC(体内 _intake); 快照要显示进度条就取这里,
+        不要再去看 world 的 ActiveInteraction(那边已不存进度)。
+        """
+        for ag in self._intake:
+            if not entity_id or ag.grant.entity_id == entity_id:
+                return ag.remaining, ag.total
+        return 0, 0
+
     # ------------------------------------------------------------------
     # 状态写 —— 位置 / 活动 / 膀胱 / 钱
     # ------------------------------------------------------------------
     def set_activity(self, activity: str) -> None:
         self._current_activity = activity
-
-    def set_bladder_pending(self, v: float) -> None:
-        self._bladder_pending = max(0.0, float(v))
 
     def add_bladder_pending(self, delta: float) -> None:
         self._bladder_pending = max(0.0, self._bladder_pending + float(delta))
@@ -396,10 +384,6 @@ class Person:
         """进账(工资/卖货)。与 pay 对称 —— 只动自己的钱, 不做别的。"""
         if amount > 0:
             self._money += float(amount)
-
-
-    def set_home(self, home: str) -> None:
-        self._home = home
 
     # --- 语义层(M-S1): 攒“值得说的事”, 按优先级取 ---------------------
     def set_name_lookup(self, fn) -> None:
@@ -461,8 +445,6 @@ class Person:
             if abs(float(v.price) - float(row.price)) > 0.005:
                 was = semantic.money_word(row.price)
                 now = semantic.money_word(v.price)
-                inten = min(1.0, abs(v.price - row.price)
-                            / max(1.0, float(row.price)))
                 who = row.source
                 if who and who != self.person_id and not who.startswith("ad:"):
                     name = ""
@@ -471,16 +453,15 @@ class Person:
                     if name:
                         out.append(semantic.doubt(
                             tick, self.person_id, v.entity_id, v.name, name,
-                            was, now, fact=fact, source=who, intensity=inten))
+                            was, now, fact=fact, source=who))
                         continue
                 out.append(semantic.surprise(
                     tick, self.person_id, v.entity_id, v.name,
-                    was, now, fact=fact, intensity=inten))
+                    was, now, fact=fact))
             elif int(row.stock) > 0 and int(v.stock) == 0:
                 out.append(semantic.surprise(
                     tick, self.person_id, v.entity_id, v.name,
-                    "还有货", "卖光了", fact=dict(fact, stock=0),
-                    intensity=0.6))
+                    "还有货", "卖光了", fact=dict(fact, stock=0)))
         return out
 
     def _queue_intent_speech(self, tick: int, intent) -> None:
@@ -500,7 +481,7 @@ class Person:
         why = words[2] if feats.get("driver") == "future" else words[1]
         self._push_speech(semantic.intent(
             tick, self.person_id, goal, why,
-            topic=f"intent.{row.afford}", intensity=0.3))
+            topic=f"intent.{row.afford}"))
 
     # --- 气泡(显示态) --------------------------------------------------
     def set_bubble(self, text: str, until_tick: int, kind: str) -> None:
@@ -665,11 +646,6 @@ class Person:
             self._push_speech(ev)
         self._absorb_events(percept.events, tick)
         brain.perceive_into(self._mem, percept, tick)
-        self._last_percept = PerceptionRecord(
-            tick=tick, npc_id=self.person_id,
-            location_id=percept.location_id,
-            observed_entity_ids=tuple(sorted(v.entity_id
-                                             for v in percept.visible)))
 
     def _absorb_events(self, events, tick: int) -> None:
         """把 world 发来的事件吸收成自己的状态(WP-13: world 不再反写 NPC)。

@@ -4,7 +4,6 @@ world 只签发 `Grant`(一份可用之物), 信号怎么涨由 NPC 自己的身
 """
 from __future__ import annotations
 
-from pathlib import Path
 
 from citysim.core.config import load_config
 from citysim.core.types import Decision, Interact, MoveTo
@@ -139,3 +138,19 @@ def test_switching_target_drops_old_intake() -> None:
     npc._execute(port, Decision(Interact(target_id="a")), 0)
     npc._execute(port, Decision(Interact(target_id="b")), 0)   # 换目标
     assert [ag.grant.entity_id for ag in npc._intake] == ["b"]
+
+
+# --- 回归: 快照进度必须来自 NPC(WP-09 后 world 不再存进度) ------------------
+def test_snapshot_active_progress_follows_npc_intake() -> None:
+    from citysim.gateway.snapshot import _npc_core
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "meal", location="loc", tags=("edible", "consumable"),
+               affordances={"hunger": 0.5}, duration_ticks=10, stock=3)
+    npc = add_npc(w, s, "npc", location="loc", hunger=0.2)
+    npc.step(_port(w, s), CFG)                    # 开始吃
+    for _ in range(4):
+        npc.heartbeat(0, CFG)                     # 消化 4 tick
+    view = _npc_core(w, s, "npc", npc)
+    assert view["active"]["entity"] == "meal"
+    assert view["active"]["total"] == 10
+    assert view["active"]["remaining"] == 6       # 不能恒等于 total(旧 bug)

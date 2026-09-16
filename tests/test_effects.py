@@ -59,7 +59,7 @@ def test_add_signal_clamp_edges() -> None:
 
 def test_add_pending_ok_and_whitelist() -> None:
     w, npc, ent = _ctx()
-    npc.set_bladder_pending(0.1)
+    npc.add_bladder_pending(0.1)
     apply_effects(w, npc, ent, [{"op": "add_pending", "field": "bladder_pending",
                                  "amount": 0.3}])
     assert npc.bladder_pending == pytest.approx(0.4)

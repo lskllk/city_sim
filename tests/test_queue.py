@@ -52,7 +52,6 @@ def _load(tmp_path, data, counters: int = 1):
         st.set_signals(hunger=1.0, energy=1.0, bladder=1.0)
     if made:
         E.tick(w, s, CFG)                  # 热身一 tick: 店员先站上台(claim)
-    from citysim.world.companies import Company
     comp = w.companies["org_test"]
     comp.open_minute, comp.close_minute = 0, 1440
     for pid in list(w.npcs):
@@ -70,7 +69,6 @@ def _load(tmp_path, data, counters: int = 1):
 def test_one_counter_serves_one_per_tick(tmp_path) -> None:
     """1 个前台: 每个 tick 最多成交 1 份 —— 两个顾客不会同一 tick 都买到。"""
     w, s = _load(tmp_path, _scene(2), counters=1)
-    from citysim.core.types import Buy
     E.enqueue_buy(w, s, "npc_0", "shop", "food_apple_001", 1)
     E.enqueue_buy(w, s, "npc_1", "shop", "food_apple_001", 1)
     E.tick(w, s, CFG)

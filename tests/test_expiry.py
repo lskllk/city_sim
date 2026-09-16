@@ -38,8 +38,8 @@ def test_deliver_stamps_expiry() -> None:
                       affordances={"hunger": 0.5}, stock=50)
     shop.item_type = "meal_simple"
     shop.shelf_life_ticks = 1440
-    npc = add_npc(w, s, "npc", location="home")
-    npc.set_home("home")
+    npc = add_npc(w, s, "npc", location="home", home="home")
+
     w.clock_tick = 1000
     c = _deliver(w, "npc", npc, shop, 2, "home")
     assert c is not None
@@ -55,8 +55,8 @@ def test_merge_takes_earliest_expiry() -> None:
                       affordances={"hunger": 0.5}, stock=50)
     shop.item_type = "meal_simple"
     shop.shelf_life_ticks = 1440
-    npc = add_npc(w, s, "npc", location="home")
-    npc.set_home("home")
+    npc = add_npc(w, s, "npc", location="home", home="home")
+
     w.clock_tick = 0
     c1 = _deliver(w, "npc", npc, shop, 1, "home")
     assert c1.expires_tick == 1440
@@ -77,8 +77,8 @@ def test_food_spoils_and_emits_once() -> None:
     shop.shelf_life_ticks = 10                  # 让它很快坏
     add_entity(w, "bed", location="home", tags=("sleepable",),
                affordances={"energy": 0.7}, duration_ticks=100)
-    npc = add_npc(w, s, "npc", location="home", rng_pool=rng)
-    npc.set_home("home")
+    npc = add_npc(w, s, "npc", location="home", rng_pool=rng, home="home")
+
     c = _deliver(w, "npc", npc, shop, 3, "home")
     assert c.stock == 3
 

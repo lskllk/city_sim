@@ -90,7 +90,7 @@ def _tee_to_log_file() -> Path | None:
     return path
 
 
-LOG_PATH = _tee_to_log_file()
+_tee_to_log_file()
 
 
 def _real_tps(speed: str) -> int:

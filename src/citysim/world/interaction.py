@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from citysim.core.config import SIGNALS
 from citysim.core.types import Idle, Interact
 from citysim.npc.person import Person
-from citysim.world.effects import apply_effects
+from citysim.world.effects import apply_effects, compile_effects
 from citysim.world.world import Entity, World
 
 
@@ -19,6 +19,7 @@ class ActiveInteraction:
     entity_id: str
     remaining_ticks: int
     total_ticks: int
+    handle: str = ""          # world 签发的唯一持有凭证(WP-10: handle 不撞车)
 
 
 def _clamp(v: float) -> float:
@@ -33,6 +34,8 @@ class InteractionSystem:
         # 最近一次 submit 失败的原因(供 NPC 侧 on_failure 用)。
         # (reason, retry_ticks); 成功时不计。
         self.last_fail: tuple[str, int] = ("", 0)
+        # 唯一 handle 序号(确定性: 单线程递增)
+        self._seq: int = 0
 
     # --- 提交 ---------------------------------------------------------
     def submit(self, world: World, npc: Person, intent) -> bool:
@@ -80,14 +83,18 @@ class InteractionSystem:
 
         # 登记(rule 3)
         dur = max(1, ent.duration_ticks)
+        self._seq += 1
         self.active[pid] = ActiveInteraction(
             entity_id=tid, remaining_ticks=dur, total_ticks=dur,
+            handle=f"{tid}#{self._seq}",
         )
         ent.claimants.add(pid)
         npc.set_activity(ent.name)
-        # 数据化开始效果(M4): on_start(如 add_pending 膀胱负荷)在开始 tick 应用
-        if ent.on_start:
-            apply_effects(world, npc, ent, ent.on_start)
+        # on_start 的 NPC 侧效果改由 Person 应用(WP-10: 编译进 Grant.pending);
+        # world 侧 on_start(如 spawn_item)很少见, 这里不再处理。
+        _npc_start, _world_start = compile_effects(ent.on_start)
+        if _world_start:
+            apply_effects(world, npc, ent, _world_start)
         return True
 
     # --- 每 tick 推进 --------------------------------------------------
@@ -114,7 +121,7 @@ class InteractionSystem:
                aborted: bool = False) -> bool:
         """NPC 消化完毕(或 world 主动中止) → 收尾。校验“确实在持有”后才 _finalize。"""
         act = self.active.get(pid)
-        if act is None or act.entity_id != handle:
+        if act is None or act.handle != handle:
             return False
         ent = world.entities.get(act.entity_id)
         if ent is None:
@@ -153,9 +160,11 @@ class InteractionSystem:
         #    回收统一在第 5 步之后(事件先于回收, 观察者可按 tags 分类)
         if (ent.is_consumable and ent.stock > 0 and not _self_consumes(ent)):
             ent.stock -= 1
-        # 3. 数据化完成效果(M4 4.1): on_complete(consume_self 只扣库存, 不 pop)
+        # 3. 数据化完成效果(M4 4.1): 只应用【world 侧】op(spawn_item/consume_self);
+        #    NPC 侧(加信号等)已由 Person 在消化完成时应用自己那份(WP-10)。
         if ent.on_complete:
-            apply_effects(world, npc, ent, ent.on_complete)
+            _npc_done, world_o = compile_effects(ent.on_complete)
+            apply_effects(world, npc, ent, world_o)
 
         # 4. 完成 → idle(下一 tick 由 drive 自然重评)
         npc.set_activity("idle")

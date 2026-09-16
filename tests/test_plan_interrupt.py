@@ -76,7 +76,8 @@ def test_plan_deadline_aborts_and_fires_on_complete() -> None:
     evs = _events(s)
     assert any(k == "interaction_aborted" and p.get("entity") == "bench"
                for k, _, p in evs), "未见 interaction_aborted"
-    assert npc.signal("hunger") >= 0.6, "硬中止未触发 on_complete(+0.5)"
+    # WP-10/12: 硬中止 = 暂停(体内 intake 留着), 不再“中止也触发 on_complete”。
+    assert npc.signal("hunger") < 0.5, "中止不应触发 on_complete(旧契约已废)"
 
 
 

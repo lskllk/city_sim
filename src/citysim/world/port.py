@@ -13,6 +13,7 @@ from typing import Any
 from citysim.core.config import SimConfig
 from citysim.core.ports import Ack, Deny, Grant
 from citysim.core.types import Buy, Interact, Percept
+from citysim.world.effects import compile_effects
 from citysim.world.perception import build_percept
 from citysim.world.travel import Travel
 
@@ -147,10 +148,16 @@ class WorldPortImpl:
             return Deny(why or "提交失败", retry_ticks=retry)
         signal, value = (next(iter(ent.affordances.items()), ("", 0.0))
                          if ent is not None else ("", 0.0))
+        # WP-10: on_start / on_complete 的【NPC 侧】编译成结构化字段(NPC 不认识 op)
+        pending, _ = compile_effects(getattr(ent, "on_start", None))
+        on_done, _ = compile_effects(getattr(ent, "on_complete", None))
+        act = systems.interaction.active.get(pid)
         return Grant(
-            handle=entity_id, entity_id=entity_id,
+            handle=(act.handle if act is not None else entity_id),
+            entity_id=entity_id,
             signal=str(signal), value=float(value),
             duration_ticks=max(1, int(getattr(ent, "duration_ticks", 1) or 1)),
+            pending=pending, on_done=on_done,
             tags=tuple(getattr(ent, "tags", ()) or ()))
 
     # --- 购买(排队, 异步) -----------------------------------------

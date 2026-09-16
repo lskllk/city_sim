@@ -122,7 +122,7 @@ def test_eat_consumes_bed_does_not(tmp_path) -> None:
     assert _claim_all(w, s, meal.entity_id) == [True, True, True]
     # WP-09: 完成由 NPC 消化驱动(world 只收尾) —— 这里直接触发收尾, 测消耗账。
     for pid in ("a", "b", "c"):
-        s.interaction.finish(w, pid, meal.entity_id)
+        s.interaction.finish(w, pid, s.interaction.active[pid].handle)
     assert meal.stock == 0                       # 3 份被吃光
     assert meal.entity_id not in w.entities      # 空食物回收
     assert meal.claimants == set()
@@ -132,7 +132,7 @@ def test_eat_consumes_bed_does_not(tmp_path) -> None:
     bed.duration_ticks = 1
     assert _claim_all(w2, s2, bed.entity_id) == [True, True, True]
     for pid in ("a", "b", "c"):
-        s2.interaction.finish(w2, pid, bed.entity_id)
+        s2.interaction.finish(w2, pid, s2.interaction.active[pid].handle)
     assert bed.stock == 3                        # 床不消耗, 还是 3 张
     assert bed.entity_id in w2.entities
     assert bed.claimants == set()                # 但都醒了, 名额全空

@@ -62,5 +62,36 @@ def test_take_finished_is_destructive() -> None:
     npc = add_npc(w, s, "npc", location="loc", hunger=0.0)
     npc.step(_port(w, s), CFG)
     npc.heartbeat(0, CFG)
-    assert npc.take_finished() == ["meal"]
+    done = npc.take_finished()
+    assert len(done) == 1 and done[0].startswith("meal")   # handle 唯一(meal#N)
     assert npc.take_finished() == []              # 取走即清
+
+
+# --- WP-10: 效果边界(编译进 Grant, NPC 自己应用) --------------------------
+def test_on_done_effect_applied_by_npc() -> None:
+    """on_complete 的 NPC 侧效果(add_signal)由 Person 消化完成时应用。"""
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "bed", location="loc", tags=("sleepable",),
+               affordances={}, duration_ticks=2,
+               on_complete=[{"op": "add_signal", "signal": "energy",
+                             "delta": 1.0}])
+    npc = add_npc(w, s, "npc", location="loc", energy=0.2)
+    npc.intake_add(_port(w, s).try_take("npc", "bed"))   # 直接开始(床无 afford)
+    npc.heartbeat(0, CFG)
+    assert npc.signal("energy") < 1.0            # 还没完成
+    npc.heartbeat(0, CFG)                        # 第 2 tick → 完成
+    assert npc.signal("energy") == 1.0           # on_done 由 NPC 自己应用
+
+
+def test_on_start_pending_applied_by_npc_once() -> None:
+    """on_start 的 add_pending 编译成 Grant.pending, 开始时应用一次。"""
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "meal", location="loc", tags=("edible", "consumable"),
+               affordances={"hunger": 0.5}, duration_ticks=20)
+    w.entities["meal"].on_start = [{"op": "add_pending",
+                                    "field": "bladder_pending", "amount": 0.3}]
+    npc = add_npc(w, s, "npc", location="loc", hunger=0.2)
+    npc.step(_port(w, s), CFG)
+    assert npc.bladder_pending == 0.3            # 只应用一次
+    npc.heartbeat(0, CFG)
+    assert npc.bladder_pending < 0.3             # 开始转为膀胱

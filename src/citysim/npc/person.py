@@ -335,16 +335,31 @@ class Person:
             ag.remaining -= 1
             if ag.remaining <= 0:
                 self._intake.remove(ag)
+                self._apply_neutral(g.on_done)     # 完成效果(NPC 侧, WP-10)
                 self._finished.append(g.handle)
+
+    def _apply_neutral(self, effects) -> None:
+        """应用【结构化】NPC 侧效果(无 op 名; 见 world/effects.compile_effects)。
+
+        world 那边把 add_signal/set_signal/add_pending 编译成 {signal, add|set}
+        / {field, amount} —— 所以 npc/ 不认识 op 字符串。
+        """
+        for eff in effects:
+            if "signal" in eff:
+                s = str(eff["signal"])
+                if "set" in eff:
+                    self.set_signal(s, float(eff["set"]))
+                else:
+                    self.add_signal(s, float(eff.get("add", 0.0)))
+            elif eff.get("field") == "bladder_pending":
+                self.add_bladder_pending(float(eff.get("amount", 0.0)))
 
     def intake_add(self, grant: "Grant") -> None:
         """把 world 签发的 Grant 收进体内开始消化(+ 应用 on_start 结构化字段)。"""
+        if any(ag.grant.handle == grant.handle for ag in self._intake):
+            return                                 # 同一份已持有(handle 唯一)
         total = max(1, int(grant.duration_ticks))
-        # pending(如 bladder_pending) 是“开始那一刻”的效果 —— 立即应用。
-        for eff in grant.pending:
-            field = str(eff.get("field", ""))
-            if field == "bladder_pending":
-                self.add_bladder_pending(float(eff.get("amount", 0.0)))
+        self._apply_neutral(grant.pending)     # on_start(如 bladder_pending)
         self._intake.append(_ActiveGrant(grant=grant, total=total, remaining=total))
 
     def take_finished(self) -> list[str]:

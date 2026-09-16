@@ -723,23 +723,22 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
     if shop.stock != -1:
         shop.stock -= qty
     container = _deliver(world, pid, npc, shop, qty, home)
+    # WP-13: 送货信息随 `bought` 事件交回 NPC —— 由 NPC 自己写记忆,
+    # world 不再反写 NPC。(afford/value 必须带上: 否则他不知道家里这堆能吃。)
+    cafford, cvalue = (next(iter(container.affordances.items()), ("", 0.0))
+                       if container is not None else ("", 0.0))
     world.bus.publish(world.bus.make(
         world.clock_tick, "bought", pid,
         {"item": shop.entity_id, "qty": qty, "price": cost,
          "home": home, "money": round(npc.money, 2),
          "company": comp.company_id if comp else "",
-         "container": container.entity_id if container else ""}))
-    if container is not None:
-        # 送货进家: 写记忆时**必须带 afford/value** —— 否则他不知道家里
-        # 这堆东西能吃, 就永远不会回家吃(买了也饿死)。
-        cafford, cvalue = next(iter(container.affordances.items()), ("", 0.0))
-        npc.note(container.entity_id, tick=world.clock_tick,
-                 located=home, owner=pid, stock=container.stock,
-                 afford=cafford, value=float(cvalue),
-                 believe=1.0,                      # 自己买回来的 = 亲眼所见
-                 item_type=container.item_type, tags=container.tags, source="",
-                 shelf_life_ticks=int(container.shelf_life_ticks),
-                 expires_tick=int(container.expires_tick))
+         "container": container.entity_id if container else "",
+         "afford": cafford, "value": float(cvalue),
+         "stock": int(container.stock) if container is not None else 0,
+         "item_type": container.item_type if container is not None else "",
+         "tags": list(container.tags) if container is not None else [],
+         "shelf_life_ticks": int(container.shelf_life_ticks) if container else 0,
+         "expires_tick": int(container.expires_tick) if container else 0}))
     npc.on_interaction_done(intent.item_id, world.clock_tick)
 
 

@@ -663,12 +663,38 @@ class Person:
         self._perceived_loc = percept.location_id
         for ev in self._spot_surprises(percept, tick):
             self._push_speech(ev)
+        self._absorb_events(percept.events, tick)
         brain.perceive_into(self._mem, percept, tick)
         self._last_percept = PerceptionRecord(
             tick=tick, npc_id=self.person_id,
             location_id=percept.location_id,
             observed_entity_ids=tuple(sorted(v.entity_id
                                              for v in percept.visible)))
+
+    def _absorb_events(self, events, tick: int) -> None:
+        """把 world 发来的事件吸收成自己的状态(WP-13: world 不再反写 NPC)。
+
+        目前: `bought` → 把送货进家的容器写进记忆。afford/value 随事件带回,
+        所以 NPC 不需要当期看到家里。
+        """
+        for ev in events:
+            if ev.kind != "bought":
+                continue
+            p = ev.payload
+            cid = str(p.get("container", ""))
+            if not cid:
+                continue
+            self.note(
+                cid, tick=int(ev.tick),
+                located=str(p.get("home", "")), owner=self.person_id,
+                stock=int(p.get("stock", 1)),
+                afford=str(p.get("afford", "")),
+                value=float(p.get("value", 0.0)),
+                believe=1.0,                    # 自己买回来的 = 亲眼所见
+                item_type=str(p.get("item_type", "")),
+                tags=tuple(p.get("tags", ()) or ()), source="",
+                shelf_life_ticks=int(p.get("shelf_life_ticks", 0)),
+                expires_tick=int(p.get("expires_tick", 0)))
 
     def set_plan(self, entries: "Sequence[PlanEntry]") -> None:
         """装配: 灌入当天计划(LLM 产物)。覆盖旧计划与执行指针。"""

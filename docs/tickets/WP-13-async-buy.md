@@ -1,6 +1,6 @@
 # WP-13 异步 buy 通道（`bought` 事件 → NPC）
 
-- 状态：todo
+- 状态：done
 - 阶段：Step 3
 - 依赖：WP-06
 - 大小：M

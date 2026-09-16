@@ -48,3 +48,22 @@ def test_execute_handles_deny_by_updating_memory() -> None:
     row = next(r for r in npc.memory_dicts() if r["item_id"] == "meal")
     assert row["cool_until"] > 10                  # 冷却由 NPC 自己写
     assert "npc" not in s.interaction.active       # 没真的交互
+
+
+def test_absorb_bought_event_writes_container_memory() -> None:
+    """WP-13: 成交的送货信息经 `bought` 事件由 NPC 自己写进记忆(world 不再反写)。"""
+    from citysim.core.types import EventView, Percept
+
+    w, s, _ = make_runtime(CFG)
+    npc = add_npc(w, s, "npc", location="shop")
+    ev = EventView(event_id="e1", tick=42, kind="bought", payload={
+        "container": "meal_home", "home": "home", "afford": "hunger",
+        "value": 0.5, "stock": 3, "item_type": "meal_simple",
+        "tags": ["edible", "consumable"], "shelf_life_ticks": 1440,
+        "expires_tick": 0})
+    npc.perceive(Percept(tick=42, hour_f=12.0, location_id="shop",
+                         events=(ev,)), 42)
+    row = next(r for r in npc.memory_dicts() if r["item_id"] == "meal_home")
+    assert row["afford"] == "hunger" and row["value"] == 0.5
+    assert row["located"] == "home" and row["stock"] == 3
+    assert row["believe"] == 1.0

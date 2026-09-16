@@ -1041,10 +1041,13 @@ func _build_item(iid: String) -> void:
 	for pid in MapDoc.npcs:
 		_f_owner_ids.append(pid)
 		_f_owner.add_item(String(MapDoc.npcs[pid].get("name", pid)))
-	# 公司也可以当归属(店里的货/装修 → 就是这家公司的)
+	# 公司也可以当归属; 【本店那家】标出来(店里的货/装修本就是它的)
+	var bld_cid := String(MapDoc.company_for_shop(
+		MapDoc.building_of(String(it.get("at", "")))).get("id", ""))
 	for cid in MapDoc.companies:
 		_f_owner_ids.append(cid)
-		_f_owner.add_item("公司: %s" % String(MapDoc.companies[cid].get("name", cid)))
+		_f_owner.add_item(("本店公司: %s" if cid == bld_cid else "公司: %s")
+			% String(MapDoc.companies[cid].get("name", cid)))
 	_f_owner.selected = maxi(0, _f_owner_ids.find(String(it.get("owner", ""))))
 	sec.add_child(_lrow("归属", _f_owner))
 	_inspector.add_child(sec)

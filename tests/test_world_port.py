@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from citysim.core.config import load_config
+from citysim.core.ports import Deny, Grant
 from citysim.core.types import Percept
 from citysim.world.port import WorldPortImpl
 
@@ -55,3 +56,28 @@ def test_try_move_denied_by_capacity_leaves_npc_put() -> None:
     assert not ack.ok
     assert "b" not in s.travel
     assert w.loc_of("b") == "home"
+
+
+# --- try_take (WP-03) ------------------------------------------------------
+def test_try_take_free_item_returns_grant() -> None:
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "meal", location="loc", tags=("edible", "consumable"),
+               affordances={"hunger": 0.5}, duration_ticks=20)
+    add_npc(w, s, "npc", location="loc")
+    r = _port(w, s).try_take("npc", "meal")
+    assert isinstance(r, Grant)
+    assert (r.signal, r.value, r.duration_ticks) == ("hunger", 0.5, 20)
+    assert s.interaction.active["npc"].entity_id == "meal"
+
+
+def test_try_take_denied_for_unowned_priced_item() -> None:
+    """非授权人 + 在售 + 有主 → Deny(在售商品·需购买)。"""
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "meal", location="shop", tags=("edible", "consumable"),
+               affordances={"hunger": 0.5}, duration_ticks=20)
+    w.entities["meal"].price = 5.0
+    w.entities["meal"].owner = "org_test"
+    add_npc(w, s, "npc", location="shop")
+    r = _port(w, s).try_take("npc", "meal")
+    assert isinstance(r, Deny)
+    assert "在售" in r.reason

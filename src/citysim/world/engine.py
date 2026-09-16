@@ -783,27 +783,8 @@ def _apply(world, systems, cfg, pid, npc, decision) -> None:
         return
 
     if isinstance(intent, Interact):
-        tid = intent.target_id
-        # 防御: 在售商品不能拿 Interact “白拿” —— 得走 Buy 付钱。
-        # (模板计划器已不再挑它们; 但 ScriptedPlanner / LLM 计划可能写错。)
-        # ★ 例外(定死三条规则): 住所授权 / 公共无主 / 本公司店员 → 免费直接用,
-        #   不算“白拿”。否则才需要走 Buy 付钱。
-        ent = world.entities.get(tid)
-        if (ent is not None and ent.price > 0 and ent.owner != pid
-                and not world.free_use(ent, pid)):
-            why = "在售商品·需购买"
-            world.bus.publish(world.bus.make(
-                world.clock_tick, "intent_failed", pid,
-                {"target": tid, "why": why}))
-            npc.on_failure(tid, why, world.clock_tick)
-            return
-        if active is not None and active.entity_id == tid:
-            return                                   # 继续当前交互
-        if active is not None:
-            if not _can_preempt(world, systems, pid):
-                return
-            _preempt(world, systems, pid)
-        systems.interaction.submit(world, npc, intent)
+        # WP-03: 整段校验/claim 逻辑搬去 world/port.py::WorldPortImpl.try_take
+        WorldPortImpl(world, systems, cfg).try_take(pid, intent.target_id)
         return
 
     # Idle: 不主动释放(由 Person 决定何时结束); 仅空转

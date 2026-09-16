@@ -12,7 +12,7 @@ from typing import Any
 
 from citysim.core.config import SimConfig
 from citysim.core.ports import Ack, Deny, Grant
-from citysim.core.types import Percept
+from citysim.core.types import Interact, Percept
 from citysim.world.perception import build_percept
 from citysim.world.travel import Travel
 
@@ -111,3 +111,41 @@ class WorldPortImpl:
             arrive_tick=world.clock_tick + cost,
             waypoints=wps)
         return Ack()
+
+    # --- 免费使用(吃/睡/上厕所/自家物品) -------------------------
+    def try_take(self, pid: str, entity_id: str) -> "Grant | Deny":
+        """搬自 engine._apply 的 Interact 分支。
+
+        本票只搬【校验 + claim】, 返回 Grant(handle=entity_id, 数据从 affordances 取,
+        pending/on_done 留空)。信号仍由 InteractionSystem.step 应用(WP-08 才搬)。
+        """
+        world, systems = self.world, self.systems
+        npc = world.npcs.get(pid)
+        if npc is None:
+            return Deny("人不存在")
+        ent = world.entities.get(entity_id)
+        # 防御: 在售商品不能拿 Interact “白拿”(例外: 住所授权/公共无主/本公司店员)
+        if (ent is not None and ent.price > 0 and ent.owner != pid
+                and not world.free_use(ent, pid)):
+            why = "在售商品·需购买"
+            world.bus.publish(world.bus.make(
+                world.clock_tick, "intent_failed", pid,
+                {"target": entity_id, "why": why}))
+            npc.on_failure(entity_id, why, world.clock_tick)
+            return Deny(why)
+        active = systems.interaction.active.get(pid)
+        if active is not None and active.entity_id != entity_id:
+            if not can_preempt(world, systems, pid):
+                return Deny("当前交互不可打断")
+            preempt(world, systems, pid)
+        ok = systems.interaction.submit(world, npc, Interact(target_id=entity_id))
+        if not ok:
+            # submit 内部已发 intent_failed + on_failure
+            return Deny("提交失败")
+        signal, value = (next(iter(ent.affordances.items()), ("", 0.0))
+                         if ent is not None else ("", 0.0))
+        return Grant(
+            handle=entity_id, entity_id=entity_id,
+            signal=str(signal), value=float(value),
+            duration_ticks=max(1, int(getattr(ent, "duration_ticks", 1) or 1)),
+            tags=tuple(getattr(ent, "tags", ()) or ()))

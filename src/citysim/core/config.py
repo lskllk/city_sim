@@ -46,6 +46,9 @@ class SimConfig:
     hp_decay: float = 0.0005        # 饥饿/精力归零时 hp 每 tick 下降
     hp_regen: float = 0.0005        # 两者都满足到阀值时 hp 回升最大速率(×均值)
     hp_regen_floor: float = 0.5     # “吃饱/睡够”的阀值(中间带下界)
+    # 饥饿/精力归零【宽限】多久 hp 才掉: 3 天连续不吃不睡才掉命
+    # (归零不立刻掉血; 中间只要恢复就不掉)。
+    hp_starve_grace_ticks: float = 4320.0
     # hp 低于此 → 日程失去拉力(命比钱大): 计划不执行、也让位给需求
     hp_override: float = 0.5
     # —— 成本模型(比价 / 比距离 / 顺路) ——
@@ -122,8 +125,9 @@ class SimConfig:
         full_meta = {s: float(meta.get(s, 0.0)) for s in SIGNALS}
         health = data.get("health", {})
         util = data.get("utility", {})
+        tpd = int(data["time"]["ticks_per_day"])
         return cls(
-            ticks_per_day=int(data["time"]["ticks_per_day"]),
+            ticks_per_day=tpd,
             metabolism=full_meta,
             bladder_convert=float(data["bladder"]["convert_per_tick"]),
             half_life_ticks=int(data.get("knowledge", {}).get("half_life_ticks", 2880)),
@@ -136,6 +140,8 @@ class SimConfig:
             hp_decay=float(health.get("hp_decay", health.get("decay", 0.0005))),
             hp_regen=float(health.get("hp_regen", health.get("regen", 0.0005))),
             hp_regen_floor=float(health.get("hp_regen_floor", 0.5)),
+            hp_starve_grace_ticks=float(
+                health.get("starve_grace_days", 3.0)) * tpd,
             hp_override=float(health.get("hp_override", 0.5)),
             cost_lambda=float(util.get("cost_lambda", 0.02)),
             travel_penalty=float(util.get("travel_penalty", 2.0)),

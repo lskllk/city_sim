@@ -83,11 +83,13 @@ move_ticks = 30                # ⚠ 基本【不生效】: 只兜底"travel 矩
 move_m_per_tick = 10.0         # 有路网时: 每 tick 可走米数(等价编辑器 travel 降级的 距离/10)
 
 [health]                       # 生命【三态】
-#   ↓  hunger==0 或 energy==0
-#   ↑  hunger ≥ hp_regen_floor 且 energy ≥ hp_regen_floor
-#   不动  中间带(否则咬一口饭 hp 就开始涨 => “饿死”永远发生不了)
+#   ↓   hunger==0 或 energy==0 【连续满 starve_grace_days 天】
+#   ↑   hunger ≥ hp_regen_floor 且 energy ≥ hp_regen_floor
+#   不动  中间带 + 宽限期(否则咬一口饭 hp 就开始涨 => “饿死”永远发生不了)
 # 注: bladder 不参与 hp(憋不住不致命)。
-hp_decay = 0.00034722222222222222        # 1/2880: 归零后约 2 天掉光 hp
+# 注: 归零【不立刻掉命】: 得连续 3 天不吃不睡 hp 才开始掉(中间恢复就不掉)。
+starve_grace_days = 3.0
+hp_decay = 0.00034722222222222222        # 1/2880: 宽限期过后约 2 天掉光 hp
 hp_regen = 0.00034722222222222222        # 回升最大速率(× 饱食/精力的均值)
 hp_regen_floor = 0.5                     # “吃饱/睡够”的阀值
 hp_override = 0.5                        # hp 低于此 → 日程失去拉力(命比钱大)

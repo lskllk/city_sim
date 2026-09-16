@@ -161,6 +161,7 @@ class Person:
         self._money: float = money
         self._age: int | None = self._age_from_birthday(0)   # 每天 on_day 重算
         self._bladder_pending: float = 0.0
+        self._starve_ticks: int = 0    # 连续 (hunger==0 或 energy==0) 的 tick 数(宽限用)
         self._last_intent: "Intent | None" = None
         # 对【店铺】的好感度(0..2, 中性 1.0)。不记的店 = 中性。
         # 它是慢变量: 交易顺利慢慢涨、被怠慢/买到坏货掉得多、随时间回到中性。
@@ -285,19 +286,22 @@ class Person:
                          personality_mul=self._personality,
                          activity_mul=amul or None,
                          rhythm_mul=rmul)
-        # hp 三态(plan.md §3.7):
-        #   0 或 energy == 0 → 降;  两者都 ≥ floor → 升;  中间带 → 不动
+        # hp 三态(plan.md §3.7) + 【饥饿宽限】:
+        #   · 归零不立刻掉命: 连续 (hunger==0 或 energy==0) 满 grace 天才开始掉;
+        #   · 两者都 ≥ floor → 升;  中间带/宽限期 → 不动。
         # 注: bladder 不参与(憋不住不致命)。
         hunger = self._signals.get("hunger", 1.0)
         energy = self._signals.get("energy", 1.0)
         hp = self._signals.get("hp", 1.0)
         floor = cfg.hp_regen_floor
-        if hunger <= 0.0 or energy <= 0.0:
+        starving = hunger <= 0.0 or energy <= 0.0
+        self._starve_ticks = self._starve_ticks + 1 if starving else 0
+        if starving and self._starve_ticks >= cfg.hp_starve_grace_ticks:
             self._signals["hp"] = max(0.0, hp - cfg.hp_decay)
         elif hunger >= floor and energy >= floor:
             rate = (hunger + energy) / 2.0
             self._signals["hp"] = min(1.0, hp + cfg.hp_regen * rate)
-        # else: 中间带 —— 不动
+        # else: 中间带 / 宽限期 —— 不动
         if self._signals.get("hp", 1.0) <= 0.0:
             return False
         # 排泄: pending → 膀胱

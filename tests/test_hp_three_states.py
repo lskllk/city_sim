@@ -1,8 +1,8 @@
-"""hp 三态 + hp_override(docs/design.md §2)。
+"""hp 三态 + 饥饿宽限 + hp_override(docs/design.md §2)。
 
-    下降   hunger == 0  或  energy == 0
+    下降   hunger == 0 或 energy == 0 【连续满 starve_grace_days 天】
     上升   hunger ≥ hp_regen_floor 且 energy ≥ hp_regen_floor
-    不动   其他(中间带 —— 否则咬一口饭 hp 就开始涨, “饿死”永远发生不了)
+    不动   其他(中间带 + 宽限期 —— 归零不立刻掉命)
     不参与 bladder
 
     hp < hp_override → 日程失去拉力(命比钱大): 计划不执行。
@@ -24,17 +24,51 @@ CFG = load_config(ROOT / "config" / "sim.toml")
 # ---------------------------------------------------------------------------
 # 三态
 # ---------------------------------------------------------------------------
-def test_starving_drops_hp() -> None:
+def test_starving_does_not_drop_hp_immediately() -> None:
+    """饥饿归零【不立刻掉命】—— 宽限期内 hp 不动。"""
     w, s, _ = make_runtime(CFG)
     npc = add_npc(w, s, "n", hunger=0.0, energy=1.0, hp=0.8)
     npc.heartbeat(0, CFG)
+    assert npc.signal("hp") == 0.8
+
+
+def test_starving_drops_hp_after_grace() -> None:
+    """连续 hunger==0 满 starve_grace_days 天 → hp 才开始掉。"""
+    w, s, _ = make_runtime(CFG)
+    npc = add_npc(w, s, "n", hunger=0.0, energy=1.0, hp=0.8)
+    grace = int(CFG.hp_starve_grace_ticks)
+    for _ in range(grace - 1):
+        npc.heartbeat(0, CFG)
+    assert npc.signal("hp") == 0.8            # 还差一 tick, 不掉
+    npc.heartbeat(0, CFG)                      # 满宽限 → 开始掉
     assert npc.signal("hp") < 0.8
 
 
-def test_exhausted_drops_hp() -> None:
+def test_recovering_resets_the_grace() -> None:
+    """中间恢复就不掉: 计数器重置, 重新开始算。"""
+    w, s, _ = make_runtime(CFG)
+    npc = add_npc(w, s, "n", hunger=0.0, energy=1.0, hp=0.8)
+    for _ in range(1000):
+        npc.heartbeat(0, CFG)
+    npc.set_signal("hunger", 1.0)
+    npc.heartbeat(0, CFG)
+    assert npc._starve_ticks == 0
+    hp_after = npc.signal("hp")
+    npc.set_signal("hunger", 0.0)
+    for _ in range(1000):
+        npc.heartbeat(0, CFG)
+    assert npc.signal("hp") >= hp_after        # 重新计时, 还没到宽限 → 不掉
+
+
+def test_exhausted_drops_hp_after_grace() -> None:
+    """energy==0 同理: 宽限期内不掉。"""
     w, s, _ = make_runtime(CFG)
     npc = add_npc(w, s, "n", hunger=1.0, energy=0.0, hp=0.8)
     npc.heartbeat(0, CFG)
+    assert npc.signal("hp") == 0.8
+    for _ in range(int(CFG.hp_starve_grace_ticks)):
+        npc.heartbeat(0, CFG)
+        npc.set_signal("energy", 0.0)         # 保持归零
     assert npc.signal("hp") < 0.8
 
 

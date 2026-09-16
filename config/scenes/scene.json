@@ -3,6 +3,23 @@
     "h": 600.0,
     "w": 800.0
   },
+  "companies": [
+    {
+      "cash": 1000.0,
+      "close": "19:00",
+      "hiring_slots": 1,
+      "id": "org_bld_004",
+      "name": "11",
+      "open": "08:00",
+      "shops": [
+        "bld_004"
+      ],
+      "staff": [
+        "npc_sun_yan"
+      ],
+      "wage_per_hour": 10.0
+    }
+  ],
   "display_name": "scene",
   "entities": [
     {

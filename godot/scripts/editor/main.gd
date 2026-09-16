@@ -439,13 +439,13 @@ func _header_row(text: String) -> Label:
 ##   home : 住的人 + 家里的东西都要编 → 基本/楼层/权限/人员/物件
 ##   其它  : 编辑器只管"这栋楼是什么、几层、谁能进" → 基本/楼层/权限
 ##
-## 商铺: 编辑器可编【经营·公司】(注册公司 + 勾选员工 → 无头跑也生效);
-## 里面摆什么(销售前台/货架)仍归游戏内经营, 不在这里编。
+## 商铺: “基本/楼层/权限” + 【经营·公司】(注册公司 + 勾选员工 → 无头跑也生效)
+##       + 【物件】= 初始货物(meal/梨等) + 装修(销售前台/货架等 fixture)。
 ## (认知注入本质也是经营, 代码留在 _sec_knowledge; 想让某类建筑重新显示,
 ##  在本表里写上 "knowledge" 即可。)
 const BLD_SECTIONS := {
 	"home": ["basic", "floors", "access", "people", "items"],
-	"shop": ["basic", "floors", "access", "company"],
+	"shop": ["basic", "floors", "access", "company", "items"],
 	"_default": ["basic", "floors", "access"],
 }
 

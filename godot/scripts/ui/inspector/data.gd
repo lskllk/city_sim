@@ -5,7 +5,7 @@
 class_name InspData
 extends RefCounted
 
-const SIGNAL_ORDER := ["energy", "hunger", "bladder", "hp"]
+const SIGNAL_ORDER := ["energy", "hunger", "bladder", "fun", "hp"]
 
 
 static func activity_text(n: Dictionary) -> String:
@@ -23,8 +23,22 @@ static func activity_text(n: Dictionary) -> String:
 			return "上厕所"
 		"work":
 			return "上班"
+		"wander":
+			return "闲逛"
 		_:
 			return "空闲"
+
+
+static func intent_text(n: Dictionary) -> String:
+	"""把 last_intent 翻译成人话(向后端 intent 契约对齐)。"""
+	var it := Protocol.as_dict(n.get("intent", {}))
+	var kind := Protocol.s(it.get("kind", ""))
+	var target := Protocol.s(it.get("target", ""))
+	if target == "":
+		return Zh.action_text(kind, "")
+	var e := Store.entity(target)
+	var itype := Protocol.s(e.get("item_type", "")) if not e.is_empty() else ""
+	return Zh.action_text(kind, Store.name_of(target), itype)
 
 
 static func act_with(prefix: String, act: String) -> String:

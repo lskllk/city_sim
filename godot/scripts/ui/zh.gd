@@ -6,7 +6,7 @@ extends RefCounted
 
 const SIGNAL := {
 	"energy": "精力", "hunger": "饥饿",
-	"bladder": "如厕", "hp": "生命",
+	"bladder": "如厕", "hp": "生命", "fun": "娱乐",
 }
 
 const ROOM_KIND := {
@@ -107,6 +107,8 @@ static func action_text(intent: String, target_name: String,
 			if item_type.begins_with("station"):
 				return "上班"
 			return "%s %s" % [verb_zh(item_type), target_name]
+		"wander":
+			return "闲逛" if target_name == "" else "闲逛 %s" % target_name
 		"idle", "":
 			return "空闲"
 		_:

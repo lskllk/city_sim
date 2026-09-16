@@ -24,11 +24,7 @@ from citysim.world.drive import due_npcs
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.pulses import apply as apply_pulses
 from citysim.world.perception import build_percept
-from citysim.world.port import (
-    WorldPortImpl,
-    can_preempt as _can_preempt,
-    preempt as _preempt,
-)
+from citysim.world.port import WorldPortImpl
 from citysim.world.world import entity_from_def
 
 
@@ -758,28 +754,17 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
 
 
 def _apply(world, systems, cfg, pid, npc, decision) -> None:
-    """执行一条 Decision: 继续(同目标)/挂起/中止/提交。"""
+    """[过渡] 执行一条 Decision —— 各分支已搬去 world/port.py(WP-06 整体删除)。"""
     intent = decision.intent
-    active = systems.interaction.active.get(pid)
 
     if isinstance(intent, MoveTo):
         # WP-02: 整段逻辑搬去 world/port.py::WorldPortImpl.try_move
         WorldPortImpl(world, systems, cfg).try_move(pid, intent.dest)
         return
     if isinstance(intent, Buy):
-        # ★ 交易不再是"点一下就成交": 到店 → 排队 → 柜台一份一份地卖。
-        #   一个前台同时只服务 1 人(多的排后面), 两条前台就是两条队;
-        #   没开门/没前台/柜台没人 → 服务不了(等不住就走, 记一次白跑)。
-        shop = world.entities.get(intent.item_id)
-        if shop is None or shop.location_id != world.loc_of(pid):
-            _execute_buy(world, systems, cfg, pid, npc, intent)   # 兜底: 不在店里的异常情形
-            return
-        if active is not None:
-            _preempt(world, systems, pid)
-        enqueue_buy(world, systems, pid, shop.location_id,
-                    intent.item_id, int(getattr(intent, "qty", 1)))
-        _set_bubble(systems, npc, "老板，来 %d 份" % max(1, int(getattr(intent, "qty", 1))),
-                    "queue", world.clock_tick)
+        # WP-04: 整段逻辑搬去 world/port.py::WorldPortImpl.try_buy
+        WorldPortImpl(world, systems, cfg).try_buy(
+            pid, intent.item_id, int(getattr(intent, "qty", 1)))
         return
 
     if isinstance(intent, Interact):

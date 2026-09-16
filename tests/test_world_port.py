@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from citysim.core.config import load_config
-from citysim.core.ports import Deny, Grant
+from citysim.core.ports import Ack, Deny, Grant
 from citysim.core.types import Percept
 from citysim.world.port import WorldPortImpl
 
@@ -81,3 +81,19 @@ def test_try_take_denied_for_unowned_priced_item() -> None:
     r = _port(w, s).try_take("npc", "meal")
     assert isinstance(r, Deny)
     assert "在售" in r.reason
+
+
+# --- try_buy (WP-04) -------------------------------------------------------
+def test_try_buy_enqueues_not_settles() -> None:
+    """买是异步的: try_buy ok=True 只表示【已入队】, 货没扣。"""
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "shop", location="town", tags=("building",), affordances={})
+    add_entity(w, "meal", location="shop", tags=("edible", "consumable"),
+               affordances={"hunger": 0.5}, duration_ticks=20, stock=10)
+    w.entities["meal"].price = 5.0
+    register_company(w, ["shop"])
+    add_npc(w, s, "npc", location="shop", money=100.0)
+    ack = _port(w, s).try_buy("npc", "meal", 2)
+    assert isinstance(ack, Ack) and ack.ok
+    assert s.queued.get("npc") == "shop"        # 入队了
+    assert w.entities["meal"].stock == 10       # 还没扣货(异步)

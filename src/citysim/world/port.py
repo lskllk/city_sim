@@ -12,7 +12,7 @@ from typing import Any
 
 from citysim.core.config import SimConfig
 from citysim.core.ports import Ack, Deny, Grant
-from citysim.core.types import Interact, Percept
+from citysim.core.types import Buy, Interact, Percept
 from citysim.world.perception import build_percept
 from citysim.world.travel import Travel
 
@@ -149,3 +149,26 @@ class WorldPortImpl:
             signal=str(signal), value=float(value),
             duration_ticks=max(1, int(getattr(ent, "duration_ticks", 1) or 1)),
             tags=tuple(getattr(ent, "tags", ()) or ()))
+
+    # --- 购买(排队, 异步) -----------------------------------------
+    def try_buy(self, pid: str, item_id: str, qty: int) -> Ack:
+        """搬自 engine._apply 的 Buy 分支。★ 异步: ok=True 只表示【已入队】。"""
+        world, systems = self.world, self.systems
+        npc = world.npcs.get(pid)
+        if npc is None:
+            return Ack(ok=False, reason="人不存在")
+        # 延迟 import: 买卖/排队的 world 侧实现暂在 engine(避免 engine ⇄ port 顶层环)。
+        # TODO(WP-16): shop/queue 逻辑抽到 world/shop.py 后改为顶层 import。
+        from citysim.world.engine import _execute_buy, _set_bubble, enqueue_buy
+        qty = max(1, int(qty))
+        shop = world.entities.get(item_id)
+        if shop is None or shop.location_id != world.loc_of(pid):
+            # 兜底: 不在店里的异常情形 → 直接走成交(可能失败并记入 on_failure)
+            _execute_buy(world, systems, self.cfg, pid, npc,
+                         Buy(item_id=item_id, qty=qty))
+            return Ack(ok=False, reason="不在店里·走兜底成交")
+        if systems.interaction.active.get(pid) is not None:
+            preempt(world, systems, pid)
+        enqueue_buy(world, systems, pid, shop.location_id, item_id, qty)
+        _set_bubble(systems, npc, "老板, 来 %d 份" % qty, "queue", world.clock_tick)
+        return Ack(ok=True, reason="queued")

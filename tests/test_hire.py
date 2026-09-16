@@ -5,7 +5,7 @@
   · 启事上写着这次招几个、时薪多少(时薪在招聘时确定, 之后按在岗小时结算)
   · NPC 有意愿才可能被匹配(没角色 = 意愿 1.0; 已有工作 = 0)
   · 媒婆只撮合, 名额/时薪都由公司给
-  · 招到: 写角色 + 绑定销售台 + 记进员工 + 写一份【上班计划表】(daily, 只写一次)
+  · 招到: 写角色 + 绑定销售台 + 记进员工(守台由班次闸门驱动; 计划表从 work 派生)
 """
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def test_notice_hires_only_the_posted_number(tmp_path) -> None:
 
 
 def test_hired_npc_gets_role_work_and_daily_plan(tmp_path) -> None:
-    """被招到的人: 角色 + 工位绑定 + 上班计划表(daily, 写一次天天生效)。"""
+    """被招到的人: 角色 + 工位绑定 + 计划时间线上能看到上班块(从 work 派生)。"""
     w, s = _load(tmp_path, _scene(1), counters=1, hiring_slots=1)
     hired = E.hire_at(w, s, CFG)
     assert len(hired) == 1

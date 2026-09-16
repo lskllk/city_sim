@@ -635,13 +635,35 @@ class Person:
         """删除一条记忆(物品已不存在/已交出/已消耗)。"""
         self._mem.delete(item_id)
 
-    def plan_snapshot(self) -> list[dict]:
-        """观测: 当天计划表只读快照(供前端时间线渲染)。"""
-        return [{
+    def plan_snapshot(self, now_tick: int = 0) -> list[dict]:
+        """观测: 计划表只读快照(供前端时间线渲染)。
+
+        含两部分:
+          · 真实日程表(_schedule, 计划器/脚本写的);
+          · 【上班】—— 从 self._work 派生, 不入计划表。
+            这样 0:00 计划器 set_plan([]) 冲不掉它(以前就被冲掉 → 时间线空)。
+        """
+        out = [{
             "id": e.entry_id, "at_tick": e.at_tick, "status": e.status,
             "intent": intent_kind(e.intent),
             "target": intent_target(e.intent) or "",
         } for e in self._schedule.entries()]
+        if self._work and self._work.get("station"):
+            minute = int(now_tick) % 1440
+            day_start = int(now_tick) - minute
+            open_m = int(self._work.get("open", 0))
+            close_m = int(self._work.get("close", 1440))
+            on = open_m <= minute < close_m
+            at = day_start + open_m
+            out.append({"id": "work_go", "at_tick": at,
+                        "status": "done" if on else "pending",
+                        "intent": "move_to",
+                        "target": str(self._work.get("shop", ""))})
+            out.append({"id": "work_stand", "at_tick": at,
+                        "status": "active" if on else "pending",
+                        "intent": "interact",
+                        "target": str(self._work.get("station", ""))})
+        return out
 
     def perceive(self, percept: "Percept", tick: int) -> None:
         """现场 → 记忆(写入)。非纯函数。感知即知道自己当前在哪。
@@ -719,15 +741,16 @@ class Person:
                      只影响【计划条目】的到期推进, 不影响需求目标。
         """
         self._schedule.roll_day(now_tick, cfg.ticks_per_day)
-        # ★ 上班是【唯一能打断当前动作的东西】(不管在做什么, 开始上班就决策)。
-        #   班次内工作就是绑住的; 只有强需求掉到线下(hunger/energy/bladder)
-        #   才允许从工作台上下来(见 _need_to_leave_work)。
-        if self._on_shift(now_tick, cfg) and not self._need_to_leave_work(cfg):
-            plan = self._plan_intent(now_tick, cfg)
-            if plan is not None:
-                if self._goal is not None and self._goal.source == "need":
-                    self._goal = None       # 需求目标让位; 计划条不丢
-                return self._record(Decision(plan, "plan"))
+        # ★ 上班是【唯一能打断当前动作的东西】。
+        #   · 班次内默认守台(plan_intent);
+        #   · 只有强需求(hunger/energy/bladder < floor)才允许离岗;
+        #   · 但【需求目标进行中】不打断(做完再回岗) —— 否则会停在 0.35 上下反复。
+        on_shift = self._on_shift(now_tick, cfg)
+        plan = self._plan_intent(now_tick, cfg) if on_shift else None
+        need_goal = self._goal is not None and self._goal.source == "need"
+        if (plan is not None and not need_goal
+                and not self._need_to_leave_work(cfg)):
+            return self._record(Decision(plan, "plan"))
         while True:
             # 1) 手上有事 → 【做完再决策】: 不重算, 不被打断(只有上面的 PLAN 能)。
             #    空闲时才每 tick 决策。
@@ -751,8 +774,11 @@ class Person:
                 self._queue_intent_speech(now_tick, cand)   # 语义层: “我去买点吃的”
                 continue
 
-            # 3) 没事可做 → 看日程(承诺/模板计划)
-            #    但 hp 见底时【不给日程】: 计划暂时挂起(不提交也不丢弃),
+            # 3) 没事可做。
+            #    ★ 在班但没需求可做 → 回岗守台(绝不能掉 idle: 否则跑出“上班却空闲”)
+            if plan is not None:
+                return self._record(Decision(plan, "plan"))
+            #    hp 见底时【不给日程】: 计划暂时挂起(不提交也不丢弃),
             #    等 hp 回来再接着走 —— 否则会“放弃→重新选中→再放弃”转圈。
             if self._hp_low(cfg):
                 return self._record(Decision(Idle(), "idle"))

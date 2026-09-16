@@ -97,18 +97,12 @@ def add_counter(world: World, shop_id: str, n: int = 1) -> list:
 
 def staff_counter(world: World, systems, npc_id: str, shop_id: str,
                   counter_id: str, company_id: str = "org_test") -> None:
-    """把一个员工【安排到台前】(测试用): 绑定工位 + 登记"正在守台"。
+    """把一个员工【安排到台前】(测试用): 绑定工位 + 放进店里。
 
-    对应世界里的真实路径: 被雇佣 → 按 PLAN 走到店里 → 与前台交互(claim)。
-    测试里直接落状态, 省掉走路与排队。
+    对应世界里的真实路径: 被雇佣 → 班次闸门把他钉在工位上。
+    测试里直接落状态, 省掉走路与排队(全天班: 0..1440)。
     """
-    from citysim.core.types import Interact
-    from citysim.npc.schedule import PlanEntry
     npc = world.npcs[npc_id]
     npc.set_work(company_id, shop_id, counter_id)
     npc.set_role("worker")
     world.place_npc(npc_id, shop_id)
-    # 走上真实路径: 给他一份【daily 上班计划表】——守台(和雇佣时写的一样),
-    # 于是 "站上去就绑定住" 的强制约束才生效(裸塞 active 是撑不住的)。
-    npc.set_plan([PlanEntry("stand", 0, Interact(target_id=counter_id),
-                            daily=True)])

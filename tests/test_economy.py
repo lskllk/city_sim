@@ -83,8 +83,7 @@ def test_shop_without_company_cannot_sell(tmp_path) -> None:
 def _employ_one(w, s, wage: float = 60.0) -> None:
     """走【真实路径】雇一个人: 摆前台 → 公司发布启事 → 媒婆撮合。
 
-    这样他拿到的就是引擎写的那份 daily 上班计划表(而不是测试硬塞的),
-    "站上去就绑定住"的强制约束才成立。
+    这样他就被引擎的【班次闸门】钉在工位上(而不是测试硬塞 active), "站上去就绑定住"才成立。
     """
     from helpers import add_counter
     comp = w.companies["org_a"]

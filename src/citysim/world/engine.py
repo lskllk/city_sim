@@ -15,8 +15,6 @@ from citysim.core.config import SimConfig
 from citysim.core.types import (
     Buy,
     Idle,
-    Interact,
-    MoveTo,
     intent_kind,
     intent_target,
 )
@@ -343,8 +341,8 @@ def hire_at(world, systems, cfg: SimConfig) -> list[dict]:
       · 媒婆只做撮合: 名额、时薪都由公司给, 这边一个都不自己加。
 
     匹配规则先按【随机】(架构留好: 以后换成熟练度/距离/工资竞争力都在这一个
-    函数里)。被招到: 写角色 + 绑定销售台 + 记进公司员工 + 写一份上班计划表
-    (daily: 每天重复 → 只在应聘/离职那天改一次)。
+    函数里)。被招到: 写角色 + 绑定销售台 + 记进公司员工(守台由【班次闸门】驱动,
+    不写进计划表 —— 见 Person.decide / plan_snapshot)。
     """
     hired: list[dict] = []
     rng = getattr(systems, "rng", None)
@@ -373,7 +371,6 @@ def hire_at(world, systems, cfg: SimConfig) -> list[dict]:
                          wage_per_hour=comp.wage_per_hour)
             npc.set_role("worker")
             staff.append((pick, float(comp.wage_per_hour)))
-            _write_work_plan(world, cfg, npc, comp, shop_id, counter.entity_id)
             got += 1
             hired.append({"company": cid, "npc": pick, "shop": shop_id,
                           "station": counter.entity_id})
@@ -389,31 +386,12 @@ def hire_at(world, systems, cfg: SimConfig) -> list[dict]:
     return hired
 
 
-def _write_work_plan(world, cfg: SimConfig, npc, comp, shop_id: str,
-                     station_id: str) -> None:
-    """上班计划表(只在应聘/离职时写一次):
-
-        <开门时刻> 去公司  →  <开门时刻> 守台
-    两条都是 daily(每天重复) → 跨天由 Schedule.roll_day 自动顺延,
-    所以"其他时候都保持不动"。
-
-    守台就是一次普通 Interact(可被打断): 饿了/憋了会被需求顶掉 →
-    正是用户要的"很想上厕所或者饿了才从工作下来"。
-    """
-    from citysim.npc.schedule import PlanEntry
-    at = int(comp.open_minute)          # 计划表内部用绝对 tick, roll_day 会顺延
-    npc.set_plan([
-        PlanEntry("work_go", at, MoveTo(dest=shop_id), daily=True),
-        PlanEntry("work_stand", at, Interact(target_id=station_id), daily=True),
-    ])
-
-
 def assign_station(world, systems, cfg: SimConfig, company,
                    npc_id: str, station_id: str) -> dict:
     """把员工【分派到】某个销售台(或 station_id="" 撤销分配)。
 
     用户要的: 招来的人得能手动指定站哪个台, 否则可能没位置(或分错台)。
-    只改世界真值(work 绑定 + 上班计划表), 不做任何模拟计算。
+    只改世界真值(work 绑定), 不做任何模拟计算(守台由班次闸门驱动)。
     返回 {"ok", "why", "npc", "station"(, "shop")}。
     """
     npc = world.npcs.get(npc_id)
@@ -445,7 +423,6 @@ def assign_station(world, systems, cfg: SimConfig, company,
     npc.set_work(company.company_id, shop_id, station_id,
                  company.open_minute, company.close_minute,
                  wage_per_hour=company.wage_per_hour)
-    _write_work_plan(world, cfg, npc, company, shop_id, station_id)
     return {"ok": True, "why": "", "npc": npc_id, "station": station_id,
             "shop": shop_id}
 

@@ -1592,8 +1592,8 @@ func load_scene_dict(d: Dictionary) -> bool:
 	knowledge = (d.get("knowledge", []) as Array).duplicate(true)
 	for c in (d.get("companies", []) as Array):
 		if c is Dictionary and String((c as Dictionary).get("id", "")) != "":
-			companies[String((c as Dictionary).get("id"))] =
-				(c as Dictionary).duplicate(true)
+			var cid := String((c as Dictionary).get("id"))
+			companies[cid] = (c as Dictionary).duplicate(true)
 	var m: Variant = d.get("map")
 	if m is Dictionary and not (m as Dictionary).is_empty():
 		from_dict(m)

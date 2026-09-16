@@ -35,6 +35,57 @@ def _busy(world, systems, pid: str) -> bool:
             or pid in systems.roaming)
 
 
+def act_class_of(world, systems, pid: str) -> str:
+    """这个 NPC 此刻在【做什么】(行为大类): move/eat/sleep/toilet/work/wander/idle。
+
+    快照/时间线用; 纯读, 不改任何状态。
+    """
+    if pid in systems.travel:
+        return "move"
+    if pid in getattr(systems, "roaming", {}):
+        return "wander"
+    act = systems.interaction.active.get(pid)
+    if act is None:
+        return "idle"
+    ent = world.entities.get(act.entity_id)
+    if ent is None:
+        return "idle"
+    t = ent.tags
+    if "sleepable" in t:
+        return "sleep"
+    if "toilet" in t:
+        return "toilet"
+    if "edible" in t:
+        return "eat"
+    if "work" in t or "station" in t:
+        return "work"
+    return "idle"
+
+
+def _record_activity(world, systems, cfg: SimConfig) -> None:
+    """给每个 NPC 记一份【当天实际行为段】(时间线 viz 用; 只保留今天)。
+
+    段 = {from, to, cls, text}; cls 变化就开新段。纯观测, 不改模拟。
+    """
+    tick = world.clock_tick
+    day_start = (tick // max(1, cfg.ticks_per_day)) * cfg.ticks_per_day
+    log = systems.activity_log
+    for pid, npc in world.npcs.items():
+        cls = act_class_of(world, systems, pid)
+        text = npc.current_activity or ""
+        segs = log.setdefault(pid, [])
+        if segs and segs[-1]["cls"] == cls and segs[-1]["text"] == text:
+            segs[-1]["to"] = tick                       # 同段延续
+        else:
+            if segs:
+                segs[-1]["to"] = tick
+            segs.append({"from": tick, "to": tick, "cls": cls, "text": text})
+        while len(segs) > 1 and segs[0]["to"] < day_start:
+            segs.pop(0)                                 # 剪掉今天之前的
+    for pid in [p for p in log if p not in world.npcs]:
+        log.pop(pid, None)
+
+
 def _kill(world, systems, pid: str) -> None:
     """NPC 死亡: 清残留 → 从世界销毁 → 发布死亡事件。"""
     npc = world.npcs.get(pid)
@@ -850,3 +901,6 @@ def tick(world, systems, cfg: SimConfig) -> None:
             for npc in world.npcs.values():
                 res = planner.plan_for_person(npc, world.clock_tick)
                 npc.set_plan(res.entries)
+
+    # 6. 行为段记录(时间线 viz; 纯观测)
+    _record_activity(world, systems, cfg)

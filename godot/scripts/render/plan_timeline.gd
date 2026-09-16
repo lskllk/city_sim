@@ -25,8 +25,18 @@ const TOP := 24.0
 const ROW_H := 26.0
 const NODE_R := 4.5
 
+# 行为大类 -> 颜色(时间线上的“实际行为带”)
+const ACT_COL := {
+	"move": Color("4a6fa5"), "eat": Color("d98b3a"), "sleep": Color("8a6fc0"),
+	"toilet": Color("3aa6a6"), "work": Color("3f9d5a"), "wander": Color("d4b23c"),
+	"idle": Color("39414f"),
+}
+const ACT_H := 6.0            # 行为带高度
+const ACT_DY := 9.0           # 行为带相对行基线的下移
+
 var _hover_pos := Vector2(-9999.0, -9999.0)
 var _hover: Dictionary = {}
+var _hover_act: Dictionary = {}
 
 
 func _ready() -> void:
@@ -44,6 +54,7 @@ func _gui_input(event: InputEvent) -> void:
 
 func _draw() -> void:
 	_hover = {}
+	_hover_act = {}
 	draw_rect(Rect2(Vector2.ZERO, size), COL_BG, true)
 	var font := get_theme_default_font()
 	var fs := get_theme_default_font_size()
@@ -65,9 +76,12 @@ func _draw() -> void:
 	_draw_axis(font, fs, x0, x1, span)
 	_draw_row(font, fs, Store.sel_npc, Store.npc(Store.sel_npc),
 		x0, x1, span, day_start, now_x, TOP)
+	var tl := Protocol.as_array(Store.npc(Store.sel_npc).get("timeline", []))
+	_draw_activity(x0, span, day_start, TOP, tl)
 	draw_line(Vector2(now_x, TOP - 6.0), Vector2(now_x, size.y - 4.0),
 		Color(1, 1, 1, 0.25), 1.0)
 	_draw_hover_tip(font, fs)
+	_draw_act_tip(font, fs)
 
 
 func _hint(font: Font, fs: int) -> void:
@@ -121,6 +135,69 @@ func _draw_row(font: Font, fs: int, id: String, n: Dictionary,
 	for key in order:
 		var arr: Array = groups[key]
 		_draw_group(Vector2(arr[0]["x"], y), arr)
+
+
+## 实际行为带: 每段一个颜色块; 悬浮时记到 _hover_act。
+func _draw_activity(x0: float, span: float, day_start: float, row_y: float,
+		timeline: Array) -> void:
+	var top := row_y + ACT_DY
+	for it in timeline:
+		var d := Protocol.as_dict(it)
+		var f := float(Protocol.num(d.get("from", 0.0))) - day_start
+		var t := float(Protocol.num(d.get("to", 0.0))) + 1.0 - day_start
+		var xa: float = x0 + clampf(f / DAY_TICKS, 0.0, 1.0) * span
+		var xb: float = x0 + clampf(t / DAY_TICKS, 0.0, 1.0) * span
+		if xb <= xa:
+			continue
+		var cls := Protocol.s(d.get("cls", "idle"))
+		draw_rect(Rect2(Vector2(xa, top), Vector2(xb - xa, ACT_H)),
+			ACT_COL.get(cls, ACT_COL["idle"]), true)
+		if (_hover_pos.y >= top and _hover_pos.y <= top + ACT_H
+				and _hover_pos.x >= xa and _hover_pos.x <= xb):
+			_hover_act = {"pos": Vector2(clampf(_hover_pos.x, xa, xb), top),
+				"seg": d}
+
+
+## 行为带悬浮提示: “08:00–10:00  睡觉”
+func _draw_act_tip(font: Font, fs: int) -> void:
+	if _hover_act.is_empty():
+		return
+	var d: Dictionary = _hover_act["seg"]
+	var f := int(Protocol.num(d.get("from", 0.0))) % 1440
+	var t := int(Protocol.num(d.get("to", 0.0))) % 1440
+	var cls := Protocol.s(d.get("cls", "idle"))
+	var line := "%02d:%02d–%02d:%02d  %s" % [f / 60, f % 60, t / 60, t % 60,
+		_act_zh(cls)]
+	var pad := 8.0
+	var sz := font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+	var box := Vector2(sz.x + pad * 2.0, float(fs) + pad * 2.0)
+	var pos: Vector2 = _hover_act["pos"] + Vector2(0.0, ACT_H + 6.0)
+	if pos.x + box.x > size.x - 4.0:
+		pos.x = size.x - box.x - 4.0
+	if pos.x < 4.0:
+		pos.x = 4.0
+	draw_rect(Rect2(pos, box), Color("121826"), true)
+	draw_rect(Rect2(pos, box), ACT_COL.get(cls, ACT_COL["idle"]), false, 1.0)
+	draw_string(font, pos + Vector2(pad, pad + float(fs) - 3.0), line,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("c9d4e6"))
+
+
+func _act_zh(cls: String) -> String:
+	match cls:
+		"move":
+			return "赶路"
+		"eat":
+			return "吃饭"
+		"sleep":
+			return "睡觉"
+		"toilet":
+			return "上厕所"
+		"work":
+			return "上班"
+		"wander":
+			return "闲逛"
+		_:
+			return "空闲"
 
 
 func _group_status(entries: Array) -> String:

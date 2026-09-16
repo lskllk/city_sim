@@ -18,6 +18,7 @@ from pathlib import Path
 
 from citysim.core.types import intent_kind, intent_target
 from citysim.emojis import SEMANTIC_EMOJI
+from citysim.world.engine import act_class_of
 
 # TASK002: WS 消息协议版本(协议变化时递增; 本契约变更故 +1)
 PROTOCOL_VERSION = 2
@@ -64,29 +65,6 @@ def icon_of(entity) -> str:
     return SEMANTIC_EMOJI["box"]
 
 
-
-
-def act_class_of(world, systems, pid: str) -> str:
-    if pid in systems.travel:
-        return "move"
-    if pid in getattr(systems, "roaming", {}):
-        return "wander"        # 闲逛中(前端文案在 P2 接)
-    act = systems.interaction.active.get(pid)
-    if act is None:
-        return "idle"
-    ent = world.entities.get(act.entity_id)
-    if ent is None:
-        return "idle"
-    t = ent.tags
-    if "sleepable" in t:
-        return "sleep"
-    if "toilet" in t:
-        return "toilet"
-    if "edible" in t:
-        return "eat"
-    if "work" in t or "station" in t:
-        return "work"          # 在岗(销售台/工位) —— 否则前端只认识 idle, 会显示“空闲”
-    return "idle"
 
 
 def _intent_detail(it) -> dict | None:
@@ -223,6 +201,7 @@ def _npc_rich(world, systems, pid: str, p) -> dict:
     d["memory"] = mem
     d["memory_counts"] = len(mem)
     d["events"] = _recent_events(systems, pid)
+    d["timeline"] = list(getattr(systems, "activity_log", {}).get(pid, ()))
     return d
 
 

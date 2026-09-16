@@ -54,7 +54,6 @@ class SimConfig:
     fun_roam_value: float = 0.4                    # 一次闲逛总共补多少 fun
     fun_roam_ticks: int = 60                       # 一次闲逛持续多久(1 小时; 期间冷却决策)
     fun_seek_below: float = 0.6                    # fun 低于此才想闲逛
-    fun_places_top: int = 3                        # 从前 N 个“最热闹”里随机挑
     # —— 成本模型(比价 / 比距离 / 顺路) ——
     # eff = (need^power × value × personality × believe) / (1 + cost_lambda × cost)
     # cost = price×qty + price×(1−believe)     (纯钱 + 不确定性)
@@ -151,7 +150,6 @@ class SimConfig:
             fun_roam_value=float(fun_cfg.get("roam_value", 0.4)),
             fun_roam_ticks=int(fun_cfg.get("roam_ticks", 60)),
             fun_seek_below=float(fun_cfg.get("seek_below", 0.6)),
-            fun_places_top=int(fun_cfg.get("places_top", 3)),
             cost_lambda=float(util.get("cost_lambda", 0.02)),
             travel_penalty=float(util.get("travel_penalty", 2.0)),
             wage_minute=int(data.get("economy", {}).get("wage_minute", 480)),

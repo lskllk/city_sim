@@ -161,7 +161,7 @@ class Person:
         # 纯数据, 不 import world —— 决定“顺路值多少”的就是它。
         self._travel_costs: dict[str, int] = {}
         # “地点热闹度”表 {loc: draw}, 装配注入; 闲逛选址用(纯数据, 不查 world)。
-        self._places: dict[str, float] = {}
+        self._places: list[str] = []   # 可闲逛的公共建筑 id 列表(不含住所; 装配注入)
         self._money: float = money
         self._age: int | None = self._age_from_birthday(0)   # 每天 on_day 重算
         self._bladder_pending: float = 0.0
@@ -523,9 +523,9 @@ class Person:
         """装配: 注入位移成本矩阵(engine/场景侧提供, 这里只存不用)。"""
         self._travel_costs = dict(costs or {})
 
-    def set_places(self, places: dict[str, float]) -> None:
-        """装配: 注入“地点热闹度”表 {loc: draw}(闲逛选址用; 纯数据)。"""
-        self._places = dict(places or {})
+    def set_places(self, places) -> None:
+        """装配: 注入【可闲逛的公共建筑】id 列表(不含住所; 纯数据, 不查 world)。"""
+        self._places = [str(x) for x in (places or ())]
 
     @property
     def tell_bias(self) -> float:
@@ -734,49 +734,35 @@ class Person:
 
 
     def _wander_dest(self, cfg: "SimConfig", now_tick: int) -> str:
-        """挑一个“热闹又不远”的地方闲逛。
+        """从【所有非住所的公共建筑】里随机选一个作为闲逛目的地。
 
-        纯数据(不查 world): 只用注入的 `_places`(loc→draw) + `_travel_costs`。
-        取“draw/(1+路费)”前 N 名, 再用【person_id+bucket 的稳定哈希】抽一个
-        → 同 seed / 同人可复现的“随机闲逛”。
+        纯数据(不查 world): 只用注入的 `_places`(id 列表)。
+        排除“家”和当前所在地(要真的走过去 → 路上算赶路);
+        用 person_id + 时间窗的稳定哈希抽一个 → 同人同窗口可复现。
         """
-        if not self._places:
-            return ""
         here = self._perceived_loc
-        # 候选: 去掉“家”(不会“出去玩 = 去自己家”); 允许当前所在地
-        #   —— 若当前地就在热门榜里, 就会 Wander(here) → 就地逛起来。
-        cands = [loc for loc in self._places if loc and loc != self._home]
+        cands = [loc for loc in self._places
+                 if loc and loc != self._home and loc != here]
+        if not cands:                                  # 只剩家了 → 就选家外的任意一个
+            cands = [loc for loc in self._places if loc and loc != self._home]
         if not cands:
             return ""
-
-        def cost(loc: str) -> int:
-            if not here or not self._travel_costs:
-                return 0
-            a, b = f"{here}|{loc}", f"{loc}|{here}"
-            return int(self._travel_costs.get(a, self._travel_costs.get(b, 30)))
-
-        ranked = sorted(
-            cands,
-            key=lambda loc: (-(float(self._places[loc]) / (1.0 + cost(loc))), loc))
-        top = ranked[:max(1, int(cfg.fun_places_top))]
-        if not top:
-            return ""
         bucket = now_tick // max(1, int(cfg.fun_roam_ticks))
-        idx = zlib.crc32(f"{self.person_id}|{bucket}".encode("utf-8")) % len(top)
-        return top[idx]
+        idx = zlib.crc32(f"{self.person_id}|{bucket}".encode("utf-8")) % len(cands)
+        return cands[idx]
 
     def _idle_or_wander(self, cfg: "SimConfig", now_tick: int) -> Decision:
         """真没事干了: fun 低 → 闲逛(最低优先级); 否则 idle。
 
-        闲逛【不设 _goal】→ 下一 tick 先看需求/工作/日程 → **任何需求都能打断**。
-        已在闲逛(体内有 roam grant) → 就地待着, 不再重挑目的地。
-        选中的地点可能就是当前所在地 → `Wander(here)` → 就地逛。
+        闲逛 = 一个 **committed goal** (source="fun"):
+          · 先挑一个【随机建筑】走过去(路上 = 赶路 move);
+          · 到了才开逛(闲逛 wander); 逛满 roam_ticks 收工。
+        因为占着 _goal, 期间决策冷却(不重算需求)。
         """
-        if any("roam" in ag.grant.tags for ag in self._intake):
-            return self._record(Decision(Idle(), "fun"))   # 就地逛着, fun 由 grant 涨
         if self._signals.get("fun", 1.0) < cfg.fun_seek_below:
             dest = self._wander_dest(cfg, now_tick)
             if dest:
+                self._goal = _Goal("fun", Wander(dest))
                 return self._record(Decision(Wander(dest), "fun"))
         return self._record(Decision(Idle(), "idle"))
 
@@ -825,10 +811,6 @@ class Person:
         if just_started and plan is not None:
             self._goal = _Goal("plan", plan)
             return self._record(Decision(plan, "plan"))
-        # ★ 闲逛中 → 决策冷却(roam_ticks, 默认 1 小时): 期间不重算需求, 就逛着。
-        #   (上班开始那一刻仍能硬抢, 见上。)
-        if any("roam" in ag.grant.tags for ag in self._intake):
-            return self._record(Decision(Idle(), "fun"))
         while True:
             # 1) 手上有事 → 【做完再决策】: 不重算, 不被打断(只有上面的 PLAN 能)。
             #    空闲时才每 tick 决策。
@@ -921,6 +903,17 @@ class Person:
 
     def _advance(self, goal: "_Goal") -> "Decision | None":
         """推进一个 goal: 异地先 MoveTo; 到达/无需移动后返回实际 Intent。"""
+        if goal.source == "fun":
+            # 闲逛两段: 赶路(try_wander 自己会走) → 到建筑里开逛 → 逛完收工
+            roaming = any("roam" in ag.grant.tags for ag in self._intake)
+            if goal.phase == "to_dest":
+                if roaming:
+                    goal.phase = "doing"          # 已经在逛了
+                return Decision(goal.intent, goal.source)   # 走过去 或 开始逛
+            if not roaming:                        # 逛完了
+                self._finish_goal(goal)
+                return None
+            return Decision(goal.intent, goal.source)
         if goal.phase == "to_dest":
             dest = self._dest_for(goal.intent)
             if dest and self._perceived_loc != dest:

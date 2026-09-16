@@ -216,21 +216,10 @@ def load_scene(path: str | Path | None = None,
         for pid, p in world.npcs.items():
             res = systems.planner.plan_for_person(p, 0)       # 应用当天计划
             p.set_plan(res.entries)
-    # ---- 位移成本矩阵 + 地点“热闹度”(建完所有 NPC 之后再注入) ----
-    #   places[loc] = 半径 R 米内的建筑数 —— 闲逛时“去热闹的地方”。
-    centers = {lid: world.region_center(lid) for lid in world.locations}
-    places: dict[str, float] = {}
-    for lid, c in centers.items():
-        if world.is_residence(lid):
-            continue          # 不去别人家“闲逛”(进门会被拒 → 刷屏)
-        n = 0
-        if c is not None:
-            for oid, oc in centers.items():
-                if oid == lid or oc is None:
-                    continue
-                if (c[0] - oc[0]) ** 2 + (c[1] - oc[1]) ** 2 <= 80.0 ** 2:
-                    n += 1
-        places[lid] = float(n + 1)
+    # ---- 位移成本矩阵 + 【可闲逛的公共建筑】(建完所有 NPC 之后再注入) ----
+    #   places = 所有【非住所】地点 id。闲逛时从里面随机选一个走过去。
+    places = [lid for lid in sorted(world.locations)
+              if not world.is_residence(lid)]
     for _p in world.npcs.values():
         _p.set_travel_costs(costs)
         _p.set_places(places)

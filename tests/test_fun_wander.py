@@ -67,7 +67,7 @@ def test_sleeping_does_not_change_fun() -> None:
 def test_low_fun_falls_back_to_wander() -> None:
     w, s, _ = make_runtime(CFG)
     npc = add_npc(w, s, "n", location="home", fun=0.2)
-    npc.set_places({"home": 1.0, "plaza": 9.0, "far": 3.0})
+    npc.set_places(["plaza", "far"])
     npc.set_travel_costs({"home|plaza": 10, "home|far": 200})
     d = npc.decide(CFG, 100)
     assert isinstance(d.intent, Wander)
@@ -81,28 +81,19 @@ def test_need_beats_wander() -> None:
     add_entity(w, "meal", location="loc", tags=("edible", "consumable"),
                affordances={"hunger": 0.5}, duration_ticks=20)
     npc = add_npc(w, s, "n", location="loc", fun=0.2, hunger=0.1)
-    npc.set_places({"loc": 1.0, "plaza": 9.0})
+    npc.set_places(["plaza"])
     from citysim.world.perception import build_percept
     npc.perceive(build_percept(w, npc), 0)        # 先看见饭
     d = npc.decide(CFG, 100)
     assert isinstance(d.intent, Interact) and d.intent.target_id == "meal"
 
 
-def test_lively_and_near_wins() -> None:
-    """选址: draw/(1+路费) 高的排前面。"""
-    w, s, _ = make_runtime(CFG)
-    npc = add_npc(w, s, "n", location="home", fun=0.2)
-    npc.set_places({"home": 1.0, "near": 6.0, "busy_far": 9.0})
-    npc.set_travel_costs({"home|near": 5, "home|busy_far": 500})
-    top = npc._wander_dest(CFG, 100)
-    assert top in ("near", "busy_far")
-
 
 def test_wander_pick_is_deterministic() -> None:
     def pick() -> str:
         w, s, _ = make_runtime(CFG)
         npc = add_npc(w, s, "same", location="a", fun=0.2)
-        npc.set_places({"a": 1.0, "b": 5.0, "c": 5.0, "d": 5.0})
+        npc.set_places(["b", "c", "d"])
         return npc._wander_dest(CFG, 100)
     assert pick() == pick()
 
@@ -128,7 +119,7 @@ def test_try_wander_moves_then_roams() -> None:
 def test_roam_grant_raises_fun() -> None:
     w, s, _ = make_runtime(CFG)
     npc = add_npc(w, s, "n", location="plaza", fun=0.2)
-    npc.set_places({"home": 1.0, "plaza": 9.0})
+    npc.set_places(["plaza"])
     port = _port(w, s)
     grant = port.try_wander("n", "plaza")
     npc.intake_add(grant)
@@ -151,15 +142,19 @@ def test_roaming_cleared_when_leaving() -> None:
 
 
 def test_wandering_cools_down_decisions() -> None:
-    """闲逛中(体内有 roam grant) → 决策冷却: 就算饿到底也不切走(committed)。"""
+    """闲逛(committed fun goal + roam grant) → 饿到底也不切走(决策冷却)。"""
     w, s, _ = make_runtime(CFG)
     add_entity(w, "meal", location="loc", tags=("edible", "consumable"),
                affordances={"hunger": 0.5}, duration_ticks=20)
     npc = add_npc(w, s, "n", location="loc", fun=0.2)
-    npc.set_places({"loc": 1.0, "plaza": 9.0})
+    npc.set_places(["loc"])                  # 只有这一个可逛地点 → 就地开逛
     from citysim.world.perception import build_percept
     npc.perceive(build_percept(w, npc), 0)
-    grant = _port(w, s).try_wander("n", "loc")     # 已在 loc → 开 roam
-    npc.intake_add(grant)
-    npc.set_signal("hunger", 0.0)
-    assert isinstance(npc.decide(CFG, 100).intent, Idle)
+    port = _port(w, s)
+    d = npc.decide(CFG, 0)                         # fun 低 → 决定闲逛
+    assert isinstance(d.intent, Wander) and d.intent.dest == "loc"
+    npc._execute(port, d, 0)                       # 已在该地 → 开 roam
+    assert any("roam" in ag.grant.tags for ag in npc._intake)
+    npc.set_signal("hunger", 0.0)                 # 饿到底
+    d2 = npc.decide(CFG, 1)
+    assert not isinstance(d2.intent, Interact)     # 冷却: 不切去吃饭

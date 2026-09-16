@@ -22,24 +22,24 @@
 
 ## 票一览
 
-| 票 | 标题 | 阶段 | 依赖 | 大小 |
-|---|---|---|---|---|
-| WP-00 | 拍板：两阶段 vs 顺序执行 | — | — | S |
-| WP-01 | `core/ports.py` 契约（WorldPort / Ack / Deny / Grant） | 1 | — | S |
-| WP-02 | `world/port.py` + `try_move` | 1 | 01 | S |
-| WP-03 | `try_take`（Interact：校验 + claim） | 1 | 01 | M |
-| WP-04 | `try_buy`（入队，异步） | 1 | 01 | M |
-| WP-05 | `Person.step(port)` + Deny 自处理 | 1 | 01,00 | M |
-| WP-06 | `engine.tick` 驱动 `npc.step`；删 `_apply` | 1 | 02,03,04,05 | M |
-| WP-07 | Step 1 调用签名重钉（测试） | 1 | 06 | M |
-| WP-08 | `Grant` + `Person._intake` 消化循环 | 2 | 07 | M |
-| WP-09 | `InteractionSystem` 退化为 claim 表 | 2 | 08 | M |
-| WP-10 | `effects.py` 边界：`on_start/on_complete` 编译进 Grant | 2 | 08 | M |
-| WP-11 | `sleep` / `busy` 由 NPC 自持 | 2 | 09 | S |
-| WP-12 | 中止语义：intake 暂停、不再“中止也扣饭” | 2 | 08,09 | S |
-| WP-13 | 异步 buy 通道（`bought` 事件 → NPC） | 3 | 06 | M |
-| WP-14 | `held_by` 持有表示（take↔put 之间持久） | 3 | 08 | M |
-| WP-15 | 回放/确定性基线重钉 | 3 | 06 | M |
+| 票 | 标题 | 阶段 | 依赖 | 大小 | 状态 |
+|---|---|---|---|---|---|
+| WP-00 | 拍板：两阶段 vs 顺序执行 | — | — | S | ✅ done(选 B) |
+| WP-01 | `core/ports.py` 契约（WorldPort / Ack / Deny / Grant） | 1 | — | S | ✅ |
+| WP-02 | `world/port.py` + `try_move` | 1 | 01 | S | ✅ |
+| WP-03 | `try_take`（Interact：校验 + claim） | 1 | 01 | M | ✅ |
+| WP-04 | `try_buy`（入队，异步） | 1 | 01 | M | ✅ |
+| WP-05 | `Person.step(port)` + Deny 自处理 | 1 | 01,00 | M | ✅ |
+| WP-06 | `engine.tick` 驱动 `npc.step`；删 `_apply` | 1 | 02,03,04,05 | M | ✅ |
+| WP-07 | Step 1 调用签名重钉（测试） | 1 | 06 | M | ✅ |
+| WP-08 | `Grant` + `Person._intake` 消化循环 | 2 | 07 | M | ✅ |
+| WP-09 | `InteractionSystem` 退化为 claim 表 | 2 | 08 | M | ✅ |
+| WP-10 | `effects.py` 边界：`on_start/on_complete` 编译进 Grant | 2 | 08 | M | ✅ |
+| WP-11 | `sleep` / `busy` 由 NPC 自持 | 2 | 09 | S | ✅ (sleep) |
+| WP-12 | 中止语义：intake 暂停、不再“中止也扣饭” | 2 | 08,09 | S | ✅ |
+| WP-13 | 异步 buy 通道（`bought` 事件 → NPC） | 3 | 06 | M | ✅ |
+| WP-14 | `held_by` 持有表示（take↔put 之间持久） | 3 | 08 | M | 🟡 partial |
+| WP-15 | 回放/确定性基线重钉 | 3 | 06 | M | ✅ |
 
 ## 铁律（每票都不得破）
 

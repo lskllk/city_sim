@@ -60,10 +60,10 @@
 
 | 块 | 到什么程度 |
 |---|---|
-| **决策** | 效用主导单轨；候选不过滤，阈值只在得分上；手上有事就做完再决策；只有 PLAN（上班）能打断；空闲才每 tick 重算 |
-| **需求** | hunger 半天 / energy（2 天基准 + 夜间陡增 + 睡觉回满）/ bladder 1.6 天 + 三餐跳量 |
-| **生命** | hp 三态（只 hunger/energy 参与；中间带不动）；归零 → 死 |
-| **买卖** | 扣钱 → 减店库存 → 送货进家容器（合并、保质期取最早）→ 变质销毁。**卖家不收钱** |
+| **决策** | 效用主导单轨；候选不过滤，阈值只在得分上；手上有事就做完再决策；空闲才每 tick 重算。**`interruptible` 已删**：任何新动作都能顶掉当前交互（但仍只在 NPC 自己决定换动作时发生）；唯一能"硬抢"的是**上班开始那一刻** |
+| **需求** | hunger 半天 / energy（**24h 基础≈50% + 入夜 20:00–22:00 陡降**；睡觉时冻结）/ bladder 1.6 天 + 三餐跳量 / **fun**（上班·闲逛涨，真空闲掉，吃睡厕不变） |
+| **生命** | hp **只有 hunger 参与**：连续为 0 **满 3 天**才开始掉，**1 天掉完**（第 4 天 die）；中途吃饭清零重计；**无回血**；睡觉/精力不参与 |
+| **买卖** | 扣钱 → 减店库存 → 送货进家容器（合并、保质期取最早）→ 变质销毁；**货款记到店铺所属公司的账**（`_credit_shop`） |
 | **囤货** | 目标存量由保质期推导；只对 `consumable` 生效；缺口只驱动补货 |
 | **感知 → 记忆** | `EntityView → MemItem`；`believe/remember/source`；写入口只有感知与传闻 |
 | **传播** | 一对一搭桥（说/听各掷骰子；说的不听/听的不说；同屋高、路人低）；六条硬规则；信任两档 |
@@ -75,6 +75,28 @@
 | **公司/经济** | 市场进货(建筑) · 成交双分录进公司账 · 每天按在岗时间发薪 · 招聘=公司发启事+意愿撮合 · 柜台交易(前台=销售位, 排队) · 好感度慢变量 |
 | **经济（最小）** | 公司表（店铺归属/账/老板/员工）；成交双分录进公司账；每天 `wage_minute` 发工资（发不出 → `wage_failed`）；观测：hello.companies + 地点页公司现金 |
 | **确定性** | 同 seed 可回放；随机只走 `systems.rng`（不用内置 `hash()`） |
+
+---
+
+## 2.1 当前口径（最近收口，覆盖上面旧描述）
+
+- **世界端口（NPC 主动拉）**：`core/ports.py`（`WorldPort` 动词 + `Ack/Deny/Grant`）
+  + `world/port.py`（`WorldPortImpl`）。`engine._apply` 已删；NPC 自己 `observe` +
+  `try_move/try_take/try_buy/try_wander`，失败自己处理。
+- **信号数学在 NPC**：`Person._intake` 逐 tick 消化 `Grant`（`value/duration`）；
+  「满了优先结束，否则按 duration」；world 只在 `interaction.step` 做收尾（扣货/回收）。
+  中止 = 弃掉体内那份（不扣货、不触发 on_complete）。
+- **fun + 闲逛**：新信号 `fun`；闲逛 `Wander(dest)` 是**两段式 committed goal**
+  （先赶路 move → 到了建筑里才开逛 wander），目的地 = **非住宅地点里随机选一个**
+  （`scenarios` 注入 `places`）；逛街补 fun；**决策冷却 1 小时**（`fun_roam_ticks=60`）。
+- **上班**：守台 = committed goal（前台 `duration_ticks=60` → **每 60t 一次决策**）；
+  班次内闸门把人钉在工位；**离岗 cost = 日薪（旷工）**；食物 `value` 按**真实缺口封顶**。
+- **公司面板**：「人员管理」= 员工名单 + 工位分配 + **每人排班**（`_work.open/close`，
+  只影响本人，不动公司营业时间）；`engine.schedule_worker` / `op="schedule"`。
+- **时间线**：引擎每 tick 记 `Systems.activity_log`（当天行为段），只在选中的
+  rich 帧里下发；前端画彩色行为带 + 悬浮。
+- **已知未做**：`favor`（好感度）只记账**未接入决策**；`template_plan` 恒空
+  （无 `config/roles.json`）；DEMO 场景无公司 → 脚本 `buy` 会卡排队。
 
 ---
 

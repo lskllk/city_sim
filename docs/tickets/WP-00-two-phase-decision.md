@@ -1,6 +1,6 @@
 # WP-00 拍板：两阶段 vs 顺序执行
 
-- 状态：todo
+- 状态：done
 - 阶段：—（决策票）
 - 依赖：无
 - 阻塞：WP-06、WP-15
@@ -43,7 +43,20 @@ for ...: _apply(...)                                     # ② 统一执行
 
 ## 决定
 
-_(待填)_
+**选 B：顺序执行。** 理由：
+
+- `due_npcs()` 返回 `sorted(world.npcs)`，固定 id 顺序 → 确定性/回放仍成立
+  （`test_replay.py` 兜底）。
+- 端口化后 `observe → decide → try_*` 在**同一个人的同一轮**里完成，天然没有
+  TOCTOU（决策与执行之间世界不会变），比两阶段更简单。
+- 代价：公平性变化（id 靠前的先抢到争用资源）。可回放、可接受。
+- 不做 commit 队列（A/C 的复杂度留到真需要时再上）。
+
+**影响**：`engine.tick` 的 5b 从「先全员 Decision，再统一 `_apply`」变成
+「`for pid in due: npc.step(port, cfg, can_preempt)`」。WP-06 按此实现。
+
+回滚：若后续发现公平性不可接受，改为 A/C 只影响 `engine.tick` 的 5b 循环 + 端口
+的提交方式，端口契约（WP-01）不变。
 
 ## 风险
 

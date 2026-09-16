@@ -185,3 +185,19 @@ def _perceive(w, npc) -> None:
     """决策只读【记忆】—— 世界里的实体得先被看见。"""
     from citysim.world.perception import build_percept
     npc.perceive(build_percept(w, npc), 0)
+
+
+def test_set_plan_does_not_wipe_a_need_goal() -> None:
+    """0 点日计划器 set_plan 不能清掉【需求】goal(睡到一半跨 0 点)。
+
+    否则 _goal 被清 → 下一 tick 重算需求 → 饿了就把床顶掉(= 睡觉被饥饿中止)。
+    """
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "bed", tags=("sleepable",), affordances={"energy": 0.5},
+               duration_ticks=800)
+    npc = add_npc(w, s, "npc", energy=0.2)
+    _perceive(w, npc)
+    _decide(npc)                                   # 决定去睡 → 设了 need goal
+    assert npc._goal is not None and npc._goal.source == "need"
+    npc.set_plan([])                               # 模拟 0 点日计划器
+    assert npc._goal is not None                   # 需求 goal 不被清

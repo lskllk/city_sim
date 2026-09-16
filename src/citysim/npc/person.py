@@ -728,9 +728,15 @@ class Person:
                 expires_tick=int(p.get("expires_tick", 0)))
 
     def set_plan(self, entries: "Sequence[PlanEntry]") -> None:
-        """装配: 灌入当天计划(LLM 产物)。覆盖旧计划与执行指针。"""
+        """装配/每日 0 点: 灌入当天计划(LLM 产物), 覆盖旧计划。
+
+        ★ 只作废【计划来源】的 goal —— 不能碰需求 goal(如睡到一半跨 0 点,
+          日计划器调到这里, 若把 sleep goal 也清了 → 下一 tick 重算需求,
+          饿了就把床顶掉 = “睡觉被饥饿中止”)。
+        """
         self._schedule = Schedule(entries)
-        self._goal = None
+        if self._goal is not None and self._goal.source == "plan":
+            self._goal = None
 
 
     def _wander_dest(self, cfg: "SimConfig", now_tick: int) -> str:

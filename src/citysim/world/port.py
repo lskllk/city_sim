@@ -132,7 +132,11 @@ class WorldPortImpl:
                 {"target": entity_id, "why": why}))
             return Deny(why)
         active = systems.interaction.active.get(pid)
-        if active is not None and active.entity_id != entity_id:
+        if active is not None and active.entity_id == entity_id:
+            # 已在做同一件事 → 继续, **不**重新签发 Grant(否则每 tick 都会
+            # 往体内塞一份, 信号会爆)。
+            return Ack(ok=True, reason="continuing")
+        if active is not None:
             if not can_preempt(world, systems, pid):
                 return Deny("当前交互不可打断")
             preempt(world, systems, pid)

@@ -86,6 +86,18 @@ class _Goal:
     phase: str = "to_dest"
 
 
+@dataclass
+class _ActiveGrant:
+    """体内正在消化的一份 Grant(WP-08)。
+
+    `total` = max(1, duration_ticks); 每 tick 加 `value/total`, `remaining` 递减到 0
+    就算吃完 —— 这就是“吃东西→饥饿下来”的循环, 现在归 NPC 自己。
+    """
+    grant: "Grant"
+    total: int
+    remaining: int
+
+
 # ----------------------------------------------------------------------
 # 视图/消耗纯函数(模块级, 供外部工具与测试用; 非 Person 私有)
 # ----------------------------------------------------------------------
@@ -162,6 +174,8 @@ class Person:
         self._perceived_loc: str = ""   # 最近一次感知到自己在哪(自身认知, 不长期维护坐标)
         self._schedule = Schedule()     # 当天计划表(空 = 纯需求驱动)
         self._goal: "_Goal | None" = None   # 唯一在执行的标的
+        self._intake: list[_ActiveGrant] = []   # 体内正在消化(WP-08)
+        self._finished: list[str] = []          # 本 tick 消化完的 handle(取走即清)
         self._bubble: tuple[str, int, str] | None = None   # (文字, 到期的 tick, 类型)
         # —— 语义层(M-S1): 值得说的草稿 + 话题冷却 ——
         self._say_queue: list = []          # [SemanticEvent](未措辞的结构化真值)
@@ -307,7 +321,37 @@ class Person:
             self._bladder_pending -= step
             self._signals["bladder"] = _clamp(
                 self._signals.get("bladder", 1.0) - step)
+        # 消化(WP-08): 体内 intake 逐 tick 均摊加信号。
+        # 放在代谢/排泄【之后】—— 与旧 InteractionSystem.step 的相对顺序一致。
+        self._digest()
         return True
+
+    def _digest(self) -> None:
+        """推进体内 intake: 每 tick 加 value/total, 吃完记 handle 等 world 收尾。"""
+        for ag in list(self._intake):
+            g = ag.grant
+            if g.signal:
+                self.add_signal(g.signal, g.value / ag.total)
+            ag.remaining -= 1
+            if ag.remaining <= 0:
+                self._intake.remove(ag)
+                self._finished.append(g.handle)
+
+    def intake_add(self, grant: "Grant") -> None:
+        """把 world 签发的 Grant 收进体内开始消化(+ 应用 on_start 结构化字段)。"""
+        total = max(1, int(grant.duration_ticks))
+        # pending(如 bladder_pending) 是“开始那一刻”的效果 —— 立即应用。
+        for eff in grant.pending:
+            field = str(eff.get("field", ""))
+            if field == "bladder_pending":
+                self.add_bladder_pending(float(eff.get("amount", 0.0)))
+        self._intake.append(_ActiveGrant(grant=grant, total=total, remaining=total))
+
+    def take_finished(self) -> list[str]:
+        """取走本 tick 消化完的 handle(供 world 做收尾: 扣货/回收)。取走即清。"""
+        out = self._finished
+        self._finished = []
+        return out
 
     # ------------------------------------------------------------------
     # 状态写 —— 位置 / 活动 / 膀胱 / 钱
@@ -831,7 +875,8 @@ class Person:
             if isinstance(r, Deny):
                 self.on_failure(intent.target_id, r.reason, now_tick,
                                 retry_ticks=(r.retry_ticks or None))
-            # Grant 暂不处理: 信号仍由 world 的 InteractionSystem.step 应用(WP-08)
+            elif isinstance(r, Grant):
+                self.intake_add(r)      # ★ 收进体内, 由 heartbeat 自己消化(WP-08)
         elif isinstance(intent, Buy):
             r = port.try_buy(self.person_id, intent.item_id, intent.qty)
             if isinstance(r, Ack) and not r.ok:

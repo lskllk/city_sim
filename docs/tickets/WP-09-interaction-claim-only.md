@@ -1,6 +1,6 @@
 # WP-09 `InteractionSystem` 退化为 claim 表
 
-- 状态：todo
+- 状态：done
 - 阶段：Step 2
 - 依赖：WP-08
 - 大小：M

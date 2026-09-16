@@ -92,33 +92,38 @@ class InteractionSystem:
 
     # --- 每 tick 推进 --------------------------------------------------
     def step(self, world: World, cfg) -> None:
+        """[WP-09] 不再管信号/进度 —— NPC 自己消化(heartbeat), 这里只做收尾与清理。
+
+        ① NPC 消化完的 intake → 扣货 / on_complete / 事件 / 回收(自然完成);
+        ② 目标消失 / NPC 死亡 → 撤 claim。
+        """
+        for pid in list(world.npcs):
+            npc = world.npcs[pid]
+            for handle in npc.take_finished():
+                self.finish(world, pid, handle, aborted=False)
         for pid in list(self.active.keys()):
             act = self.active[pid]
-            ent = world.entities.get(act.entity_id)
-            if ent is None:
+            if world.entities.get(act.entity_id) is None:
                 self.active.pop(pid, None)
                 continue
             npc = world.npcs.get(pid)
             if npc is None or not npc.is_alive():
                 self._release(world, pid, cancel=True)
-                continue
-            # 1. 分摊 affordances(仅信号键)
-            for s, delta in ent.affordances.items():
-                if s not in SIGNALS or delta == 0.0:
-                    continue
-                step = delta / act.total_ticks
-                if step:
-                    npc.add_signal(s, step)
-            # 3. remaining - 1
-            act.remaining_ticks -= 1
-            if act.remaining_ticks <= 0:
-                self._complete(world, pid, ent, act)
+
+    def finish(self, world: World, pid: str, handle: str, *,
+               aborted: bool = False) -> bool:
+        """NPC 消化完毕(或 world 主动中止) → 收尾。校验“确实在持有”后才 _finalize。"""
+        act = self.active.get(pid)
+        if act is None or act.entity_id != handle:
+            return False
+        ent = world.entities.get(act.entity_id)
+        if ent is None:
+            self.active.pop(pid, None)
+            return False
+        self._finalize(world, pid, ent, act, aborted=aborted)
+        return True
 
     # --- 完成 ---------------------------------------------------------
-    def _complete(self, world: World, pid: str, ent: Entity,
-                  act: ActiveInteraction) -> None:
-        self._finalize(world, pid, ent, act, aborted=False)
-
     def abort(self, world: World, pid: str) -> None:
         """硬中止(计划截止抢占): 同样触发 on_complete + 消耗 + 回收。"""
         act = self.active.get(pid)

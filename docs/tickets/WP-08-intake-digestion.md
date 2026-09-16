@@ -1,6 +1,6 @@
 # WP-08 `Grant` + `Person._intake` 消化循环
 
-- 状态：todo
+- 状态：done
 - 阶段：Step 2
 - 依赖：WP-07
 - 大小：M

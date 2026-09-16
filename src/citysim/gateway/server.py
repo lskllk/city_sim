@@ -502,6 +502,14 @@ def _admin_company(r, op: str, args: dict) -> dict:
                              str(args.get("npc", "")), str(args.get("station", "")))
         res["company"] = cid
         return res
+    if op == "schedule":
+        from citysim.world.engine import schedule_worker
+        res = schedule_worker(world, r.systems, r.cfg, comp,
+                              str(args.get("npc", "")),
+                              int(args.get("open", 0)),
+                              int(args.get("close", 1440)))
+        res["company"] = cid
+        return res
     if op == "decorate":
         from citysim.world.market import decorate
         shop = str(args.get("shop", "") or (comp.shops[0] if comp.shops else ""))

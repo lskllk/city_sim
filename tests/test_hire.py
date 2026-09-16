@@ -134,3 +134,16 @@ def test_assign_station_reassigns_and_guards_taken(tmp_path) -> None:
     assert res["ok"] and w.npcs[b].work["station"] == cb
     # 非员工拒绝
     assert not E.assign_station(w, s, CFG, comp, "nobody", ca)["ok"]
+
+
+def test_schedule_worker_sets_personal_shift(tmp_path) -> None:
+    """排班: 只改本人 _work.open/close, 立即影响 _on_shift(不影响公司营业时间)。"""
+    w, s = _load(tmp_path, _scene(1), counters=1, hiring_slots=1)
+    E.hire_at(w, s, CFG)
+    npc = w.npcs[next(iter(w.npcs))]
+    comp = w.companies["org_a"]
+    res = E.schedule_worker(w, s, CFG, comp, npc.person_id, 600, 900)
+    assert res["ok"] and res["open"] == 600 and res["close"] == 900
+    assert npc.work["open"] == 600 and npc.work["close"] == 900
+    assert npc._on_shift(600, CFG) and not npc._on_shift(500, CFG)
+    assert comp.open_minute == 480                    # 公司营业时间没动

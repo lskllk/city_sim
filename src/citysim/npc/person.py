@@ -622,6 +622,16 @@ class Person:
     def work(self) -> dict:
         return dict(self._work)
 
+    def set_shift(self, open_minute: int, close_minute: int) -> None:
+        """改【本人的班次】(不影响公司营业时间): 只动 _work 里的 open/close。
+
+        open 0..1439; close 0..1440(1440 = 24:00)。没工作的人不动。
+        """
+        if not self._work:
+            return
+        self._work["open"] = max(0, min(1439, int(open_minute)))
+        self._work["close"] = max(1, min(1440, int(close_minute)))
+
     @property
     def role(self) -> str:
         """角色: 雇佣写上的优先, 否则看人设里的 traits.role。"""

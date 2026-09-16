@@ -473,10 +473,29 @@ def assign_station(world, systems, cfg: SimConfig, company,
             return {"ok": False, "why": "这个台已经有别人在守",
                     "npc": npc_id, "station": ""}
     npc.set_work(company.company_id, shop_id, station_id,
-                 company.open_minute, company.close_minute,
+                 int(npc.work.get("open", company.open_minute)),
+                 int(npc.work.get("close", company.close_minute)),
                  wage_per_hour=company.wage_per_hour)
     return {"ok": True, "why": "", "npc": npc_id, "station": station_id,
             "shop": shop_id}
+
+
+def schedule_worker(world, systems, cfg: SimConfig, company,
+                    npc_id: str, open_minute: int, close_minute: int) -> dict:
+    """给某员工【排班】(只改他自己的班次, 不动公司营业时间)。
+
+    只改世界真值(_work.open/close); 守台仍由班次闸门驱动。
+    返回 {"ok", "why", "npc", "open", "close"}。
+    """
+    npc = world.npcs.get(npc_id)
+    if npc is None:
+        return {"ok": False, "why": "没有这个人", "npc": npc_id}
+    if npc_id not in [n for n, _w in company.staff]:
+        return {"ok": False, "why": "不是这家公司的员工", "npc": npc_id}
+    npc.set_shift(int(open_minute), int(close_minute))
+    return {"ok": True, "why": "", "npc": npc_id,
+            "open": int(npc.work.get("open", 0)),
+            "close": int(npc.work.get("close", 1440))}
 
 
 def _hire_due(world, cfg: SimConfig, last_tick: int) -> bool:

@@ -1,6 +1,6 @@
 # WP-06 `engine.tick` 驱动 `npc.step`；删 `_apply`
 
-- 状态：todo
+- 状态：done
 - 阶段：Step 1
 - 依赖：WP-02、WP-03、WP-04、WP-05
 - 大小：M

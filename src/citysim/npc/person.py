@@ -20,6 +20,7 @@ from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 from citysim.core.config import SIGNALS
+from citysim.core.ports import Ack, Deny, Grant
 from citysim.core.types import (
     Buy,
     Decision,
@@ -804,14 +805,37 @@ class Person:
         if g is not None and intent_target(g.intent) == target_id:
             self._abandon()
 
-    def process(self, percept: "Percept", cfg: "SimConfig",
-                can_preempt: bool = True) -> Decision:
-        """窄协议: 感知+决策一体(engine 只调这个)。
+    def step(self, port, cfg: "SimConfig",
+             can_preempt: bool = True) -> Decision:
+        """★ 主动拉(WP-05): 观察 → 感知 → 决策 → 执行。
 
-        内部 = perceive(现场→记忆, 记自身认知) + decide(仲裁, 当前 tick)。
+        与 process 的区别: 不再等 world 把 Percept 推过来; NPC 自己
+        `port.observe(...)`, 决策后自己拿意图去 `port.try_*(...)`, 失败自己
+        `on_failure`(world 不再反写 NPC)。返回 Decision 供观测/日志。
         """
+        percept = port.observe(self.person_id)
         self.perceive(percept, percept.tick)
-        return self.decide(cfg, percept.tick, can_preempt)
+        d = self.decide(cfg, percept.tick, can_preempt)
+        self._execute(port, d, percept.tick)
+        return d
+
+    def _execute(self, port, decision: Decision, now_tick: int) -> None:
+        """把意图交给 world 的动词, 失败自己处理(Deny/Ack 都是数据)。"""
+        intent = decision.intent
+        if isinstance(intent, MoveTo):
+            r = port.try_move(self.person_id, intent.dest)
+            if isinstance(r, Ack) and not r.ok:
+                self.on_failure(intent.dest, r.reason, now_tick)
+        elif isinstance(intent, Interact):
+            r = port.try_take(self.person_id, intent.target_id)
+            if isinstance(r, Deny):
+                self.on_failure(intent.target_id, r.reason, now_tick,
+                                retry_ticks=(r.retry_ticks or None))
+            # Grant 暂不处理: 信号仍由 world 的 InteractionSystem.step 应用(WP-08)
+        elif isinstance(intent, Buy):
+            r = port.try_buy(self.person_id, intent.item_id, intent.qty)
+            if isinstance(r, Ack) and not r.ok:
+                self.on_failure(intent.item_id, r.reason, now_tick)
 
     def on_day(self, cfg: "SimConfig", now_tick: int) -> int:
         """窄协议: 每游戏日 ① 重算年龄 ② 遗忘。返回遗忘条数。"""

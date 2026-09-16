@@ -26,8 +26,13 @@ class Ack:
 
 @dataclass(frozen=True, slots=True)
 class Deny:
-    """请求被世界否决(存在性 / 权属 / 资源 / 权限)。"""
+    """请求被世界否决(存在性 / 权属 / 资源 / 权限)。
+
+    `retry_ticks`: 给 NPC 的冷却提示(0 = 用默认)。世界不替 NPC 写记忆 ——
+    它只把理由和提示交回去, NPC 自己 `on_failure`。
+    """
     reason: str = ""
+    retry_ticks: int = 0
 
 
 @dataclass(frozen=True, slots=True)

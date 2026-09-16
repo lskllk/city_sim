@@ -30,6 +30,9 @@ class InteractionSystem:
 
     def __init__(self) -> None:
         self.active: dict[str, ActiveInteraction] = {}   # key = npc_id
+        # 最近一次 submit 失败的原因(供 NPC 侧 on_failure 用)。
+        # (reason, retry_ticks); 成功时不计。
+        self.last_fail: tuple[str, int] = ("", 0)
 
     # --- 提交 ---------------------------------------------------------
     def submit(self, world: World, npc: Person, intent) -> bool:
@@ -183,10 +186,7 @@ class InteractionSystem:
         world.bus.publish(world.bus.make(
             world.clock_tick, "intent_failed", pid,
             {"target": tid, "why": why}))
-        # 失败→记忆: 证伪只在失败后(目标不存在/已空→删; 被占/不可打断→冷却到实体时长)
+        # 只把“为什么失败 + 冷却提示”记下; 写记忆/放弃 goal 归 NPC 自己(WP-05)。
         npc = world.npcs.get(pid)
-        if npc is not None and tid:
-            ent = world.entities.get(tid)
-            npc.on_failure(tid, why, world.clock_tick,
-                           retry_ticks=ent.duration_ticks if ent is not None
-                           else None)
+        ent = world.entities.get(tid) if tid else None
+        self.last_fail = (why, ent.duration_ticks if ent is not None else 0)

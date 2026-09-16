@@ -1,6 +1,6 @@
 # WP-05 `Person.step(port)` + Deny 自处理
 
-- 状态：todo
+- 状态：done
 - 阶段：Step 1
 - 依赖：WP-01、WP-00
 - 大小：M

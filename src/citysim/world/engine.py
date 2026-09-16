@@ -23,7 +23,6 @@ from citysim.core.types import (
 from citysim.world.drive import due_npcs
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.pulses import apply as apply_pulses
-from citysim.world.perception import build_percept
 from citysim.world.port import WorldPortImpl
 from citysim.world.world import entity_from_def
 
@@ -753,28 +752,6 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
 
 
 
-def _apply(world, systems, cfg, pid, npc, decision) -> None:
-    """[过渡] 执行一条 Decision —— 各分支已搬去 world/port.py(WP-06 整体删除)。"""
-    intent = decision.intent
-
-    if isinstance(intent, MoveTo):
-        # WP-02: 整段逻辑搬去 world/port.py::WorldPortImpl.try_move
-        WorldPortImpl(world, systems, cfg).try_move(pid, intent.dest)
-        return
-    if isinstance(intent, Buy):
-        # WP-04: 整段逻辑搬去 world/port.py::WorldPortImpl.try_buy
-        WorldPortImpl(world, systems, cfg).try_buy(
-            pid, intent.item_id, int(getattr(intent, "qty", 1)))
-        return
-
-    if isinstance(intent, Interact):
-        # WP-03: 整段校验/claim 逻辑搬去 world/port.py::WorldPortImpl.try_take
-        WorldPortImpl(world, systems, cfg).try_take(pid, intent.target_id)
-        return
-
-    # Idle: 不主动释放(由 Person 决定何时结束); 仅空转
-
-
 def tick(world, systems, cfg: SimConfig) -> None:
     """推进一个 tick 的世界演化(唯一执行入口)。世界进程在此, loop 只薄转发。"""
     world.clock_tick += 1
@@ -847,10 +824,10 @@ def tick(world, systems, cfg: SimConfig) -> None:
     # 5a3. 柜台服务: 每个店按前台数服务队首(每 tick 每个前台成交 1 份)
     _serve_shops(world, systems, cfg)
 
-    # 5b. 决策: 先对全部该决策者算 Decision(同一世界快照), 再统一仲裁执行
-    #     仲裁 = 继续/挂起/中止/提交。
+    # 5b. 决策: NPC 主动拉(WP-05/06; WP-00 选 B: 顺序执行, due 已排序 → 确定性仍在)。
+    #     每人一轮: observe → decide → try_*(端口立即落账, 失败自己处理)。
+    port = WorldPortImpl(world, systems, cfg)
     due = due_npcs(world, systems)
-    decisions: list[tuple[str, Any, Any]] = []
     for npc_id in due:
         npc = world.npcs.get(npc_id)
         if npc is None:
@@ -860,10 +837,9 @@ def tick(world, systems, cfg: SimConfig) -> None:
         if active is not None:
             aent = world.entities.get(active.entity_id)
             can_preempt = bool(aent is not None and aent.interruptible)
-        percept = build_percept(world, npc)
-        decision = npc.process(percept, cfg, can_preempt)
+        decision = npc.step(port, cfg, can_preempt)
         # 语义层: 攒下的“值得说的话”变成头顶气泡。
-        # 放在 process 之后 —— 感知(预期 vs 观察)就在 process 里发生,
+        # 放在 step 之后 —— 感知(预期 vs 观察)就在 step 里发生,
         # 同一 tick 冒出来才跟得上画面。【谁都可能冒】, 不看闲不闲。
         said = npc.pending_speech(world.clock_tick, SAY_COOLDOWN)
         if said is not None:
@@ -890,10 +866,6 @@ def tick(world, systems, cfg: SimConfig) -> None:
                     "target": target or "", "source": decision.source,
                     "payload": {},
                 })
-        decisions.append((npc_id, npc, decision))
-
-    for npc_id, npc, decision in decisions:
-        _apply(world, systems, cfg, npc_id, npc, decision)
 
     # 5.5 遗忘(0 点) + 夜间计划(LLM/规则模板生成次日计划)
     if world.clock_tick % cfg.ticks_per_day == 0:

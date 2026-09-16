@@ -1,6 +1,6 @@
 # WP-01 `core/ports.py` 契约
 
-- 状态：todo
+- 状态：done
 - 阶段：Step 1
 - 依赖：WP-00（选项不影响接口形状）
 - 大小：S

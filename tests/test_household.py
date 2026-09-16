@@ -10,9 +10,9 @@ from __future__ import annotations
 import json
 
 from citysim.core.config import load_config
-from citysim.core.types import Buy, Decision, Interact
+from citysim.core.types import Buy, Interact
 from citysim.gateway.scenarios import load_scene
-from citysim.world import engine as E
+from citysim.world.port import WorldPortImpl
 from citysim.world.perception import build_percept
 
 CFG = load_config("config/sim.toml")
@@ -92,8 +92,7 @@ def test_authorized_interact_on_priced_home_item_is_not_blocked(tmp_path) -> Non
     for pid in ("npc_a", "npc_b"):
         w.place_npc(pid, "home")
         npc = w.npcs[pid]
-        E._apply(w, s, CFG, pid, npc,
-                 Decision(Interact(target_id="meal_simple_001"), source="plan"))
+        WorldPortImpl(w, s, CFG).try_take(pid, "meal_simple_001")
         blocked = [e for e in s.ui_events
                    if e.get("kind") == "intent_failed"
                    and e["payload"].get("why") == "在售商品·需购买"]

@@ -92,11 +92,10 @@ class WorldPortImpl:
         if dest == here:
             return Ack()                             # 已在原地
         ok, why = world.entry_check(dest, pid)
-        if not ok:                                   # 无权/已满: 不出发, 记一次失败
+        if not ok:                                   # 无权/已满: 不出发(事件在此, 记忆归 NPC)
             world.bus.publish(world.bus.make(
                 world.clock_tick, "intent_failed", pid,
                 {"target": dest, "why": why}))
-            npc.on_failure(dest, why, world.clock_tick)
             return Ack(ok=False, reason=why)
         route = route_between(world, systems, here, dest)
         if route is None:                            # 无路网 → 直线/固定耗时降级
@@ -131,7 +130,6 @@ class WorldPortImpl:
             world.bus.publish(world.bus.make(
                 world.clock_tick, "intent_failed", pid,
                 {"target": entity_id, "why": why}))
-            npc.on_failure(entity_id, why, world.clock_tick)
             return Deny(why)
         active = systems.interaction.active.get(pid)
         if active is not None and active.entity_id != entity_id:
@@ -140,8 +138,9 @@ class WorldPortImpl:
             preempt(world, systems, pid)
         ok = systems.interaction.submit(world, npc, Interact(target_id=entity_id))
         if not ok:
-            # submit 内部已发 intent_failed + on_failure
-            return Deny("提交失败")
+            # submit 内部已发 intent_failed; 原因由 last_fail 交回 NPC 自己处理
+            why, retry = systems.interaction.last_fail
+            return Deny(why or "提交失败", retry_ticks=retry)
         signal, value = (next(iter(ent.affordances.items()), ("", 0.0))
                          if ent is not None else ("", 0.0))
         return Grant(

@@ -632,6 +632,15 @@ class Person:
         self._work["open"] = max(0, min(1439, int(open_minute)))
         self._work["close"] = max(1, min(1440, int(close_minute)))
 
+    def set_wage(self, wage_per_hour: float) -> None:
+        """改【本人的时薪】(只动 _work): 决策层要用它算"离岗亏多少钱"。
+
+        公司 payroll(comp.staff) 由世界侧同步改 —— 发工资是按那个发的。
+        """
+        if not self._work:
+            return
+        self._work["wage"] = max(0.0, float(wage_per_hour))
+
     @property
     def role(self) -> str:
         """角色: 雇佣写上的优先, 否则看人设里的 traits.role。"""

@@ -876,6 +876,34 @@ func is_fixture(type_id: String) -> bool:
 	return (d.get("tags", []) as Array).has("fixture")
 
 
+# --- 公司员工名单: "npc_a" 与 {"npc":.., "wage":..} 两种写法都认 ---------
+
+## staff 数组里的一项 → npc id。
+func staff_pid(e: Variant) -> String:
+	if typeof(e) == TYPE_DICTIONARY:
+		return String((e as Dictionary).get("npc", ""))
+	return String(e)
+
+
+## 这个人在员工名单里吗。
+func staff_has(staff: Array, pid: String) -> bool:
+	for e in staff:
+		if staff_pid(e) == pid:
+			return true
+	return false
+
+
+## 这个人的【逐人时薪】(返回文本; "" = 没写 = 跟公司默认时薪)。
+func staff_wage_text(staff: Array, pid: String) -> String:
+	for e in staff:
+		if staff_pid(e) != pid:
+			continue
+		if typeof(e) == TYPE_DICTIONARY and e.has("wage"):
+			return "%.0f" % float(e["wage"])
+		return ""
+	return ""
+
+
 func items_at(bid: String) -> Array:
 	var units := unit_ids(bid)
 	var out: Array = []

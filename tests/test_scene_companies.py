@@ -100,3 +100,43 @@ def test_editor_scene_worker_is_staffed_headless(tmp_path) -> None:
     for _ in range(120):
         run_tick(w, s, CFG, rng)
     assert len(staffed_counters(w, s, "shop")) == 1   # 人在台上
+
+
+def test_scene_per_person_wage(tmp_path) -> None:
+    """逐人时薪: 场景 staff 项写 wage → 发工资按那个发, 不是公司默认时薪。
+
+    数据模型一直是 ((npc_id, 时薪), ...)(pay_wages 按人算), 但场景/编辑器
+    /面板三处入口都没接 → 这里钉住"场景这条路"是通的。
+    """
+    scene = _scene()
+    scene["entities"].append(
+        {"id": "c2", "type": "station_counter", "at": "shop"})
+    scene["companies"][0]["staff"] = [
+        {"npc": "a", "station": "c", "wage": 3},
+        {"npc": "b"},                       # 没写 wage → 跟公司默认(12)
+    ]
+    scene["npcs"].append({"id": "b", "name": "B", "home": "home", "money": 100,
+                          "init": {}})
+    w, _s, _r = _load(tmp_path, scene)
+    assert dict(w.companies["org_shop"].staff) == {"a": 3.0, "b": 12.0}
+    assert w.npcs["a"].work["wage"] == 3.0      # 决策层要用它算"离岗亏多少"
+    assert w.npcs["b"].work["wage"] == 12.0
+
+
+def test_admin_wage_changes_payroll_and_work(tmp_path) -> None:
+    """运行期改某个人时薪: 公司的 payroll 和本人的 _work 要一起改。"""
+    from types import SimpleNamespace
+
+    from citysim.gateway.server import _admin_company
+    scene = _scene()
+    scene["companies"][0]["staff"] = ["a"]
+    w, _s, _r = _load(tmp_path, scene)
+    r = SimpleNamespace(world=w)
+    res = _admin_company(r, "wage", {"company": "org_shop", "npc": "a",
+                                     "wage": 4.5})
+    assert res["ok"] and dict(w.companies["org_shop"].staff) == {"a": 4.5}
+    assert w.npcs["a"].work["wage"] == 4.5
+    # 不是本公司员工 → 拒绝
+    bad = _admin_company(r, "wage", {"company": "org_shop", "npc": "nobody",
+                                     "wage": 1})
+    assert not bad["ok"]

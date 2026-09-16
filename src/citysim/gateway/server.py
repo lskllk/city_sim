@@ -436,6 +436,7 @@ def _admin_company(r, op: str, args: dict) -> dict:
     op:
       register  点一个商铺建筑 → 注册公司 {location, name, cash}
       update    改参数 {company, cash/open_minute/close_minute/wage_per_hour/restock_to}
+      wage      改【某个员工】的时薪 {company, npc, wage}  ← 逐人, 不动公司默认时薪
       hire      发布/撤回招聘启事 {company, slots, wage_per_hour?} ← 招不招人公司说了算
       assign    给员工分派销售台 {company, npc, station}("" = 撤销)
       restock   向市场进货 {company, shop?, item_type, qty}
@@ -479,6 +480,20 @@ def _admin_company(r, op: str, args: dict) -> dict:
                 setattr(comp, k, int(args[k]))
         if args.get("name"):
             comp.name = str(args["name"])
+        return {"ok": True, "why": None, "company": cid,
+                "companies": _company_list(world)}
+    if op == "wage":
+        # 逐人时薪(和公司时薪 wage_per_hour 是两回事): 改公司的 payroll
+        # + 本人的 _work(决策层用它算“离岗亏多少钱”)。
+        nid = str(args.get("npc", ""))
+        npc = world.npcs.get(nid)
+        if npc is None:
+            return {"ok": False, "why": "没有这个人", "company": cid}
+        if nid not in [n for n, _ in comp.staff]:
+            return {"ok": False, "why": "这个人不是本公司员工", "company": cid}
+        wage = max(0.0, float(args.get("wage", 0.0)))
+        comp.staff = tuple((n, wage if n == nid else w) for n, w in comp.staff)
+        npc.set_wage(wage)
         return {"ok": True, "why": None, "company": cid,
                 "companies": _company_list(world)}
     if op == "hire":

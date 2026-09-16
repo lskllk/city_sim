@@ -295,7 +295,8 @@ def _load_companies(world: World, data: dict) -> None:
 def _bind_company_staff(world: World, data: dict) -> None:
     """把公司预置的【员工】绑好(作者直选 = 上帝模式, 不等 hire_minute)。
 
-    spec 里: "staff": ["npc_a", {"npc":"npc_b", "station":"station_counter_001"}]
+    spec 里: "staff": ["npc_a", {"npc":"npc_b", "station":"station_counter_001",
+                            "wage": 8}]   ← wage 不给 = 跟公司时薪(comp.wage_per_hour)
     · 给了 station 就用它; 没给就自动挑公司第一个【空着的销售台】;
     · 写 work 绑定 + 角色 + 员工名单(和运行期 hire_at 一样)。
     """
@@ -314,6 +315,10 @@ def _bind_company_staff(world: World, data: dict) -> None:
                 continue
             station = (str(entry.get("station", ""))
                        if isinstance(entry, dict) else "")
+            # 逐人时薪: 场景里写了就用, 没写跟公司默认
+            wage = float(comp.wage_per_hour)
+            if isinstance(entry, dict) and entry.get("wage") is not None:
+                wage = float(entry["wage"])
             if not station:
                 vac = vacant_counters(world, comp)
                 station = vac[0][1].entity_id if vac else ""
@@ -324,9 +329,9 @@ def _bind_company_staff(world: World, data: dict) -> None:
                     shop_id = ent.location_id
             npc.set_work(comp.company_id, shop_id, station,
                          comp.open_minute, comp.close_minute,
-                         wage_per_hour=comp.wage_per_hour)
+                         wage_per_hour=wage)
             npc.set_role("worker")
-            staff.append((nid, float(comp.wage_per_hour)))
+            staff.append((nid, wage))
         comp.staff = tuple(staff)
 
 

@@ -306,10 +306,18 @@ func _staff_row(it: Variant, comp: Dictionary) -> Control:
 		Commands.cmd("company_assign", {"company": _cid, "npc": pid,
 			"station": Protocol.s(ids[k]) if k < ids.size() else ""}))
 	row.add_child(ob)
-	var w := Label.new()
-	w.text = "¥%.0f/时" % wage
-	w.custom_minimum_size.x = 80
+	var w := LineEdit.new()
+	w.text = "%.0f" % wage
+	w.custom_minimum_size.x = 44
+	w.tooltip_text = "这个人的时薪(¥/时) —— 逐人, 不动公司默认时薪"
 	row.add_child(w)
+	row.add_child(_muted("¥/时"))
+	var wb := Button.new()
+	wb.text = "改薪"
+	wb.pressed.connect(func() -> void:
+		Commands.cmd("company", {"op": "wage", "company": _cid, "npc": pid,
+			"wage": w.text.to_float()}))
+	row.add_child(wb)
 	var on_post := bool(Store.npc(pid).get("on_post", false))
 	var st := Label.new()
 	st.text = "在岗" if on_post else "不在岗"

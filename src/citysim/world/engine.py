@@ -29,9 +29,10 @@ from citysim.world.world import entity_from_def
 
 
 def _busy(world, systems, pid: str) -> bool:
-    """忙碌 = 有进行中交互 或 正在跨地点移动。"""
+    """忙碌 = 有进行中交互 或 正在跨地点移动 或 正在闲逛。"""
     return (systems.interaction.active.get(pid) is not None
-            or pid in systems.travel)
+            or pid in systems.travel
+            or pid in systems.roaming)
 
 
 def _kill(world, systems, pid: str) -> None:
@@ -789,6 +790,10 @@ def tick(world, systems, cfg: SimConfig) -> None:
                 if npc is not None:
                     npc.on_failure(trv.to_loc, why, world.clock_tick)
 
+    # 5a2. 闲逛到期 / 人已离开那个地方(world 侧会话; fun 由 NPC 自己消化)
+    for pid in [p for p, r in systems.roaming.items()
+                if r.until <= world.clock_tick or world.loc_of(p) != r.dest]:
+        systems.roaming.pop(pid, None)
 
     # 5a3. 柜台服务: 每个店按前台数服务队首(每 tick 每个前台成交 1 份)
     _serve_shops(world, systems, cfg)

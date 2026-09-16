@@ -69,6 +69,8 @@ def icon_of(entity) -> str:
 def act_class_of(world, systems, pid: str) -> str:
     if pid in systems.travel:
         return "move"
+    if pid in getattr(systems, "roaming", {}):
+        return "wander"        # 闲逛中(前端文案在 P2 接)
     act = systems.interaction.active.get(pid)
     if act is None:
         return "idle"

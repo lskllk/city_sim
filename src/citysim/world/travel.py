@@ -22,3 +22,11 @@ class Travel:
     depart_tick: int
     arrive_tick: int
     waypoints: tuple[Point, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class Roam:
+    """一段【闲逛会话】(world 侧登记, 只为去重/busy/展示; fun 由 NPC 自己消化)。"""
+    dest: str
+    handle: str
+    until: int

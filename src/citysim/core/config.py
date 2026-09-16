@@ -15,7 +15,7 @@ except ModuleNotFoundError:  # Python 3.10
 
 # 信号全集（0..1 float, 1=充足/健康, 0=耗尽）。唯一表示, 禁 0..100 int 存储。
 SIGNALS: tuple[str, ...] = (
-    "energy", "hunger", "bladder", "hp",
+    "energy", "hunger", "bladder", "hp", "fun",
 )
 
 # 注: REFLEX_SIGNALS(致命信号白名单)已在 2026-09-14 删除。
@@ -48,6 +48,13 @@ class SimConfig:
     hp_starve_grace_ticks: float = 4320.0
     # hp 低于此 → 日程失去拉力(命比钱大): 计划不执行、也让位给需求
     hp_override: float = 0.5
+    # —— fun(娱乐): 上班涨 / 空闲掉; 吃/睡/厕所不变 ——
+    fun_idle_drop: float = 0.0006944444444444444   # 空闲每 tick 掉(≈1 天掉光)
+    fun_work_gain: float = 0.0003472222222222222   # 上班每 tick 涨(≈2 天涨满)
+    fun_roam_value: float = 0.4                    # 一次闲逛总共补多少 fun
+    fun_roam_ticks: int = 120                      # 一次闲逛持续多久
+    fun_seek_below: float = 0.6                    # fun 低于此才想闲逛
+    fun_places_top: int = 3                        # 从前 N 个“最热闹”里随机挑
     # —— 成本模型(比价 / 比距离 / 顺路) ——
     # eff = (need^power × value × personality × believe) / (1 + cost_lambda × cost)
     # cost = price×qty + price×(1−believe)     (纯钱 + 不确定性)
@@ -122,6 +129,7 @@ class SimConfig:
         full_meta = {s: float(meta.get(s, 0.0)) for s in SIGNALS}
         health = data.get("health", {})
         util = data.get("utility", {})
+        fun_cfg = data.get("fun", {})
         tpd = int(data["time"]["ticks_per_day"])
         return cls(
             ticks_per_day=tpd,
@@ -138,6 +146,12 @@ class SimConfig:
             hp_starve_grace_ticks=float(
                 health.get("starve_grace_days", 3.0)) * tpd,
             hp_override=float(health.get("hp_override", 0.5)),
+            fun_idle_drop=float(fun_cfg.get("idle_drop", 0.0006944444444444444)),
+            fun_work_gain=float(fun_cfg.get("work_gain", 0.0003472222222222222)),
+            fun_roam_value=float(fun_cfg.get("roam_value", 0.4)),
+            fun_roam_ticks=int(fun_cfg.get("roam_ticks", 120)),
+            fun_seek_below=float(fun_cfg.get("seek_below", 0.6)),
+            fun_places_top=int(fun_cfg.get("places_top", 3)),
             cost_lambda=float(util.get("cost_lambda", 0.02)),
             travel_penalty=float(util.get("travel_penalty", 2.0)),
             wage_minute=int(data.get("economy", {}).get("wage_minute", 480)),

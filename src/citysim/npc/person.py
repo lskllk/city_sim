@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import zlib
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
@@ -27,6 +28,7 @@ from citysim.core.types import (
     Idle,
     Interact,
     MoveTo,
+    Wander,
     intent_kind,
     intent_target,
 )
@@ -158,6 +160,8 @@ class Person:
         # 位移成本矩阵("a|b" -> tick): 由装配层从场景/路网注入。
         # 纯数据, 不 import world —— 决定“顺路值多少”的就是它。
         self._travel_costs: dict[str, int] = {}
+        # “地点热闹度”表 {loc: draw}, 装配注入; 闲逛选址用(纯数据, 不查 world)。
+        self._places: dict[str, float] = {}
         self._money: float = money
         self._age: int | None = self._age_from_birthday(0)   # 每天 on_day 重算
         self._bladder_pending: float = 0.0
@@ -302,6 +306,19 @@ class Person:
             self._bladder_pending -= step
             self._signals["bladder"] = _clamp(
                 self._signals.get("bladder", 1.0) - step)
+        # fun(娱乐): 上班涨 / 空闲掉; 吃/睡/厕所/赶路/闲逛 → 不变。
+        #   判据全来自 NPC 自己的 intake/目标 —— 不新增 world 注入。
+        #   (闲逛的 fun 由它自己的 Grant 逐 tick 加, 这里不再加, 避免双算。)
+        ftags = {t for ag in self._intake for t in ag.grant.tags}
+        if "work" in ftags:
+            self._signals["fun"] = _clamp(
+                self._signals.get("fun", 1.0) + cfg.fun_work_gain)
+        elif "roam" in ftags:
+            pass                    # 闲逛的 fun 由 roam Grant 自己涨
+        elif not self._intake and not busy:
+            # 真·空闲(没事做也不在赶路) → 掉; 吃饭/睡觉/赶路 → 不变
+            self._signals["fun"] = _clamp(
+                self._signals.get("fun", 1.0) - cfg.fun_idle_drop)
         # 消化(WP-08): 体内 intake 逐 tick 均摊加信号。
         # 放在代谢/排泄【之后】—— 与旧 InteractionSystem.step 的相对顺序一致。
         self._digest(now_tick, cfg)
@@ -505,6 +522,10 @@ class Person:
     def set_travel_costs(self, costs: dict[str, int]) -> None:
         """装配: 注入位移成本矩阵(engine/场景侧提供, 这里只存不用)。"""
         self._travel_costs = dict(costs or {})
+
+    def set_places(self, places: dict[str, float]) -> None:
+        """装配: 注入“地点热闹度”表 {loc: draw}(闲逛选址用; 纯数据)。"""
+        self._places = dict(places or {})
 
     @property
     def tell_bias(self) -> float:
@@ -712,6 +733,53 @@ class Person:
         self._goal = None
 
 
+    def _wander_dest(self, cfg: "SimConfig", now_tick: int) -> str:
+        """挑一个“热闹又不远”的地方闲逛。
+
+        纯数据(不查 world): 只用注入的 `_places`(loc→draw) + `_travel_costs`。
+        取“draw/(1+路费)”前 N 名, 再用【person_id+bucket 的稳定哈希】抽一个
+        → 同 seed / 同人可复现的“随机闲逛”。
+        """
+        if not self._places:
+            return ""
+        here = self._perceived_loc
+        # 候选: 去掉“家”(不会“出去玩 = 去自己家”); 允许当前所在地
+        #   —— 若当前地就在热门榜里, 就会 Wander(here) → 就地逛起来。
+        cands = [loc for loc in self._places if loc and loc != self._home]
+        if not cands:
+            return ""
+
+        def cost(loc: str) -> int:
+            if not here or not self._travel_costs:
+                return 0
+            a, b = f"{here}|{loc}", f"{loc}|{here}"
+            return int(self._travel_costs.get(a, self._travel_costs.get(b, 30)))
+
+        ranked = sorted(
+            cands,
+            key=lambda loc: (-(float(self._places[loc]) / (1.0 + cost(loc))), loc))
+        top = ranked[:max(1, int(cfg.fun_places_top))]
+        if not top:
+            return ""
+        bucket = now_tick // max(1, int(cfg.fun_roam_ticks))
+        idx = zlib.crc32(f"{self.person_id}|{bucket}".encode("utf-8")) % len(top)
+        return top[idx]
+
+    def _idle_or_wander(self, cfg: "SimConfig", now_tick: int) -> Decision:
+        """真没事干了: fun 低 → 闲逛(最低优先级); 否则 idle。
+
+        闲逛【不设 _goal】→ 下一 tick 先看需求/工作/日程 → **任何需求都能打断**。
+        已在闲逛(体内有 roam grant) → 就地待着, 不再重挑目的地。
+        选中的地点可能就是当前所在地 → `Wander(here)` → 就地逛。
+        """
+        if any("roam" in ag.grant.tags for ag in self._intake):
+            return self._record(Decision(Idle(), "fun"))   # 就地逛着, fun 由 grant 涨
+        if self._signals.get("fun", 1.0) < cfg.fun_seek_below:
+            dest = self._wander_dest(cfg, now_tick)
+            if dest:
+                return self._record(Decision(Wander(dest), "fun"))
+        return self._record(Decision(Idle(), "idle"))
+
     def _intent_scored(self, cfg: "SimConfig",
                        now_tick: int) -> "tuple[Intent | None, float]":
         """当前最想做的事 + 它的得分(Idle → (None, 0.0))。
@@ -794,7 +862,7 @@ class Person:
                 return self._record(Decision(Idle(), "idle"))
             e = self._schedule.current()
             if e is None or now_tick < e.at_tick:
-                return self._record(Decision(Idle(), "idle"))
+                return self._idle_or_wander(cfg, now_tick)
             # D3: 这条的窗口已经过去了 → 跳过, 不补做。
             # 窗口边界与 Schedule.deadline() 同一口径: **严格更晚**的下一条才构成截止;
             # 同刻多条是同一组串行任务(如 MoveTo + Interact), 不能互相跳掉。
@@ -962,6 +1030,14 @@ class Person:
             r = port.try_buy(self.person_id, intent.item_id, intent.qty)
             if isinstance(r, Ack) and not r.ok:
                 self.on_failure(intent.item_id, r.reason, now_tick)
+        elif isinstance(intent, Wander):
+            r = port.try_wander(self.person_id, intent.dest)
+            if isinstance(r, Grant):
+                self.intake_add(r)          # 闲逛的 fun 由这份 Grant 自己涨
+        elif isinstance(intent, Idle):
+            # 身上没事 → 把活动名收回 idle(否则“闲逛”会粘着不走)
+            if not self._intake:
+                self.set_activity("idle")
 
     def on_day(self, cfg: "SimConfig", now_tick: int) -> int:
         """窄协议: 每游戏日 ① 重算年龄 ② 遗忘。返回遗忘条数。"""

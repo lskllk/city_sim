@@ -13,7 +13,7 @@ from citysim.core.ports import Ack, Deny, Grant
 from citysim.core.types import Buy, Interact, Percept
 from citysim.world.effects import compile_effects
 from citysim.world.perception import build_percept
-from citysim.world.travel import Travel
+from citysim.world.travel import Roam, Travel
 
 
 # ---------------------------------------------------------------------------
@@ -178,3 +178,25 @@ class WorldPortImpl:
         enqueue_buy(world, systems, pid, shop.location_id, item_id, qty)
         _set_bubble(systems, npc, "老板, 来 %d 份" % qty, "queue", world.clock_tick)
         return Ack(ok=True, reason="queued")
+
+    # --- 闲逛(最低优先级; 补 fun) -----------------------------
+    def try_wander(self, pid: str, dest: str) -> "Ack | Grant":
+        """闲逛: 没到 dest → 复用移动; 到了 → 开一段 roam 并返回补 fun 的 Grant。"""
+        world, systems = self.world, self.systems
+        if not dest:
+            return Ack(ok=False, reason="没有目的地")
+        if world.loc_of(pid) != dest:
+            return self.try_move(pid, dest)          # 没到 → 复用移动
+        roam = systems.roaming.get(pid)
+        if roam is not None and roam.until > world.clock_tick:
+            return Ack(ok=True, reason="roaming")   # 已在逛 → 不重复发 Grant
+        ticks = max(1, int(self.cfg.fun_roam_ticks))
+        handle = "roam:%s:%d" % (pid, world.clock_tick)
+        systems.roaming[pid] = Roam(dest=dest, handle=handle,
+                                    until=world.clock_tick + ticks)
+        npc = world.npcs.get(pid)
+        if npc is not None:
+            npc.set_activity("闲逛")
+        return Grant(handle=handle, entity_id="", signal="fun",
+                     value=float(self.cfg.fun_roam_value),
+                     duration_ticks=ticks, tags=("roam",))

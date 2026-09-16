@@ -81,7 +81,14 @@ class Buy:
     trace: DecisionTrace = field(default_factory=DecisionTrace)
 
 
-Intent = Idle | MoveTo | Interact | Buy
+@dataclass(frozen=True, slots=True)
+class Wander:
+    """闲逛: 去 dest 待一会儿(补 fun; 最低优先级, 可被任何需求打断)。"""
+    dest: str
+    trace: DecisionTrace = field(default_factory=DecisionTrace)
+
+
+Intent = Idle | MoveTo | Interact | Buy | Wander
 
 
 # ---------------------------------------------------------------------------
@@ -126,6 +133,8 @@ def intent_kind(intent: Intent) -> str:
         return "interact"
     if isinstance(intent, Buy):
         return "buy"
+    if isinstance(intent, Wander):
+        return "wander"
     raise TypeError(f"unknown intent {intent!r}")
 
 
@@ -137,4 +146,6 @@ def intent_target(intent: Intent) -> str | None:
         return intent.target_id
     if isinstance(intent, Buy):
         return intent.item_id
+    if isinstance(intent, Wander):
+        return intent.dest
     return None

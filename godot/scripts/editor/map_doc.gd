@@ -870,6 +870,12 @@ func remove_company(cid: String) -> void:
 	changed.emit()
 
 
+## 这个物件类型是不是【装修件】(fixture): 销售前台/货架/马桶…
+func is_fixture(type_id: String) -> bool:
+	var d: Dictionary = item_types.get(type_id, {})
+	return (d.get("tags", []) as Array).has("fixture")
+
+
 func items_at(bid: String) -> Array:
 	var units := unit_ids(bid)
 	var out: Array = []
@@ -1589,17 +1595,18 @@ func load_scene_dict(d: Dictionary) -> bool:
 	scene_name = String(d.get("scene", "editor_scene"))
 	scene_display = String(d.get("display_name", ""))
 	new_map()
+	var m: Variant = d.get("map")
+	if m is Dictionary and not (m as Dictionary).is_empty():
+		from_dict(m)          # ★ from_dict 内部还会 new_map() 一次 → 所以
+	_load_buildings_from_locations(d)   # knowledge/companies 必须放在它【之后】导
+	_load_items(d)
+	_load_npcs(d)
+	# 放在所有“会 new_map 的”载入之后 —— 否则会被冲掉(以前 knowledge 就这么丢的)
 	knowledge = (d.get("knowledge", []) as Array).duplicate(true)
 	for c in (d.get("companies", []) as Array):
 		if c is Dictionary and String((c as Dictionary).get("id", "")) != "":
 			var cid := String((c as Dictionary).get("id"))
 			companies[cid] = (c as Dictionary).duplicate(true)
-	var m: Variant = d.get("map")
-	if m is Dictionary and not (m as Dictionary).is_empty():
-		from_dict(m)
-	_load_buildings_from_locations(d)
-	_load_items(d)
-	_load_npcs(d)
 	_recount()
 	errors = validate()
 	changed.emit()

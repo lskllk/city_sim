@@ -7,9 +7,9 @@
     {
       "cash": 1000.0,
       "close": "19:00",
-      "hiring_slots": 1,
+      "hiring_slots": 0,
       "id": "org_bld_004",
-      "name": "11",
+      "name": "1",
       "open": "08:00",
       "shops": [
         "bld_004"
@@ -73,6 +73,23 @@
       "at": "bld_009",
       "id": "bed_basic_045",
       "type": "bed_basic"
+    },
+    {
+      "at": "bld_004",
+      "id": "station_counter_046",
+      "type": "station_counter"
+    },
+    {
+      "at": "bld_004",
+      "id": "toilet_basic_047",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_004",
+      "id": "food_apple_048",
+      "price": 3.0,
+      "stock": 1000,
+      "type": "food_apple"
     }
   ],
   "knowledge": [],

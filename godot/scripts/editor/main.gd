@@ -714,6 +714,17 @@ func _sec_company(bid: String) -> void:
 		MapDoc.remove_company(String(c.get("id", "")))
 		_rebuild_inspector())
 	sec.add_child(del)
+	# 归属: 这店里的货/装修都算这家公司的(世界按“所在地公司”判)
+	var goods := 0
+	var decor := 0
+	for iid in (_unit_info(bid)["all_items"] as Array):
+		var it: Dictionary = MapDoc.items[iid]
+		if MapDoc.is_fixture(String(it.get("type", ""))):
+			decor += 1
+		else:
+			goods += 1
+	_kv(sec, "货物", "%d 种 (在「物件」段增删)" % goods)
+	_kv(sec, "装修", "%d 件 (前台/货架…)" % decor)
 	# 员工: 勾选 = 在这家公司上班(工位自动分配; 相当于运行期的“已招到”)
 	sec.add_child(_muted("员工(勾选 = 在公司上班; 工位自动分配)"))
 	var staff: Array = c.get("staff", [])
@@ -1030,6 +1041,10 @@ func _build_item(iid: String) -> void:
 	for pid in MapDoc.npcs:
 		_f_owner_ids.append(pid)
 		_f_owner.add_item(String(MapDoc.npcs[pid].get("name", pid)))
+	# 公司也可以当归属(店里的货/装修 → 就是这家公司的)
+	for cid in MapDoc.companies:
+		_f_owner_ids.append(cid)
+		_f_owner.add_item("公司: %s" % String(MapDoc.companies[cid].get("name", cid)))
 	_f_owner.selected = maxi(0, _f_owner_ids.find(String(it.get("owner", ""))))
 	sec.add_child(_lrow("归属", _f_owner))
 	_inspector.add_child(sec)

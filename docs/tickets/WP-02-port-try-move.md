@@ -1,6 +1,6 @@
 # WP-02 `world/port.py` + `try_move`
 
-- 状态：todo
+- 状态：done
 - 阶段：Step 1
 - 依赖：WP-01
 - 大小：S

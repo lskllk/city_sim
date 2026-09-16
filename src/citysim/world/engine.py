@@ -24,32 +24,15 @@ from citysim.world.drive import due_npcs
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.pulses import apply as apply_pulses
 from citysim.world.perception import build_percept
-from citysim.world.travel import Travel
+from citysim.world.port import (
+    WorldPortImpl,
+    can_preempt as _can_preempt,
+    preempt as _preempt,
+)
 from citysim.world.world import entity_from_def
 
 
-def _travel_cost(systems, cfg: SimConfig, a: str, b: str) -> int:
-    """跨地点移动耗时: 优先 travel_costs 矩阵, 缺省回落 cfg.move_ticks。"""
-    if systems.travel_costs:
-        c = systems.travel_costs.get(f"{a}|{b}") or \
-            systems.travel_costs.get(f"{b}|{a}")
-        if c is not None:
-            return c
-    # 场景自己声明的 travel.default 优先于全局 move_ticks
-    if int(getattr(systems, "travel_default", 0) or 0) > 0:
-        return int(systems.travel_default)
-    return cfg.move_ticks
-
-
-def _route_between(world, systems, a: str, b: str):
-    """有路网且两端都接得上 → 沿路最短路径; 否则 None(上层降级)。"""
-    roads = getattr(systems, "roads", None)
-    if roads is None or not roads.ok:
-        return None
-    pa, pb = world.door_point(a), world.door_point(b)
-    if pa is None or pb is None:
-        return None
-    return roads.route(pa, pb)
+# 移动耗时 / 路线 / 抢占 的共享 helper 已搬到 world/port.py(WP-02)。
 
 
 def _sleeping(world, systems, pid: str) -> bool:
@@ -774,56 +757,14 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
 
 
 
-def _can_preempt(world, systems, pid) -> bool:
-    """能不能中止当前交互: 只有可打断的才行(睡觉不可打断)。"""
-    act = systems.interaction.active.get(pid)
-    if act is None:
-        return True
-    ent = world.entities.get(act.entity_id)
-    return bool(ent is not None and ent.interruptible)
-
-
-def _preempt(world, systems, pid) -> None:
-    """中止当前交互(唯一能打断的是 PLAN: 上班)。"""
-    systems.interaction.abort(world, pid)
-
-
 def _apply(world, systems, cfg, pid, npc, decision) -> None:
     """执行一条 Decision: 继续(同目标)/挂起/中止/提交。"""
     intent = decision.intent
     active = systems.interaction.active.get(pid)
 
     if isinstance(intent, MoveTo):
-        dest = intent.dest or world.loc_of(pid)
-        trv = systems.travel.get(pid)
-        if trv is not None and trv.to_loc == dest:
-            return                                   # 已在去往该地途中
-        if active is not None:
-            if not _can_preempt(world, systems, pid):
-                return
-            _preempt(world, systems, pid)
-        here = world.loc_of(pid)
-        if dest == here:
-            return
-        ok, why = world.entry_check(dest, pid)
-        if not ok:                               # 无权/已满: 不出发, 记一次失败
-            world.bus.publish(world.bus.make(
-                world.clock_tick, "intent_failed", pid,
-                {"target": dest, "why": why}))
-            npc.on_failure(dest, why, world.clock_tick)
-            return
-        route = _route_between(world, systems, here, dest)
-        if route is None:                        # 无路网 → 直线/固定耗时降级
-            cost = _travel_cost(systems, cfg, here, dest)
-            wps: tuple[tuple[float, float], ...] = ()
-        else:
-            cost = route.ticks
-            wps = route.waypoints
-        systems.travel[pid] = Travel(
-            from_loc=here, to_loc=dest,
-            depart_tick=world.clock_tick,
-            arrive_tick=world.clock_tick + cost,
-            waypoints=wps)
+        # WP-02: 整段逻辑搬去 world/port.py::WorldPortImpl.try_move
+        WorldPortImpl(world, systems, cfg).try_move(pid, intent.dest)
         return
     if isinstance(intent, Buy):
         # ★ 交易不再是"点一下就成交": 到店 → 排队 → 柜台一份一份地卖。

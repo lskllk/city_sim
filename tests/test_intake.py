@@ -139,3 +139,18 @@ def test_snapshot_active_progress_follows_npc_intake() -> None:
     assert view["active"]["entity"] == "meal"
     assert view["active"]["total"] == 10
     assert view["active"]["remaining"] == 6       # 不能恒等于 total(旧 bug)
+
+
+# --- 下班就把工位交回去(不能“意图 idle 但还占着台”) -----------------------
+def test_work_intake_ends_when_shift_ends() -> None:
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "station", location="loc", tags=("work", "station"),
+               affordances={}, duration_ticks=600, stock=1)
+    npc = add_npc(w, s, "npc", location="loc")
+    npc.set_work("org", "loc", "station", open_minute=480, close_minute=1140)
+    npc.intake_add(_port(w, s).try_take("npc", "station"))
+    npc.heartbeat(600, CFG)                       # 10:00 在班 → 继续
+    assert len(npc._intake) == 1
+    npc.heartbeat(1200, CFG)                      # 20:00 不在班 → 下班
+    assert npc._intake == []
+    assert npc.take_finished()                    # 交回 handle 让 world 收尾

@@ -308,23 +308,28 @@ class Person:
                 self._signals.get("bladder", 1.0) - step)
         # 消化(WP-08): 体内 intake 逐 tick 均摊加信号。
         # 放在代谢/排泄【之后】—— 与旧 InteractionSystem.step 的相对顺序一致。
-        self._digest()
+        self._digest(now_tick, cfg)
         return True
 
-    def _digest(self) -> None:
+    def _digest(self, now_tick: int = 0, cfg: "SimConfig | None" = None) -> None:
         """推进体内 intake: 每 tick 加 value/total。
 
         结束(通用): ① 目标信号已满(>=1.0) → **满了优先结束**;
-                   ② 否则数到 duration_ticks → 到点结束。
-        两者都走【自然完成】(world 收尾)。
+                   ② 到 duration_ticks → 到点结束;
+                   ③ 工作工位: 一旦【不在班】 → 立刻下班(不再挂着占着台)。
+        都走【自然完成】(world 收尾)。
         """
         for ag in list(self._intake):
             g = ag.grant
+            tags = tuple(getattr(g, "tags", ()) or ())
+            off_duty = ("work" in tags and bool(self._work)
+                        and cfg is not None
+                        and not self._on_shift(now_tick, cfg))
             if g.signal:
                 self.add_signal(g.signal, g.value / ag.total)
             ag.remaining -= 1
             saturated = bool(g.signal) and self.signal(g.signal) >= 1.0
-            if ag.remaining <= 0 or saturated:
+            if ag.remaining <= 0 or saturated or off_duty:
                 self._intake.remove(ag)
                 self._finished.append(g.handle)
 

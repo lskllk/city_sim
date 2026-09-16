@@ -104,6 +104,8 @@ static func action_text(intent: String, target_name: String,
 		"buy":
 			return "买 %s" % target_name
 		"interact":
+			if item_type.begins_with("station"):
+				return "上班"
 			return "%s %s" % [verb_zh(item_type), target_name]
 		"idle", "":
 			return "空闲"

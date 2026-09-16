@@ -22,7 +22,7 @@ static func activity_text(n: Dictionary) -> String:
 		"toilet":
 			return "上厕所"
 		"work":
-			return act_with("在岗", act)
+			return "上班"
 		_:
 			return "空闲"
 

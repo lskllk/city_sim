@@ -7,8 +7,6 @@
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 from citysim.core.config import load_config
 from citysim.npc import brain
 from citysim.core.types import Interact, MoveTo

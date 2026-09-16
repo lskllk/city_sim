@@ -98,7 +98,7 @@ def apply_effects(world: World, npc: Person, entity: Entity,
 # ---------------------------------------------------------------------------
 # 效果边界(WP-10): 把一列 effect 拆成【NPC 侧(结构化, 无 op 名)】与【world 侧】。
 #
-#   NPC 侧 → 编译进 Grant.pending / Grant.on_done, 由 Person 自己应用
+#   NPC 侧 → 编译进 Grant.pending(on_start), 由 Person 开始消化时应用
 #            (npc/ 不认识 op 字符串, 只认 signal/set/add/field/amount)
 #   world 侧 → 留 world 应用(spawn_item / consume_self)
 # ---------------------------------------------------------------------------

@@ -112,10 +112,9 @@ class WorldPortImpl:
 
     # --- 免费使用(吃/睡/上厕所/自家物品) -------------------------
     def try_take(self, pid: str, entity_id: str) -> "Grant | Deny":
-        """搬自 engine._apply 的 Interact 分支。
+        """校验 + claim, 返回 Grant(数据从 affordances 取; on_start 编译进 pending)。
 
-        本票只搬【校验 + claim】, 返回 Grant(handle=entity_id, 数据从 affordances 取,
-        pending/on_done 留空)。信号仍由 InteractionSystem.step 应用(WP-08 才搬)。
+        claim 成功后由 NPC 自己消化; world 只在 finish 时收尾。
         """
         world, systems = self.world, self.systems
         npc = world.npcs.get(pid)
@@ -146,16 +145,15 @@ class WorldPortImpl:
             return Deny(why or "提交失败", retry_ticks=retry)
         signal, value = (next(iter(ent.affordances.items()), ("", 0.0))
                          if ent is not None else ("", 0.0))
-        # WP-10: on_start / on_complete 的【NPC 侧】编译成结构化字段(NPC 不认识 op)
+        # WP-10: on_start 的【NPC 侧】编译成结构化字段(NPC 不认识 op)
         pending, _ = compile_effects(getattr(ent, "on_start", None))
-        on_done, _ = compile_effects(getattr(ent, "on_complete", None))
         act = systems.interaction.active.get(pid)
         return Grant(
             handle=(act.handle if act is not None else entity_id),
             entity_id=entity_id,
             signal=str(signal), value=float(value),
             duration_ticks=max(1, int(getattr(ent, "duration_ticks", 1) or 1)),
-            pending=pending, on_done=on_done,
+            pending=pending,
             tags=tuple(getattr(ent, "tags", ()) or ()))
 
     # --- 购买(排队, 异步) -----------------------------------------

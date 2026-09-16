@@ -68,21 +68,6 @@ def test_take_finished_is_destructive() -> None:
 
 
 # --- WP-10: 效果边界(编译进 Grant, NPC 自己应用) --------------------------
-def test_on_done_effect_applied_by_npc() -> None:
-    """on_complete 的 NPC 侧效果(add_signal)由 Person 消化完成时应用。"""
-    w, s, _ = make_runtime(CFG)
-    add_entity(w, "bed", location="loc", tags=("sleepable",),
-               affordances={}, duration_ticks=2,
-               on_complete=[{"op": "add_signal", "signal": "energy",
-                             "delta": 1.0}])
-    npc = add_npc(w, s, "npc", location="loc", energy=0.2)
-    npc.intake_add(_port(w, s).try_take("npc", "bed"))   # 直接开始(床无 afford)
-    npc.heartbeat(0, CFG)
-    assert npc.signal("energy") < 1.0            # 还没完成
-    npc.heartbeat(0, CFG)                        # 第 2 tick → 完成
-    assert npc.signal("energy") == 1.0           # on_done 由 NPC 自己应用
-
-
 def test_on_start_pending_applied_by_npc_once() -> None:
     """on_start 的 add_pending 编译成 Grant.pending, 开始时应用一次。"""
     w, s, _ = make_runtime(CFG)

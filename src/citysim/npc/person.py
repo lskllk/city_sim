@@ -326,7 +326,6 @@ class Person:
             saturated = bool(g.signal) and self.signal(g.signal) >= 1.0
             if ag.remaining <= 0 or saturated:
                 self._intake.remove(ag)
-                self._apply_neutral(g.on_done)     # 完成效果(NPC 侧, WP-10)
                 self._finished.append(g.handle)
 
     def _apply_neutral(self, effects) -> None:

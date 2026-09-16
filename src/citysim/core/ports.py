@@ -48,7 +48,6 @@ class Grant:
     value: float = 0.0                     # 总共补多少
     duration_ticks: int = 1                # 分多少 tick 补
     pending: tuple[Mapping[str, Any], ...] = ()   # on_start 编译结果(结构化, 不用 op 名)
-    on_done: tuple[Mapping[str, Any], ...] = ()   # on_complete 编译结果
     tags: tuple[str, ...] = ()             # 供 NPC 判断用途(edible/sleepable/toilet)
 
 

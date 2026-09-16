@@ -750,17 +750,16 @@ class Person:
                      只影响【计划条目】的到期推进, 不影响需求目标。
         """
         self._schedule.roll_day(now_tick, cfg.ticks_per_day)
-        # ★ 上班【只在两个时刻抢人】:
-        #   ① 我本来就闲着(_goal is None) → 回岗守台;
-        #   ② 刚上班那一刻(minute == open) → 硬抢(上班开始就该在)。
-        #   其他时候(上班途中) 不打断任何已有行为(吃饭/如厕/手头的计划)。
+        # ★ 上班只在【上班开始那一刻】硬抢(不管在做什么 → 去上班)。
+        #   其余时候守台是一个【committed goal】(时长 = 前台的 duration_ticks),
+        #   —— 做完再决策: 需求只在每个 60t 边界被评估, 不会半路把守台打断。
         on_shift = self._on_shift(now_tick, cfg)
         plan = self._plan_intent(now_tick, cfg) if on_shift else None
         minute = now_tick % max(1, cfg.ticks_per_day)
         just_started = (on_shift and bool(self._work)
                         and minute == int(self._work.get("open", -1)))
-        if (plan is not None and not self._need_to_leave_work(cfg)
-                and (self._goal is None or just_started)):
+        if just_started and plan is not None:
+            self._goal = _Goal("plan", plan)
             return self._record(Decision(plan, "plan"))
         while True:
             # 1) 手上有事 → 【做完再决策】: 不重算, 不被打断(只有上面的 PLAN 能)。
@@ -778,16 +777,20 @@ class Person:
                     return self._record(d)
                 continue
 
-            # 2) 没事做 → 每 tick 决策(需求 > 日程 > idle)
+            # 2) 空闲 → 看需求。
             cand, _eff = self._intent_scored(cfg, now_tick)
-            if cand is not None:
+            # 在班 + 需求不急(都 >= floor) → 不许用需求顶掉工作, 直接去守台
+            if cand is not None and not (plan is not None
+                                         and not self._need_to_leave_work(cfg)):
                 self._goal = _Goal("need", cand)
                 self._queue_intent_speech(now_tick, cand)   # 语义层: “我去买点吃的”
                 continue
 
             # 3) 没事可做。
-            #    ★ 在班但没需求可做 → 回岗守台(绝不能掉 idle: 否则跑出“上班却空闲”)
+            #    ★ 在班但没需求可做 → 回岗守台(绝不掉 idle)。
+            #    起一个 committed goal: 做完这个前台时长(60t) 再决策。
             if plan is not None:
+                self._goal = _Goal("plan", plan)
                 return self._record(Decision(plan, "plan"))
             #    hp 见底时【不给日程】: 计划暂时挂起(不提交也不丢弃),
             #    等 hp 回来再接着走 —— 否则会“放弃→重新选中→再放弃”转圈。

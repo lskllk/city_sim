@@ -164,6 +164,9 @@ def _npc_core(world, systems, pid: str, p) -> dict:
     tv = systems.travel.get(pid)
     loc = world.loc_of(pid)
     center = world.region_center(loc) or (0.0, 0.0)
+    station = str((p.work or {}).get("station", ""))
+    # 在岗 = 当前交互就是自己绑的那个工位(不是“有工作绑定”就算在岗)
+    on_post = bool(act is not None and station and act.entity_id == station)
     return {
         "id": pid, "name": p.name, "loc": loc,
         "gender": p.gender,
@@ -171,6 +174,7 @@ def _npc_core(world, systems, pid: str, p) -> dict:
         "activity": p.current_activity,
         # 上岗信息(公司画布要画"谁守着哪个台"): 空 = 没工作
         "work": p.work or None,
+        "on_post": on_post,
         "role": p.role,
         "act_class": act_class_of(world, systems, pid),
         "money": round(p.money, 2),

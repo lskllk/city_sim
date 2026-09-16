@@ -310,9 +310,9 @@ func _staff_row(it: Variant, comp: Dictionary) -> Control:
 	w.text = "¥%.0f/时" % wage
 	w.custom_minimum_size.x = 80
 	row.add_child(w)
-	var act := Protocol.s(Store.npc(pid).get("activity", ""))
+	var on_post := bool(Store.npc(pid).get("on_post", false))
 	var st := Label.new()
-	st.text = "在岗" if (station != "" and act == "working") else "不在岗"
+	st.text = "在岗" if on_post else "不在岗"
 	st.add_theme_color_override("font_color",
 		Color("7fe0a8") if st.text == "在岗" else Color("e8a34d"))
 	row.add_child(st)

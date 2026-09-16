@@ -223,11 +223,11 @@ func _render() -> void:
 		var work := Protocol.as_dict(n.get("work", {}))
 		var staffed := Protocol.s(work.get("company", "")) != "" \
 			or Protocol.s(work.get("station", "")) != ""
-		var act := Protocol.s(n.get("activity", ""))
-		if staffed and act == "working":
-			act = "在岗"
-		elif staffed:
-			act = "店员·不在岗"
+		# 当前行为: 用统一的 activity_text(act_class 驱动), 与实际一致。
+		# 店员离开工位时额外标“不在岗”, 但后面仍是他【真正在做的事】。
+		var act := InspData.activity_text(n)
+		if staffed and not bool(n.get("on_post", false)):
+			act = "不在岗 · " + act
 		# 【字段标注】店里的人写清【店员 / 顾客】, 住宅里标【店员 / 住户】
 		var label := Zh.role_zh(Protocol.s(n.get("role", "")))
 		if not is_home:

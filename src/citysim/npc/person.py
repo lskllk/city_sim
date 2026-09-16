@@ -890,13 +890,20 @@ class Person:
             r = port.try_move(self.person_id, intent.dest)
             if isinstance(r, Ack) and not r.ok:
                 self.on_failure(intent.dest, r.reason, now_tick)
+            elif isinstance(r, Ack) and r.ok:
+                # WP-12: 起身离开 → 弃掉体内那份。world 在 preempt 时已释放 claim,
+                # 食物/床回到世界(不浪费), 也没“中止也扣一份”。
+                self._intake.clear()
         elif isinstance(intent, Interact):
             r = port.try_take(self.person_id, intent.target_id)
             if isinstance(r, Deny):
                 self.on_failure(intent.target_id, r.reason, now_tick,
                                 retry_ticks=(r.retry_ticks or None))
             elif isinstance(r, Grant):
-                self.intake_add(r)      # ★ 收进体内, 由 heartbeat 自己消化(WP-08)
+                # 切到别的东西(而非继续当前目标) → 旧的那份弃掉
+                self._intake = [ag for ag in self._intake
+                                if ag.grant.entity_id == r.entity_id]
+                self.intake_add(r)
         elif isinstance(intent, Buy):
             r = port.try_buy(self.person_id, intent.item_id, intent.qty)
             if isinstance(r, Ack) and not r.ok:

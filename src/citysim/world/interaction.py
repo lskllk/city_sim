@@ -156,15 +156,15 @@ class InteractionSystem:
             return any((eff or {}).get("op") == "consume_self"
                        for eff in ent.on_complete)
 
-        # 2. 消耗品扣库存; 若 on_complete 自带 consume_self 则交 op 扣(防双扣)
-        #    回收统一在第 5 步之后(事件先于回收, 观察者可按 tags 分类)
-        if (ent.is_consumable and ent.stock > 0 and not _self_consumes(ent)):
-            ent.stock -= 1
-        # 3. 数据化完成效果(M4 4.1): 只应用【world 侧】op(spawn_item/consume_self);
-        #    NPC 侧(加信号等)已由 Person 在消化完成时应用自己那份(WP-10)。
-        if ent.on_complete:
-            _npc_done, world_o = compile_effects(ent.on_complete)
-            apply_effects(world, npc, ent, world_o)
+        # 2.+3. 自然完成才扣货 / 跑 world 侧 on_complete;
+        #   中止(aborted) = 没吃完 → 不扣货、不触发 on_complete(WP-12:
+        #   不再“中止也扣一份饭”)。claim 已释放 → 东西回到世界。
+        if not aborted:
+            if (ent.is_consumable and ent.stock > 0 and not _self_consumes(ent)):
+                ent.stock -= 1
+            if ent.on_complete:
+                _npc_done, world_o = compile_effects(ent.on_complete)
+                apply_effects(world, npc, ent, world_o)
 
         # 4. 完成 → idle(下一 tick 由 drive 自然重评)
         npc.set_activity("idle")

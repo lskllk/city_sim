@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from citysim.core.config import load_config
+from citysim.core.types import Decision, Interact, MoveTo
 from citysim.world.port import WorldPortImpl
 
 from helpers import add_entity, add_npc, make_runtime
@@ -109,3 +110,32 @@ def test_sleep_freezes_energy_self_derived() -> None:
     npc.intake_add(_port(w, s).try_take("npc", "bed"))
     npc.heartbeat(1260, CFG)                     # 21:00 入夜, 本会掉很快
     assert npc.signal("energy") == 0.3           # 睡着 → 冻结
+
+
+# --- WP-12: 中止 = 暂停(弃掉体内那份, 不浪费、不重复) ----------------------
+def test_moving_away_drops_intake_without_wasting() -> None:
+    """吃着吃着起身走 → 体内那份弃掉; 库存没被扣(不浪费)。"""
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "meal", location="loc", tags=("edible", "consumable"),
+               affordances={"hunger": 0.5}, duration_ticks=20, stock=2)
+    npc = add_npc(w, s, "npc", location="loc", hunger=0.2)
+    port = _port(w, s)
+    npc.step(port, CFG)                          # 开始吃
+    assert len(npc._intake) == 1
+    npc.heartbeat(0, CFG)
+    npc._execute(port, Decision(MoveTo(dest="other")), 0)
+    assert npc._intake == []                     # 起身 → 弃掉
+    assert w.entities["meal"].stock == 2         # 没被吃掉
+
+
+def test_switching_target_drops_old_intake() -> None:
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "a", location="loc", tags=("edible", "consumable"),
+               affordances={"hunger": 0.5}, duration_ticks=20)
+    add_entity(w, "b", location="loc", tags=("edible", "consumable"),
+               affordances={"hunger": 0.5}, duration_ticks=20)
+    npc = add_npc(w, s, "npc", location="loc", hunger=0.2)
+    port = _port(w, s)
+    npc._execute(port, Decision(Interact(target_id="a")), 0)
+    npc._execute(port, Decision(Interact(target_id="b")), 0)   # 换目标
+    assert [ag.grant.entity_id for ag in npc._intake] == ["b"]

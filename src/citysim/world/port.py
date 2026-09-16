@@ -182,3 +182,18 @@ class WorldPortImpl:
         enqueue_buy(world, systems, pid, shop.location_id, item_id, qty)
         _set_bubble(systems, npc, "老板, 来 %d 份" % qty, "queue", world.clock_tick)
         return Ack(ok=True, reason="queued")
+
+    # --- 收尾(交货/归还) -----------------------------------------
+    def consume(self, pid: str, handle: str) -> Ack:
+        """NPC 消化完 → world 收尾(校验持有 → 扣货/回收/事件)。"""
+        ok = self.systems.interaction.finish(self.world, pid, handle,
+                                             aborted=False)
+        return Ack(ok=ok, reason="" if ok else "没有持有")
+
+    def release(self, pid: str, handle: str) -> Ack:
+        """归还/放弃一个持有(不消耗): 校验持有后释放 claim。"""
+        act = self.systems.interaction.active.get(pid)
+        if act is None or act.handle != handle:
+            return Ack(ok=False, reason="没有持有")
+        self.systems.interaction.release_active(self.world, pid)
+        return Ack()

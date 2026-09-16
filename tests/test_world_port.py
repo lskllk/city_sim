@@ -97,3 +97,32 @@ def test_try_buy_enqueues_not_settles() -> None:
     assert isinstance(ack, Ack) and ack.ok
     assert s.queued.get("npc") == "shop"        # 入队了
     assert w.entities["meal"].stock == 10       # 还没扣货(异步)
+
+
+# --- consume / release (WP-14: 端口收尾) -----------------------------------
+def test_port_consume_debits_one() -> None:
+    from citysim.world.port import WorldPortImpl
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "meal", location="loc", tags=("edible", "consumable"),
+               affordances={"hunger": 0.5}, duration_ticks=20, stock=3)
+    npc = add_npc(w, s, "npc", location="loc", hunger=0.2)
+    port = WorldPortImpl(w, s, CFG)
+    npc.step(port, CFG)                           # 开始吃
+    handle = s.interaction.active["npc"].handle
+    assert port.consume("npc", handle).ok
+    assert w.entities["meal"].stock == 2
+    assert not port.consume("npc", handle).ok     # 已经收尾 → 没有持有
+
+
+def test_port_release_keeps_stock() -> None:
+    from citysim.world.port import WorldPortImpl
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "meal", location="loc", tags=("edible", "consumable"),
+               affordances={"hunger": 0.5}, duration_ticks=20, stock=3)
+    npc = add_npc(w, s, "npc", location="loc", hunger=0.2)
+    port = WorldPortImpl(w, s, CFG)
+    npc.step(port, CFG)
+    handle = s.interaction.active["npc"].handle
+    assert port.release("npc", handle).ok
+    assert w.entities["meal"].stock == 3          # 归还: 不消耗
+    assert "npc" not in s.interaction.active

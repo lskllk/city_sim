@@ -312,13 +312,19 @@ class Person:
         return True
 
     def _digest(self) -> None:
-        """推进体内 intake: 每 tick 加 value/total, 吃完记 handle 等 world 收尾。"""
+        """推进体内 intake: 每 tick 加 value/total。
+
+        结束(通用): ① 目标信号已满(>=1.0) → **满了优先结束**;
+                   ② 否则数到 duration_ticks → 到点结束。
+        两者都走【自然完成】(world 收尾)。
+        """
         for ag in list(self._intake):
             g = ag.grant
             if g.signal:
                 self.add_signal(g.signal, g.value / ag.total)
             ag.remaining -= 1
-            if ag.remaining <= 0:
+            saturated = bool(g.signal) and self.signal(g.signal) >= 1.0
+            if ag.remaining <= 0 or saturated:
                 self._intake.remove(ag)
                 self._apply_neutral(g.on_done)     # 完成效果(NPC 侧, WP-10)
                 self._finished.append(g.handle)
@@ -579,15 +585,17 @@ class Person:
 
 
     def set_work(self, company_id: str, shop_id: str, station_id: str,
-                 open_minute: int = 0, close_minute: int = 1440) -> None:
-        """被雇佣: 绑定公司/店/工位(销售前台) + 班次时间。
+                 open_minute: int = 0, close_minute: int = 1440,
+                 wage_per_hour: float = 0.0) -> None:
+        """被雇佣: 绑定公司/店/工位(销售前台) + 班次时间 + 时薪。
 
-        班次时间存在这里(而不是每次去问世界), 是因为"我什么时候该在岗"
-        必须由【他自己】知道 —— 决策层不查世界(铁律)。
+        班次时间/时薪存在这里(而不是每次去问世界), 是因为决策层要自己算
+        “离岗要亏多少钱” —— 决策不查世界(铁律)。
         """
         self._work = {"company": company_id, "shop": shop_id,
                       "station": station_id,
-                      "open": int(open_minute), "close": int(close_minute)}
+                      "open": int(open_minute), "close": int(close_minute),
+                      "wage": float(wage_per_hour)}
 
     @property
     def work(self) -> dict:
@@ -684,10 +692,19 @@ class Person:
 
         只在【空闲】时调 —— 手上有事就做完再决策, 不重算。
         """
+        # 在班 → 把“工位 + 离岗代价(旷工扣日薪)”交给打分器。
+        # 离岗 = 离开公司地点; 手边的货(located==shop)不算。
+        workplace, leave_cost = "", 0.0
+        if self._work and self._on_shift(now_tick, cfg):
+            workplace = str(self._work.get("shop", ""))
+            hours = max(0.0, float(self._work.get("close", 0))
+                        - float(self._work.get("open", 0))) / 60.0
+            leave_cost = hours * float(self._work.get("wage", 0.0))
         intent, eff = brain.decide_scored(
             self._signals, self._personality, self._mem,
             self._perceived_loc, cfg, now_tick, self.person_id,
-            self._travel_costs or None, self._money, self._home)
+            self._travel_costs or None, self._money, self._home,
+            workplace=workplace, leave_cost=leave_cost)
         return (None if isinstance(intent, Idle) else intent), eff
 
     def decide(self, cfg: "SimConfig", now_tick: int,

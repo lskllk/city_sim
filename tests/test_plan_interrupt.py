@@ -64,7 +64,7 @@ def test_plan_deadline_aborts_and_fires_on_complete() -> None:
     """
     w, s, rng = make_runtime(CFG, log=True)
     add_entity(w, "bench", location="work", tags=("work",),
-               affordances={"energy": 0.5}, duration_ticks=100,
+               affordances={}, duration_ticks=100,
                on_complete=[{"op": "add_signal", "signal": "hunger", "delta": 0.5}])
     npc = add_npc(w, s, "npc", location="work", rng_pool=rng)
     npc.set_signals(energy=1.0, hunger=0.2)

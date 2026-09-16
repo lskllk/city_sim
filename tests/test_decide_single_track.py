@@ -86,7 +86,8 @@ def test_need_beats_plan() -> None:
 def test_plan_runs_when_no_need() -> None:
     """没有需求(什么都满) → 才轮到日程。"""
     w, s, _ = make_runtime(CFG)
-    add_entity(w, "bench", tags=("work",), affordances={"energy": 0.5})
+    # 无信号 affordance: 不会“一上去就满 → 提前结束”(否则 3 tick 内就跑完了)
+    add_entity(w, "bench", tags=("work",), affordances={})
     npc = add_npc(w, s, "npc")
     npc.set_plan([PlanEntry("e0", 1, Interact("bench"))])
     _run(w, s, 3)
@@ -99,8 +100,9 @@ def test_plan_runs_when_no_need() -> None:
 def test_action_is_committed_until_done() -> None:
     """手上有事就【做完再决策】: 做着 bed(plan) 时需求见底也不许打断。"""
     w, s, _ = make_runtime(CFG)
+    # 无信号 affordance: 保证 plan 这条交互不会被“满了优先结束”提前收掉
     bed = add_entity(w, "bed", tags=("sleepable",),
-                     affordances={"energy": 0.6}, duration_ticks=100)
+                     affordances={}, duration_ticks=100)
     bed.interruptible = False
     add_entity(w, "food", tags=("edible",), affordances={"hunger": 0.5})
     npc = add_npc(w, s, "npc", energy=1.0, hunger=1.0)

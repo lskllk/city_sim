@@ -369,7 +369,8 @@ def hire_at(world, systems, cfg: SimConfig) -> list[dict]:
             pick = willing.pop(rng.randrange(len(willing)))     # ← 随机匹配
             npc = world.npcs[pick]
             npc.set_work(cid, shop_id, counter.entity_id,
-                         comp.open_minute, comp.close_minute)
+                         comp.open_minute, comp.close_minute,
+                         wage_per_hour=comp.wage_per_hour)
             npc.set_role("worker")
             staff.append((pick, float(comp.wage_per_hour)))
             _write_work_plan(world, cfg, npc, comp, shop_id, counter.entity_id)
@@ -442,7 +443,8 @@ def assign_station(world, systems, cfg: SimConfig, company,
             return {"ok": False, "why": "这个台已经有别人在守",
                     "npc": npc_id, "station": ""}
     npc.set_work(company.company_id, shop_id, station_id,
-                 company.open_minute, company.close_minute)
+                 company.open_minute, company.close_minute,
+                 wage_per_hour=company.wage_per_hour)
     _write_work_plan(world, cfg, npc, company, shop_id, station_id)
     return {"ok": True, "why": "", "npc": npc_id, "station": station_id,
             "shop": shop_id}

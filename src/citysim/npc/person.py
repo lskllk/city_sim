@@ -26,6 +26,7 @@ from citysim.core.types import (
     Buy,
     Decision,
     Idle,
+    Bought,
     InteractionDone,
     InteractionFailed,
     Interact,
@@ -756,33 +757,25 @@ class Person:
         self._perceived_loc = percept.location_id
         for ev in self._spot_surprises(percept, tick):
             self._push_speech(ev)
-        self._absorb_events(percept.events, tick)
         brain.perceive_into(self._mem, percept, tick)
 
-    def _absorb_events(self, events, tick: int) -> None:
-        """把 world 发来的事件吸收成自己的状态(world 不反写 NPC)。
+    def _remember_delivery(self, ev: "Bought") -> None:
+        """买到的东西落到哪个容器 → 写进记忆。
 
-        目前: `bought` → 把送货进家的容器写进记忆。afford/value 随事件带回,
-        所以 NPC 不需要当期看到家里。
+        靠它, 下次决策才能算出"家里还剩几个"(囤货模型) —— 而不必当期看到家里。
         """
-        for ev in events:
-            if ev.kind != "bought":
-                continue
-            p = ev.payload
-            cid = str(p.get("container", ""))
-            if not cid:
-                continue
+        if ev.container:
             self.note(
-                cid, tick=int(ev.tick),
-                located=str(p.get("home", "")), owner=self.person_id,
-                stock=int(p.get("stock", 1)),
-                afford=str(p.get("afford", "")),
-                value=float(p.get("value", 0.0)),
+                ev.container, tick=ev.tick,
+                located=ev.home, owner=self.person_id,
+                stock=ev.stock,
+                afford=ev.afford,
+                value=ev.value,
                 believe=1.0,                    # 自己买回来的 = 亲眼所见
-                item_type=str(p.get("item_type", "")),
-                tags=tuple(p.get("tags", ()) or ()), source="",
-                shelf_life_ticks=int(p.get("shelf_life_ticks", 0)),
-                expires_tick=int(p.get("expires_tick", 0)))
+                item_type=ev.item_type,
+                tags=tuple(ev.tags), source="",
+                shelf_life_ticks=ev.shelf_life_ticks,
+                expires_tick=ev.expires_tick)
 
 
 
@@ -1008,8 +1001,11 @@ class Person:
 
         对齐铁律: 世界不替 NPC 写认知 —— 它只把理由和结果交回去。
         """
+        if isinstance(ev, Bought):
+            self._remember_delivery(ev)
+            return
+        # 一次请求收了尾 → 不再在柜台排队(activity() 自己就不再报 queue)
         if isinstance(ev, (InteractionDone, InteractionFailed)):
-            # 一次请求收了尾 → 不再在柜台排队(activity() 自己就不再报 queue)
             self._queued = False
         if isinstance(ev, InteractionDone):
             g = self._goal

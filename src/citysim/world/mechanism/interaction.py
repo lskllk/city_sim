@@ -1,7 +1,11 @@
-"""InteractionSystem —— 执行 Intent + claim 仲裁 + 分 tick 效果推进。
+"""InteractionSystem —— 世界的【占用登记处】与【收尾处】。
 
-世界侧唯一执行器: 校验 → claim → 登记 ActiveInteraction; 每 tick 分摊
-affordances; 完成时处理 消耗品/如厕。事件经 EventBus 发布给 NPC 信箱。
+它只管两件事:
+  ① 占用(claim): 校验目标存在/有货/没被别人占/同地 → 登记 `active[pid]`,
+     并把 pid 加进 `entity.claimants`(容量 = stock, 3 张床能睡 3 人)。
+  ② 收尾: NPC 消化完(或世界中止) → 扣一份消耗品 / 发事件 / 回收空壳 /
+     `notify` 告诉 NPC。**效果分摊早归 NPC 自己了**(Person._digest),
+     它不再碰信号, 也不特判"如厕"这类领域概念。
 """
 from __future__ import annotations
 
@@ -18,9 +22,6 @@ class ActiveInteraction:
     handle: str = ""          # world 签发的唯一持有凭证(不撞车)
     # 进度(remaining/total)归 NPC 自己的 intake; 这里不存。
 
-
-def _clamp(v: float) -> float:
-    return max(0.0, min(1.0, float(v)))
 
 
 class InteractionSystem:

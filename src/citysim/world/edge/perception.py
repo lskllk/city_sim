@@ -37,8 +37,7 @@ def _view_for(world, npc, e, closed: bool, site_owner: str = "") -> EntityView:
 def build_percept(world, npc) -> Percept:
     """仅 npc 所在 location 的实体全可见(region 局部感知)。纯世界读, 不改任何状态。
 
-    events = 该 NPC 信箱里取走的全部事件。
-    结果要不要记进记忆, 由 Person.perceive 决定(此处不管)。
+    只给【看得见的】: 现场实体 + 自己在地点。要不要记由 Person.perceive 决定。
     """
     loc = world.loc_of(npc.person_id)
     site_owner = str((world.locations.get(loc) or {}).get("owner", ""))
@@ -46,11 +45,9 @@ def build_percept(world, npc) -> Percept:
     for e in world.entities_at(loc):
         closed = not e.is_open_now(world.hour_f())   # 停业=空且不可claim
         views.append(_view_for(world, npc, e, closed, site_owner))
-    events = world.bus.drain_for(npc.person_id)
     return Percept(
         tick=world.clock_tick,
         hour_f=world.hour_f(),
         location_id=loc,
         visible=tuple(views),
-        events=events,
     )

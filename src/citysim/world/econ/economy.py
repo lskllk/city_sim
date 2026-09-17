@@ -7,7 +7,7 @@ _deliver 把货送到手里/家里(带保质期戳), _restock_if_open 在开门�
 from __future__ import annotations
 
 from citysim.core.config import SimConfig
-from citysim.core.types import Buy, InteractionDone, InteractionFailed
+from citysim.core.types import Bought, Buy, InteractionDone, InteractionFailed
 from citysim.world.model.itemdefs import load_item_defs
 from citysim.world.world import entity_from_def
 
@@ -136,22 +136,26 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
     if shop.stock != -1:
         shop.stock -= qty
     container = _deliver(world, pid, npc, shop, qty, home)
-    # 送货信息随 `bought` 事件交回 NPC —— 由 NPC 自己写记忆,
-    # world 不再反写 NPC。(afford/value 必须带上: 否则他不知道家里这堆能吃。)
     cafford, cvalue = (next(iter(container.affordances.items()), ("", 0.0))
                        if container is not None else ("", 0.0))
+    # 送货细节走 notify 交回 NPC —— 它靠这个写"家里多了什么"的记忆(world 不反写)。
+    npc.notify(Bought(
+        item_id=shop.entity_id,
+        container=container.entity_id if container else "",
+        home=home, stock=int(container.stock) if container is not None else 0,
+        afford=cafford, value=float(cvalue),
+        item_type=container.item_type if container is not None else "",
+        tags=tuple(container.tags) if container is not None else (),
+        shelf_life_ticks=int(container.shelf_life_ticks) if container else 0,
+        expires_tick=int(container.expires_tick) if container else 0,
+        tick=world.clock_tick))
+    # 观测方(前端事件日志/回放/测试)看的还是事件 —— 保留。
     world.bus.publish(world.bus.make(
         world.clock_tick, "bought", pid,
         {"item": shop.entity_id, "qty": qty, "price": cost,
          "home": home, "money": round(npc.money, 2),
          "company": comp.company_id if comp else "",
-         "container": container.entity_id if container else "",
-         "afford": cafford, "value": float(cvalue),
-         "stock": int(container.stock) if container is not None else 0,
-         "item_type": container.item_type if container is not None else "",
-         "tags": list(container.tags) if container is not None else [],
-         "shelf_life_ticks": int(container.shelf_life_ticks) if container else 0,
-         "expires_tick": int(container.expires_tick) if container else 0}))
+         "container": container.entity_id if container else ""}))
     npc.notify(InteractionDone(intent.item_id, world.clock_tick))
 
 

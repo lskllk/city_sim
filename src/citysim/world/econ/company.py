@@ -35,7 +35,7 @@ def pay_wages(world, cfg: SimConfig) -> None:
             if comp.cash < due:
                 world.bus.publish(world.bus.make(
                     world.clock_tick, "wage_failed", npc_id,
-                    {"audience": [npc_id], "company": cid,
+                    {"company": cid,
                      "wage": due, "hours": round(hours, 2),
                      "cash": round(comp.cash, 2)}))
                 continue
@@ -43,7 +43,7 @@ def pay_wages(world, cfg: SimConfig) -> None:
             npc.notify(WagePaid(due))
             world.bus.publish(world.bus.make(
                 world.clock_tick, "wage_paid", npc_id,
-                {"audience": [npc_id], "company": cid, "wage": due,
+                {"company": cid, "wage": due,
                  "hours": round(hours, 2),
                  "cash": round(comp.cash, 2), "money": round(npc.money, 2)}))
 
@@ -118,7 +118,7 @@ def hire_at(world, systems, cfg: SimConfig) -> list[dict]:
                           "station": counter.entity_id})
             world.bus.publish(world.bus.make(
                 world.clock_tick, "hired", pick,
-                {"audience": [pick], "company": cid, "shop": shop_id,
+                {"company": cid, "shop": shop_id,
                  "station": counter.entity_id,
                  "wage_per_hour": float(comp.wage_per_hour)}))
         comp.staff = tuple(staff)

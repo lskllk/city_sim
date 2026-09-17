@@ -1,6 +1,6 @@
 """数据契约层 —— NPC 与世界的全部通信数据结构(全部 frozen + slots)。
 
-世界给 NPC 看: Percept / EntityView / EventView
+世界给 NPC 看: Percept / EntityView
 NPC 想干什么: Intent
 世界对 NPC 说什么: Notify(发生了什么) / Command(照这个做)
 """
@@ -33,20 +33,11 @@ class EntityView:
 
 
 @dataclass(frozen=True, slots=True)
-class EventView:
-    event_id: str
-    tick: int
-    kind: str                             # "intent_failed" | "interaction_done" | "told" | ...
-    payload: Mapping[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True, slots=True)
 class Percept:
     tick: int
     hour_f: float
     location_id: str
     visible: tuple[EntityView, ...] = ()
-    events: tuple[EventView, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,7 +123,29 @@ class WagePaid:
     amount: float
 
 
-Notify = InteractionDone | InteractionFailed | ItemGone | WagePaid
+@dataclass(frozen=True, slots=True)
+class Bought:
+    """买到了: 货已送到家(或手里)。
+
+    成交是【异步】的(排队 → 世界那边才扣钱发货), 而且送货细节(落到哪个容器、
+    能补什么、剩多少、保质期)比一个 InteractionDone 富得多。这些必须回到 NPC
+    手里 —— 它靠它们写“家里多了什么”的记忆, 下次决策才能算出“家里还剩几个”
+    (= 囤货模型)。以前这是【唯一】从信箱递过来的东西。
+    """
+    item_id: str
+    container: str = ""                   # 落到哪个容器实体(空 = 没落地)
+    home: str = ""
+    stock: int = 0
+    afford: str = ""                      # 能补哪个信号
+    value: float = 0.0
+    item_type: str = ""
+    tags: tuple[str, ...] = ()
+    shelf_life_ticks: int = 0
+    expires_tick: int = 0
+    tick: int = 0
+
+
+Notify = InteractionDone | InteractionFailed | ItemGone | WagePaid | Bought
 
 
 # --- 上面的人（老板/作者/计划器）下的【指令】(不是“发生了什么”，是“照这个做”）---

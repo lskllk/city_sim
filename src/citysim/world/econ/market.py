@@ -185,7 +185,7 @@ def restock_all(world) -> list[dict]:
                 if res["ok"]:
                     world.bus.publish(world.bus.make(
                         world.clock_tick, "restocked", "",
-                        {"audience": [], "company": cid, "shop": shop_id,
+                        {"company": cid, "shop": shop_id,
                          "item_type": itype, "cost": round(res["cost"], 2),
                          "stock": res["stock"], "cash": round(comp.cash, 2)}))
     return out

@@ -1,15 +1,20 @@
-"""EventBus —— 事件发布与 NPC 信箱投递。
+"""EventBus —— 世界广播"刚刚发生了什么"(观测流)。
 
-路由规则(定死): publish 按 payload.get(\"audience\", [subject_id]) 投递到各
-NPC 信箱(deque, maxlen=64); 另可挂 subscribe_log 监听(调试/录制回放)。
+订阅方(subscribe_log): 前端事件日志(`ui_events`)、`narrate.py`、回放、测试断言。
+
+`payload["audience"]` = 这条事件还【跟谁有关】(缺省 = subject_id; 目前只有
+rumor 的 `told` 会填成听者)。用它的只有观察器 —— 界面上看"这个人最近经历了什么"
+时, 除了 subject 是自己, 还要算上"别人讲给我听"。
+
+★ 以前它还有第二半 —— 【NPC 信箱】(publish 按 audience 投进各 NPC 的 deque,
+NPC 每次 perceive 取走变成 `Percept.events`)。但 NPC 只真正消费其中一种事件
+(`bought` 的送货细节), 所以那个口已经并进 `Person.notify(Bought(...))` 了。
+现在 world → NPC 只有 notify / assign 两个口, 这里只剩广播。
 """
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
-
-from citysim.core.types import EventView
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +28,6 @@ class Event:
 
 class EventBus:
     def __init__(self) -> None:
-        self._mailboxes: dict[str, deque[Event]] = {}
         self._listeners: list[Callable[[Event], None]] = []
         self.seq: int = 0                 # 事件 id 序号(保证确定性)
 
@@ -35,26 +39,9 @@ class EventBus:
                      subject_id=subject_id, payload=dict(payload or {}))
 
     def publish(self, ev: Event) -> None:
-        audience = ev.payload.get("audience", (ev.subject_id,))
-        if isinstance(audience, str):
-            audience = (audience,)
-        for npc_id in audience:
-            box = self._mailboxes.setdefault(str(npc_id), deque(maxlen=64))
-            box.append(ev)
+        """广播给观测方(前端事件日志/回放/工具/测试)。"""
         for fn in self._listeners:
             fn(ev)
-
-    def drain_for(self, npc_id: str) -> tuple[EventView, ...]:
-        """取走并清空该 NPC 信箱, 转成不可变 EventView。"""
-        box = self._mailboxes.pop(npc_id, None)
-        if not box:
-            return ()
-        out = tuple(
-            EventView(event_id=ev.event_id, tick=ev.tick, kind=ev.kind,
-                      payload=dict(ev.payload))
-            for ev in box
-        )
-        return out
 
     def subscribe_log(self, fn: Callable[[Event], None]) -> None:
         self._listeners.append(fn)

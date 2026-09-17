@@ -50,20 +50,28 @@ def test_execute_handles_deny_by_updating_memory() -> None:
     assert "npc" not in s.interaction.active       # 没真的交互
 
 
-def test_absorb_bought_event_writes_container_memory() -> None:
-    """成交的送货信息经 `bought` 事件由 NPC 自己写进记忆(world 不反写)。"""
-    from citysim.core.types import EventView, Percept
+def test_bought_notify_writes_container_memory() -> None:
+    """成交的送货信息经 `notify(Bought(...))` 由 NPC 自己写进记忆(world 不反写)。"""
+    from citysim.core.types import Bought
 
     w, s, _ = make_runtime(CFG)
     npc = add_npc(w, s, "npc", location="shop")
-    ev = EventView(event_id="e1", tick=42, kind="bought", payload={
-        "container": "meal_home", "home": "home", "afford": "hunger",
-        "value": 0.5, "stock": 3, "item_type": "meal_simple",
-        "tags": ["edible", "consumable"], "shelf_life_ticks": 1440,
-        "expires_tick": 0})
-    npc.perceive(Percept(tick=42, hour_f=12.0, location_id="shop",
-                         events=(ev,)), 42)
+    npc.notify(Bought(
+        item_id="meal_home", container="meal_home", home="home",
+        afford="hunger", value=0.5, stock=3, item_type="meal_simple",
+        tags=("edible", "consumable"), shelf_life_ticks=1440,
+        expires_tick=0, tick=42))
     row = next(r for r in npc.memory_dicts() if r["item_id"] == "meal_home")
     assert row["afford"] == "hunger" and row["value"] == 0.5
     assert row["located"] == "home" and row["stock"] == 3
     assert row["believe"] == 1.0
+
+
+def test_bought_without_container_writes_nothing() -> None:
+    """没落地到容器(空手买/直接吃) → 不留记忆。"""
+    from citysim.core.types import Bought
+
+    w, s, _ = make_runtime(CFG)
+    npc = add_npc(w, s, "npc", location="shop")
+    npc.notify(Bought(item_id="snack", container="", tick=42))
+    assert npc.memory_dicts() == []

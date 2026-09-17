@@ -63,6 +63,18 @@ class WorldPort(Protocol):
         """主动观察: 返回该 NPC 当前可感知的只读快照(含信箱事件)。"""
         ...
 
+    def here(self, pid: str) -> str:
+        """我【在哪】—— 便宜的那一半: 只回地点 id, 不建可见列表。
+
+        单独有它是因为 `observe`(看得见什么)很贵, 而 NPC 不是每 tick 都要看;
+        但"我在哪"每 tick 都要知道(决策要它)。
+        """
+        ...
+
+    def now(self) -> int:
+        """世界此刻的 tick —— 决策/冷却/时间窗都要用, 所以给个便宜的查询。"""
+        ...
+
     def try_move(self, pid: str, dest: str) -> Ack:
         """请求移动(异地); 世界做 entry_check / 路线 / 预占。"""
         ...

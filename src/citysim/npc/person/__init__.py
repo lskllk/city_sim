@@ -135,17 +135,39 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
             self.set_signals(**dict(signals))
 
     def step(self, port, cfg: "SimConfig") -> Decision:
-        """★ 主动拉: 观察 → 感知 → 决策 → 执行。
+        """★ 主动拉: (看一眼环境?) → 决策 → 执行。
 
-        与 process 的区别: 不再等 world 把 Percept 推过来; NPC 自己
-        `port.observe(...)`, 决策后自己拿意图去 `port.try_*(...)`, 失败自己
-        `notify(InteractionFailed)`(world 不再反写 NPC)。返回 Decision 供观测/日志。
+        ★ 【看环境是有条件的】(见 _need_look): 呆着不动、专心做事时都【不看】——
+          世界变了也不知道; 身体照跑、需求还在、记忆还在, 只是知识不更新。
+          `observe`(建可见列表+查权属)很贵, 而 percept 只被 perceive 用
+          (决策铁律: 只读记忆), 所以不看时连它都不调 —— 每 tick 只剩两个便宜查询。
         """
-        percept = port.observe(self.person_id)
-        self.perceive(percept, percept.tick)
-        d = self.decide(cfg, percept.tick)
-        self._execute(port, d, percept.tick)
+        here = port.here(self.person_id)
+        self._perceived_loc = here
+        now = port.now()
+        if self._need_look(here, cfg):
+            self.perceive(port.observe(self.person_id), now)
+        d = self.decide(cfg, now)
+        self._execute(port, d, now)
         return d
+
+    def _need_look(self, here: str, cfg: "SimConfig") -> bool:
+        """这一 tick 要不要【看一眼环境】(贵的那一步)? 只在有理由时才看:
+
+          · 第一次来(或忘了) —— 记忆里【没有这个地点的地点行】
+          · 正在目的地逛     —— 闲逛窗口, 本来就是特意来看的
+          · 记不太清了       —— 这儿的行 remember 低于 obs_refresh_below
+
+        没理由就不看: 世界变了也不知道, 直到下一次有理由。
+        """
+        prow = self._mem.get(brain.place_id(here))
+        if prow is None:
+            return True
+        g = self._goal
+        if (g is not None and g.source == "fun"
+                and str(g.intent.dest) == here):
+            return True
+        return float(prow.remember) < float(cfg.obs_refresh_below)
 
 
     def _execute(self, port, decision: Decision, now_tick: int) -> None:
@@ -209,6 +231,8 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
         if isinstance(ev, (InteractionDone, InteractionFailed)):
             self._queued = False
         if isinstance(ev, InteractionDone):
+            if ev.stock >= 0:                    # 交互结果 → 更新"还剩多少"
+                self._mem.update(ev.entity_id, stock=int(ev.stock))
             g = self._goal
             if g is not None and intent_target(g.intent) == ev.entity_id:
                 self._finish_goal(g)

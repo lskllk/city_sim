@@ -62,6 +62,13 @@ class WorldPortImpl:
     def observe(self, pid: str) -> Percept:
         return build_percept(self.world, self.world.npcs[pid])
 
+    def here(self, pid: str) -> str:
+        """我在哪 —— 便宜的那半(不建可见列表, 不查权属)。"""
+        return self.world.loc_of(pid)
+
+    def now(self) -> int:
+        return self.world.clock_tick
+
     # --- 移动 ---------------------------------------------------------
     def try_move(self, pid: str, dest: str) -> Ack:
         """搬自 engine._apply 的 MoveTo 分支(行为不变, 失败处理暂留 world 侧)。"""

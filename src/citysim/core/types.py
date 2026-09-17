@@ -101,9 +101,15 @@ Intent = Idle | MoveTo | Interact | Buy | Wander
 #   所以这层不叫“事件”而叫“通知”: 它不携带“你该变成什么样”。
 @dataclass(frozen=True, slots=True)
 class InteractionDone:
-    """一次交互自然完成(NPC 已经在 _intake 里消化完了)。"""
+    """一次交互自然完成(NPC 已经在 _intake 里消化完了)。
+
+    `stock`: 那件东西用完之后还剩多少(world 才知道)。**必须带回** ——
+    因为观察是有条件的, 记忆不再每 tick 刷新, "吃一个少一个"只能靠
+    交互结果自己写(否则记忆会一直以为还有很多)。-1 = 不知道。
+    """
     entity_id: str
     tick: int = 0
+    stock: int = -1
 
 
 @dataclass(frozen=True, slots=True)

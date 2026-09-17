@@ -47,6 +47,8 @@ per_hunger = 0.5               # 消化 1.0 的 hunger → 攒多少 pending(吃
 
 [knowledge]                    # M5: 知识库
 half_life_ticks = 2880        # 2 天(知识半衰期)
+# 记忆淡到低于它 → 值得再看一眼(观察是有条件的, 见 Person._need_look)
+obs_refresh_below = 0.5
 
 [utility]                      # 决策打分
 power = 3.0                    # weight = need**power(幂>1 放大真缺口)

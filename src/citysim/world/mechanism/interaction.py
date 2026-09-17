@@ -151,7 +151,9 @@ class InteractionSystem:
             world.entities.pop(ent.entity_id, None)
             npc.notify(ItemGone(ent.entity_id))
         if not aborted:
-            npc.notify(InteractionDone(ent.entity_id, world.clock_tick))
+            # 带回"还剩多少" —— 观察有条件之后, 记忆不能靠每 tick 刷新了
+            npc.notify(InteractionDone(ent.entity_id, world.clock_tick,
+                                       stock=int(ent.stock)))
 
     # --- 内部 ---------------------------------------------------------
     def release_active(self, world: World, pid: str) -> None:

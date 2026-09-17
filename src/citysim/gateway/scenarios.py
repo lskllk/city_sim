@@ -16,6 +16,7 @@ import random
 from pathlib import Path
 
 from citysim.core.config import load_config
+from citysim.core.types import Plan, Work
 from citysim.npc.person import Identity, Person
 from citysim.npc.planner import ScriptedPlanner
 from citysim.sim.loop import attach_replay, make_systems
@@ -217,7 +218,7 @@ def load_scene(path: str | Path | None = None,
         systems.planner = ScriptedPlanner(plans)
         for pid, p in world.npcs.items():
             res = systems.planner.plan_for_person(p, 0)       # 应用当天计划
-            p.set_plan(res.entries)
+            p.assign(Plan(res.entries))
     # ---- 位移成本矩阵 + 【可闲逛的公共建筑】(建完所有 NPC 之后再注入) ----
     #   places = 所有【非住所】地点 id。闲逛时从里面随机选一个走过去。
     places = [lid for lid in sorted(world.locations)
@@ -327,10 +328,9 @@ def _bind_company_staff(world: World, data: dict) -> None:
                 ent = world.entities.get(station)
                 if ent is not None and ent.location_id in comp.shops:
                     shop_id = ent.location_id
-            npc.set_work(comp.company_id, shop_id, station,
-                         comp.open_minute, comp.close_minute,
-                         wage_per_hour=wage)
-            npc.set_role("worker")
+            npc.assign(Work(comp.company_id, shop_id, station,
+                            comp.open_minute, comp.close_minute, wage,
+                            role="worker"))
             staff.append((nid, wage))
         comp.staff = tuple(staff)
 

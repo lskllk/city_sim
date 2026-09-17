@@ -18,7 +18,11 @@ from citysim.core.types import (
     InteractionDone,
     InteractionFailed,
     ItemGone,
+    Plan,
+    Shift,
+    Unwork,
     WagePaid,
+    Work,
     intent_kind,
     intent_target,
 )
@@ -422,10 +426,9 @@ def hire_at(world, systems, cfg: SimConfig) -> list[dict]:
                 break
             pick = willing.pop(rng.randrange(len(willing)))     # ← 随机匹配
             npc = world.npcs[pick]
-            npc.set_work(cid, shop_id, counter.entity_id,
-                         comp.open_minute, comp.close_minute,
-                         wage_per_hour=comp.wage_per_hour)
-            npc.set_role("worker")
+            npc.assign(Work(cid, shop_id, counter.entity_id,
+                            comp.open_minute, comp.close_minute,
+                            comp.wage_per_hour))
             staff.append((pick, float(comp.wage_per_hour)))
             got += 1
             hired.append({"company": cid, "npc": pick, "shop": shop_id,
@@ -457,7 +460,7 @@ def assign_station(world, systems, cfg: SimConfig, company,
         return {"ok": False, "why": "不是这家公司的员工",
                 "npc": npc_id, "station": ""}
     if station_id == "":
-        npc.clear_work()
+        npc.assign(Unwork())
         return {"ok": True, "why": "", "npc": npc_id, "station": ""}
     shop_id = ""
     for sid in company.shops:
@@ -476,10 +479,10 @@ def assign_station(world, systems, cfg: SimConfig, company,
         if other.work.get("station") == station_id:
             return {"ok": False, "why": "这个台已经有别人在守",
                     "npc": npc_id, "station": ""}
-    npc.set_work(company.company_id, shop_id, station_id,
-                 int(npc.work.get("open", company.open_minute)),
-                 int(npc.work.get("close", company.close_minute)),
-                 wage_per_hour=company.wage_per_hour)
+    npc.assign(Work(company.company_id, shop_id, station_id,
+                     int(npc.work.get("open", company.open_minute)),
+                     int(npc.work.get("close", company.close_minute)),
+                     company.wage_per_hour))
     return {"ok": True, "why": "", "npc": npc_id, "station": station_id,
             "shop": shop_id}
 
@@ -496,7 +499,7 @@ def schedule_worker(world, systems, cfg: SimConfig, company,
         return {"ok": False, "why": "没有这个人", "npc": npc_id}
     if npc_id not in [n for n, _w in company.staff]:
         return {"ok": False, "why": "不是这家公司的员工", "npc": npc_id}
-    npc.set_shift(int(open_minute), int(close_minute))
+    npc.assign(Shift(int(open_minute), int(close_minute)))
     return {"ok": True, "why": "", "npc": npc_id,
             "open": int(npc.work.get("open", 0)),
             "close": int(npc.work.get("close", 1440))}
@@ -918,7 +921,7 @@ def tick(world, systems, cfg: SimConfig) -> None:
         if planner is not None:
             for npc in world.npcs.values():
                 res = planner.plan_for_person(npc, world.clock_tick)
-                npc.set_plan(res.entries)
+                npc.assign(Plan(res.entries))
 
     # 6. 行为段记录(时间线 viz; 纯观测)
     _record_activity(world, systems, cfg)

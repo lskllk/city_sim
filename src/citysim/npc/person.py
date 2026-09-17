@@ -31,8 +31,14 @@ from citysim.core.types import (
     Interact,
     ItemGone,
     MoveTo,
+    Plan,
+    Role,
+    Shift,
+    Unwork,
+    Wage,
     WagePaid,
     Wander,
+    Work,
     intent_kind,
     intent_target,
 )
@@ -604,52 +610,60 @@ class Person:
         return v
 
 
-    def set_work(self, company_id: str, shop_id: str, station_id: str,
-                 open_minute: int = 0, close_minute: int = 1440,
-                 wage_per_hour: float = 0.0) -> None:
-        """被雇佣: 绑定公司/店/工位(销售前台) + 班次时间 + 时薪。
+    def assign(self, cmd) -> None:
+        """★ world → NPC 的【指令口】: 上面的人(老板/作者/计划器)说“照这个做”。
 
-        班次时间/时薪存在这里(而不是每次去问世界), 是因为决策层要自己算
-        “离岗要亏多少钱” —— 决策不查世界(铁律)。
+        和 notify 的分工:
+          notify  世界说“发生了什么”         → NPC 自己决定怎么改自己;
+          assign  上面的人说“你以后照这个做”   → NPC 照做。
+        这两条是 world 能碰 NPC 的**全部**入口(以前是散装 setter: set_work /
+        set_shift / set_wage / set_role / clear_work / set_plan 共 6 个)。
         """
-        self._work = {"company": company_id, "shop": shop_id,
-                      "station": station_id,
-                      "open": int(open_minute), "close": int(close_minute),
-                      "wage": float(wage_per_hour)}
+        if isinstance(cmd, Work):
+            # 班次/时薪存在身上(不去问世界), 因为决策层要自己算“离岗要亏多少”
+            self._work = {"company": cmd.company_id, "shop": cmd.shop_id,
+                          "station": cmd.station_id,
+                          "open": int(cmd.open_minute),
+                          "close": int(cmd.close_minute),
+                          "wage": float(cmd.wage_per_hour)}
+            if cmd.role:
+                self._role = str(cmd.role)
+        elif isinstance(cmd, Unwork):
+            self._work = {}
+        elif isinstance(cmd, Shift):
+            if self._work:
+                self._work["open"] = max(0, min(1439, int(cmd.open_minute)))
+                self._work["close"] = max(1, min(1440, int(cmd.close_minute)))
+        elif isinstance(cmd, Wage):
+            if self._work:
+                self._work["wage"] = max(0.0, float(cmd.wage_per_hour))
+        elif isinstance(cmd, Role):
+            self._role = str(cmd.role)
+        elif isinstance(cmd, Plan):
+            self._apply_plan(cmd.entries)
+        else:                                # pragma: no cover - 开发期挡错
+            raise TypeError(f"未声明的指令 {cmd!r}")
 
+    def _apply_plan(self, entries: "Sequence[PlanEntry]") -> None:
+        """灌入当天计划(LLM 产物)，覆盖旧计划。
+
+        ★ 只作废【计划来源】的 goal —— 不能碰需求 goal(如睡到一半跨 0 点,
+          日计划器调到这里, 若把 sleep goal 也清了 → 下一 tick 重算需求,
+          饿了就把床顶掉 = “睡觉被饥饿中止”)。
+        """
+        self._schedule = Schedule(entries)
+        if self._goal is not None and self._goal.source == "plan":
+            self._goal = None
+
+    # --- 工作绑定的只读视图(决策层/观察层要看, 但只能走 assign 改) -------
     @property
     def work(self) -> dict:
         return dict(self._work)
 
-    def set_shift(self, open_minute: int, close_minute: int) -> None:
-        """改【本人的班次】(不影响公司营业时间): 只动 _work 里的 open/close。
-
-        open 0..1439; close 0..1440(1440 = 24:00)。没工作的人不动。
-        """
-        if not self._work:
-            return
-        self._work["open"] = max(0, min(1439, int(open_minute)))
-        self._work["close"] = max(1, min(1440, int(close_minute)))
-
-    def set_wage(self, wage_per_hour: float) -> None:
-        """改【本人的时薪】(只动 _work): 决策层要用它算"离岗亏多少钱"。
-
-        公司 payroll(comp.staff) 由世界侧同步改 —— 发工资是按那个发的。
-        """
-        if not self._work:
-            return
-        self._work["wage"] = max(0.0, float(wage_per_hour))
-
     @property
     def role(self) -> str:
-        """角色: 雇佣写上的优先, 否则看人设里的 traits.role。"""
+        """角色: assign 写上的优先, 否则看人设里的 traits.role。"""
         return self._role or str(self.identity.traits.get("role", ""))
-
-    def set_role(self, role: str) -> None:
-        self._role = str(role)
-
-    def clear_work(self) -> None:
-        self._work = {}
 
     def worked(self, ticks: int = 1) -> None:
         """在岗计时(工资按在岗时间算)。"""
@@ -741,16 +755,6 @@ class Person:
                 shelf_life_ticks=int(p.get("shelf_life_ticks", 0)),
                 expires_tick=int(p.get("expires_tick", 0)))
 
-    def set_plan(self, entries: "Sequence[PlanEntry]") -> None:
-        """装配/每日 0 点: 灌入当天计划(LLM 产物), 覆盖旧计划。
-
-        ★ 只作废【计划来源】的 goal —— 不能碰需求 goal(如睡到一半跨 0 点,
-          日计划器调到这里, 若把 sleep goal 也清了 → 下一 tick 重算需求,
-          饿了就把床顶掉 = “睡觉被饥饿中止”)。
-        """
-        self._schedule = Schedule(entries)
-        if self._goal is not None and self._goal.source == "plan":
-            self._goal = None
 
 
     def _wander_dest(self, cfg: "SimConfig", now_tick: int) -> str:

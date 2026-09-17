@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from citysim.core.config import load_config
-from citysim.core.types import Idle, Interact
+from citysim.core.types import Idle, Interact, Plan
 from citysim.npc.schedule import PlanEntry
 
 from helpers import add_entity, add_npc, make_runtime
@@ -92,7 +92,7 @@ def test_bladder_not_involved() -> None:
 def _plan_bench(w, s, hp: float):
     add_entity(w, "bench", tags=("work",), affordances={})
     npc = add_npc(w, s, "n", hp=hp, energy=1.0, hunger=0.7)   # 无需求在阈上
-    npc.set_plan([PlanEntry("e0", 1, Interact("bench"))])
+    npc.assign(Plan([PlanEntry("e0", 1, Interact("bench"))]))
     return npc
 
 

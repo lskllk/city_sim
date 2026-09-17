@@ -5,7 +5,7 @@ M2 定死: Percept / Intent / DecisionTrace / EntityView / EventView。
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 @dataclass(frozen=True, slots=True)
 class EntityView:
@@ -131,6 +131,56 @@ class WagePaid:
 
 
 Notify = InteractionDone | InteractionFailed | ItemGone | WagePaid
+
+
+# --- 上面的人（老板/作者/计划器）下的【指令】(不是“发生了什么”，是“照这个做”）---
+# 和 notify 的分工:
+#   notify  世界说“发生了什么”         → NPC 自己决定怎么改自己;
+#   assign  上面的人说“你以后照这个做”   → NPC 照做(雇佣/排班/时薪/角色/日计划)。
+# 这两条是 world 能碰 NPC 的【全部】入口。
+@dataclass(frozen=True, slots=True)
+class Work:
+    """工作绑定(雇佣 / 改岗): 公司 + 店 + 工位 + 班次 + 时薪(+角色)。"""
+    company_id: str
+    shop_id: str = ""
+    station_id: str = ""
+    open_minute: int = 0
+    close_minute: int = 1440
+    wage_per_hour: float = 0.0
+    role: str = "worker"                 # "" = 不动现有角色
+
+
+@dataclass(frozen=True, slots=True)
+class Unwork:
+    """撤掉工作绑定(撤岗/辞退): 清掉 _work，保留人。"""
+
+
+@dataclass(frozen=True, slots=True)
+class Shift:
+    """改【本人班次】(不影响公司营业时间)。open 0..1439, close 1..1440。"""
+    open_minute: int
+    close_minute: int
+
+
+@dataclass(frozen=True, slots=True)
+class Wage:
+    """改【本人时薪】(逐人; 公司的 payroll 由 world 侧同步改)。"""
+    wage_per_hour: float
+
+
+@dataclass(frozen=True, slots=True)
+class Role:
+    """给/改角色。"""
+    role: str
+
+
+@dataclass(frozen=True, slots=True)
+class Plan:
+    """灌入当天日程表(LLM/作者产物)，覆盖旧计划。"""
+    entries: Sequence[Any] = ()
+
+
+Command = Work | Unwork | Shift | Wage | Role | Plan
 
 
 # ---------------------------------------------------------------------------

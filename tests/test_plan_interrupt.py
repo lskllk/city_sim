@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from citysim.core.config import load_config
-from citysim.core.types import Interact, MoveTo
+from citysim.core.types import Interact, MoveTo, Plan
 from citysim.npc.schedule import PlanEntry
 from citysim.sim.loop import run_tick
 
@@ -45,8 +45,8 @@ def test_plan_move_then_interact_same_tick() -> None:
     add_entity(w, "bench", location="work", tags=("work",),
                affordances={"energy": 0.5}, duration_ticks=5)
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng)
-    npc.set_plan([PlanEntry("e0", 1, MoveTo(dest="work")),
-                  PlanEntry("e1", 1, Interact("bench"))])
+    npc.assign(Plan([PlanEntry("e0", 1, MoveTo(dest="work")),
+                  PlanEntry("e1", 1, Interact("bench"))]))
     _run(w, s, rng, 80)
     assert w.loc_of("npc") == "work"
     evs = _events(s)
@@ -68,8 +68,8 @@ def test_plan_deadline_aborts_and_fires_on_complete() -> None:
                on_complete=[{"op": "add_signal", "signal": "hunger", "delta": 0.5}])
     npc = add_npc(w, s, "npc", location="work", rng_pool=rng)
     npc.set_signals(energy=1.0, hunger=0.2)
-    npc.set_plan([PlanEntry("e0", 1, Interact("bench")),
-                  PlanEntry("e1", 10, MoveTo(dest="home"))])
+    npc.assign(Plan([PlanEntry("e0", 1, Interact("bench")),
+                  PlanEntry("e1", 10, MoveTo(dest="home"))]))
     _run(w, s, rng, 2)
     assert s.interaction.active["npc"].entity_id == "bench"
     _run(w, s, rng, 10)                       # 越过 tick 10 截止
@@ -92,7 +92,7 @@ def test_interact_only_plan_auto_navigates() -> None:
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng)
     # 模拟“已知”: 记忆里知道 bench 在 work(如场景 kb_extra)
     npc.note("bench", located="work", believe=1.0)
-    npc.set_plan([PlanEntry("e0", 1, Interact("bench"))])
+    npc.assign(Plan([PlanEntry("e0", 1, Interact("bench"))]))
     _run(w, s, rng, 80)
     assert w.loc_of("npc") == "work"           # 自动走位
     evs = _events(s)
@@ -104,8 +104,8 @@ def test_plan_entry_failure_skips_and_logs() -> None:
     """计划目标不存在 → 失败: 记日志 + 跳过该条, 不空转。"""
     w, s, rng = make_runtime(CFG, log=True)
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng)
-    npc.set_plan([PlanEntry("e0", 1, Interact("ghost")),
-                  PlanEntry("e1", 1, MoveTo(dest="home"))])
+    npc.assign(Plan([PlanEntry("e0", 1, Interact("ghost")),
+                  PlanEntry("e1", 1, MoveTo(dest="home"))]))
     _run(w, s, rng, 3)
     log = npc.failure_log()
     assert any(f["target"] == "ghost" for f in log), log

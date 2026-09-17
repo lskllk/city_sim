@@ -4,6 +4,7 @@ from __future__ import annotations
 import random
 
 from citysim.core.config import SimConfig
+from citysim.core.types import Work
 from citysim.npc.person import Identity, Person
 from citysim.sim.loop import attach_replay, make_systems
 from citysim.world.world import Entity, World
@@ -103,6 +104,5 @@ def staff_counter(world: World, systems, npc_id: str, shop_id: str,
     测试里直接落状态, 省掉走路与排队(全天班: 0..1440)。
     """
     npc = world.npcs[npc_id]
-    npc.set_work(company_id, shop_id, counter_id)
-    npc.set_role("worker")
+    npc.assign(Work(company_id, shop_id, counter_id, role="worker"))
     world.place_npc(npc_id, shop_id)

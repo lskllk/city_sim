@@ -17,6 +17,7 @@ from pathlib import Path
 
 from citysim.core.config import load_config
 from citysim.core.types import (
+    Plan,
     Buy,
     Decision,
     Idle,
@@ -78,7 +79,7 @@ def test_need_beats_plan() -> None:
     add_entity(w, "food", tags=("edible",), affordances={"hunger": 0.5})
     add_entity(w, "bench", tags=("work",), affordances={"energy": 0.5})
     npc = add_npc(w, s, "npc", hunger=0.2)          # 饿 → 需求轨有活干
-    npc.set_plan([PlanEntry("e0", 1, Interact("bench"))])
+    npc.assign(Plan([PlanEntry("e0", 1, Interact("bench"))]))
     _run(w, s, 3)
     assert s.interaction.active["npc"].entity_id == "food"
 
@@ -89,7 +90,7 @@ def test_plan_runs_when_no_need() -> None:
     # 无信号 affordance: 不会“一上去就满 → 提前结束”(否则 3 tick 内就跑完了)
     add_entity(w, "bench", tags=("work",), affordances={})
     npc = add_npc(w, s, "npc")
-    npc.set_plan([PlanEntry("e0", 1, Interact("bench"))])
+    npc.assign(Plan([PlanEntry("e0", 1, Interact("bench"))]))
     _run(w, s, 3)
     assert s.interaction.active["npc"].entity_id == "bench"
 
@@ -105,7 +106,7 @@ def test_action_is_committed_until_done() -> None:
                      affordances={}, duration_ticks=100)
     add_entity(w, "food", tags=("edible",), affordances={"hunger": 0.5})
     npc = add_npc(w, s, "npc", energy=1.0, hunger=1.0)
-    npc.set_plan([PlanEntry("e0", 1, Interact("bed"))])
+    npc.assign(Plan([PlanEntry("e0", 1, Interact("bed"))]))
     _run(w, s, 5)                                 # 没需求 → 计划把 bed 做起来
     assert s.interaction.active["npc"].entity_id == "bed"
     npc.set_signal("hunger", 0.0)               # 需求见底也不许打断
@@ -121,7 +122,7 @@ def test_single_track_no_dual_goals() -> None:
     w, s, _ = make_runtime(CFG)
     add_entity(w, "food", tags=("edible",), affordances={"hunger": 0.5})
     npc = add_npc(w, s, "npc", hunger=0.2)
-    npc.set_plan([PlanEntry("e0", 1, Interact("food"))])
+    npc.assign(Plan([PlanEntry("e0", 1, Interact("food"))]))
     assert not hasattr(npc, "_plan_goal")
     assert not hasattr(npc, "_reflex_goal")
     assert hasattr(npc, "_goal")
@@ -199,5 +200,5 @@ def test_set_plan_does_not_wipe_a_need_goal() -> None:
     _perceive(w, npc)
     _decide(npc)                                   # 决定去睡 → 设了 need goal
     assert npc._goal is not None and npc._goal.source == "need"
-    npc.set_plan([])                               # 模拟 0 点日计划器
+    npc.assign(Plan([]))                               # 模拟 0 点日计划器
     assert npc._goal is not None                   # 需求 goal 不被清

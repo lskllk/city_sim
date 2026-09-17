@@ -6,7 +6,7 @@ from __future__ import annotations
 
 
 from citysim.core.config import load_config
-from citysim.core.types import Decision, Interact, MoveTo
+from citysim.core.types import Decision, Interact, MoveTo, Work
 from citysim.world.port import WorldPortImpl
 
 from helpers import add_entity, add_npc, make_runtime
@@ -147,7 +147,7 @@ def test_work_intake_ends_when_shift_ends() -> None:
     add_entity(w, "station", location="loc", tags=("work", "station"),
                affordances={}, duration_ticks=600, stock=1)
     npc = add_npc(w, s, "npc", location="loc")
-    npc.set_work("org", "loc", "station", open_minute=480, close_minute=1140)
+    npc.assign(Work("org", "loc", "station", open_minute=480, close_minute=1140))
     npc.intake_add(_port(w, s).try_take("npc", "station"))
     npc.heartbeat(600, CFG)                       # 10:00 在班 → 继续
     assert len(npc._intake) == 1

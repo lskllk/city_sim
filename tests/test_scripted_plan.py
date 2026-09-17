@@ -1,7 +1,7 @@
 """TASK006: 固定日计划(ScriptedPlanner) + 计划快照(前端 viz) 单测。"""
 from __future__ import annotations
 
-from citysim.core.types import Interact, MoveTo
+from citysim.core.types import Interact, MoveTo, Plan
 from citysim.npc.person import Identity, Person
 from citysim.npc.planner import ScriptedPlanner
 from citysim.npc.schedule import PlanEntry
@@ -53,8 +53,8 @@ def test_scripted_planner_move_to() -> None:
 
 def test_plan_snapshot_shape() -> None:
     p = Person(identity=Identity("p", "p"))
-    p.set_plan([PlanEntry("e0", 100, Interact("food")),
-                PlanEntry("e1", 200, MoveTo(dest="home"))])
+    p.assign(Plan([PlanEntry("e0", 100, Interact("food")),
+                PlanEntry("e1", 200, MoveTo(dest="home"))]))
     snap = p.plan_snapshot()
     assert snap == [
         {"id": "e0", "at_tick": 100, "status": "pending",

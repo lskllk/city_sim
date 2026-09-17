@@ -443,6 +443,7 @@ def _admin_company(r, op: str, args: dict) -> dict:
       decorate  给店摆装修件 {company, shop?, item_type}
     注: 招聘只是【发布启事】, 真正撮合还是每天 hire_minute 那次(媒婆)。
     """
+    from citysim.core.types import Wage
     from citysim.world.companies import Company
     from citysim.world.market import purchase
     world = r.world
@@ -493,7 +494,7 @@ def _admin_company(r, op: str, args: dict) -> dict:
             return {"ok": False, "why": "这个人不是本公司员工", "company": cid}
         wage = max(0.0, float(args.get("wage", 0.0)))
         comp.staff = tuple((n, wage if n == nid else w) for n, w in comp.staff)
-        npc.set_wage(wage)
+        npc.assign(Wage(wage))
         return {"ok": True, "why": None, "company": cid,
                 "companies": _company_list(world)}
     if op == "hire":

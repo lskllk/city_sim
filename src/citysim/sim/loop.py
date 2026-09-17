@@ -34,6 +34,9 @@ class Systems:
     talked_tick: int = -1
     last_wage_tick: int = -1     # 上次发工资的 tick(每天只发一次)
     last_restock_day: int = -1   # 上次开市补货的日子(每天只补一次)
+    last_collect_day: int = -1   # 上次批发市场收货的日子(每天只收一次)
+    production: dict = field(default_factory=dict)  # npc_id → 已攒工时(件)
+    last_collect_day: int = -1   # 上次批发市场收货的日子(每天只收一次)
     last_hire_tick: int = -1     # 上次招聘匹配的 tick(每天一次)
     # —— 店铺排队(用户定: 一个前台同时只能服务 1 人, 多的排队) ——
     #   shop_id -> [pid...]   谁在排(先进先出, 两条前台就是两条线)

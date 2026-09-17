@@ -1,0 +1,13 @@
+{
+  "item_type": "meal_simple_raw",
+  "name": "简餐原料",
+  "tags": [
+    "material"
+  ],
+  "affordances": {},
+  "price": 4.0,
+  "duration_ticks": 30,
+  "attrs": {},
+  "stock": 1,
+  "shelf_life_ticks": 0
+}

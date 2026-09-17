@@ -33,6 +33,16 @@ def wholesale_price(world, item_type: str) -> float | None:
     return float(d.price) if d is not None else None
 
 
+def is_material(item_type: str) -> bool:
+    """原料(制造公司的产出, tag="material") —— 只由批发市场【收购】, 不零售。
+
+    零售公司不该进它: 它没有 affordance, 居民买去也没用(它只是给城外加工的料)。
+    """
+    from citysim.world.model.itemdefs import load_item_defs
+    d = load_item_defs().get(item_type)
+    return d is not None and "material" in d.tags
+
+
 def is_fixture(item_type: str) -> bool:
     """装修件(马桶/销售前台/工位…): 一次买断、摆进店里, 不是可零售的货。
 
@@ -63,8 +73,8 @@ def market_catalog() -> list:
     from citysim.world.model.itemdefs import load_item_defs
     out = []
     for t, d in sorted(load_item_defs().items()):
-        if "fixture" in d.tags:
-            continue
+        if "fixture" in d.tags or "material" in d.tags:
+            continue                       # 装修件不零售; 原料只被【收购】
         if float(getattr(d, "price", 0.0)) > 0.0:
             out.append({"type": t, "name": d.name, "price": float(d.price)})
     return out
@@ -81,6 +91,9 @@ def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
 
     if is_fixture(item_type):
         return {"ok": False, "why": "这是装修件, 去装修管理里放",
+                "cost": 0.0, "stock": 0}
+    if is_material(item_type):
+        return {"ok": False, "why": "原料只在批发市场【收购】, 不进零售货架",
                 "cost": 0.0, "stock": 0}
     if not market_places(world):
         return {"ok": False, "why": "城里还没有市场", "cost": 0.0, "stock": 0}
@@ -166,6 +179,8 @@ def restock_all(world) -> list[dict]:
     out: list[dict] = []
     for cid in sorted(world.companies):
         comp = world.companies[cid]
+        if comp.kind != "retail":
+            continue                       # 制造公司不进货(它的货是自己产的)
         for shop_id in comp.shops:
             if shop_id not in world.locations:
                 continue

@@ -16,9 +16,11 @@ from citysim.core.types import Idle, InteractionFailed, ItemGone, Plan, intent_k
 from citysim.world.run.drive import due_npcs
 from citysim.world.edge.port import WorldPortImpl
 
-from citysim.world.econ.company import (_hire_due, _wage_due, hire_at, pay_wages)
-from citysim.world.econ.economy import _restock_if_open
+from citysim.world.econ.company import (_hire_due, _wage_due, hire_at,
+                                       pay_wages, tick_workstations)
+from citysim.world.econ.economy import _collect_due, _restock_if_open
 from citysim.world.run.gossip import SAY_COOLDOWN, _notify_due, _set_bubble
+from citysim.world.econ.factory import collect, produce
 from citysim.world.econ.shop import _serve_shops
 
 def tick(world, systems, cfg: SimConfig) -> None:
@@ -27,6 +29,12 @@ def tick(world, systems, cfg: SimConfig) -> None:
 
     # 0. 开门前补货: 公司用现钱向市场进货, 把货架补到目标(见 market.restock_all)
     _restock_if_open(world, systems, cfg)
+
+    # 0b. 批发市场收货(每天 collect_minute): 制造公司厂里的产出换成钱。
+    #     ★ 这是【钱从城外进来】的口子 —— 城市的经济来源(见 econ/factory.collect)
+    if _collect_due(world, cfg, systems.last_collect_day):
+        collect(world, cfg)
+        systems.last_collect_day = world.clock_tick
 
     # 1. 招聘桥接(每天 hire_minute 一次): 空前台 ← 无角色的人(随机匹配)
     if _hire_due(world, cfg, systems.last_hire_tick):
@@ -84,8 +92,15 @@ def tick(world, systems, cfg: SimConfig) -> None:
                 if npc is not None:
                     npc.notify(InteractionFailed(trv.to_loc, why, world.clock_tick))
 
+    # 7a. 在岗计时: 谁站在自己该站的工位上(销售前台 / 生产工位一视同仁)。
+    #     工资与熟练度都靠它 —— 必须在服务/生产之前。
+    tick_workstations(world, systems, cfg)
+
     # 7. 柜台服务: 每个店按前台数服务队首(每 tick 每个前台成交 1 份)
     _serve_shops(world, systems, cfg)
+
+    # 7b. 生产: 制造公司里站在工位上的员工按【在岗时间】攒出产出(见 econ/factory)
+    produce(world, systems, cfg)
 
     # 8. 决策: NPC 主动拉(顺序执行; due 已排序 → 确定性仍在)。
     #     每人一轮: observe → decide → try_*(端口立即落账, 失败自己处理)。

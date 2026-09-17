@@ -160,6 +160,15 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
 
 
 
+def _collect_due(world, cfg: SimConfig, last_tick: int) -> bool:
+    """到点了吗(每天 collect_minute 一次)。用 tick 判, 不存别的状态。"""
+    tpd = max(1, cfg.ticks_per_day)
+    day, minute = divmod(world.clock_tick, tpd)
+    if minute != int(cfg.collect_minute):
+        return False
+    return last_tick < day * tpd + int(cfg.collect_minute)
+
+
 def _restock_if_open(world, systems, cfg: SimConfig) -> None:
     """每天开门那一刻, 各公司补一次货(只补货架, 不动任何 NPC)。"""
     from citysim.world.econ.market import restock_all

@@ -429,12 +429,17 @@ async def _send(ws: WebSocket, payload: dict) -> None:
                                            payload), ensure_ascii=False))
 
 
+COMPANY_KINDS = ("retail", "manufacture")   # 零售 / 制造(加工厂)
+
+
 def _admin_company(r, op: str, args: dict) -> dict:
     """游戏内的经营动作(上帝视角/老板面板用)。**只改世界真值**。
 
     op:
-      register  点一个商铺建筑 → 注册公司 {location, name, cash}
-      update    改参数 {company, cash/open_minute/close_minute/wage_per_hour/restock_to}
+      register  点一个商铺建筑 → 注册公司 {location, name, cash?,
+                kind?, produces_item?}  kind: retail(默认)/manufacture(加工厂)
+      update    改参数 {company, cash/open_minute/close_minute/wage_per_hour/
+                        restock_to/kind/produces_item}
       wage      改【某个员工】的时薪 {company, npc, wage}  ← 逐人, 不动公司默认时薪
       hire      发布/撤回招聘启事 {company, slots, wage_per_hour?} ← 招不招人公司说了算
       assign    给员工分派销售台 {company, npc, station}("" = 撤销)
@@ -460,9 +465,17 @@ def _admin_company(r, op: str, args: dict) -> dict:
         name = str(args.get("name", "")).strip()
         if name == "":
             return {"ok": False, "why": "公司名不能空", "company": ""}
+        kind = str(args.get("kind", "retail"))
+        if kind not in COMPANY_KINDS:
+            return {"ok": False, "why": "没有这种公司类型: %s" % kind,
+                    "company": "", "kinds": sorted(COMPANY_KINDS)}
+        produces = str(args.get("produces_item", ""))
+        if kind == "manufacture" and produces == "":
+            return {"ok": False, "why": "制造公司要指定产出什么(produces_item)",
+                    "company": ""}
         cid = "org_%s" % loc
         world.companies[cid] = Company(
-            company_id=cid, name=name,
+            company_id=cid, name=name, kind=kind, produces_item=produces,
             cash=float(args.get("cash", 1000.0)), shops=(loc,))
         loc_rec["company"] = cid
         return {"ok": True, "why": None, "company": cid,
@@ -478,6 +491,10 @@ def _admin_company(r, op: str, args: dict) -> dict:
         for k in ("open_minute", "close_minute"):
             if k in args:
                 setattr(comp, k, int(args[k]))
+        if "kind" in args and str(args["kind"]) in COMPANY_KINDS:
+            comp.kind = str(args["kind"])
+        if "produces_item" in args:
+            comp.produces_item = str(args["produces_item"])
         if args.get("name"):
             comp.name = str(args["name"])
         return {"ok": True, "why": None, "company": cid,
@@ -539,6 +556,7 @@ def _admin_company(r, op: str, args: dict) -> dict:
 def _company_list(world) -> list:
     return [{"id": cid, "name": c.name, "cash": round(c.cash, 2),
              "owner": c.owner, "shops": list(c.shops),
+             "kind": c.kind, "produces_item": c.produces_item,
              "open_minute": c.open_minute, "close_minute": c.close_minute,
              "wage_per_hour": c.wage_per_hour, "restock_to": c.restock_to,
              "hiring_open": c.hiring_open, "hiring_slots": c.hiring_slots,

@@ -82,8 +82,18 @@ class WorkMixin:
 
 
     def worked(self, ticks: int = 1) -> None:
-        """在岗计时(工资按在岗时间算)。"""
-        self._worked_ticks += max(0, int(ticks))
+        """在岗计时: ① 本期(发工资用, 每天清零) ② 累计(熟练度用, 从不清)。
+
+        熟练度就是"干了多久" —— 制造公司的产出速度靠它(见 econ/factory)。
+        """
+        n = max(0, int(ticks))
+        self._worked_ticks += n
+        self._skill_ticks += n
+
+    @property
+    def skill_ticks(self) -> int:
+        """累计在岗 tick(熟练度) —— 只读; 只能靠 worked() 涨。"""
+        return self._skill_ticks
 
 
     def reset_worked(self) -> int:

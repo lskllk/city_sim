@@ -90,6 +90,12 @@ class SimConfig:
     favor_no_service_down: float = 0.15   # 到店却没人招待(白跑) → 掉得多
     # 招聘桥接: 每天几点匹配一次(0 = 午夜)
     hire_minute: int = 0
+    collect_minute: int = 0        # 批发市场收货(制造公司的产出 → 现金)
+    # —— 生产(制造公司) ——
+    produce_base_ticks: float = 165.0     # 一份产出的工时(k=1; 见 sim.toml 的推导)
+    produce_skill_min: float = 2.0        # 新员工的产出/消耗比
+    produce_skill_max: float = 5.0        # 老手最高能到几
+    produce_skill_full_ticks: float = 4800.0   # 从新的练到满级要多少在岗 tick
     # —— 上班时的"强制约束"(用户定: 站在工作台上就绑定住了) ——
     # 只有【强需求】掉到这个线以下, 才会从工作台上下来(吃饭/上厕所/困到不行)。
     # 其他任何事都夺不走他 —— 否则"在工作"只是又一个候选, 谁都能把他叫走。
@@ -172,6 +178,13 @@ class SimConfig:
             travel_penalty=float(util.get("travel_penalty", 2.0)),
             wage_minute=int(data.get("economy", {}).get("wage_minute", 480)),
             hire_minute=int(data.get("economy", {}).get("hire_minute", 0)),
+            collect_minute=int(data.get("economy", {}).get("collect_minute", 0)),
+            produce_base_ticks=float(
+                data.get("produce", {}).get("base_ticks_per_unit", 360)),
+            produce_skill_min=float(data.get("produce", {}).get("skill_min", 2.0)),
+            produce_skill_max=float(data.get("produce", {}).get("skill_max", 5.0)),
+            produce_skill_full_ticks=float(
+                data.get("produce", {}).get("skill_full_ticks", 4800)),
             work_leave_floor=float(data.get("work", {}).get(
                 "leave_floor", 0.35)),
             **{k: float(data.get("favor", {}).get(k[len("favor_"):], v))

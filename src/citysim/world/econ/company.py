@@ -191,6 +191,22 @@ def schedule_worker(world, systems, cfg: SimConfig, company,
 
 
 
+def tick_workstations(world, systems, cfg: SimConfig) -> None:
+    """在岗计时: 谁站在【他该站的工位】上, 这一 tick 就算上班。
+
+    销售前台和生产工位走同一把闸门(都是"人站在 work["station"] 那件东西上"),
+    所以工资/熟练度对两种岗位一致 —— 柜台服务只关心前台, 生产只关心工位。
+    """
+    for pid in sorted(systems.interaction.active):
+        act = systems.interaction.active.get(pid)
+        npc = world.npcs.get(pid)
+        if act is None or npc is None:
+            continue
+        if str(npc.work.get("station", "")) != act.entity_id:
+            continue                      # 站的不是自己该站的工位
+        npc.worked(1)
+
+
 def _hire_due(world, cfg: SimConfig, last_tick: int) -> bool:
     """到点了吗(每天 hire_minute 一次)。"""
     day, minute = divmod(world.clock_tick, max(1, cfg.ticks_per_day))

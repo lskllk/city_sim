@@ -78,12 +78,6 @@ def _serve_shops(world, systems, cfg: SimConfig) -> None:
     没开门 / 没前台 / 前台没人站着 → 服务不了 → 顾客继续等(等不住就走,
     记一次白跑: 好感掉一截)。这就是"员工在销售台交易才能进行"的落地处。
     """
-    # 在岗计时(工资按在岗时间算): 有员工站在台上 → 他这一 tick 算上班
-    for shop_id in sorted(world.locations):
-        for _c, pid in staffed_counters(world, systems, shop_id):
-            npc = world.npcs.get(pid)
-            if npc is not None:
-                npc.worked(1)
     for shop_id in sorted(systems.shop_queue):
         queue = list(systems.shop_queue.get(shop_id) or [])
         if not queue:

@@ -116,6 +116,7 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
         self._work: dict = {}          # {company, shop, station} 被雇佣时绑定
         self._role: str = ""           # 雇佣后写上的角色(现在只做打工人 "worker")
         self._worked_ticks: int = 0    # 本期在岗 tick(工资按在岗时间算)
+        self._skill_ticks: int = 0     # 累计在岗 tick(熟练度; 只增不减)
         self._mem = MemBase()
         self._perceived_loc: str = ""   # 最近一次感知到自己在哪(自身认知, 不长期维护坐标)
         self._checked_here: "set[str]" = set()   # 这次到这儿已为哪些需求查过环境(见 _missing_here)

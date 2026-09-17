@@ -272,6 +272,8 @@ def _load_companies(world: World, data: dict) -> None:
             company_id=cid, name=str(spec.get("name", cid)),
             cash=float(spec.get("cash", 1000.0)),
             owner=str(spec.get("owner", "")),
+            kind=str(spec.get("kind", "retail")),
+            produces_item=str(spec.get("produces_item", "")),
             shops=shops,
             open_minute=_clock_minutes(spec.get("open"),
                                        int(spec.get("open_minute", 480))),

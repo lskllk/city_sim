@@ -31,6 +31,12 @@ class Company:
     open_minute: int = 480          # 开门(游戏分钟)
     close_minute: int = 1140        # 关门
     wage_per_hour: float = 10.0     # 时薪: 招聘时确定(按小时算)
+    # —— 公司类型(注册时定; 决定用哪套运营界面/接口) ——
+    #   "retail"      零售: 向市场进货 → 上架 → 卖给居民
+    #   "manufacture" 制造(加工厂): 工人站工位产出【原料】→ 只能卖给批发市场
+    kind: str = "retail"
+    produces_item: str = ""         # 制造: 产出哪种货(空 = 不产; 见 world/econ/factory)
+
     # —— 招聘启事(公司说了算; 外面架构只做媒婆) ——
     #   没发布 = 一个人也不会被招进来, 哪怕有工位、也有人愿意干。
     hiring_open: bool = False

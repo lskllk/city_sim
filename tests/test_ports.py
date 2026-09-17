@@ -1,4 +1,4 @@
-"""WP-01: `core/ports.py` 契约(WorldPort / Ack / Deny / Grant)。
+"""`core/ports.py` 契约(WorldPort / Ack / Deny / Grant)。
 
 只钉三件事:
   1. 契约层是中立层 —— 不 import world / npc;

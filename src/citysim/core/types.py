@@ -1,6 +1,8 @@
-"""数据契约层：NPC <-> 世界 通信数据结构(全部 frozen + slots, 0.2 铁律)。
+"""数据契约层 —— NPC 与世界的全部通信数据结构(全部 frozen + slots)。
 
-M2 定死: Percept / Intent / DecisionTrace / EntityView / EventView。
+世界给 NPC 看: Percept / EntityView / EventView
+NPC 想干什么: Intent
+世界对 NPC 说什么: Notify(发生了什么) / Command(照这个做)
 """
 from __future__ import annotations
 
@@ -51,8 +53,8 @@ class Percept:
 class DecisionTrace:
     ranked: tuple[tuple[str, float], ...] = ()   # (entity_id, utility分) 降序
     reason: str = ""
-    features: Mapping[str, float] = field(default_factory=dict)  # M8 前为 {}
-    # TASK001: 结构化 trace —— 相关信号及其缺口(need=1-signal, 降序)
+    features: Mapping[str, float] = field(default_factory=dict)
+    # 结构化 trace: 相关信号及其缺口(need = 1-signal, 降序)
     relevant_signals: tuple[tuple[str, float], ...] = ()
 
 

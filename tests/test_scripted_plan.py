@@ -1,4 +1,4 @@
-"""TASK006: 固定日计划(ScriptedPlanner) + 计划快照(前端 viz) 单测。"""
+"""固定日计划(ScriptedPlanner) + 计划快照(前端 viz) 单测。"""
 from __future__ import annotations
 
 from citysim.core.types import Interact, MoveTo, Plan

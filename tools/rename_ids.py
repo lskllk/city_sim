@@ -1,4 +1,4 @@
-"""一次性改名迁移: 按 docs/naming.md 统一 id。
+"""一次性改名迁移: 统一 id 命名。
 
 规则:
 - 实例(loc/ent/npc)带前缀; 类型(item/building)不带全局前缀, 用 category_variant。

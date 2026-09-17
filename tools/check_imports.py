@@ -1,7 +1,8 @@
-"""CI 层隔离检查：src/citysim/npc/ 不得反向 import citysim.world。
+"""层隔离检查: src/citysim/npc/ 不得反向 import citysim.world。
 
-设计 0.2 硬性编码规范: npc/ 与 world/ 解耦。legacy/(M0~M3 临时迁移目录)
-除外——它暂存旧 person/brain, 不参与新架构。挂进 pytest; 命令行直接跑,
+分层是为了让 NPC(认知)与世界(账本/权限)各自能独立推理与测试 ——
+NPC 只能通过 core/ports.py 的动词请求世界, 世界只能通过
+Person.notify()/assign() 对 NPC 说话。挂进 pytest; 命令行直接跑,
 命中任一违规即返回退出码 1。
 """
 from __future__ import annotations

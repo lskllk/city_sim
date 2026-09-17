@@ -1,6 +1,6 @@
 """soak —— 7 天日行为统计追踪器(供 soak_report 与 test_behavior_soak 共用)。
 
-按 testM0~M3.md 第二步断言口径统计:
+按日行为口径统计:
   - 每人每天 吃/喝/如厕 次数; 睡眠段(次数 + 时长)
   - 信号卡 0 的最长连续 tick
   - 连续 idle 且有信号<0.3 的最长 tick

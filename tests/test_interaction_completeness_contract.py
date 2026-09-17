@@ -1,4 +1,4 @@
-"""交互完成时序契约(M5 前置记账 附注, 显式锁死)。
+"""交互完成时序契约(显式锁死)。
 
 契约: 消耗品完成 ->
   1. interaction_done 事件发布时 entity 仍在 world.entities(观察者可解析)
@@ -48,7 +48,7 @@ def test_consume_self_event_sequence() -> None:
 
 
 def test_consume_self_not_double_deduct_and_recycles_at_zero() -> None:
-    """m5-rectify 03: consumable tag + on_complete consume_self 只扣一次;
+    """consumable tag + on_complete consume_self 只扣一次;
     归零回收只发生在 interaction_done 之后。"""
     world, systems, rng_pool = make_runtime(CFG)
     # 注(2026-09-14 utility 主导后): 候选不再有门槛, 但【得分】有阀值

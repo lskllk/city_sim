@@ -99,7 +99,7 @@ class _Goal:
 
 @dataclass
 class _ActiveGrant:
-    """体内正在消化的一份 Grant(WP-08)。
+    """体内正在消化的一份 Grant。
 
     `total` = max(1, duration_ticks); 每 tick 加 `value/total`, `remaining` 递减到 0
     就算吃完 —— 这就是“吃东西→饥饿下来”的循环, 现在归 NPC 自己。
@@ -185,13 +185,13 @@ class Person:
         self._perceived_loc: str = ""   # 最近一次感知到自己在哪(自身认知, 不长期维护坐标)
         self._schedule = Schedule()     # 当天计划表(空 = 纯需求驱动)
         self._goal: "_Goal | None" = None   # 唯一在执行的标的
-        self._intake: list[_ActiveGrant] = []   # 体内正在消化(WP-08)
+        self._intake: list[_ActiveGrant] = []   # 体内正在消化
         self._finished: list[str] = []          # 本 tick 消化完的 handle(取走即清)
         # —— “我此刻在干什么”: 纯自身状态推导(world 不再写 set_activity 进来) ——
         self._moving: bool = False    # 上次 try_move 成功了(在途; 到站后 step 里清)
         self._queued: bool = False    # 刚 try_buy 成功 → 在店里等柜台(异步成交)
         self._bubble: tuple[str, int, str] | None = None   # (文字, 到期的 tick, 类型)
-        # —— 语义层(M-S1): 值得说的草稿 + 话题冷却 ——
+        # —— 语义层: 值得说的草稿 + 话题冷却 ——
         self._say_queue: list = []          # [SemanticEvent](未措辞的结构化真值)
         self._said_at: dict[str, int] = {}  # topic -> 上次说的 tick(别复读自己)
         self._name_of = None                # 注入: npc_id -> 名字(渲染“王哥说…”用)
@@ -326,7 +326,7 @@ class Person:
         返回是否仍存活(死则不再往下)。
 
         sleep=None(默认) 时【自己判】: 体内 intake 里有没有 sleepable 的东西
-        (WP-11: 不再由 world 反向告诉 NPC“你在睡”)。
+        (世界不再反向告诉 NPC“你在睡”)。
         """
         if sleep is None:
             sleep = any("sleepable" in ag.grant.tags for ag in self._intake)
@@ -372,7 +372,7 @@ class Person:
             # 真·空闲(没事做也不在赶路) → 掉; 吃饭/睡觉/赶路 → 不变
             self._signals["fun"] = _clamp(
                 self._signals.get("fun", 1.0) - cfg.fun_idle_drop)
-        # 消化(WP-08): 体内 intake 逐 tick 均摊加信号。
+        # 消化: 体内 intake 逐 tick 均摊加信号。
         # 放在代谢/排泄【之后】—— 与旧 InteractionSystem.step 的相对顺序一致。
         self._digest(now_tick, cfg)
         return True
@@ -432,7 +432,7 @@ class Person:
     def intake_progress(self, entity_id: str = "") -> tuple[int, int]:
         """当前在消化那份的 (剩余, 总时长); 没在消化/不匹配 → (0, 0)。
 
-        WP-08 之后进度归 NPC(体内 _intake); 快照要显示进度条就取这里,
+        进度归 NPC 自己(体内 _intake); 快照要显示进度条就取这里,
         不要再去看 world 的 ActiveInteraction(那边已不存进度)。
         """
         for ag in self._intake:
@@ -452,7 +452,7 @@ class Person:
         self._money -= amount
         return True
 
-    # --- 语义层(M-S1): 攒“值得说的事”, 按优先级取 ---------------------
+    # --- 语义层: 攒“值得说的事”, 按优先级取 ---------------------------
     def set_name_lookup(self, fn) -> None:
         """装配: 注入 npc_id -> 名字(世界侧提供, 本层只存不查)。"""
         self._name_of = fn
@@ -472,7 +472,7 @@ class Person:
     def pending_speech(self, now_tick: int, cooldown: int = 600):
         """取一件【值得说】的事(优先级最高 + 不在话题冷却里); 没有则 None。
 
-        优先级(§8): DOUBT > SURPRISE > INTENT > STATE。说完记冷却 ——
+        优先级: DOUBT > SURPRISE > INTENT > STATE。说完记冷却 ——
         NPC 不会短时间复读自己(上下文决定论 C 的 said_recently)。
         """
         best, best_rank, best_i = None, -1, -1
@@ -770,7 +770,7 @@ class Person:
         brain.perceive_into(self._mem, percept, tick)
 
     def _absorb_events(self, events, tick: int) -> None:
-        """把 world 发来的事件吸收成自己的状态(WP-13: world 不再反写 NPC)。
+        """把 world 发来的事件吸收成自己的状态(world 不反写 NPC)。
 
         目前: `bought` → 把送货进家的容器写进记忆。afford/value 随事件带回,
         所以 NPC 不需要当期看到家里。
@@ -1067,7 +1067,7 @@ class Person:
         if g is not None and intent_target(g.intent) == target_id:
             self._abandon()
     def step(self, port, cfg: "SimConfig") -> Decision:
-        """★ 主动拉(WP-05): 观察 → 感知 → 决策 → 执行。
+        """★ 主动拉: 观察 → 感知 → 决策 → 执行。
 
         与 process 的区别: 不再等 world 把 Percept 推过来; NPC 自己
         `port.observe(...)`, 决策后自己拿意图去 `port.try_*(...)`, 失败自己
@@ -1092,7 +1092,7 @@ class Person:
             if isinstance(r, Ack) and not r.ok:
                 self._on_failed(intent.dest, r.reason, now_tick)
             elif isinstance(r, Ack) and r.ok:
-                # WP-12: 起身离开 → 弃掉体内那份。world 在 preempt 时已释放 claim,
+                # 起身离开 → 弃掉体内那份。world 在 preempt 时已释放 claim,
                 # 食物/床回到世界(不浪费), 也没“中止也扣一份”。
                 self._intake.clear()
                 self._moving = True

@@ -97,7 +97,7 @@ def tick(world, systems, cfg: SimConfig) -> None:
     # 5a3. 柜台服务: 每个店按前台数服务队首(每 tick 每个前台成交 1 份)
     _serve_shops(world, systems, cfg)
 
-    # 5b. 决策: NPC 主动拉(WP-05/06; WP-00 选 B: 顺序执行, due 已排序 → 确定性仍在)。
+    # 5b. 决策: NPC 主动拉(顺序执行; due 已排序 → 确定性仍在)。
     #     每人一轮: observe → decide → try_*(端口立即落账, 失败自己处理)。
     port = WorldPortImpl(world, systems, cfg)
     due = due_npcs(world, systems)

@@ -82,7 +82,7 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
 
 def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
                  names: list[str] | None = None):
-    """稀缺场景(testM0~M3 疑点 2): 4 NPC 抢 1 厕所 + 1 餐盘(stock=2, 有限)。
+    """稀缺场景: 4 NPC 抢 1 厕所 + 1 餐盘(stock=2, 有限)。
 
     床按人数足额(避免无关卡点), 把竞争集中在 厕所/餐盘 —— 让 claim 冲突与
     失败重选路径被真实压到。NPC 同初始状态 → 需求同步 → 高并发争抢。

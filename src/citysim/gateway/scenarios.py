@@ -1,4 +1,4 @@
-"""scenarios —— 通用场景加载器(elm_lane 单一场景, M4 数据化规矩延伸)。
+"""scenarios —— 场景加载器: scene JSON → (World + Systems + rng)。
 
 把 config/scenes/elm_lane.json 建成 (world, systems, rng_pool):
   - 实体: 走 config/items defs(entity_from_def) + scene 覆盖 stock/open_hours, 零手搓;
@@ -166,7 +166,7 @@ def load_scene(path: str | Path | None = None,
             continue
         merged[key] = e
         world.spawn_entity(e)
-    # TASK001 默认锚点: 每个 region 内按实体 id 稳定生成(显式 position 不覆盖)
+    # 默认锚点: 每个 region 内按实体 id 稳定生成(显式 position 不覆盖)
     for loc_id in world.locations:
         world.layout_location(loc_id)
 
@@ -391,7 +391,7 @@ def _seed_knowledge(world, data: dict) -> int:
                   按 home 展开 → 住户改了也不用改数据
       [id,...] —— 显式名单
 
-    语义: 写的是【他们的知识】而不是世界真值(与 P8 一致) —— believe < 1 时
+    语义: 写的是【他们的知识】而不是世界真值 —— believe < 1 时
     他们会拿这条记忆当参考, 但不如亲眼所见那么笃定。
     """
     rules = data.get("knowledge") or []

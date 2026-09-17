@@ -1,4 +1,4 @@
-"""M3 测试共享辅助：搭 scene(世界+系统+rng)。"""
+"""测试共享辅助: 搭最小 scene(世界 + 系统 + rng)。"""
 from __future__ import annotations
 
 import random

@@ -29,8 +29,8 @@ class SimConfig:
     ticks_per_day: int
     metabolism: dict[str, float]     # 全信号 delta; 缺省信号补 0.0
     bladder_convert: float
-    half_life_ticks: int = 2880   # M5 知识半衰期(tick; 2 天)
-    utility_power: float = 3.0     # 需求急迫度幂次(m5-rectify 13)
+    half_life_ticks: int = 2880   # 知识半衰期(tick; 2 天)
+    utility_power: float = 3.0     # 需求急迫度幂次
     # 每种需求可以有自己的幂次 —— power 越大, “不太困/不太饿”时分数越低,
     # 于是【不到真难受就不去】。精力尤其需要钝一点: 否则一累就去躺。
     power_by_signal: dict[str, float] = field(default_factory=dict)
@@ -96,7 +96,7 @@ class SimConfig:
     # 控制点 [(当天分钟, 倍率)], 线性插值; 空 = 恒 1.0。
     energy_rhythm: tuple[tuple[float, float], ...] = ()
     busy_energy_mul: float = 1.8  # 在做事(交互/赶路)时额外消耗倍数
-    # —— 囤货 = 目标存量模型(plan.md §6) ——
+    # —— 囤货 = 目标存量模型 ——
     # 【没有“每种东西囤几个”的魔法数字】: 目标存量由【保质期】推导 ——
     #     目标 = 每天消耗份数 × 保质期天数 × stock_fill × thrift
     # 也就是“在坏掉之前我吃得完多少”。短保的东西自然囤得少。

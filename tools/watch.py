@@ -35,7 +35,7 @@ def _row(world, systems, pid: str) -> str:
     act = npc.current_activity or "idle"
     ai = systems.interaction.active.get(pid)
     if ai is not None:
-        rem, _total = npc.intake_progress(ai.entity_id)   # 进度归 NPC(WP-08)
+        rem, _total = npc.intake_progress(ai.entity_id)   # 进度归 NPC 自己
         ent = world.entities.get(ai.entity_id)
         act = f"{act}[{ent.name if ent else ai.entity_id}剩{rem}t]"
     it = npc.last_intent

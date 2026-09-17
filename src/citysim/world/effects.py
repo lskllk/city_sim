@@ -1,4 +1,4 @@
-"""效果操作解释器(M4 4.2) —— op 表 + apply_effects。
+"""效果操作解释器 —— op 表 + apply_effects。
 
 首批 5 个 op(定死): set_signal / add_signal / add_pending /
 spawn_item(按物品类型在世界生成) / consume_self。
@@ -96,7 +96,7 @@ def apply_effects(world: World, npc: Person, entity: Entity,
 
 
 # ---------------------------------------------------------------------------
-# 效果边界(WP-10): 把一列 effect 拆成【NPC 侧(结构化, 无 op 名)】与【world 侧】。
+# 效果边界: 把一列 effect 拆成【NPC 侧(结构化, 无 op 名)】与【world 侧】。
 #
 #   NPC 侧 → 编译进 Grant.pending(on_start), 由 Person 开始消化时应用
 #            (npc/ 不认识 op 字符串, 只认 signal/set/add/field/amount)

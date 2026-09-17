@@ -1,4 +1,4 @@
-"""M3 DoD: claim 仲裁 / 消耗品 / 睡眠唤醒(走主循环集成)。"""
+"""claim 仲裁 / 消耗品 / 睡眠唤醒(走主循环集成)。"""
 from __future__ import annotations
 
 from pathlib import Path

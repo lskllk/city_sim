@@ -11,7 +11,7 @@
   公司落到 world.companies + 那个建筑挂上 location["company"] →
   然后才谈得上装修(摆销售前台)、发布招聘、进货。
 
-id 规则见 docs/naming.md: org_<kind>_<slug>。
+id 规则: org_<kind>_<slug>。
 """
 from __future__ import annotations
 

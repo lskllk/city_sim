@@ -1,4 +1,4 @@
-"""testm4 A 组 —— 效果解释器 op 表单测。
+"""效果解释器 op 表单测。
 
 首批恰好 5 个 op; 每个 op 精确断言(含 clamp 边界 / 白名单)。
 """
@@ -90,7 +90,7 @@ def test_spawn_item_count() -> None:
 
 
 def test_consume_self_stock_only_no_pop() -> None:
-    """m5-rectify 03: consume_self 只扣库存, 不自行移除实体(回收统一在
+    """consume_self 只扣库存, 不自行移除实体(回收统一在
     interaction 完成事件之后)。"""
     w, npc, ent = _ctx()
     meal = w.spawn_item_type("meal_simple", "home")
@@ -103,7 +103,7 @@ def test_consume_self_stock_only_no_pop() -> None:
     assert disp.entity_id in w.entities and disp.stock == -1
 
 
-# --- testm4 E: interaction.py 无领域硬编码字面 -------------------------
+# --- interaction.py 无领域硬编码字面 -------------------------
 def test_interaction_has_no_domain_hardcode_literal() -> None:
     p = ROOT / "src" / "citysim" / "world" / "interaction.py"
     text = p.read_text(encoding="utf-8")

@@ -1,7 +1,7 @@
-"""WP-05: `Person.step` 主动拉(observe→decide→try_*) + 失败自己处理。
+"""`Person.step` 主动拉(observe→decide→try_*) + 失败自己处理。
 
 钉两件事:
-  1. NPC 自己 observe 并直接动 world(WP-00 选 B: 立即落账);
+  1. NPC 自己 observe 并直接动 world(立即落账);
   2. 被 world 否决(Deny)时, NPC 自己写记忆/冷却 —— world 不再反写 NPC。
 """
 from __future__ import annotations
@@ -51,7 +51,7 @@ def test_execute_handles_deny_by_updating_memory() -> None:
 
 
 def test_absorb_bought_event_writes_container_memory() -> None:
-    """WP-13: 成交的送货信息经 `bought` 事件由 NPC 自己写进记忆(world 不再反写)。"""
+    """成交的送货信息经 `bought` 事件由 NPC 自己写进记忆(world 不反写)。"""
     from citysim.core.types import EventView, Percept
 
     w, s, _ = make_runtime(CFG)

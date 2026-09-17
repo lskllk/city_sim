@@ -136,7 +136,7 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
     if shop.stock != -1:
         shop.stock -= qty
     container = _deliver(world, pid, npc, shop, qty, home)
-    # WP-13: 送货信息随 `bought` 事件交回 NPC —— 由 NPC 自己写记忆,
+    # 送货信息随 `bought` 事件交回 NPC —— 由 NPC 自己写记忆,
     # world 不再反写 NPC。(afford/value 必须带上: 否则他不知道家里这堆能吃。)
     cafford, cvalue = (next(iter(container.affordances.items()), ("", 0.0))
                        if container is not None else ("", 0.0))

@@ -1,6 +1,6 @@
 """命名规则(lint): id 语法/编号/唯一性/引用闭合 + 姓名池规则。
 
-规则见 docs/naming.md。这里是可执行约束, 防止命名再次变乱。
+这里是可执行约束, 防止命名再次变乱。
 - 类型: category_variant (item) / kind_variant (building)
 - 地点: <slug>_<NNN>          例 apt_001 / market_001
 - 实体: <itemtype>_<NNN>       例 bed_basic_001 (不带人名/地点)
@@ -26,7 +26,7 @@ SCENES_DIR = ROOT / "config" / "scenes"
 SCENE = json.loads(
     (ROOT / "tests" / "fixtures" / "elm_lane.json").read_text(encoding="utf-8"))
 ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
-# 楼层单元是 <建筑id>_f<N>(多楼层契约, 见 docs/checklist.md §4.6)
+# 楼层单元是 <建筑id>_f<N>(多楼层契约)
 SEQ_ID_RE = re.compile(r"^[a-z][a-z0-9_]*_\d{3}(_f\d+)?$")
 
 

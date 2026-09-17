@@ -20,7 +20,7 @@ from citysim.core.types import intent_kind, intent_target
 from citysim.emojis import SEMANTIC_EMOJI
 from citysim.world.tick.engine import act_class_of
 
-# TASK002: WS 消息协议版本(协议变化时递增; 本契约变更故 +1)
+# WS 消息协议版本(协议变化时递增)
 PROTOCOL_VERSION = 2
 
 
@@ -175,7 +175,7 @@ def _npc_core(world, systems, pid: str, p) -> dict:
 
 
 def _active_view(p, act) -> dict:
-    """进度来自 NPC 自己的 intake(WP-08); world 的 ActiveInteraction 不再存进度。"""
+    """进度来自 NPC 自己的 intake; world 的 ActiveInteraction 不存进度。"""
     rem, total = p.intake_progress(act.entity_id)
     return {"entity": act.entity_id, "remaining": rem, "total": total}
 

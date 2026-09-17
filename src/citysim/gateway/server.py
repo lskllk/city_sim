@@ -43,8 +43,7 @@ CLIENT_SEND_TIMEOUT = 1.5
 # 这样后端进程的工作目录无关紧要(Godot 自动拉起时尤其重要)。
 _ROOT = Path(__file__).resolve().parents[3]
 
-# TASK004-ext: legacy gateway/static 观察器已删除; server 只作 WS 推流端点。
-# UI 由独立 Godot 观察器 godot/ 提供(见 godot/README.md)。
+# server 只做 WS 推流端点(纯数据); UI 由独立的 Godot 项目(`godot/`)提供。
 
 
 class _Tee(io.TextIOBase):
@@ -365,7 +364,7 @@ class SimRunner:
                 "entities": sorted(self._seen_entities - cur_ents)}
         self._seen_npcs = cur_npcs
         self._seen_entities = cur_ents
-        # TASK002: Snapshot 与 Event 走独立消息; snapshot 不再内嵌事件流
+        # Snapshot 与 Event 走独立消息: snapshot 不内嵌事件流
         # 观察驱动: 只带 dirty 的 NPC(在家不动的座位不上车)
         msgs = [json.dumps(envelope(
             "snapshot",
@@ -431,7 +430,7 @@ async def _send(ws: WebSocket, payload: dict) -> None:
 
 
 def _admin_company(r, op: str, args: dict) -> dict:
-    """游戏内的经营动作(上帝视角/老板面板用)。**只改世界真值** —— P8 ✓。
+    """游戏内的经营动作(上帝视角/老板面板用)。**只改世界真值**。
 
     op:
       register  点一个商铺建筑 → 注册公司 {location, name, cash}

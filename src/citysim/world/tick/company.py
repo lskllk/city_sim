@@ -27,7 +27,7 @@ def pay_wages(world, cfg: SimConfig) -> None:
             if npc is None:
                 continue
             # ★ 一天结一次, 按【在岗时间】算: 出勤多少小时就领多少小时的钱。
-            #   没到岗 = 没收入(不搞欠薪/扣款 —— 惩罚就是"少拿钱", 见 R2)。
+            #   没到岗 = 没收入(不搞欠薪/扣款 —— 惩罚就是"少拿钱")。
             hours = npc.reset_worked() / 60.0
             due = round(hours * float(wage), 2)
             if due <= 0.0:

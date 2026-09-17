@@ -36,7 +36,7 @@ def trust_between(a, b) -> float:
 #   - 传出去的 believe = 说话人自己信的程度 × 对听者的信任
 #   - “对方已知就不说” → 消息播完自己就停, 不会全城皆知
 #
-# 注意: 这里**不做** trust 的演化(mind.md 的 verify) —— 那是后续插件。
+# 注意: 这里**不做** trust 的演化(那是后续插件的事)。
 
 BELIEF_FLOOR = 0.3      # 低于此就不值得再传了
 SAY_COOLDOWN = 240      # 同一话题这么 tick 内不重复说(4 小时)

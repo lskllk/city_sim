@@ -1,4 +1,4 @@
-"""TASK006: 计划里的购买(Buy) —— 扣钱 + 减店库存 + 合并进家容器。"""
+"""计划里的购买(Buy): 扣钱 + 减店库存 + 合并进家容器。"""
 from __future__ import annotations
 
 from pathlib import Path

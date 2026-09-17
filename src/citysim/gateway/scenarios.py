@@ -256,7 +256,7 @@ def _load_companies(world: World, data: dict) -> None:
     shape:
       "companies": [
         {"id":"org_x", "name":"甲店", "shops":["bld_004"], "cash":1000,
-         "open":"08:00", "close":"19:00", "wage_per_hour":10,
+         "open":"08:00", "close":"19:00", "wage_per_hour":3,
          "hiring_slots":2, "slots":2, "restock_to":60}
       ]
     兼容旧的 int 写法 open_minute/close_minute。
@@ -279,7 +279,7 @@ def _load_companies(world: World, data: dict) -> None:
                                        int(spec.get("open_minute", 480))),
             close_minute=_clock_minutes(spec.get("close"),
                                         int(spec.get("close_minute", 1140))),
-            wage_per_hour=float(spec.get("wage_per_hour", 10.0)),
+            wage_per_hour=float(spec.get("wage_per_hour", 3.0)),
             hiring_open=bool(spec.get("hiring_open", slots > 0)),
             hiring_slots=slots,
             slots=int(spec.get("slots", 2)),

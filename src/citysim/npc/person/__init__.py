@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 from citysim.core.ports import Ack, Deny, Grant
 from citysim.core.types import (
     Bought,
@@ -49,6 +49,11 @@ from citysim.npc.person.body import (  # noqa: F401
     signals_as_percent,
 )
 from citysim.npc.person.decide import _Goal  # noqa: F401
+
+if TYPE_CHECKING:  # pragma: no cover
+    # 只出现在类型标注里(运行时用不到) —— 别让清 import 的脚本删掉
+    from citysim.core.config import SimConfig
+    from citysim.core.types import Intent, Percept
 
 
 _GAME_EPOCH = date(2026, 1, 1)   # 游戏第 0 天对应的日期(用于年龄)

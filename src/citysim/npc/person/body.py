@@ -11,10 +11,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Mapping
 from citysim.core.config import SIGNALS
 
-
 if TYPE_CHECKING:  # pragma: no cover
+    # 只出现在类型标注里(运行时用不到) —— 别让清 import 的脚本删掉
     from citysim.core.config import SimConfig
-    from citysim.core.types import Intent, Percept
+    from citysim.core.ports import Grant
+    from typing import Sequence
 
 
 def _clamp(v: float) -> float:

@@ -6,8 +6,16 @@
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from citysim.core.types import Plan, Role, Shift, Unwork, Wage, Work
 from citysim.npc.schedule import Schedule
+
+if TYPE_CHECKING:  # pragma: no cover
+    # 只出现在类型标注里(运行时用不到) —— 别让清 import 的脚本删掉
+    from citysim.core.config import SimConfig
+    from citysim.npc.schedule import PlanEntry
+    from typing import Sequence
 
 
 class WorkMixin:

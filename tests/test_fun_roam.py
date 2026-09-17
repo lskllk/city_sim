@@ -338,3 +338,37 @@ def test_seeing_it_yourself_upgrades_a_hearsay_row() -> None:
     assert row.believe == 1.0 and row.source == ""      # 亲眼最硬 ✓
     assert "consumable" in row.tags                     # tags 补上了 ✓
     assert row.stock == 9                               # 现场为准 ✓
+
+
+def test_need_triggered_look_only_writes_what_the_need_wants() -> None:
+    """记什么取决于【为什么看】:
+
+      第一次来 / 闲逛 → 探索, 全部记住;
+      本地缺东西     → 只是来找那样东西的, 别的一概不记(不算探索)。
+    """
+    from citysim.core.types import EntityView, Percept
+    from citysim.npc import brain
+    w, s, _ = make_runtime(CFG)
+    npc = add_npc(w, s, "n", location="loc", home="home")
+    npc.note(place_id("loc"), located="loc", afford="", stock=1)   # 不是第一次来
+    npc.set_signal("hunger", 0.1)
+    assert npc._look_reason("loc", CFG) == "need"                  # 本地缺吃的 → 找
+    views = tuple(
+        EntityView(entity_id=eid, name=eid, location_id="loc",
+                   item_type=t, tags=frozenset({"consumable"}),
+                   affordances={af: 0.4}, duration_ticks=10, stock=5)
+        for eid, t, af in (("apple", "food_apple", "hunger"),
+                           ("bed", "bed_basic", "energy"),
+                           ("toilet", "toilet_basic", "bladder"))
+    )
+    percept = Percept(tick=1, hour_f=8.0, location_id="loc", visible=views)
+    # 缺 hunger 才看的 → 只记苹果
+    brain.perceive_into(npc._mem, percept, 1, only_affords=npc._needed(CFG))
+    assert npc._mem.get("apple") is not None                       # ✓ 能解需求
+    assert npc._mem.get("bed") is None                             # ✗ 与这次无关
+    assert npc._mem.get("toilet") is None                          # ✗
+
+    # 第一次来 / 闲逛 → 全部记
+    npc._mem.clear()
+    brain.perceive_into(npc._mem, percept, 1, only_affords=None)
+    assert all(npc._mem.get(i) is not None for i in ("apple", "bed", "toilet"))

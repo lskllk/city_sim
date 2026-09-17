@@ -12,7 +12,8 @@ from citysim.npc.memory import MemBase, MemItem
 FORGET_DEFAULT = 0.1  # remember 低于此 → 遗忘删除(默认阈值)
 
 
-def perceive_into(mem: MemBase, percept: Percept, tick: int) -> float:
+def perceive_into(mem: MemBase, percept: Percept, tick: int,
+                  only_affords: "set[str] | None" = None) -> float:
     """感知 → 记忆(写入): 把【当前可见、而我还不知道的东西】记下。非纯函数。
 
     ★ 只【发现】, 不【刷新】: 记忆里已经有的行原封不动 —— 它们只靠
@@ -30,6 +31,11 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> float:
 
     现场发现的 → source=""(亲眼) 且 believe=1.0: 不管之前听谁说过, 亲眼所见最硬。
 
+    ★ `only_affords`: 只记【能解这些需求】的东西(其余连写都不写)。
+      看什么取决于为什么看: 第一次来/闲逛 = 全部记住(探索);
+      而"本地缺东西才看一眼"只是为了找那样东西 —— 别的一概不进记忆(不算探索)。
+      None = 不过滤(全部)。
+
     ★ 返回值 = 【本次的新奇量】= Σ(1 − 旧 remember)。
       它是"这些东西对我来说有多新"的度量 —— 第一次见 = 1.0/件。
       闲逛靠它结算 fun(见 Person 的闲逛收工), 也靠它更新"这地方值不值得再去"。
@@ -37,6 +43,8 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> float:
     gain = 0.0
     for v in percept.visible:
         afford, value = (next(iter(v.affordances.items()), ("", 0.0)))
+        if only_affords is not None and afford not in only_affords:
+            continue                     # 为了找 X 才看的 → 不是 X 的不记
         row = mem.get(v.entity_id)
         if row is None:
             gain += 1.0

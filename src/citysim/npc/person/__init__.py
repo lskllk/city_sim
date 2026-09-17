@@ -148,8 +148,13 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
             self._checked_here.clear()      # 换地方了 → 这次到这儿还没查过
         self._perceived_loc = here
         now = port.now()
-        if self._need_look(here, cfg):
-            self.perceive(port.observe(self.person_id), now)
+        reason = self._look_reason(here, cfg)
+        if reason:
+            # ★ 记什么取决于【为什么看】:
+            #   第一次来 / 闲逛 → 探索, 全部记住;
+            #   本地缺东西     → 只是来找那样东西的, 别的一概不记。
+            fresh = self._needed(cfg) if reason == "need" else None
+            self.perceive(port.observe(self.person_id), now, fresh)
             # 记下“这次到这儿已为哪些需求看过” —— 缺什么就在本地找【一次】,
             # 找不到就带着这个结论去别处(不再是每 tick 反复看)。
             self._checked_here.update(self._needed(cfg))
@@ -157,13 +162,13 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
         self._execute(port, d, now)
         return d
 
-    def _need_look(self, here: str, cfg: "SimConfig") -> bool:
-        """这一 tick 要不要【看一眼环境】(贵的那一步)? 只在有理由时才看:
+    def _look_reason(self, here: str, cfg: "SimConfig") -> str:
+        """这一 tick 为什么要【看一眼环境】? "" = 不看。
 
-          · 第一次来     —— 记忆里【没有这个地点的地点行】(或那行已经忘掉)
-          · 正在目的地逛 —— 闲逛窗口, 本来就是特意来看的
-          · 在这儿缺东西 —— 有需求压着, 而【此处】记忆里没有能解它的东西
-                            (只问【这次到这儿还没查过】的需求, 见 _missing_here)
+          · "first"  —— 第一次来(记忆里没有这个地点的地点行, 或那行已经忘掉)
+          · "wander" —— 正在目的地逛(闲逛窗口, 本来就是特意来看的)
+          · "need"   —— 有需求压着, 而【此处】记忆里没有能解它的东西
+                       (只问“这次到这儿还没查过”的需求, 见 _missing_here)
 
         ★ 为什么没有“记不太清了就再看一眼”这种按时间的刷新:
           那会把【同一地点的所有东西】周期性地整批刷成“新鲜”—— 用得上和用不上的
@@ -174,12 +179,16 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
           (打分器本来就带路程代价)。
         """
         if self._mem.get(brain.place_id(here)) is None:
-            return True                                  # 第一次来(或忘了这儿)
+            return "first"
         g = self._goal
         if (g is not None and g.source == "fun"
                 and str(g.intent.dest) == here):
-            return True                                  # 正在这儿逛
-        return self._missing_here(here, cfg)
+            return "wander"
+        return "need" if self._missing_here(here, cfg) else ""
+
+    def _need_look(self, here: str, cfg: "SimConfig") -> bool:
+        """要不要看一眼环境(= _look_reason 非空)。保留给外部/测试的布尔口。"""
+        return bool(self._look_reason(here, cfg))
 
     def _missing_here(self, here: str, cfg: "SimConfig") -> bool:
         """此地有没有“我现在需要、但记忆里【此处】没有”的东西?
@@ -318,15 +327,17 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
         return list(self._failures)
 
 
-    def perceive(self, percept: "Percept", tick: int) -> None:
+    def perceive(self, percept: "Percept", tick: int,
+                 only_affords: "set[str] | None" = None) -> None:
         """现场 → 记忆(写入)。非纯函数。感知即知道自己当前在哪。
 
         注意顺序: **先拿“预期 vs 观察”**, 再写记忆 —— 写完就没落差了。
+        `only_affords`: 只记能解这些需求的东西(见 brain.perceive_into)。
         """
         self._perceived_loc = percept.location_id
         for ev in self._spot_surprises(percept, tick):
             self._push_speech(ev)
-        gain = brain.perceive_into(self._mem, percept, tick)
+        gain = brain.perceive_into(self._mem, percept, tick, only_affords)
         # 正在【目的地】逛 → 这次看到的算本趟收获。
         # ★ 判据不能用 roam_until: 到达那一刻 perceive 先跑(窗口还没开),
         #   而恰恰那一次最有价值(第一次看见这里的东西)。

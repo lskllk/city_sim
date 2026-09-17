@@ -1213,9 +1213,14 @@ func _build_item(iid: String) -> void:
 	var sec := _section("属性")
 	_kv(sec, "类型", String(it.get("type", "")))
 	_kv(sec, "所在", MapDoc.unit_display(String(it.get("at", ""))))
-	_f_stock = _spin(-1, 1000000, 1)
-	_f_stock.value = int(it.get("stock", 1))
-	sec.add_child(_lrow("库存", _f_stock))
+	if MapDoc.is_fixture(String(it.get("type", ""))):
+		# 家具: 数量恒为 1, 不合并也不消耗 —— 想多一个就多摆一件
+		_kv(sec, "数量", "1（家具：不可堆叠，要几个摆几个）")
+		_f_stock = null
+	else:
+		_f_stock = _spin(0, 1000000, 1)
+		_f_stock.value = int(it.get("stock", 1))
+		sec.add_child(_lrow("库存", _f_stock))
 	_f_price = _spin(0, 1000000, 1)
 	_f_price.value = float(it.get("price", 0.0))
 	sec.add_child(_lrow("售价", _f_price))
@@ -1254,8 +1259,11 @@ func _save_item(iid: String) -> void:
 	var owner := ""
 	if _f_owner.selected >= 0 and _f_owner.selected < _f_owner_ids.size():
 		owner = String(_f_owner_ids[_f_owner.selected])
-	MapDoc.update_item(iid, {
-		"stock": int(_f_stock.value), "price": _f_price.value, "owner": owner})
+	var patch := {"price": _f_price.value, "owner": owner}
+	# 家具没有库存控件(数量恒为 1), 不动它
+	if _f_stock != null:
+		patch["stock"] = int(_f_stock.value)
+	MapDoc.update_item(iid, patch)
 	_refresh_status("已保存 %s" % iid)
 
 
@@ -1276,10 +1284,18 @@ func _add_item(bid: String) -> void:
 	if idx < 0 or idx >= _item_type_keys.size():
 		return
 	var unit := MapDoc.target_unit(bid)
-	var iid := MapDoc.add_item(String(_item_type_keys[idx]), unit)
+	var tid := String(_item_type_keys[idx])
+	# ★ 家具默认归属【本店公司】(工位/销售台/马桶…摆下去就是这家公司的):
+	#   不然默认"公共"→ 员工免费用不到它, 也进不了"公司自有"那一区。
+	#   货不设默认(无主也行: 世界按所在地公司判归属)。
+	var owner := ""
+	if MapDoc.is_fixture(tid):
+		owner = String(MapDoc.company_for_shop(bid).get("id", ""))
+	var iid := MapDoc.add_item(tid, unit, owner)
 	if iid != "":
 		# 新增不进物件编辑页: 留在建筑页, 新物件在【物件】列表里
-		_refresh_status("已在 %s 新增 %s" % [MapDoc.unit_display(unit), iid])
+		_refresh_status("已在 %s 新增 %s%s" % [MapDoc.unit_display(unit), iid,
+			"（归属本店公司）" if owner != "" else ""])
 
 
 ## 一键填满: 所有住宅的每一层补满随机居民。

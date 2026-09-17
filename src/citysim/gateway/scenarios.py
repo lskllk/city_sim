@@ -3,7 +3,7 @@
 把 config/scenes/elm_lane.json 建成 (world, systems, rng_pool):
   - 实体: 走 config/items defs(entity_from_def) + scene 覆盖 stock/open_hours, 零手搓;
   - NPC: scene 的 personality/init/memory/tell_bias(初始记忆, 单层靠 obs 学);
-  - Systems: travel 距离矩阵 + 归一化 pulses(世界侧定时脚本)。
+  - Systems: travel 距离矩阵(场景顶层 travel.default / travel.pairs)。
 
 铁律: npc 不 import world; 加载器只组装, 不做决策。
 """
@@ -21,7 +21,6 @@ from citysim.npc.person import Identity, Person
 from citysim.npc.planner import ScriptedPlanner
 from citysim.sim.loop import attach_replay, make_systems
 from citysim.world.model.buildings import build_locations
-from citysim.world.mechanism.pulses import normalize as _norm_pulses
 from citysim.world.model.roads import RoadGraph
 from citysim.world.model.itemdefs import load_item_defs
 from citysim.world.world import Entity, World, entity_from_def
@@ -129,8 +128,6 @@ def load_scene(path: str | Path | None = None,
     # 这里 world.npcs 还是空的, 以前那句循环等于什么都没做 ✗。
     # 后果: 打分里查到的 travel tick 全是常量 30,
     #       "哪家店更近"在决策里完全没有区别。
-    # 场景脉冲(世界侧定时)
-    systems.pulses = _norm_pulses(data.get("pulses", []), CFG.ticks_per_day)
 
     # ---- 实体: itemdefs + scene 覆盖 -----------------------------------
     defs = load_item_defs()

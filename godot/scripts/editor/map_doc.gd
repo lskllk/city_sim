@@ -1648,7 +1648,7 @@ func to_scene_dict(scene_name_arg: String = "") -> Dictionary:
 	return {"scene": nm, "display_name": scene_display if scene_display != "" else nm,
 		"canvas": {"w": bounds.size.x, "h": bounds.size.y},
 		"locations": locs, "travel": {"default": 20, "pairs": pairs},
-		"entities": ents, "pulses": [], "plans": {}, "npcs": ppl,
+		"entities": ents, "plans": {}, "npcs": ppl,
 		"companies": comps,
 		"knowledge": knowledge.duplicate(true),
 		"map": to_dict()}

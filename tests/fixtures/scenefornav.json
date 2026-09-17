@@ -289,7 +289,6 @@
       }
     ]
   },
-  "pulses": [],
   "scene": "scenefornav",
   "travel": {
     "default": 20,

@@ -39,8 +39,10 @@ class Deny:
 class Grant:
     """世界签发的【一份可用之物】= 纯数据 + 不透明持有凭证。
 
-    ★ 它**不是所有权本身**: 东西仍在世界账本里(held_by=pid)。`handle` 只是校验
-      用的 token, NPC 伪造不了。
+    ★ 它**不是所有权本身**: 东西还在世界账本里, 【谁正在用它】由
+      `InteractionSystem.active` 那本账表达 —— 不在实体上加字段(那会变成
+      第二份真相)。`handle` 是去重/校验用的 token: NPC 侧靠它防止"同一份
+      重复收", 世界侧收尾时对一遍(`finish` 校验 handle 才算数)。
     """
     handle: str
     entity_id: str

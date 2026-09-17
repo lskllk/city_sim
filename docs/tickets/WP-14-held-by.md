@@ -36,7 +36,7 @@ consume 才有据可查，NPC 也伪造不了。
 - **已做**: 端口补齐 `consume(pid, handle)` / `release(pid, handle)`(收尾/归还),
   并加了唯一 `handle`(由 `InteractionSystem.submit` 签发, 带序号)——防止
   “中止后重拿”撞车。
-- **暂缓**: `Entity.held_by` 字段与 `try_put`。原因: 现在“谁持有什么”已经由
-  `InteractionSystem.active[pid].entity_id/handle` 这本账表达, `held_by` 会变成
-  第二份真相; 且没有任何行为需要 `try_put`(归还)。等真出现“手递手/放下”的
-  玩法时再上。
+- **不做**(2026-09-17 用户明确): `Entity.held_by` 字段与 `try_put` 都不上。
+  原因有两层: ① 现在“谁持有什么”已经由 `InteractionSystem.active[pid]` 这本账
+  表达, 再加 `held_by` 就是第二份真相; ② 用户不要“买完拎在手上、自己带回家”
+  这个玩法 —— 送货直接到家更简单, 而且“带回家”本身没有玩法收益。

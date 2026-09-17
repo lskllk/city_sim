@@ -76,7 +76,11 @@ class Buy:
 
 @dataclass(frozen=True, slots=True)
 class Wander:
-    """闲逛: 去 dest 待一会儿(补 fun; 最低优先级, 可被任何需求打断)。"""
+    """闲逛: 去 dest 待一段【观察窗口】(默认 60t), 靠"看见新东西"补 fun。
+
+    它是 committed goal(期间不重算, 只有 PLAN 能抢), 所以不是"可被任何需求打断"。
+    窗口状态(roam_until/roam_gain)挂在目标上, 见 person/goal.py 的 _advance。
+    """
     dest: str
     trace: DecisionTrace = field(default_factory=DecisionTrace)
 

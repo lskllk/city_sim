@@ -182,14 +182,15 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
             elif isinstance(r, Ack) and r.ok:
                 self._queued = True          # 已入队 → 在店里等柜台
         elif isinstance(intent, Wander):
-            r = port.try_wander(self.person_id, intent.dest)
-            if isinstance(r, Grant):
-                self.intake_add(r)          # 闲逛的 fun 由这份 Grant 自己涨
-            elif isinstance(r, Ack) and r.ok:
-                # 闲逛是两段式: 没到 dest 时 try_wander 复用移动 → 也在途
-                self._moving = True
-            elif isinstance(r, Ack):
-                self._on_failed(intent.dest, r.reason, now_tick)
+            # 闲逛 = 【走到那儿 + 在那儿看一会儿】, 全是 NPC 自己的事:
+            # 不占世界资源(不 claim / 不发 Grant) → 只借 try_move 走过去。
+            # 到了之后这里什么都不做 —— 观察由 perceive 做, 窗口由 _advance 记。
+            if self._perceived_loc != intent.dest:
+                r = port.try_move(self.person_id, intent.dest)
+                if isinstance(r, Ack) and r.ok:
+                    self._moving = True      # 在途(world 不叫 step → 途中不重算)
+                elif isinstance(r, Ack):
+                    self._on_failed(intent.dest, r.reason, now_tick)
 
 
     def notify(self, ev) -> None:
@@ -263,8 +264,37 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
         self._perceived_loc = percept.location_id
         for ev in self._spot_surprises(percept, tick):
             self._push_speech(ev)
-        brain.perceive_into(self._mem, percept, tick)
+        gain = brain.perceive_into(self._mem, percept, tick)
+        # 正在【目的地】逛 → 这次看到的算本趟收获。
+        # ★ 判据不能用 roam_until: 到达那一刻 perceive 先跑(窗口还没开),
+        #   而恰恰那一次最有价值(第一次看见这里的东西)。
+        g = self._goal
+        if (g is not None and g.source == "fun"
+                and self._perceived_loc == g.intent.dest):
+            g.roam_gain += gain
 
+
+    # --- 闲逛的收工结算 -----------------------------------------------
+    def _finish_roam(self, goal: "_Goal", cfg: "SimConfig",
+                     now_tick: int) -> float:
+        """收工: 把这一趟的收获变成 fun, 并把"这地方值多少"记到地点行上。
+
+            收获 = roam_value(基础: 出门本身也算消遣)
+                 + novel_gain × 本趟新奇量(Σ(1−旧 remember))
+
+        两处用【同一个量】: 同一趟逛, 既补 fun, 也更新"以后还值不值得来"。
+        """
+        gained = (float(cfg.fun_roam_value)
+                  + float(cfg.fun_novel_gain) * float(goal.roam_gain))
+        self.add_signal("fun", gained)
+        dest = str(goal.intent.dest)
+        row = self._mem.get(brain.place_id(dest))
+        if row is not None:                  # 记到地点行: 这地方一趟能拿到多少
+            attrs = dict(row.attrs or {})
+            attrs["gain"] = float(goal.roam_gain)
+            attrs["visits"] = int(attrs.get("visits", 0)) + 1
+            self._mem.update(brain.place_id(dest), attrs=attrs)
+        return gained
 
     def _remember_delivery(self, ev: "Bought") -> None:
         """买到的东西落到哪个容器 → 写进记忆。
@@ -288,7 +318,7 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
     def on_day(self, cfg: "SimConfig", now_tick: int) -> int:
         """窄协议: 每游戏日 ① 重算年龄 ② 遗忘。返回遗忘条数。"""
         self._age = self._age_from_birthday(now_tick // max(1, cfg.ticks_per_day))
-        return self.decay_memory(cfg, now_tick)
+        return self.decay_memory(cfg)
 
 
     def _age_from_birthday(self, day_index: int) -> int | None:
@@ -299,9 +329,9 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
         return _age_on(b, _GAME_EPOCH + timedelta(days=day_index))
 
 
-    def decay_memory(self, cfg: "SimConfig", now_tick: int) -> int:
+    def decay_memory(self, cfg: "SimConfig") -> int:
         """遗忘(remember 衰减删行)。每游戏日调; 返回遗忘条数。"""
-        return brain.forget(self._mem, now_tick, cfg.half_life_ticks)
+        return brain.forget(self._mem, cfg.half_life_ticks, cfg.ticks_per_day)
 
 
     # ------------------------------------------------------------------

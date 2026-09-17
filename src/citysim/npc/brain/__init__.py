@@ -33,6 +33,7 @@ from citysim.npc.brain.stockpile import (  # noqa: F401
     _future_need,
 )
 from citysim.npc.brain.memory_io import (  # noqa: F401
+    place_id,
     perceive_into,
     forget,
     FORGET_DEFAULT,

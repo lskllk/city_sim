@@ -49,15 +49,14 @@ def test_intake_decides_class_and_keeps_the_item_name() -> None:
         npc.intake_add(_grant(name, tags))
         assert npc.activity() == (cls, name), name
     npc._intake.clear()
-    npc.intake_add(_grant("", ("roam",)))            # 闲逛的 Grant 没有名字
-    assert npc.activity() == ("wander", "闲逛")
+    # 闲逛不再靠 Grant: 它是"一段观察窗口"(goal.source=="fun"), 见下一条测试
+    assert npc.activity() == ("idle", "idle")
 
 
 def test_class_of_tags_is_data_driven() -> None:
     """新物件只要在 config/items 打 tag → 大类自动认得, 不用改代码。"""
     assert Person._class_of_tags(("edible",)) == "eat"
     assert Person._class_of_tags(("station",)) == "work"
-    assert Person._class_of_tags(("roam",)) == "wander"
     assert Person._class_of_tags(("furniture", "pretty")) == "idle"
 
 

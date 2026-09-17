@@ -75,9 +75,4 @@ class WorldPort(Protocol):
         """请求购买。★ 异步: `ok=True` 只表示【已入队】, 成交另走事件。"""
         ...
 
-    def try_wander(self, pid: str, dest: str) -> "Ack | Grant":
-        """闲逛: 没到 dest → 走过去; 到了 → 开一段 roam(返回补 fun 的 Grant)。
-
-        已在 roam → `Ack(ok=True, reason="roaming")`(不重复发 Grant)。
-        """
         ...

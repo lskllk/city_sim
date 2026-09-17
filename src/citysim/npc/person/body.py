@@ -124,8 +124,6 @@ class BodyMixin:
         if "work" in ftags:
             self._signals["fun"] = _clamp(
                 self._signals.get("fun", 1.0) + cfg.fun_work_gain)
-        elif "roam" in ftags:
-            pass                    # 闲逛的 fun 由 roam Grant 自己涨
         elif not self._intake and not busy:
             # 真·空闲(没事做也不在赶路) → 掉; 吃饭/睡觉/赶路 → 不变
             self._signals["fun"] = _clamp(
@@ -240,7 +238,7 @@ class BodyMixin:
         """我此刻在干什么 —— (行为大类, 显示文字)。**纯读自身状态, 不查世界**。
 
         以前这些是 world 写进来的: 6 处 `set_activity(...)` 把“苹果”/“idle”/
-        “闲逛”写到 NPC 身上, `act_class_of` 再去 world 的 travel/roaming/
+        “闲逛”写到 NPC 身上, `act_class_of` 再去 world 的 travel/
         interaction 里猜大类。但“我在干什么”本来就是我自己最清楚的事 ——
         现在从 _intake(消化中的那份 Grant, 带 tags) + _moving/_queued 自己推。
         """
@@ -250,8 +248,11 @@ class BodyMixin:
             if cls == "wander":
                 return "wander", "闲逛"
             return cls, (g.name or "")
+        g = self._goal
         if self._moving:
             return "move", ""
+        if g is not None and g.source == "fun":
+            return "wander", "闲逛"              # 闲逛 = 一段观察窗口(见 goal.py)
         if self._queued:
             return "idle", "queue"              # 在柜台排队(成交在柜台那边异步发生)
         return "idle", "idle"
@@ -281,6 +282,4 @@ class BodyMixin:
             return "eat"
         if "work" in t or "station" in t:
             return "work"
-        if "roam" in t:
-            return "wander"
         return "idle"

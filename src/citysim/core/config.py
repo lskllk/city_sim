@@ -52,9 +52,16 @@ class SimConfig:
     # —— fun(娱乐): 上班涨 / 空闲掉; 吃/睡/厕所不变 ——
     fun_idle_drop: float = 0.0006944444444444444   # 空闲每 tick 掉(≈1 天掉光)
     fun_work_gain: float = 0.0003472222222222222   # 上班每 tick 涨(≈2 天涨满)
-    fun_roam_value: float = 0.4                    # 一次闲逛总共补多少 fun
+    fun_roam_value: float = 0.15                   # 闲逛的【基础回报】(出门本身也算消遣)
+    fun_novel_gain: float = 0.10                   # 每单位【知识增长】补多少 —— 见下
     fun_roam_ticks: int = 60                       # 一次闲逛持续多久(1 小时; 期间冷却决策)
     fun_seek_below: float = 0.6                    # fun 低于此才想闲逛
+    # —— 闲逛选址: 想去某地的程度 = draw × 距离因子 × 个人抖动(加权随机, 见 _wander_dest)
+    fun_optimistic: float = 3.0     # 没去过(连地点行都没有)时的乐观初值
+    fun_visited_base: float = 0.5   # 去过就有一点基础权重(空地方不是永不再去)
+    fun_rich_a: float = 2.0         # 那儿我已知的【行数】值多少("东西多")
+    fun_gain_b: float = 2.0         # 那儿上次的【收获】值多少("信息量大")
+    fun_near_lambda: float = 0.02    # 距离惩罚(轻: 别压死探索)
     # —— 成本模型(比价 / 比距离 / 顺路) ——
     # eff = (need^power × value × personality × believe) / (1 + cost_lambda × cost)
     # cost = price×qty + price×(1−believe)     (纯钱 + 不确定性)
@@ -149,9 +156,15 @@ class SimConfig:
             hp_override=float(health.get("hp_override", 0.5)),
             fun_idle_drop=float(fun_cfg.get("idle_drop", 0.0006944444444444444)),
             fun_work_gain=float(fun_cfg.get("work_gain", 0.0003472222222222222)),
-            fun_roam_value=float(fun_cfg.get("roam_value", 0.4)),
+            fun_roam_value=float(fun_cfg.get("roam_value", 0.15)),
+            fun_novel_gain=float(fun_cfg.get("novel_gain", 0.10)),
             fun_roam_ticks=int(fun_cfg.get("roam_ticks", 60)),
             fun_seek_below=float(fun_cfg.get("seek_below", 0.6)),
+            fun_optimistic=float(fun_cfg.get("optimistic", 3.0)),
+            fun_visited_base=float(fun_cfg.get("visited_base", 0.5)),
+            fun_rich_a=float(fun_cfg.get("rich_a", 2.0)),
+            fun_gain_b=float(fun_cfg.get("gain_b", 2.0)),
+            fun_near_lambda=float(fun_cfg.get("near_lambda", 0.02)),
             cost_lambda=float(util.get("cost_lambda", 0.02)),
             travel_penalty=float(util.get("travel_penalty", 2.0)),
             wage_minute=int(data.get("economy", {}).get("wage_minute", 480)),

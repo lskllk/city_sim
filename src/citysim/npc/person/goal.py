@@ -17,6 +17,7 @@ import zlib
 from dataclasses import dataclass
 from citysim.core.types import (Buy, Decision, Idle, Interact, MoveTo, Wander, intent_kind, intent_target)
 from citysim.npc import brain
+from citysim.npc.brain.memory_io import place_id
 
 if TYPE_CHECKING:  # pragma: no cover
     # 只出现在类型标注里(运行时用不到) —— 别让清 import 的脚本删掉
@@ -39,6 +40,9 @@ class _Goal:
     source: str                               # "need" | "plan"
     intent: "Intent"
     phase: str = "to_dest"
+    # —— 闲逛窗口(只对 source="fun" 有意义; 挂在 goal 上 → 随目标生灭) ——
+    roam_until: int = 0
+    roam_gain: float = 0.0
 
 
 class GoalMixin:
@@ -76,7 +80,7 @@ class GoalMixin:
                         self._schedule.drop()
                         self._goal = None
                         continue
-                d = self._advance(self._goal)
+                d = self._advance(self._goal, cfg, now_tick)
                 if d is not None:
                     return self._record(d)
                 continue
@@ -155,22 +159,69 @@ class GoalMixin:
 
 
     def _wander_dest(self, cfg: "SimConfig", now_tick: int) -> str:
-        """从【所有非住所的公共建筑】里随机选一个作为闲逛目的地。
+        """选一个闲逛目的地 —— 按【想去程度】加权随机抽一个(不是取最大)。
 
-        纯数据(不查 world): 只用注入的 `_places`(id 列表)。
-        排除“家”和当前所在地(要真的走过去 → 路上算赶路);
-        用 person_id + 时间窗的稳定哈希抽一个 → 同人同窗口可复现。
+        候选 = 注入的 `_places` 里【非家】且【非当前所在地】(要真的走过去)。
+        全用纯数据(记忆 + 地点表 + 距离矩阵), 不查 world。
+
+        ★ 为什么不均匀随机: 得让"没什么东西的地方"少去、"有料的地方"多去。
+          写法是"按权重抽"而不是"取最高分" —— 保留逛街的随性感,
+          也让认知相同的 NPC 不会全挤到同一个地方(还有下面那道个人抖动)。
         """
         here = self._perceived_loc
         cands = [loc for loc in self._places
                  if loc and loc != self._home and loc != here]
-        if not cands:                                  # 只剩家了 → 就选家外的任意一个
+        if not cands:                                  # 只剩家了 → 家外任意一个
             cands = [loc for loc in self._places if loc and loc != self._home]
         if not cands:
             return ""
+        weights = [self._roam_draw(cfg, here, loc) for loc in cands]
+        total = sum(weights)
+        if total <= 0.0:                               # 全 0(不该发生) → 退化成均匀
+            weights = [1.0] * len(cands)
+            total = float(len(cands))
         bucket = now_tick // max(1, int(cfg.fun_roam_ticks))
-        idx = zlib.crc32(f"{self.person_id}|{bucket}".encode("utf-8")) % len(cands)
-        return cands[idx]
+        r = (zlib.crc32(f"{self.person_id}|{bucket}".encode("utf-8")) % 10_000)
+        target = (r / 10_000.0) * total
+        acc = 0.0
+        for loc, w in zip(cands, weights):
+            acc += w
+            if target < acc:
+                return loc
+        return cands[-1]
+
+    def _roam_draw(self, cfg: "SimConfig", here: str, loc: str) -> float:
+        """「这地方值不值得去」—— 三个信号相加, 再乘距离与个人抖动。
+
+            draw = (没去过 ? 乐观初值 : visited_base) + rich_a×这儿的【东西数】
+                   + gain_b×上次收获
+              · 没去过 → 乐观初值(≈"值一次白跑") → 每个地方至少会被逛一次
+              · "东西多" → 行数多 → 常去
+              · "上次拿到很多信息" → attrs["gain"] 高 → 后面更想去
+            去过的空地方: 乐观初值没了, 只剩 1(地点行本身) + 0 → 权重很低,
+            于是"几乎不再去" —— 直到它也被人忘掉(地点行被删) → 又变回"没去过"。
+
+        距离因子(轻) + 个人抖动(稳定哈希, 人人不同 → 不扎堆)。
+        """
+        # 只数【东西】—— 地点行(afford="")不算, 否则空地方也至少 1 行
+        rows = sum(1 for r in self._mem.items()
+                   if r.located == loc and r.afford)
+        prow = self._mem.get(place_id(loc))
+        draw = float(cfg.fun_rich_a) * rows
+        if prow is None:
+            draw += float(cfg.fun_optimistic)          # 没去过 → 鼓励去一次
+        else:
+            draw += float(cfg.fun_visited_base)        # 去过就有一点底(不是永不再去)
+            draw += float(cfg.fun_gain_b) * float(
+                (prow.attrs or {}).get("gain", 0.0))
+        ticks = 0
+        if self._travel_costs and here and loc:
+            key = "%s|%s" % (here, loc) if here <= loc else "%s|%s" % (loc, here)
+            ticks = int(self._travel_costs.get(key, 0))
+        near = 1.0 / (1.0 + float(cfg.fun_near_lambda) * ticks)
+        jit = (zlib.crc32(("%s|%s" % (self.person_id, loc)).encode("utf-8"))
+               % 1000) / 1000.0
+        return max(0.0, draw) * near * (0.75 + jit / 2)  # 抖动 0.75..1.25"""
 
 
     def _plan_intent(self) -> "Intent | None":
@@ -204,19 +255,24 @@ class GoalMixin:
         return self._signals.get("hp", 1.0) < cfg.hp_override
 
 
-    def _advance(self, goal: "_Goal") -> "Decision | None":
-        """推进一个 goal: 异地先 MoveTo; 到达/无需移动后返回实际 Intent。"""
+    def _advance(self, goal: "_Goal", cfg: "SimConfig",
+                 now_tick: int) -> "Decision | None":
+        """推进一个 goal: 异地先 MoveTo; 到达/无需移动后返回实际 Intent。
+
+        闲逛额外需要 cfg/now_tick —— 它要靠"窗口到期"收工并结算(见上)。
+        """
         if goal.source == "fun":
-            # 闲逛两段: 赶路(try_wander 自己会走) → 到建筑里开逛 → 逛完收工
-            roaming = any("roam" in ag.grant.tags for ag in self._intake)
-            if goal.phase == "to_dest":
-                if roaming:
-                    goal.phase = "doing"          # 已经在逛了
-                return Decision(goal.intent, goal.source)   # 走过去 或 开始逛
-            if not roaming:                        # 逛完了
-                self._finish_goal(goal)
-                return None
-            return Decision(goal.intent, goal.source)
+            # 闲逛两段: 赶路 → 到了开一段【观察窗口】 → 窗口到期收工。
+            # 判断全靠 NPC 自己(位置 + 窗口), 不查 world、不靠 Grant。
+            if self._perceived_loc != goal.intent.dest:
+                return Decision(goal.intent, goal.source)     # 还在赶路
+            if goal.roam_until == 0:                          # 刚到 → 开窗口
+                goal.roam_until = now_tick + int(cfg.fun_roam_ticks)
+            if now_tick < goal.roam_until:                    # 逛着呢
+                return Decision(goal.intent, goal.source)
+            self._finish_roam(goal, cfg, now_tick)            # 到期 → 结算
+            self._finish_goal(goal)
+            return None
         if goal.phase == "to_dest":
             dest = self._dest_for(goal.intent)
             if dest and self._perceived_loc != dest:

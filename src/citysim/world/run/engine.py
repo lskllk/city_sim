@@ -1,7 +1,7 @@
 """world/run/engine —— 世界执行器: 主循环 tick() + 观察/死亡
 
-tick() 是【主循环】: 12 个步骤的编排(补货/招聘/工资/过期 → 心跳 → 交互 →
-旅行/闲逛 → 柜台 → 决策 → 遗忘/计划 → 记时间线)。
+tick() 是【主循环】: 11 个步骤的编排(补货/招聘/工资/过期 → 心跳 → 交互 →
+旅行 → 柜台 → 决策 → 遗忘/计划 → 记时间线)。
 其余四步(shop/economy/company/gossip)都是它按顺序调用的。
 
 按 World↔Person 契约: 上帝(World 侧)执行'世界进程'并广播心跳,
@@ -84,15 +84,10 @@ def tick(world, systems, cfg: SimConfig) -> None:
                 if npc is not None:
                     npc.notify(InteractionFailed(trv.to_loc, why, world.clock_tick))
 
-    # 7. 闲逛到期 / 人已离开那个地方(world 侧会话; fun 由 NPC 自己消化)
-    for pid in [p for p, r in systems.roaming.items()
-                if r.until <= world.clock_tick or world.loc_of(p) != r.dest]:
-        systems.roaming.pop(pid, None)
-
-    # 8. 柜台服务: 每个店按前台数服务队首(每 tick 每个前台成交 1 份)
+    # 7. 柜台服务: 每个店按前台数服务队首(每 tick 每个前台成交 1 份)
     _serve_shops(world, systems, cfg)
 
-    # 9. 决策: NPC 主动拉(顺序执行; due 已排序 → 确定性仍在)。
+    # 8. 决策: NPC 主动拉(顺序执行; due 已排序 → 确定性仍在)。
     #     每人一轮: observe → decide → try_*(端口立即落账, 失败自己处理)。
     port = WorldPortImpl(world, systems, cfg)
     due = due_npcs(world, systems)
@@ -133,7 +128,7 @@ def tick(world, systems, cfg: SimConfig) -> None:
                     "payload": {},
                 })
 
-    # 10. 遗忘(0 点) + 夜间计划(装了 planner 才生成次日计划; 否则纯 utility)
+    # 9. 遗忘(0 点) + 夜间计划(装了 planner 才生成次日计划; 否则纯 utility)
     if world.clock_tick % cfg.ticks_per_day == 0:
         for npc in world.npcs.values():
             npc.on_day(cfg, world.clock_tick)
@@ -143,15 +138,17 @@ def tick(world, systems, cfg: SimConfig) -> None:
                 npc.assign(Plan(planner.plan_for_person(
                     npc, world.clock_tick)))
 
-    # 11. 行为段记录(时间线 viz; 纯观测)
+    # 10. 行为段记录(时间线 viz; 纯观测)
     _record_activity(world, systems, cfg)
 
 
 def _busy(world, systems, pid: str) -> bool:
-    """忙碌 = 有进行中交互 或 正在跨地点移动 或 正在闲逛。"""
+    """忙碌 = 有进行中交互 或 正在跨地点移动。
+
+    (闲逛不再算这时的事: 它没有 world 侧会话, 是 NPC 自己的一段观察窗口。)
+    """
     return (systems.interaction.active.get(pid) is not None
-            or pid in systems.travel
-            or pid in systems.roaming)
+            or pid in systems.travel)
 
 
 

@@ -38,7 +38,7 @@ from citysim.npc.memory import MemBase
 from citysim.npc.schedule import Schedule
 
 from citysim.npc.person.body import BodyMixin
-from citysim.npc.person.goal import GoalMixin
+from citysim.npc.person.goal import OBJECT_NEEDS, GoalMixin
 from citysim.npc.person.memo import MemoMixin
 from citysim.npc.person.speech import SpeechMixin
 from citysim.npc.person.work import WorkMixin
@@ -118,6 +118,7 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
         self._worked_ticks: int = 0    # 本期在岗 tick(工资按在岗时间算)
         self._mem = MemBase()
         self._perceived_loc: str = ""   # 最近一次感知到自己在哪(自身认知, 不长期维护坐标)
+        self._checked_here: "set[str]" = set()   # 这次到这儿已为哪些需求查过环境(见 _missing_here)
         self._schedule = Schedule()     # 当天计划表(空 = 纯需求驱动)
         self._goal: "_Goal | None" = None   # 唯一在执行的标的
         self._intake: list[_ActiveGrant] = []   # 体内正在消化
@@ -143,10 +144,15 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
           (决策铁律: 只读记忆), 所以不看时连它都不调 —— 每 tick 只剩两个便宜查询。
         """
         here = port.here(self.person_id)
+        if here != self._perceived_loc:
+            self._checked_here.clear()      # 换地方了 → 这次到这儿还没查过
         self._perceived_loc = here
         now = port.now()
         if self._need_look(here, cfg):
             self.perceive(port.observe(self.person_id), now)
+            # 记下“这次到这儿已为哪些需求看过” —— 缺什么就在本地找【一次】,
+            # 找不到就带着这个结论去别处(不再是每 tick 反复看)。
+            self._checked_here.update(self._needed(cfg))
         d = self.decide(cfg, now)
         self._execute(port, d, now)
         return d
@@ -154,20 +160,48 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
     def _need_look(self, here: str, cfg: "SimConfig") -> bool:
         """这一 tick 要不要【看一眼环境】(贵的那一步)? 只在有理由时才看:
 
-          · 第一次来(或忘了) —— 记忆里【没有这个地点的地点行】
-          · 正在目的地逛     —— 闲逛窗口, 本来就是特意来看的
-          · 记不太清了       —— 这儿的行 remember 低于 obs_refresh_below
+          · 第一次来     —— 记忆里【没有这个地点的地点行】(或那行已经忘掉)
+          · 正在目的地逛 —— 闲逛窗口, 本来就是特意来看的
+          · 在这儿缺东西 —— 有需求压着, 而【此处】记忆里没有能解它的东西
+                            (只问【这次到这儿还没查过】的需求, 见 _missing_here)
 
-        没理由就不看: 世界变了也不知道, 直到下一次有理由。
+        ★ 为什么没有“记不太清了就再看一眼”这种按时间的刷新:
+          那会把【同一地点的所有东西】周期性地整批刷成“新鲜”—— 用得上和用不上的
+          一视同仁, 知识永远不旧。现在改成【缺东西才看】:
+            · 常用的东西靠“用过就刷”(notify 的反证)维持 → 不会忘;
+            · 没人碰的东西自然变旧/忘掉 → 真想不起来了再靠这一条当场补看。
+        ★ 看了【再决策】: 刚看到的当场就能用; 本地确实没有 → 决策自然去外地
+          (打分器本来就带路程代价)。
         """
-        prow = self._mem.get(brain.place_id(here))
-        if prow is None:
-            return True
+        if self._mem.get(brain.place_id(here)) is None:
+            return True                                  # 第一次来(或忘了这儿)
         g = self._goal
         if (g is not None and g.source == "fun"
                 and str(g.intent.dest) == here):
-            return True
-        return float(prow.remember) < float(cfg.obs_refresh_below)
+            return True                                  # 正在这儿逛
+        return self._missing_here(here, cfg)
+
+    def _missing_here(self, here: str, cfg: "SimConfig") -> bool:
+        """此地有没有“我现在需要、但记忆里【此处】没有”的东西?
+
+        ★ 只问【这一次到这儿还没查过】的需求: 缺什么就在本地找一次 ——
+          找到了(下一步决策自然就用上了); 确实没有 → 带着这个结论去外地。
+          不这样限定的话, “我站的地方缺床”会每 tick 都成立 → 变成每 tick 全量观察。
+        """
+        missing = self._needed(cfg) - self._checked_here
+        if not missing:
+            return False
+        here_affords = {r.afford for r in self._mem.items()
+                        if r.located == here and r.afford}
+        return any(s not in here_affords for s in missing)
+
+    def _needed(self, cfg: "SimConfig") -> "set[str]":
+        """现在【需要用物件满足】的信号(低于 obs_need_below 的那些)。
+
+        fun 由闲逛窗口覆盖、hp 无解 —— 都不是“缺个东西”, 所以不算。
+        """
+        return {s for s in OBJECT_NEEDS
+                if float(self._signals.get(s, 1.0)) < cfg.obs_need_below}
 
 
     def _execute(self, port, decision: Decision, now_tick: int) -> None:
@@ -232,7 +266,11 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
             self._queued = False
         if isinstance(ev, InteractionDone):
             if ev.stock >= 0:                    # 交互结果 → 更新"还剩多少"
-                self._mem.update(ev.entity_id, stock=int(ev.stock))
+                # ★ 也刷 remember/last_seen: 【用过 = 记得】。
+                #   这是"常用 vs 没用过"唯一的分水岭 —— 没观察刷新之后,
+                #   没人碰的东西只能靠衰减变旧/忘掉, 常用的东西靠这一条活下去。
+                self._mem.update(ev.entity_id, stock=int(ev.stock),
+                                 remember=1.0, last_seen=ev.tick)
             g = self._goal
             if g is not None and intent_target(g.intent) == ev.entity_id:
                 self._finish_goal(g)
@@ -354,8 +392,12 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
 
 
     def decay_memory(self, cfg: "SimConfig") -> int:
-        """遗忘(remember 衰减删行)。每游戏日调; 返回遗忘条数。"""
-        # 家的东西不忘(衰减衡量熟悉度, 不是时间; 否则"忘了自家的床"会死锁)
+        """遗忘(remember 衰减删行)。每游戏日调; 返回遗忘条数。
+
+        ★ 唯一的例外是【家】(keep_located): 家 = 身份性的常识, 不衰减也不删。
+          否则"忘了自家的床 → 困了也想不起回家"会死锁 —— 而且不可逆(越不回家
+          越没记忆)。别处照常变旧/被忘。
+        """
         return brain.forget(self._mem, cfg.half_life_ticks,
                             cfg.ticks_per_day, keep_located=self._home)
 

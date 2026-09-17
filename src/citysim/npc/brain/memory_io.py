@@ -13,16 +13,25 @@ FORGET_DEFAULT = 0.1  # remember 低于此 → 遗忘删除(默认阈值)
 
 
 def perceive_into(mem: MemBase, percept: Percept, tick: int) -> float:
-    """感知 → 记忆(写入): 把当前可见实体 upsert 进记忆库。非纯函数。
+    """感知 → 记忆(写入): 把【当前可见、而我还不知道的东西】记下。非纯函数。
 
-    同地 re-obs: 现场为准, 整行覆盖(located/owner/afford/price/…)并刷新
-    believe/remember/last_seen。只 upsert 可见实体, 不做证伪删行(由上层策略定)。
+    ★ 只【发现】, 不【刷新】: 记忆里已经有的行原封不动 —— 它们只靠
+      ① 用过了(反证: notify 里的 InteractionDone) ② 到手了(Bought) 修正,
+      剩下的自然变旧、被忘。
+      为什么: 若看一眼就把整个地点刷成新鲜, 那“看过一次”等于“永远知道” ——
+      用得上和没人碰的东西一视同仁, 知识永远不会旧。而现在:
+        常用的东西 ← 用一次刷一次, 忘不了;
+        没人碰的东西 ← 没人刷新它, 自然会忘;
+        真想不起来了 ← 再看一眼也只是“重新发现”(新行), 不会凭空刷新旧行。
+      盯着的代价是 stock 会过时 —— 那正好是“去了才发现没了”(InteractionFailed)
+      这条修正路径存在的理由。
+      但【听来的/广告】不算“已经知道”: 亲眼确认时整行覆盖(见下面的 row.source 分支)
+      ——“听说便宜”到“亲眼看到”的提升就是 believe 的用法。
 
-    现场看到的 → source=""(亲眼) 且 believe=1.0: 不管之前听谁说过, 亲眼所见最硬。
+    现场发现的 → source=""(亲眼) 且 believe=1.0: 不管之前听谁说过, 亲眼所见最硬。
 
-    ★ 返回值 = 【本次的新奇量】= Σ(1 − 旧的 remember)。
-      它是"这次看到的东西有多新"的度量:
-        第一次见 = 1.0/件;  忘了又见 = 1 − remember;  天天见的 ≈ 0。
+    ★ 返回值 = 【本次的新奇量】= Σ(1 − 旧 remember)。
+      它是"这些东西对我来说有多新"的度量 —— 第一次见 = 1.0/件。
       闲逛靠它结算 fun(见 Person 的闲逛收工), 也靠它更新"这地方值不值得再去"。
     """
     gain = 0.0
@@ -41,17 +50,23 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int) -> float:
                 expires_tick=int(v.expires_tick),
                 believe=1.0, remember=1.0, last_seen=tick))
         else:
-            gain += max(0.0, 1.0 - float(row.remember))
-            mem.update(
-                v.entity_id, located=v.location_id, owner=v.owner,
-                afford=afford or row.afford,
-                value=float(value) if value else row.value,
-                item_type=v.item_type, tags=tuple(sorted(v.tags)), source="",
-                price=v.price, household=bool(v.household),
-                free_use=bool(v.free_use), stock=int(v.stock),
-                shelf_life_ticks=int(v.shelf_life_ticks),
-                expires_tick=int(v.expires_tick),
-                believe=1.0, remember=1.0, last_seen=tick)
+            gain += max(0.0, 1.0 - float(row.remember))   # 只是“想起来”了
+            if row.source:
+                # 之前是【听来的/广告】→ 亲眼所见最硬: 整行覆盖
+                #   (believe 升到 1.0、source 清成亲眼、补齐 owner/tags/… ——
+                #    听说的行情是不带 tags 的, 不补就永远买不了/用不了)。
+                # 已经是亲眼的第一手行【不动】—— 那才是“看过 ≠ 永远新鲜”,
+                # 它只靠“用过了”(notify 的反证) 刷新, 否则自然变旧、被忘。
+                mem.update(
+                    v.entity_id, located=v.location_id, owner=v.owner,
+                    afford=afford or row.afford,
+                    value=float(value) if value else row.value,
+                    item_type=v.item_type, tags=tuple(sorted(v.tags)), source="",
+                    price=v.price, household=bool(v.household),
+                    free_use=bool(v.free_use), stock=int(v.stock),
+                    shelf_life_ticks=int(v.shelf_life_ticks),
+                    expires_tick=int(v.expires_tick),
+                    believe=1.0, remember=1.0, last_seen=tick)
     gain += _touch_place(mem, percept.location_id, tick)
     return gain
 
@@ -89,14 +104,12 @@ def forget(mem: MemBase, half_life_ticks: int, step_ticks: int = 1440,
 
     返回值 = 本次被遗忘删除的 item 数。何时调用/半衰/阈值由上层定(如每游戏日)。
 
-    ★ `keep_located`: 落在这个地点上的行【永不删除】—— 传"家"的 id。
-      语义: 能否【忘掉】一个地方衡量的是【熟悉度】, 不是时间。天天住的地方是常识
-      (否则"忘了自家的床 → 困了也想不起回家"就成了死锁)。
-      但注意: **只是不删, 仍然照常衰减** —— 因为"衰减"同时兼任
-      "该不该再看一眼"的信号(掉到 obs_refresh_below 以下就触发观察)。
-      若连衰减都免了, 家会变成【冻结】: 永远不进观察 → 家里新出现的东西永远发现不了。
-      别处的知识照常变旧 → 常去的地方靠上面那条信号周期刷新, 不去的地方真的会忘
-      —— 这正好是"认知差"的来源。
+    ★ `keep_located`: 落在这个地点上的行【不衰减也不删除】—— 传"家"的 id。
+      家 = 身份性的常识("我住那儿, 那儿有什么"), 不该随时间淡掉 —— 否则
+      "忘了自家的床 → 困了也想不到回家"会变成死锁(而且越不回越没记忆)。
+      别处的知识照常变旧/被忘: 常用的靠"用过就刷"(notify 的反证)维持,
+      没人碰的就忘掉 —— 想不起来时再由"此地缺东西就先看一眼"当场补看。
+
 
     ★ 为什么是"一步"而不是"按距上次观察的 dt":
       本函数由上层【按固定节奏】调(现在 = 每个游戏日 0:00)。早先的实现用
@@ -109,11 +122,9 @@ def forget(mem: MemBase, half_life_ticks: int, step_ticks: int = 1440,
     factor = 0.5 ** (step / max(1.0, float(half_life_ticks)))
     gone = 0
     for r in mem.items():
-        rem = float(r.remember) * factor
         if keep_located and r.located == keep_located:
-            # 家 = 常识: 照常衰减(以便隔几天被"再看一眼"刷新), 但永不删。
-            mem.update(r.item_id, remember=max(rem, forget_threshold))
-            continue
+            continue                     # 家: 不衰减, 也不删
+        rem = float(r.remember) * factor
         if rem < forget_threshold:
             mem.delete(r.item_id)
             gone += 1

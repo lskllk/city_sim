@@ -19,6 +19,10 @@ from citysim.core.types import (Buy, Decision, Idle, Interact, MoveTo, Wander, i
 from citysim.npc import brain
 from citysim.npc.brain.memory_io import place_id
 
+# 能用【具体物件】满足的信号 —— 只这些算"找个东西就能解决"的需求。
+#   fun 靠闲逛窗口(地点级行为)补, hp 无解, 都不是"缺个东西"。
+OBJECT_NEEDS = ("energy", "hunger", "bladder")
+
 if TYPE_CHECKING:  # pragma: no cover
     # 只出现在类型标注里(运行时用不到) —— 别让清 import 的脚本删掉
     from citysim.core.config import SimConfig

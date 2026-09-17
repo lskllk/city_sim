@@ -230,29 +230,111 @@ def test_wandering_reports_activity_class() -> None:
 
 # --- 家里的东西不衰减(常识), 别处的照常丢 ---------------------------------
 
-def test_home_rows_are_never_deleted() -> None:
-    """家 = 常识: 落在家的行【永不删除】; 别处的行照常变旧/被删。
 
-    为什么: 能否【忘掉】一个地方衡量的是【熟悉度】, 不是时间。天天住的地方不该忘
-    —— 否则"忘了自家的床 → 困了也想不到回家"会变成死锁。
+# --- 观察的三个理由(并且只有这三个) -------------------------------------
 
-    但【只是不删, 仍照常衰减】: "衰减"同时兼任"该不该再看一眼"的信号
-    (掉到 obs_refresh_below 以下就触发观察)。若连衰减都免了, 家会被【冻结】——
-    永远不进观察 → 家里新出现的东西永远发现不了。
+def test_look_reasons_are_first_visit_wander_and_missing_here() -> None:
+    """要不要看一眼环境? 只有三种理由:
+
+      ① 第一次来(记忆里没这个地点的地点行)  ② 正在这儿逛  ③ 此地缺东西
+
+    ★ 没有"记不太清了就再看一眼"这种按时间的定期刷新 —— 那会把同地点的所有
+      东西整批刷成新鲜, 用得上和用不上的东西一视同仁(知识永远不旧)。
     """
-    from citysim.npc.brain.memory_io import forget, place_id
     w, s, _ = make_runtime(CFG)
-    npc = add_npc(w, s, "n", location="home", home="home")   # ← home 要显式给
+    npc = add_npc(w, s, "n", location="loc", home="home")
+
+    # ① 第一次来 → 看
+    assert npc._need_look("loc", CFG) is True
+    # 有了地点行 + 需求都满 → 不看
+    npc.note(place_id("loc"), located="loc", afford="", stock=1)
+    assert npc._need_look("loc", CFG) is False
+    # 时间过去了知识变旧 → 【仍然不看】(这正是不再需要定期刷新的意思)
+    npc._mem.update(place_id("loc"), remember=0.01)
+    assert npc._need_look("loc", CFG) is False
+
+    # ③ 这儿缺东西(饿着, 而此地记忆里没有能解 hunger 的) → 看
+    npc.set_signal("hunger", 0.1)
+    assert npc._missing_here("loc", CFG) is True
+    assert npc._need_look("loc", CFG) is True
+    # 此地有能解它的(记忆行落在这儿) → 不看
+    npc.note("apple", located="loc", afford="hunger", value=0.35, stock=1)
+    assert npc._need_look("loc", CFG) is False
+    # 但那个东西在【别处】不算 —— 本地缺就是缺(→ 看了再做决策, 本地真没有才去外地)
+    npc._mem.update("apple", located="elsewhere")
+    assert npc._need_look("loc", CFG) is True
+
+    # ② 正在这儿逛 → 看(哪怕什么都不缺)
+    npc.set_signal("hunger", 1.0)
+    npc.note("apple", located="loc", afford="hunger", value=0.35, stock=1)
+    npc.set_places(["loc"])
+    from citysim.core.types import Wander
+    from citysim.npc.person.goal import _Goal
+    npc._goal = _Goal("fun", Wander("loc"))
+    assert npc._need_look("loc", CFG) is True
+    npc._goal = _Goal("fun", Wander("other"))
+    assert npc._need_look("loc", CFG) is False
+
+
+def test_using_something_refreshes_its_memory() -> None:
+    """反证(交互结果)除了改 stock, 也要刷 remember —— 【用过 = 记得】。
+
+    这是"常用 vs 没人碰"唯一的分水岭: 没有按时间的定期刷新之后, 常用的东西
+    靠这一条活下去, 没人碰的东西自然变旧/被忘。
+    """
+    from citysim.core.types import InteractionDone
+    w, s, _ = make_runtime(CFG)
+    npc = add_npc(w, s, "n", location="loc")
+    npc.note("apple", located="loc", afford="hunger", value=0.35, stock=5)
+    npc._mem.update("apple", remember=0.2)                 # 快忘了
+    npc.notify(InteractionDone(entity_id="apple", tick=100, stock=4))
+    row = npc._mem.get("apple")
+    assert row.stock == 4                                  # 还剩几个 ✓
+    assert row.remember == 1.0 and row.last_seen == 100    # 用过了 → 记得 ✓
+
+
+def test_home_rows_never_decay() -> None:
+    """家 = 常识: 落在家的行【不衰减也不删】; 别处的行照常变旧/被删。
+
+    为什么: 家是身份性的知识("我住那儿, 那儿有什么"), 不该随时间淡掉 ——
+    否则"忘了自家的床 → 困了也想不起回家"会变成死锁, 而且不可逆(越不回家越没记忆)。
+    """
+    from citysim.npc.brain.memory_io import forget
+    w, s, _ = make_runtime(CFG)
+    npc = add_npc(w, s, "n", location="home", home="home")
     npc.note("bed_home", located="home", afford="energy", value=0.5, stock=1)
     npc.note("apple_shop", located="shop", afford="hunger", value=0.35, stock=1)
-    npc.note(place_id("home"), located="home", afford="", stock=1)
-    # 跑 30 个"游戏日"的遗忘(远超删行阈值 7 天)
-    for day in range(1, 31):
+    for _ in range(30):                                    # 30 个游戏日
         forget(npc._mem, CFG.half_life_ticks, CFG.ticks_per_day,
                keep_located=npc.home)
-    assert npc._mem.get("bed_home") is not None          # 家的: 还在 ✓
-    assert npc._mem.get(place_id("home")) is not None    # 家的地点行也在 ✓
-    assert npc._mem.get("apple_shop") is None            # 店里的: 早丢了 ✓
-    # 但【只是不删, 仍然照常衰减】(否则家会被冻结 → 新出现的东西永远发现不了)
-    assert npc._mem.get("bed_home").remember < 1.0       # 淡了 ✓
-    assert npc._mem.get("bed_home").remember <= CFG.obs_refresh_below  # 低到会触发"再看一眼" ✓
+    assert npc._mem.get("bed_home") is not None            # 家的: 还在 ✓
+    assert npc._mem.get("bed_home").remember == 1.0        # 一点没淡 ✓
+    assert npc._mem.get("apple_shop") is None              # 别处的: 早丢了 ✓
+
+
+def test_seeing_it_yourself_upgrades_a_hearsay_row() -> None:
+    """"看"不刷新【已有的第一手记忆】, 但必须能【升级听来的】。
+
+    ★ 这个坑是实测踩出来的: 传闻(gossip)写记忆行时**不带 tags**, 而"能不能买"
+      的判据要 tags 里有 consumable。如果亲眼看到也不覆盖, 那条听来的行就
+      永远补不上 tags → 店里的苹果永远买不了 → 全镇饿死。
+      believe 的语义本来就是"听说 < 亲眼", 所以: source != "" → 整行覆盖。
+    """
+    from citysim.core.types import EntityView, Percept
+    from citysim.npc import brain
+    w, s, _ = make_runtime(CFG)
+    npc = add_npc(w, s, "n", location="loc")
+    # 听来的: 没有 tags
+    npc.note("apple", located="loc", afford="hunger", value=0.35,
+             price=5.0, stock=10, source="someone", believe=0.5)
+    # 亲眼看到
+    view = EntityView(entity_id="apple", name="苹果", location_id="loc",
+                      item_type="food_apple", tags=frozenset({"consumable", "edible"}),
+                      affordances={"hunger": 0.35}, duration_ticks=12,
+                      price=5.0, stock=9)
+    percept = Percept(tick=7, hour_f=8.0, location_id="loc", visible=(view,))
+    brain.perceive_into(npc._mem, percept, tick=7)
+    row = npc._mem.get("apple")
+    assert row.believe == 1.0 and row.source == ""      # 亲眼最硬 ✓
+    assert "consumable" in row.tags                     # tags 补上了 ✓
+    assert row.stock == 9                               # 现场为准 ✓

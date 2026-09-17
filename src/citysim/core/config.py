@@ -31,7 +31,7 @@ class SimConfig:
     bladder_convert: float
     bladder_per_hunger: float = 0.5   # 消化 1.0 hunger → 攒多少膀胱 pending
     half_life_ticks: int = 2880   # 知识半衰期(tick; 2 天)
-    obs_refresh_below: float = 0.5  # 记忆淡到低于它 → 值得再【看】一眼
+    obs_need_below: float = 0.5     # 信号低于它 = 这根需求得满足(缺东西就看)
     utility_power: float = 3.0     # 需求急迫度幂次
     # 每种需求可以有自己的幂次 —— power 越大, “不太困/不太饿”时分数越低,
     # 于是【不到真难受就不去】。精力尤其需要钝一点: 否则一累就去躺。
@@ -145,8 +145,8 @@ class SimConfig:
             bladder_convert=float(data["bladder"]["convert_per_tick"]),
             bladder_per_hunger=float(data["bladder"].get("per_hunger", 0.5)),
             half_life_ticks=int(data.get("knowledge", {}).get("half_life_ticks", 2880)),
-            obs_refresh_below=float(data.get("knowledge", {}).get(
-                "obs_refresh_below", 0.5)),
+            obs_need_below=float(data.get("knowledge", {}).get(
+                "obs_need_below", 0.5)),
             utility_power=float(util.get("power", 3.0)),
             power_by_signal={str(k): float(v) for k, v in
                              (util.get("power_by_signal") or {}).items()},

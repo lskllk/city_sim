@@ -837,7 +837,7 @@ func _sec_company(bid: String) -> void:
 	var save := Button.new()
 	save.text = "注册公司" if c.is_empty() else "保存公司"
 	save.pressed.connect(func() -> void:
-		var ksel := KINDS[maxi(0, kind_ob.selected)]
+		var ksel: String = String(KINDS[maxi(0, kind_ob.selected)])
 		MapDoc.set_company({
 			"id": String(c.get("id", "")), "name": f_name.text.strip_edges(),
 			"shops": [bid], "cash": f_cash.text.to_float(),

@@ -155,3 +155,26 @@ def test_unit_ticks_make_a_newcomer_break_even(tmp_path) -> None:
         income = made * wholesale_price(None, "meal_simple_raw")
         cost = eat_per_day * wholesale_price(None, "meal_simple")
         assert income > cost, "k=%s 时要养得活自己" % k
+
+
+def test_manufacture_company_auto_assigns_workbenches(tmp_path) -> None:
+    """作者只勾了"谁在这上班"、没指岗位时: 制造公司自动派【工位】
+
+    (零售公司派销售台 —— 岗位长什么样由公司类型定, 见 company.stations_of)
+    """
+    scene = _factory_scene()
+    scene["companies"][0]["staff"] = ["a"]            # ← 不给 station
+    w, _s, _r = _load(tmp_path, scene)
+    assert w.npcs["a"].work.get("station") == "w"
+
+
+def test_fixture_catalog_is_tagged_by_company_kind() -> None:
+    """装修件标了"归哪类公司用" —— 零售看到销售台, 加工厂看到工位, 马桶通用。
+
+    靠物品 tag(不写死类型清单): 加新家具只要打 fixture + 类型 tag。
+    """
+    from citysim.world.econ.market import fixture_catalog
+    k = {f["type"]: f["kinds"] for f in fixture_catalog()}
+    assert k["station_counter"] == ["retail"]
+    assert k["station_workbench"] == ["manufacture"]
+    assert k["toilet_basic"] == []                     # 空 = 通用

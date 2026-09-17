@@ -2,7 +2,9 @@
   "item_type": "station_workbench",
   "name": "工位",
   "tags": [
-    "work"
+    "work",
+    "fixture",
+    "manufacture"
   ],
   "affordances": {},
   "build_cost": 150.0,

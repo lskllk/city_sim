@@ -918,6 +918,20 @@ func city_stats() -> Dictionary:
 		"knowledge": knowledge.size()}
 
 
+## 能被"生产"的货(非装修件、有定价): 制造公司产出物的下拉用。
+## 与后端 market_catalog 同一口径 —— 原料(meal_simple_raw)也算, 它正是加工厂的产品。
+func sellable_types() -> Array:
+	var out: Array = []
+	for t in item_types:
+		var d: Dictionary = item_types[t]
+		if (d.get("tags", []) as Array).has("fixture"):
+			continue
+		if float(d.get("price", 0.0)) > 0.0:
+			out.append(String(t))
+	out.sort()
+	return out
+
+
 ## 这个物件类型是不是【装修件】(fixture): 销售前台/货架/马桶…
 func is_fixture(type_id: String) -> bool:
 	var d: Dictionary = item_types.get(type_id, {})

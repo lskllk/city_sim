@@ -167,11 +167,18 @@ func _draw_facilities(font: Font, pad: float, y: float) -> void:
 
 
 # --- 数据(只读镜像) ------------------------------------------------------
+## 这家公司的【岗位】长什么样: 零售 = 销售前台; 制造 = 工位。
+func _station_type() -> String:
+	return ("station_workbench" if Protocol.s(Store.company(_cid).get(
+		"kind", "retail")) == "manufacture" else "station_counter")
+
+
 func _counters() -> Array:
+	var st := _station_type()
 	var out: Array = []
 	for e in Store.entities.values():
 		var d: Dictionary = e
-		if Protocol.s(d.get("item_type", "")) == "station_counter" \
+		if Protocol.s(d.get("item_type", "")) == st \
 				and Store.building_of(Protocol.s(d.get("loc", ""))) == _shop:
 			out.append(Protocol.s(d.get("id", "")))
 	out.sort()
@@ -182,7 +189,7 @@ func _facilities() -> Array:
 	var out: Array = []
 	for e in Store.entities.values():
 		var d: Dictionary = e
-		if Protocol.s(d.get("item_type", "")) == "station_counter":
+		if Protocol.s(d.get("item_type", "")) == _station_type():
 			continue
 		if Store.building_of(Protocol.s(d.get("loc", ""))) != _shop:
 			continue

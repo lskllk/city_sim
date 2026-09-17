@@ -17,6 +17,7 @@ const ROOM_KIND := {
 const TAG := {
 	"edible": "食物", "sleepable": "床铺", "toilet": "卫生间",
 	"consumable": "消耗品", "work": "工作台",
+	"material": "原料", "fixture": "装修件", "station": "岗位",
 }
 
 # 事件 kind -> 中文。★ 后端每个 publish 的 kind 都要在这里有一行 ——
@@ -27,6 +28,8 @@ const EVENT := {
 	"interaction_aborted": "中止", "npc_died": "死亡",
 	"told": "转述", "spoiled": "变质", "entry_denied": "被拒",
 	"wage_paid": "发薪", "wage_failed": "欠薪",
+	"produced": "产出", "collected": "交货",
+	"restocked": "补货",
 }
 
 # 角色码 -> 中文(前端语义解释层; 后续可扩展到工程师/老师等)
@@ -41,7 +44,13 @@ const ROLE := {
 const ITEM := {
 	"meal_simple": "简餐", "food_apple": "苹果", "food_pear": "梨",
 	"bed_basic": "床", "toilet_basic": "马桶",
-	"station_workbench": "工位",
+	"station_workbench": "工位", "station_counter": "销售台",
+	"meal_simple_raw": "简餐原料",
+}
+
+# 公司类型 -> 中文(决定这家公司用哪套运营界面)
+const COMPANY_KIND := {
+	"retail": "零售", "manufacture": "制造 · 加工厂",
 }
 
 # item_type 的类别(第一段) -> 语义动词(按“用什么”解释: 吃/睡/用…)
@@ -69,6 +78,10 @@ static func room_kind_zh(k: String) -> String:
 
 static func tag_zh(k: String) -> String:
 	return TAG.get(k, k)
+
+
+static func company_kind_zh(k: String) -> String:
+	return COMPANY_KIND.get(k, k)
 
 
 static func event_zh(k: String) -> String:

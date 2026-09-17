@@ -54,14 +54,23 @@ def is_fixture(item_type: str) -> bool:
     return d is not None and "fixture" in d.tags
 
 
+COMPANY_KIND_TAGS = ("retail", "manufacture")   # 装修件能标"只给某类公司用"
+
+
 def fixture_catalog() -> list:
-    """所有可装修件: [{type, name, price}]。前端【装修管理】页读它。"""
+    """所有可装修件: [{type, name, price, kinds}]。前端【装修管理】页读它。
+
+    `kinds`: 这件家具归哪类公司用(空 = 通用, 谁都能摆)。前端按公司类型过滤 ——
+    零售店看到销售前台, 加工厂看到工位, 马桶两家都有。
+    靠物品定义上的 tag 判(不写死类型清单): 加了新家具只要打 fixture + 类型 tag。
+    """
     from citysim.world.model.itemdefs import load_item_defs
     out = []
     for t, d in sorted(load_item_defs().items()):
         if "fixture" in d.tags:
             out.append({"type": t, "name": d.name,
-                        "price": float(d.build_cost)})
+                        "price": float(d.build_cost),
+                        "kinds": [k for k in COMPANY_KIND_TAGS if k in d.tags]})
     return out
 
 

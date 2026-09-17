@@ -33,6 +33,9 @@ var _goods_list: VBoxContainer
 var _price_list: VBoxContainer
 var _hr_list: VBoxContainer
 var _decor_list: VBoxContainer
+var _tab_goods: Control
+var _tab_prices: Control
+var _tab_decor: Control
 var _cid := ""
 var _shop := ""
 var _seen_reply := 0
@@ -110,12 +113,15 @@ func _build() -> void:
 	_tabs.add_child(_monitor)
 	# 2 人员管理(员工名单 + 工位分配 + 每人排班 + 发布/撤回招聘)
 	_tabs.add_child(_build_hr())
-	# 3 货物管理
-	_tabs.add_child(_build_goods())
-	# 4 价格调整
-	_tabs.add_child(_build_prices())
-	# 5 装修管理
-	_tabs.add_child(_build_decor())
+	# 3 货物管理(零售=进货+货架 / 制造=产出库存)
+	_tab_goods = _build_goods()
+	_tabs.add_child(_tab_goods)
+	# 4 价格调整(零售能改售价; 制造的价格由批发市场定)
+	_tab_prices = _build_prices()
+	_tabs.add_child(_tab_prices)
+	# 5 装修管理(家具目录按公司类型过滤)
+	_tab_decor = _build_decor()
+	_tabs.add_child(_tab_decor)
 	box.add_child(_tabs)
 
 
@@ -212,9 +218,21 @@ func open_for(cid: String) -> void:
 	var comp := Store.company(cid)
 	_title.text = "%s" % Protocol.s(comp.get("name", cid)) if not comp.is_empty() \
 		else "公司 %s" % cid
-	_sub.text = "公司运营 · %s · 店铺 %s" % [cid,
+	_sub.text = "%s · %s · 店铺 %s" % [Zh.company_kind_zh(_kind()), cid,
 		", ".join(Protocol.as_array(comp.get("shops", [])).map(
 			func(s): return Store.name_of(Protocol.s(s))))]
+	if _is_mfg():
+		_set_hint(_tab_goods,
+			"加工厂：工人站在【工位】上按在岗时间产出原料。产出不进自家货架、也不给员工吃 —— 每天零点由批发市场按物品定义价【全部收走】，钱从城外进来。")
+		_set_hint(_tab_prices,
+			"加工厂的货价由批发市场定（= 物品定义价，通常是成品的 80%）—— 这一页是只读的。")
+		_set_hint(_tab_decor,
+			"摆装修件（工位/马桶…）—— 从公司账出钱，摆完就一直在厂里。工位越多，能同时上岗的人越多。")
+	else:
+		_set_hint(_tab_goods, "货架上的货 = 向批发市场进的货; 顾客在销售台成交。")
+		_set_hint(_tab_prices, "改货架上的【售价】—— 顾客按记忆里的价格决定来不来。")
+		_set_hint(_tab_decor,
+			"摆装修件（销售前台/马桶…）—— 从公司账出钱，摆完就一直在店里。")
 	if _monitor != null and _monitor.has_method("setup"):
 		_monitor.call("setup", cid)
 	_refresh_all()
@@ -239,6 +257,34 @@ func _refresh_all() -> void:
 	_refresh_goods()
 	_refresh_prices()
 	_refresh_decor()
+
+
+## 这家公司的类型: retail(零售) / manufacture(制造·加工厂)。
+func _kind() -> String:
+	return Protocol.s(Store.company(_cid).get("kind", "retail"))
+
+
+func _is_mfg() -> bool:
+	return _kind() == "manufacture"
+
+
+## 这家公司能用的装修件 —— 按公司类型过滤(kinds 空 = 通用, 谁都能摆)。
+func _fixtures_here() -> Array:
+	var k := _kind()
+	var out: Array = []
+	for f in Store.fixtures:
+		var kinds := Protocol.as_array((f as Dictionary).get("kinds", []))
+		if kinds.is_empty() or kinds.has(k):
+			out.append(f)
+	return out
+
+
+## 改某个 tab 顶部的说明行(它是该 tab 的第 0 个子节点)。
+func _set_hint(tab: Control, text: String) -> void:
+	if tab != null and tab.get_child_count() > 0:
+		var l := tab.get_child(0)
+		if l is Label:
+			(l as Label).text = text
 
 
 ## 店铺 id 列表的第一家(公司可能有多家店; 面板先只显示第一家)。
@@ -294,10 +340,11 @@ func _staff_row(it: Variant, comp: Dictionary) -> Control:
 	var ids: Array = [""]
 	ob.add_item("未分配")
 	var counters := _company_counters()
+	var slot_name := "工位" if _is_mfg() else "销售台"
 	for i in counters.size():
 		var cid2 := Protocol.s((counters[i] as Dictionary).get("id", ""))
 		ids.append(cid2)
-		ob.add_item("销售台 %d%s" % [i + 1,
+		ob.add_item("%s %d%s" % [slot_name, i + 1,
 			"（占用）" if _station_taken(cid2, pid) else ""])
 		if cid2 == station:
 			ob.select(i + 1)
@@ -411,6 +458,16 @@ func _refresh_goods() -> void:
 	if _shop == "":
 		_goods_list.add_child(_muted("这家公司还没登记店铺"))
 		return
+	if _is_mfg():
+		# 加工厂: 地上堆的是【产出】(工人站工位产出的原料), 不是进货
+		_goods_list.add_child(_head("产出库存"))
+		var piles := _shelves()
+		if piles.is_empty():
+			_goods_list.add_child(_muted("厂里还没有产出 —— 去【人员管理】把工人派到工位, 他站着就会产"))
+		for e in piles:
+			_goods_list.add_child(_shelf_row(e))
+		_goods_list.add_child(_muted("每天零点批发市场按物品定义价全部收走 → 钱进公司账。"))
+		return
 	# 在售货架
 	_goods_list.add_child(_head("在售货架"))
 	var shelves := _shelves()
@@ -479,6 +536,13 @@ func _refresh_prices() -> void:
 		_price_list.add_child(_muted("这家公司还没登记店铺"))
 		return
 	var shelves := _shelves()
+	if _is_mfg():
+		_price_list.add_child(_muted("加工厂不零售 —— 产出全部卖给批发市场, 价由物品定义定。"))
+		for e in shelves:
+			_price_list.add_child(_muted("· %s　收购价 ¥%.0f" % [
+				Protocol.s(e.get("name", e.get("id", ""))),
+				Protocol.num(e.get("price", 0.0))]))
+		return
 	if shelves.is_empty():
 		_price_list.add_child(_muted("货架上还没有货 —— 先去【货物管理】进货"))
 		return
@@ -545,9 +609,10 @@ func _refresh_decor() -> void:
 		_decor_list.add_child(_placed_rows(other, true))
 	_decor_list.add_child(HSeparator.new())
 	_decor_list.add_child(_head("装修件目录 · 放置"))
-	if Store.fixtures.is_empty():
+	var cat := _fixtures_here()
+	if cat.is_empty():
 		_decor_list.add_child(_muted("没有可用的装修件(config/items 里打 fixture 标签)"))
-	for f in Store.fixtures:
+	for f in cat:
 		_decor_list.add_child(_decor_row(f))
 
 
@@ -687,10 +752,12 @@ func _owns_shop(loc: String) -> bool:
 ## 公司旗下【所有】销售台(按 id 排)—— 分配工位的下拉列表。
 func _company_counters() -> Array:
 	var shops := Protocol.as_array(Store.company(_cid).get("shops", []))
+	# 岗位长什么样由公司类型定: 零售=销售台, 制造=工位
+	var want := "station_workbench" if _is_mfg() else "station_counter"
 	var out: Array = []
 	for e in Store.entities.values():
 		var d: Dictionary = e
-		if Protocol.s(d.get("item_type", "")) != "station_counter":
+		if Protocol.s(d.get("item_type", "")) != want:
 			continue
 		if not shops.has(Store.building_of(Protocol.s(d.get("loc", "")))):
 			continue

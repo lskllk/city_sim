@@ -49,12 +49,26 @@ def pay_wages(world, cfg: SimConfig) -> None:
 
 
 
+def stations_of(world, company, shop_id: str) -> list:
+    """这家公司在这个建筑里的【岗位】实体 —— 岗位长什么样由公司类型定:
+
+      零售 → 销售前台(station_counter): 1 个岗 = 每 tick 成交 1 份
+      制造 → 工位(station_workbench):   1 个岗 = 一份产出的进度槽
+    两边的"谁站在岗上"是同一把闸门(见 tick_workstations), 所以工资/熟练度一致。
+    """
+    if company.kind == "manufacture":
+        return [e for e in sorted(world.entities.values(), key=lambda x: x.entity_id)
+                if (e.item_type == "station_workbench"
+                    and e.location_id in company.shops)]
+    return _counters(world, shop_id)
+
+
 def vacant_counters(world, company) -> list:
-    """公司旗下【空着的】前台(没有任何员工绑定它)。= 岗位数。"""
+    """公司旗下【空着的】岗位(没有任何员工绑定它)。= 还能招几个人。"""
     taken = {str(n) for n, _w in company.staff}
     out = []
     for shop_id in company.shops:
-        for c in _counters(world, shop_id):
+        for c in stations_of(world, company, shop_id):
             if not any(world.npcs.get(pid) is not None
                        and world.npcs[pid].work.get("station") == c.entity_id
                        for pid in taken):
@@ -148,14 +162,14 @@ def assign_station(world, systems, cfg: SimConfig, company,
         return {"ok": True, "why": "", "npc": npc_id, "station": ""}
     shop_id = ""
     for sid in company.shops:
-        for c in _counters(world, sid):
+        for c in stations_of(world, company, sid):     # 零售=前台 / 制造=工位
             if c.entity_id == station_id:
                 shop_id = sid
                 break
         if shop_id:
             break
     if not shop_id:
-        return {"ok": False, "why": "这个台不是公司的",
+        return {"ok": False, "why": "这个岗位不是公司的",
                 "npc": npc_id, "station": ""}
     for other in world.npcs.values():
         if other.person_id == npc_id:

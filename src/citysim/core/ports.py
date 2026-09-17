@@ -44,6 +44,7 @@ class Grant:
     """
     handle: str
     entity_id: str
+    name: str = ""                         # 这件东西叫什么(NPC 自报"我在吃苹果"用)
     signal: str = ""                       # 作用在哪个信号("hunger"/"energy"/…)
     value: float = 0.0                     # 总共补多少
     duration_ticks: int = 1                # 分多少 tick 补

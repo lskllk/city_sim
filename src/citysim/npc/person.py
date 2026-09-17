@@ -7,7 +7,7 @@
 
 对外门面分四类:
   大脑   : perceive(现场→记忆) / decide(→Intent)
-  状态写 : set_signal/add_signal / move_to / arrive / set_activity / pay / set_signals…
+  状态写 : set_signal/add_signal / move_to / arrive / pay / set_signals…
   状态读 : 少量稳定 @property + snapshot()(观测一份)
   装配   : Person(…) 构造 + set_signals/set_personality 等设初值
 
@@ -156,7 +156,6 @@ class Person:
         *,
         signals: Mapping[str, float] | None = None,
         personality: Mapping[str, float] | None = None,
-        current_activity: str = "idle",
         home: str = "",
         tell_bias: float = 1.0,
         money: float = 100.0,
@@ -164,7 +163,6 @@ class Person:
         self._identity: Identity = identity or Identity(person_id="anon", name="匿名")
         self._signals: dict[str, float] = full_signals()
         self._personality: dict[str, float] = dict(personality or {})
-        self._current_activity: str = current_activity
         self._home: str = home
         self._tell_bias: float = tell_bias
         # 位移成本矩阵("a|b" -> tick): 由装配层从场景/路网注入。
@@ -189,6 +187,9 @@ class Person:
         self._goal: "_Goal | None" = None   # 唯一在执行的标的
         self._intake: list[_ActiveGrant] = []   # 体内正在消化(WP-08)
         self._finished: list[str] = []          # 本 tick 消化完的 handle(取走即清)
+        # —— “我此刻在干什么”: 纯自身状态推导(world 不再写 set_activity 进来) ——
+        self._moving: bool = False    # 上次 try_move 成功了(在途; 到站后 step 里清)
+        self._queued: bool = False    # 刚 try_buy 成功 → 在店里等柜台(异步成交)
         self._bubble: tuple[str, int, str] | None = None   # (文字, 到期的 tick, 类型)
         # —— 语义层(M-S1): 值得说的草稿 + 话题冷却 ——
         self._say_queue: list = []          # [SemanticEvent](未措辞的结构化真值)
@@ -234,7 +235,49 @@ class Person:
 
     @property
     def current_activity(self) -> str:
-        return self._current_activity
+        """显示文字。吃/睡时是【那件东西的名字】(前端显示“吃饭 · 苹果”)。"""
+        return self.activity()[1]
+
+    @property
+    def activity_class(self) -> str:
+        """行为大类: move/eat/sleep/toilet/work/wander/idle(前端/时间线配色)。"""
+        return self.activity()[0]
+
+    def activity(self) -> tuple[str, str]:
+        """我此刻在干什么 —— (行为大类, 显示文字)。**纯读自身状态, 不查世界**。
+
+        以前这些是 world 写进来的: 6 处 `set_activity(...)` 把“苹果”/“idle”/
+        “闲逛”写到 NPC 身上, `act_class_of` 再去 world 的 travel/roaming/
+        interaction 里猜大类。但“我在干什么”本来就是我自己最清楚的事 ——
+        现在从 _intake(消化中的那份 Grant, 带 tags) + _moving/_queued 自己推。
+        """
+        if self._intake:
+            g = self._intake[-1].grant          # 最后接下的那份 = 当前主要动作
+            cls = self._class_of_tags(g.tags)
+            if cls == "wander":
+                return "wander", "闲逛"
+            return cls, (g.name or "")
+        if self._moving:
+            return "move", ""
+        if self._queued:
+            return "idle", "queue"              # 在柜台排队(成交在柜台那边异步发生)
+        return "idle", "idle"
+
+    @staticmethod
+    def _class_of_tags(tags: "Sequence[str]") -> str:
+        """物件的 tags → 行为大类(数据驱动: 新物件不用改这里)。"""
+        t = set(tags or ())
+        if "sleepable" in t:
+            return "sleep"
+        if "toilet" in t:
+            return "toilet"
+        if "edible" in t:
+            return "eat"
+        if "work" in t or "station" in t:
+            return "work"
+        if "roam" in t:
+            return "wander"
+        return "idle"
 
     @property
     def last_intent(self) -> "Intent | None":
@@ -398,11 +441,7 @@ class Person:
         return 0, 0
 
     # ------------------------------------------------------------------
-    # 状态写 —— 位置 / 活动 / 膀胱 / 钱
-    # ------------------------------------------------------------------
-    def set_activity(self, activity: str) -> None:
-        self._current_activity = activity
-
+    # 状态写 —— 位置 / 膀胱 / 钱(“我在干什么”已改成【只读推导】: 见 activity())
     def add_bladder_pending(self, delta: float) -> None:
         self._bladder_pending = max(0.0, self._bladder_pending + float(delta))
 
@@ -979,6 +1018,9 @@ class Person:
 
         对齐铁律: 世界不替 NPC 写认知 —— 它只把理由和结果交回去。
         """
+        if isinstance(ev, (InteractionDone, InteractionFailed)):
+            # 一次请求收了尾 → 不再在柜台排队(activity() 自己就不再报 queue)
+            self._queued = False
         if isinstance(ev, InteractionDone):
             g = self._goal
             if g is not None and intent_target(g.intent) == ev.entity_id:
@@ -1038,8 +1080,13 @@ class Person:
         return d
 
     def _execute(self, port, decision: Decision, now_tick: int) -> None:
-        """把意图交给 world 的动词, 失败自己处理(Deny/Ack 都是数据)。"""
+        """把意图交给 world 的动词, 失败自己处理(Deny/Ack 都是数据)。
+
+        ★ “我在干什么”也在这里自己记: 上一步的 move/queue 标志先清掉, 成功了再立 ——
+          move 立了之后会一直生效到下一次 step(在途时 world 不叫 step, 正好表示“还在走”)。
+        """
         intent = decision.intent
+        self._moving = False
         if isinstance(intent, MoveTo):
             r = port.try_move(self.person_id, intent.dest)
             if isinstance(r, Ack) and not r.ok:
@@ -1048,6 +1095,7 @@ class Person:
                 # WP-12: 起身离开 → 弃掉体内那份。world 在 preempt 时已释放 claim,
                 # 食物/床回到世界(不浪费), 也没“中止也扣一份”。
                 self._intake.clear()
+                self._moving = True
         elif isinstance(intent, Interact):
             r = port.try_take(self.person_id, intent.target_id)
             if isinstance(r, Deny):
@@ -1062,14 +1110,17 @@ class Person:
             r = port.try_buy(self.person_id, intent.item_id, intent.qty)
             if isinstance(r, Ack) and not r.ok:
                 self._on_failed(intent.item_id, r.reason, now_tick)
+            elif isinstance(r, Ack) and r.ok:
+                self._queued = True          # 已入队 → 在店里等柜台
         elif isinstance(intent, Wander):
             r = port.try_wander(self.person_id, intent.dest)
             if isinstance(r, Grant):
                 self.intake_add(r)          # 闲逛的 fun 由这份 Grant 自己涨
-        elif isinstance(intent, Idle):
-            # 身上没事 → 把活动名收回 idle(否则“闲逛”会粘着不走)
-            if not self._intake:
-                self.set_activity("idle")
+            elif isinstance(r, Ack) and r.ok:
+                # 闲逛是两段式: 没到 dest 时 try_wander 复用移动 → 也在途
+                self._moving = True
+            elif isinstance(r, Ack):
+                self._on_failed(intent.dest, r.reason, now_tick)
 
     def on_day(self, cfg: "SimConfig", now_tick: int) -> int:
         """窄协议: 每游戏日 ① 重算年龄 ② 遗忘。返回遗忘条数。"""

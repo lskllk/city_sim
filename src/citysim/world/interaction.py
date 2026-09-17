@@ -80,7 +80,6 @@ class InteractionSystem:
             entity_id=tid, handle=f"{tid}#{self._seq}",
         )
         ent.claimants.add(pid)
-        npc.set_activity(ent.name)
         # on_start 的 NPC 侧效果改由 Person 应用(WP-10: 编译进 Grant.pending);
         # world 侧 on_start(如 spawn_item)很少见, 这里不再处理。
         _npc_start, _world_start = compile_effects(ent.on_start)
@@ -157,9 +156,6 @@ class InteractionSystem:
                 _npc_done, world_o = compile_effects(ent.on_complete)
                 apply_effects(world, npc, ent, world_o)
 
-        # 4. 完成 → idle(下一 tick 由 drive 自然重评)
-        npc.set_activity("idle")
-
         # 5. 事件(先发布, 观察者可解析实体 tags) -> 6. 统一回收空消耗品
         kind = "interaction_aborted" if aborted else "interaction_done"
         world.bus.publish(world.bus.make(
@@ -183,9 +179,6 @@ class InteractionSystem:
             ent = world.entities.get(act.entity_id)
             if ent is not None:
                 ent.claimants.discard(pid)
-        if npc is not None:
-            if cancel:
-                npc.set_activity("idle")
 
     def _fail(self, world: World, pid: str, tid: str, why: str) -> None:
         world.bus.publish(world.bus.make(

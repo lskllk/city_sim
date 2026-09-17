@@ -138,6 +138,7 @@ class WorldPortImpl:
         return Grant(
             handle=(act.handle if act is not None else entity_id),
             entity_id=entity_id,
+            name=str(getattr(ent, "name", "") or ""),
             signal=str(signal), value=float(value),
             duration_ticks=max(1, int(getattr(ent, "duration_ticks", 1) or 1)),
             pending=pending,
@@ -181,9 +182,6 @@ class WorldPortImpl:
         handle = "roam:%s:%d" % (pid, world.clock_tick)
         systems.roaming[pid] = Roam(dest=dest, handle=handle,
                                     until=world.clock_tick + ticks)
-        npc = world.npcs.get(pid)
-        if npc is not None:
-            npc.set_activity("闲逛")
         return Grant(handle=handle, entity_id="", signal="fun",
                      value=float(self.cfg.fun_roam_value),
                      duration_ticks=ticks, tags=("roam",))

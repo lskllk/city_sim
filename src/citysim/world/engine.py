@@ -46,28 +46,11 @@ def _busy(world, systems, pid: str) -> bool:
 def act_class_of(world, systems, pid: str) -> str:
     """这个 NPC 此刻在【做什么】(行为大类): move/eat/sleep/toilet/work/wander/idle。
 
-    快照/时间线用; 纯读, 不改任何状态。
+    ★ 已经不需要"world 猜"了 —— 大类由 NPC 自己从它的 _intake/_moving/_queued
+      推出来(`Person.activity()`)。这里只做一层转发, 让快照/时间线/工具少改。
     """
-    if pid in systems.travel:
-        return "move"
-    if pid in getattr(systems, "roaming", {}):
-        return "wander"
-    act = systems.interaction.active.get(pid)
-    if act is None:
-        return "idle"
-    ent = world.entities.get(act.entity_id)
-    if ent is None:
-        return "idle"
-    t = ent.tags
-    if "sleepable" in t:
-        return "sleep"
-    if "toilet" in t:
-        return "toilet"
-    if "edible" in t:
-        return "eat"
-    if "work" in t or "station" in t:
-        return "work"
-    return "idle"
+    npc = world.npcs.get(pid)
+    return npc.activity_class if npc is not None else "idle"
 
 
 def _record_activity(world, systems, cfg: SimConfig) -> None:
@@ -79,8 +62,7 @@ def _record_activity(world, systems, cfg: SimConfig) -> None:
     day_start = (tick // max(1, cfg.ticks_per_day)) * cfg.ticks_per_day
     log = systems.activity_log
     for pid, npc in world.npcs.items():
-        cls = act_class_of(world, systems, pid)
-        text = npc.current_activity or ""
+        cls, text = npc.activity()
         segs = log.setdefault(pid, [])
         if segs and segs[-1]["cls"] == cls and segs[-1]["text"] == text:
             segs[-1]["to"] = tick                       # 同段延续
@@ -170,9 +152,6 @@ def enqueue_buy(world, systems, pid: str, shop_id: str, item_id: str,
     systems.queued[pid] = shop_id
     systems.buy_left[pid] = (item_id, max(1, int(qty)))
     systems.queued_since[pid] = world.clock_tick
-    npc = world.npcs.get(pid)
-    if npc is not None:
-        npc.set_activity("queue")
 
 
 def _leave_queue(world, systems, pid: str, why: str = "") -> None:
@@ -185,12 +164,10 @@ def _leave_queue(world, systems, pid: str, why: str = "") -> None:
             q.remove(pid)
         if not q:
             systems.shop_queue.pop(shop_id, None)
-    npc = world.npcs.get(pid)
-    if npc is not None:
-        npc.set_activity("idle")
     if why:
         world.bus.publish(world.bus.make(
             world.clock_tick, "intent_failed", pid, {"target": shop_id, "why": why}))
+        npc = world.npcs.get(pid)
         if npc is not None:
             npc.notify(InteractionFailed(shop_id, why, world.clock_tick))
 

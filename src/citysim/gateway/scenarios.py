@@ -151,14 +151,11 @@ def load_scene(path: str | Path | None = None,
             e.price = float(spec["price"])
         if "persist_empty" in spec:    # 容器/货架: stock 归 0 不回收
             e.persist_empty = bool(spec["persist_empty"])
-        if "on_complete" in spec:      # scene 覆盖完成效果(如菜摊 spawn_item×3)
-            e.on_complete = [dict(x) for x in spec["on_complete"]]
         e.open_hours = Entity.parse_open_hours(spec.get("open_hours"))
         if "position" in spec:          # 显式锚点优先(可选)
             e.position = (float(spec["position"][0]), float(spec["position"][1]))
-        # 同一商品(同 类型/地点/归属/售价/效果) → 库存合并, 不重复建实体
-        key = (e.item_type, e.location_id, e.owner, round(e.price, 6),
-               repr(e.on_complete))
+        # 同一商品(同 类型/地点/归属/售价) → 库存合并, 不重复建实体
+        key = (e.item_type, e.location_id, e.owner, round(e.price, 6))
         prev = merged.get(key)
         if prev is not None:
             prev.stock = -1 if (prev.stock == -1 or e.stock == -1) \

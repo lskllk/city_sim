@@ -29,6 +29,7 @@ class SimConfig:
     ticks_per_day: int
     metabolism: dict[str, float]     # 全信号 delta; 缺省信号补 0.0
     bladder_convert: float
+    bladder_per_hunger: float = 0.5   # 消化 1.0 hunger → 攒多少膀胱 pending
     half_life_ticks: int = 2880   # 知识半衰期(tick; 2 天)
     utility_power: float = 3.0     # 需求急迫度幂次
     # 每种需求可以有自己的幂次 —— power 越大, “不太困/不太饿”时分数越低,
@@ -134,6 +135,7 @@ class SimConfig:
             ticks_per_day=tpd,
             metabolism=full_meta,
             bladder_convert=float(data["bladder"]["convert_per_tick"]),
+            bladder_per_hunger=float(data["bladder"].get("per_hunger", 0.5)),
             half_life_ticks=int(data.get("knowledge", {}).get("half_life_ticks", 2880)),
             utility_power=float(util.get("power", 3.0)),
             power_by_signal={str(k): float(v) for k, v in

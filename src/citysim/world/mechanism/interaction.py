@@ -9,8 +9,6 @@ from dataclasses import dataclass
 
 from citysim.core.types import Idle, InteractionDone, Interact, ItemGone
 from citysim.npc.person import Person
-from citysim.world.mechanism.effects import apply_effects
-from citysim.world.model.itemdefs import compile_effects
 from citysim.world.world import Entity, World
 
 
@@ -67,7 +65,7 @@ class InteractionSystem:
             return False
 
         old = self.active.get(pid)
-        # 同 target 且已在交互 → 继续(不重置 remaining, 不重复 on_start)
+        # 同 target 且已在交互 → 继续(不重置进度 = 不重复吃一遍)
         if old is not None and old.entity_id == tid:
             return True
 
@@ -81,18 +79,13 @@ class InteractionSystem:
             entity_id=tid, handle=f"{tid}#{self._seq}",
         )
         ent.claimants.add(pid)
-        # on_start 的 NPC 侧效果由 Person 应用(编译进 Grant.pending);
-        # world 侧 on_start(如 spawn_item)很少见, 这里不再处理。
-        _npc_start, _world_start = compile_effects(ent.on_start)
-        if _world_start:
-            apply_effects(world, npc, ent, _world_start)
         return True
 
     # --- 每 tick 推进 --------------------------------------------------
     def step(self, world: World, cfg) -> None:
         """不管信号/进度 —— NPC 自己消化(heartbeat); 这里只做收尾与清理。
 
-        ① NPC 消化完的 intake → 扣货 / on_complete / 事件 / 回收(自然完成);
+        ① NPC 消化完的 intake → 扣货 / 事件 / 回收(自然完成);
         ② 目标消失 / NPC 死亡 → 撤 claim。
         """
         for pid in list(world.npcs):
@@ -123,7 +116,7 @@ class InteractionSystem:
 
     # --- 完成 ---------------------------------------------------------
     def abort(self, world: World, pid: str) -> None:
-        """硬中止(计划截止抢占): 同样触发 on_complete + 消耗 + 回收。"""
+        """硬中止(计划截止抢占): 同样触发消耗 + 回收。"""
         act = self.active.get(pid)
         if act is None:
             return
@@ -135,34 +128,25 @@ class InteractionSystem:
 
     def _finalize(self, world: World, pid: str, ent: Entity,
                   act: ActiveInteraction, *, aborted: bool) -> None:
-        """自然完成 / 硬中止共用收尾: 消耗 + on_complete + 事件 + 回收。
+        """自然完成 / 硬中止共用收尾: 消耗 + 事件 + 回收。
 
         区别: 自然完成额外通知 Person(on_interaction_done) 推进计划; 中止不发。
-        两者都触发 on_complete(被打断也要触发)。
+        两者都扣一份(被打断也算用掉了)。
         """
         npc = world.npcs[pid]
         self._release(world, pid, cancel=False)
 
-        def _self_consumes(ent) -> bool:
-            return any((eff or {}).get("op") == "consume_self"
-                       for eff in ent.on_complete)
-
-        # 2.+3. 自然完成才扣货 / 跑 world 侧 on_complete;
-        #   中止(aborted) = 没吃完 → 不扣货、不触发 on_complete
-        #   不再“中止也扣一份饭”)。claim 已释放 → 东西回到世界。
-        if not aborted:
-            if (ent.is_consumable and ent.stock > 0 and not _self_consumes(ent)):
-                ent.stock -= 1
-            if ent.on_complete:
-                _npc_done, world_o = compile_effects(ent.on_complete)
-                apply_effects(world, npc, ent, world_o)
+        # 2. 自然完成才扣货; 中止(aborted) = 没吃完 → 不扣(东西回到世界)。
+        #    扣不扣只看这一件东西的【字段】: consumable tag + 有限库存 ——
+        #    不需要"每个物品各自声明一次"。
+        if not aborted and ent.is_consumable and ent.stock > 0:
+            ent.stock -= 1
 
         # 5. 事件(先发布, 观察者可解析实体 tags) -> 6. 统一回收空消耗品
         kind = "interaction_aborted" if aborted else "interaction_done"
         world.bus.publish(world.bus.make(
             world.clock_tick, kind, pid, {"entity": ent.entity_id}))
-        if (ent.stock == 0 and not ent.persist_empty
-                and (ent.is_consumable or _self_consumes(ent))):
+        if ent.stock == 0 and not ent.persist_empty and ent.is_consumable:
             world.entities.pop(ent.entity_id, None)
             npc.notify(ItemGone(ent.entity_id))
         if not aborted:

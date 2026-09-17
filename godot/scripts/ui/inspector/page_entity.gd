@@ -7,7 +7,6 @@ const KEYS := ["id", "类型", "地点", "库存", "价格", "归属", "使用�
 
 var _header: Control
 var _kv: Dictionary = {}
-var _eff_rows: Dictionary = {}     # "on_start"/"on_complete" -> Control(整行)
 
 
 func build() -> void:
@@ -15,10 +14,6 @@ func build() -> void:
 	var body: VBoxContainer = UiKit.section(self, "属性").body()
 	for k in KEYS:
 		_kv[k] = UiKit.kv(body, k)
-	for eff in ["on_start", "on_complete"]:
-		_kv[eff] = UiKit.kv(body, eff)
-		_eff_rows[eff] = _kv[eff].get_parent()
-		_eff_rows[eff].visible = false
 
 
 func bind(id: String) -> void:
@@ -49,8 +44,3 @@ func bind(id: String) -> void:
 		for ek in aff:
 			parts.append("%s %+.2f" % [Zh.signal_zh(str(ek)), Protocol.num(aff[ek])])
 		_kv["信号效果"].text = "，".join(parts)
-	for eff in ["on_start", "on_complete"]:
-		var effs := Protocol.as_array(e.get(eff, []))
-		_eff_rows[eff].visible = not effs.is_empty()
-		if not effs.is_empty():
-			_kv[eff].text = str(effs)

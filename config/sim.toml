@@ -15,8 +15,8 @@ hunger = -0.0013888888888888889    # -1/720（半天从满到空）
 energy = -0.00035    # ≈ -0.5/1440 = 24h 基础 ≈50%
 # bladder 有【两条】独立的渠道:
 #   ① 基础代谢(这里): 时间推移本身就在积累 —— 不吃东西也会尿急
-#   ② 吃了东西: 物品 on_start 的 add_pending 加一跳(简餐 +0.3),
-#      再按 [bladder].convert_per_tick 慢慢转成膀胱下降
+#   ② 吃进去的东西: 消化时按 [bladder].per_hunger 折算成 pending
+#      (吃多少转化多少 —— 属于 NPC 自己的消化规则, 不是每个物品各自的数据)
 # -1/2304 ≈ 1.6 天从满到空; 配上三餐的跳量 → 每天约 2~3 趟厕所
 bladder = -0.00043402777777777777
 # 注: bladder 不参与 hp(憋不住不致命), 也不进任何白名单 —— 它只是个需求。
@@ -43,6 +43,7 @@ busy_energy_mul = 1.8        # 交互中 / 赶路中(睡觉除外: 冻结)
 
 [bladder]
 convert_per_tick = 0.02        # pending -> 膀胱 的每 tick 转化速率
+per_hunger = 0.5               # 消化 1.0 的 hunger → 攒多少 pending(吃多少转化多少)
 
 [knowledge]                    # M5: 知识库
 half_life_ticks = 2880        # 2 天(知识半衰期)

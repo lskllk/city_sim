@@ -21,13 +21,12 @@ DEFAULT_NAMES = ["王二", "李四", "张三", "赵五", "钱六",
 
 def _entity(world: World, eid: str, name: str, tags, affordances,
             duration_ticks: int, stock: int = 1,
-            attrs=None, on_start: list | None = None) -> Entity:
+            attrs=None) -> Entity:
     e = Entity(
         entity_id=eid, name=name, tags=set(tags),
         affordances=dict(affordances), duration_ticks=duration_ticks,
         location_id="home", stock=stock,
         attrs=dict(attrs or {}),
-        on_start=list(on_start or []),
     )
     world.entities[eid] = e
     return e
@@ -50,9 +49,7 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
     # 常备餐台(无限 loose edible): 少量多餐(~8h 一次), 保证任意 24h 吃 2~4 次
     for i in range(max(2, n_npc // 2)):
         _entity(world, f"plate_{i}", "餐台", {"edible", "consumable"},
-                {"hunger": 0.35}, duration_ticks=15, stock=10000,
-                on_start=[{"op": "add_pending",
-                           "field": "bladder_pending", "amount": 0.3}])
+                {"hunger": 0.35}, duration_ticks=15, stock=10000)
     for i in range(max(2, n_npc)):
         _entity(world, f"bed_{i}", "床", {"sleepable"},
                 {"energy": 0.7}, duration_ticks=480)
@@ -95,9 +92,7 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
 
     # 稀缺食物: 散落餐盘(stock=2, 有限) —— 直接吃, 竞争焦点之一
     _entity(world, "food_1", "餐盘", {"edible", "consumable"},
-            {"hunger": 0.35}, duration_ticks=15, stock=2,
-            on_start=[{"op": "add_pending",
-                       "field": "bladder_pending", "amount": 0.3}])
+            {"hunger": 0.35}, duration_ticks=15, stock=2)
     _entity(world, "toilet_1", "马桶", {"toilet"},
             {"bladder": 0.6}, duration_ticks=5)
     for i in range(n_npc):

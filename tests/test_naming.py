@@ -125,11 +125,6 @@ def test_references_resolve() -> None:
     for pair in SCENE.get("travel", {}).get("pairs", {}):
         for x in pair.split("|"):
             assert x in locs, pair
-    for t, d in _items().items():
-        for eff in (d.on_start + d.on_complete):
-            it = (eff or {}).get("item_type")
-            if it:
-                assert it in types, (t, it)
 
 
 def test_scene_loads_and_ids_consistent() -> None:

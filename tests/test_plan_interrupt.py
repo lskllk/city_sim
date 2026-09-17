@@ -1,6 +1,6 @@
 """计划表 + 中断系统 端到端测试。
 
-覆盖: 同刻串行(MoveTo→Interact) / 计划截止硬中止(on_complete 也触发) /
+覆盖: 同刻串行(MoveTo→Interact) / 计划截止硬中止 /
 reflex 软挂起+高保真恢复 / 不可打断睡觉被致命 reflex 唤醒 / 失败 skip+日志。
 """
 from __future__ import annotations
@@ -54,18 +54,16 @@ def test_plan_move_then_interact_same_tick() -> None:
                for k, _, p in evs)
 
 
-def test_plan_deadline_aborts_and_fires_on_complete() -> None:
-    """下一条到点 → 硬中止当前交互, 但仍触发 on_complete。
+def test_plan_deadline_aborts_interaction() -> None:
+    """下一条计划到点 → 硬中止当前交互(但体内那份留着 = 暂停, 不重复扣货)。
 
     注(2026-09-14 utility 主导后): 若 NPC 自己就有需求, 需求轨会先把活儿抢走,
     根本走不到“计划截止”。所以要测【计划路径】, 得让他没别的事想做 ——
-    这里把 energy 填满(bench 的唯一 afford 就是 energy → 对他没吸引力)。
-    on_complete 改成加 hunger(不会像 energy 那样被封顶), 断言才有意义。
+    这里把 energy 填满、bench 又不给任何 affordance → 对他没吸引力。
     """
     w, s, rng = make_runtime(CFG, log=True)
     add_entity(w, "bench", location="work", tags=("work",),
-               affordances={}, duration_ticks=100,
-               on_complete=[{"op": "add_signal", "signal": "hunger", "delta": 0.5}])
+               affordances={}, duration_ticks=100)
     npc = add_npc(w, s, "npc", location="work", rng_pool=rng)
     npc.set_signals(energy=1.0, hunger=0.2)
     npc.assign(Plan([PlanEntry("e0", 1, Interact("bench")),
@@ -76,8 +74,9 @@ def test_plan_deadline_aborts_and_fires_on_complete() -> None:
     evs = _events(s)
     assert any(k == "interaction_aborted" and p.get("entity") == "bench"
                for k, _, p in evs), "未见 interaction_aborted"
-    # 硬中止 = 暂停(体内 intake 留着), 不再“中止也触发 on_complete”。
-    assert npc.signal("hunger") < 0.5, "中止不应触发 on_complete(旧契约已废)"
+    # 硬中止 → 下一条计划接着走(起身离开); 体内那份随之弃掉 —— 不扣货、不重复
+    assert npc.signal("hunger") < 0.5, "中止不该补 hunger"
+    assert npc.intake_progress("bench")[0] == 0, "离开后体内不该还留着那份"
 
 
 

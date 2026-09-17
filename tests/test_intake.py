@@ -4,6 +4,8 @@ world 只签发 `Grant`(一份可用之物), 信号怎么涨由 NPC 自己的身
 """
 from __future__ import annotations
 
+import pytest
+
 
 from citysim.core.config import load_config
 from citysim.core.types import Decision, Interact, MoveTo, Work
@@ -67,19 +69,49 @@ def test_take_finished_is_destructive() -> None:
     assert npc.take_finished() == []              # 取走即清
 
 
-# --- 效果边界(编译进 Grant, NPC 自己应用) --------------------------
-def test_on_start_pending_applied_by_npc_once() -> None:
-    """on_start 的 add_pending 编译成 Grant.pending, 开始时应用一次。"""
+# --- 消化的副作用: 吃多少 → 攒多少尿(内部规则, 不由物品数据维护) ----
+def _bladder_after(digesting: bool, ticks: int = 20) -> float:
+    """跑 ticks 个心跳, 返回【转化了多少膀胱】= 膀胱降幅 + 还挂在 pending 里的。
+
+    pending 是中间量: 每 tick 先按 convert_per_tick 抽走再消化, 所以最后一 tick
+    攒下的那点还没转完, 得算进来才是"吃进去转化了多少"。
+    digesting=是否吃一份 0.5 hunger 的饭。
+    """
     w, s, _ = make_runtime(CFG)
-    add_entity(w, "meal", location="loc", tags=("edible", "consumable"),
-               affordances={"hunger": 0.5}, duration_ticks=20)
-    w.entities["meal"].on_start = [{"op": "add_pending",
-                                    "field": "bladder_pending", "amount": 0.3}]
+    if digesting:
+        add_entity(w, "meal", location="loc", tags=("edible", "consumable"),
+                   affordances={"hunger": 0.5}, duration_ticks=ticks)
     npc = add_npc(w, s, "npc", location="loc", hunger=0.2)
-    npc.step(_port(w, s), CFG)
-    assert npc.bladder_pending == 0.3            # 只应用一次
-    npc.heartbeat(0, CFG)
-    assert npc.bladder_pending < 0.3             # 开始转为膀胱
+    npc.set_signals(bladder=1.0)
+    if digesting:
+        npc.step(_port(w, s), CFG)
+    for _ in range(ticks):
+        npc.heartbeat(0, CFG)
+    return (1.0 - npc.signal("bladder")) + npc.bladder_pending
+
+
+def test_eating_accumulates_bladder_pending_while_digesting() -> None:
+    """吃进去的东西会攒尿 —— 按吸收的 hunger × cfg.bladder_per_hunger 折算。
+
+    这是【NPC 自己的消化规则】: 物品数据只写"能补多少 hunger"(affordances),
+    转化率是全局的 —— 物品数据里不写它, 也不该由 world 往 NPC 里塞。
+    (对比"吃 vs 不吃"来量, 因为基础代谢本身也在掉膀胱。)
+    """
+    ate = _bladder_after(digesting=True)
+    base = _bladder_after(digesting=False)
+    assert (ate - base) == pytest.approx(0.5 * CFG.bladder_per_hunger, abs=1e-3)
+
+
+def test_non_eating_digestion_does_not_accumulate_bladder() -> None:
+    """睡觉不攒尿 —— 只有 hunger 那一路折算。"""
+    w, s, _ = make_runtime(CFG)
+    add_entity(w, "bed", location="loc", tags=("sleepable",),
+               affordances={"energy": 0.5}, duration_ticks=10)
+    npc = add_npc(w, s, "npc", location="loc", energy=0.2)
+    npc.intake_add(_port(w, s).try_take("npc", "bed"))
+    for _ in range(10):
+        npc.heartbeat(0, CFG)
+    assert npc.bladder_pending == 0.0
 
 
 # --- sleep/busy 自持 -------------------------------------------------
@@ -87,9 +119,7 @@ def test_sleep_freezes_energy_self_derived() -> None:
     """体内 intake 带 sleepable → 自己判“在睡”, 冻结 energy(不再由 world 注入)。"""
     w, s, _ = make_runtime(CFG)
     add_entity(w, "bed", location="loc", tags=("sleepable",), affordances={},
-               duration_ticks=100,
-               on_complete=[{"op": "add_signal", "signal": "energy",
-                             "delta": 1.0}])
+               duration_ticks=100)
     npc = add_npc(w, s, "npc", location="loc", energy=0.3)
     npc.intake_add(_port(w, s).try_take("npc", "bed"))
     npc.heartbeat(1260, CFG)                     # 21:00 入夜, 本会掉很快

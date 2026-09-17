@@ -384,6 +384,10 @@ class Person:
                    ② 到 duration_ticks → 到点结束;
                    ③ 工作工位: 一旦【不在班】 → 立刻下班(不再挂着占着台)。
         都走【自然完成】(world 收尾)。
+
+        消化时会有一点【副作用】: 吃进去的东西会攒尿 —— 按吸收的 hunger 折算
+        (`cfg.bladder_per_hunger`)。这是 NPC 自己的消化规则, 不是每个物品
+        各自写在数据里的一份配置。
         """
         for ag in list(self._intake):
             g = ag.grant
@@ -392,35 +396,21 @@ class Person:
                         and cfg is not None
                         and not self._on_shift(now_tick, cfg))
             if g.signal:
-                self.add_signal(g.signal, g.value / ag.total)
+                step = g.value / ag.total
+                self.add_signal(g.signal, step)
+                if g.signal == "hunger" and cfg is not None:
+                    self.add_bladder_pending(step * cfg.bladder_per_hunger)
             ag.remaining -= 1
             saturated = bool(g.signal) and self.signal(g.signal) >= 1.0
             if ag.remaining <= 0 or saturated or off_duty:
                 self._intake.remove(ag)
                 self._finished.append(g.handle)
 
-    def _apply_neutral(self, effects) -> None:
-        """应用【结构化】NPC 侧效果(无 op 名; 见 world/mechanism/effects.compile_effects)。
-
-        world 那边把 add_signal/set_signal/add_pending 编译成 {signal, add|set}
-        / {field, amount} —— 所以 npc/ 不认识 op 字符串。
-        """
-        for eff in effects:
-            if "signal" in eff:
-                s = str(eff["signal"])
-                if "set" in eff:
-                    self.set_signal(s, float(eff["set"]))
-                else:
-                    self.add_signal(s, float(eff.get("add", 0.0)))
-            elif eff.get("field") == "bladder_pending":
-                self.add_bladder_pending(float(eff.get("amount", 0.0)))
-
     def intake_add(self, grant: "Grant") -> None:
-        """把 world 签发的 Grant 收进体内开始消化(+ 应用 on_start 结构化字段)。"""
+        """把 world 签发的 Grant 收进体内开始消化。"""
         if any(ag.grant.handle == grant.handle for ag in self._intake):
             return                                 # 同一份已持有(handle 唯一)
         total = max(1, int(grant.duration_ticks))
-        self._apply_neutral(grant.pending)     # on_start(如 bladder_pending)
         self._intake.append(_ActiveGrant(grant=grant, total=total, remaining=total))
 
     def take_finished(self) -> list[str]:

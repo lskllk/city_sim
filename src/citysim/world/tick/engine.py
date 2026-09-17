@@ -26,7 +26,7 @@ from citysim.core.types import (
     intent_kind,
     intent_target,
 )
-from citysim.world.drive import due_npcs
+from citysim.world.tick.drive import due_npcs
 from citysim.world.itemdefs import load_item_defs
 from citysim.world.pulses import apply as apply_pulses
 from citysim.world.port import WorldPortImpl

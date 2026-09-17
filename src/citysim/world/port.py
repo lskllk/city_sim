@@ -13,7 +13,7 @@ from citysim.core.ports import Ack, Deny, Grant
 from citysim.core.types import Buy, Interact, Percept
 from citysim.world.effects import compile_effects
 from citysim.world.perception import build_percept
-from citysim.world.travel import Roam, Travel
+from citysim.world.tick.travel import Roam, Travel
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +153,7 @@ class WorldPortImpl:
             return Ack(ok=False, reason="人不存在")
         # 延迟 import: 买卖/排队的 world 侧实现暂在 engine(避免 engine ⇄ port 顶层环)。
         # TODO(WP-16): shop/queue 逻辑抽到 world/shop.py 后改为顶层 import。
-        from citysim.world.engine import _execute_buy, _set_bubble, enqueue_buy
+        from citysim.world.tick.engine import _execute_buy, _set_bubble, enqueue_buy
         qty = max(1, int(qty))
         shop = world.entities.get(item_id)
         if shop is None or shop.location_id != world.loc_of(pid):

@@ -513,13 +513,13 @@ def _admin_company(r, op: str, args: dict) -> dict:
         res["company"] = cid
         return res
     if op == "assign":
-        from citysim.world.engine import assign_station
+        from citysim.world.tick.engine import assign_station
         res = assign_station(world, r.systems, r.cfg, comp,
                              str(args.get("npc", "")), str(args.get("station", "")))
         res["company"] = cid
         return res
     if op == "schedule":
-        from citysim.world.engine import schedule_worker
+        from citysim.world.tick.engine import schedule_worker
         res = schedule_worker(world, r.systems, r.cfg, comp,
                               str(args.get("npc", "")),
                               int(args.get("open", 0)),
@@ -605,7 +605,7 @@ async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
                          "ok": admin["ok"], "data": admin, "why": admin["why"]})
     elif name == "hire_now":
-        from citysim.world.engine import hire_at
+        from citysim.world.tick.engine import hire_at
         hired = hire_at(r.world, r.systems, r.cfg)
         r.note_world_changed()          # 新员工/公司名额变了 → 暂停时也要推
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,

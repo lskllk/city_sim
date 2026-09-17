@@ -13,7 +13,7 @@ from citysim.core.ring import RingBuffer
 from citysim.npc.planner import Planner
 from citysim.world.events import Event
 from citysim.world.interaction import InteractionSystem
-from citysim.world.travel import Travel
+from citysim.world.tick.travel import Travel
 from citysim.world.world import World
 
 
@@ -100,5 +100,5 @@ def attach_replay(world: World, systems: Systems) -> None:
 def run_tick(world: World, systems: Systems, cfg: SimConfig,
              rng_pool=None) -> None:
     """推进一个 tick(薄转发到 world/engine.tick; rng_pool 保留兼容, 暂未用)。"""
-    from citysim.world.engine import tick as _engine_tick
+    from citysim.world.tick.engine import tick as _engine_tick
     _engine_tick(world, systems, cfg)

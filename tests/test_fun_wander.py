@@ -130,7 +130,7 @@ def test_roam_grant_raises_fun() -> None:
 
 def test_roaming_cleared_when_leaving() -> None:
     """人离开那个地方(被打断去干别的) → world 侧的 roaming 也要清掉。"""
-    from citysim.world import engine as E
+    from citysim.world.tick import engine as E
     w, s, _ = make_runtime(CFG)
     add_entity(w, "plaza", location="plaza", tags=("building",), affordances={})
     npc = add_npc(w, s, "n", location="plaza", fun=0.2)

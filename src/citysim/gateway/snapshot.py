@@ -18,7 +18,7 @@ from pathlib import Path
 
 from citysim.core.types import intent_kind, intent_target
 from citysim.emojis import SEMANTIC_EMOJI
-from citysim.world.engine import act_class_of
+from citysim.world.tick.engine import act_class_of
 
 # TASK002: WS 消息协议版本(协议变化时递增; 本契约变更故 +1)
 PROTOCOL_VERSION = 2
@@ -110,7 +110,7 @@ def economy_block(world, systems) -> dict:
     刻意只放【数字】不放对象 —— 这块每帧都随 snapshot 下发, 必须很小。
     细节(员工是谁、队里都是谁)走 query 或 hello。
     """
-    from citysim.world.engine import COUNTER_ITEM, staffed_counters
+    from citysim.world.tick.engine import COUNTER_ITEM, staffed_counters
     counters: dict[str, int] = {}
     for e in world.entities.values():
         if e.item_type == COUNTER_ITEM:

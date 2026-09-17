@@ -9,7 +9,7 @@ import json
 
 from citysim.core.config import load_config
 from citysim.gateway.scenarios import load_scene
-from citysim.world import engine as E
+from citysim.world.tick import engine as E
 from citysim.world.companies import Company
 
 CFG = load_config("config/sim.toml")
@@ -54,7 +54,7 @@ def _market(w) -> None:
 
 def _buy(w, s, qty=2):
     from citysim.core.types import Buy
-    from citysim.world.engine import _execute_buy
+    from citysim.world.tick.engine import _execute_buy
     w.place_npc("npc_a", "shop")
     _execute_buy(w, s, CFG, "npc_a", w.npcs["npc_a"], Buy("food_apple_001", qty=qty))
 

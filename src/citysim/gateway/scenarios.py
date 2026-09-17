@@ -301,7 +301,7 @@ def _bind_company_staff(world: World, data: dict) -> None:
     · 给了 station 就用它; 没给就自动挑公司第一个【空着的销售台】;
     · 写 work 绑定 + 角色 + 员工名单(和运行期 hire_at 一样)。
     """
-    from citysim.world.engine import vacant_counters
+    from citysim.world.tick.engine import vacant_counters
     for spec in (data.get("companies") or []):
         if not isinstance(spec, dict):
             continue

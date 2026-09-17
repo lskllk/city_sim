@@ -12,6 +12,7 @@ import json
 from citysim.core.config import load_config
 from citysim.gateway.scenarios import load_scene
 from citysim.world.tick import engine as E
+from citysim.world.tick.shop import QUEUE_GIVEUP, enqueue_buy
 from helpers import add_counter, register_company, staff_counter
 
 CFG = load_config("config/sim.toml")
@@ -69,8 +70,8 @@ def _load(tmp_path, data, counters: int = 1):
 def test_one_counter_serves_one_per_tick(tmp_path) -> None:
     """1 个前台: 每个 tick 最多成交 1 份 —— 两个顾客不会同一 tick 都买到。"""
     w, s = _load(tmp_path, _scene(2), counters=1)
-    E.enqueue_buy(w, s, "npc_0", "shop", "food_apple_001", 1)
-    E.enqueue_buy(w, s, "npc_1", "shop", "food_apple_001", 1)
+    enqueue_buy(w, s, "npc_0", "shop", "food_apple_001", 1)
+    enqueue_buy(w, s, "npc_1", "shop", "food_apple_001", 1)
     E.tick(w, s, CFG)
     spent = [500 - w.npcs[p].money for p in ("npc_0", "npc_1")]
     assert sorted(spent) == [0.0, 5.0], spent        # 只有队首买到
@@ -82,8 +83,8 @@ def test_one_counter_serves_one_per_tick(tmp_path) -> None:
 def test_two_counters_two_lines(tmp_path) -> None:
     """2 个前台 = 两条线路: 同一 tick 能服务 2 个人。"""
     w, s = _load(tmp_path, _scene(2), counters=2)
-    E.enqueue_buy(w, s, "npc_0", "shop", "food_apple_001", 1)
-    E.enqueue_buy(w, s, "npc_1", "shop", "food_apple_001", 1)
+    enqueue_buy(w, s, "npc_0", "shop", "food_apple_001", 1)
+    enqueue_buy(w, s, "npc_1", "shop", "food_apple_001", 1)
     E.tick(w, s, CFG)
     assert 500 - w.npcs["npc_0"].money == 5.0
     assert 500 - w.npcs["npc_1"].money == 5.0
@@ -97,8 +98,8 @@ def test_no_counter_no_trade(tmp_path) -> None:
     """
     w, s = _load(tmp_path, _scene(1), counters=0)
     npc = w.npcs["npc_0"]
-    E.enqueue_buy(w, s, "npc_0", "shop", "food_apple_001", 1)
-    for _ in range(E.QUEUE_GIVEUP + 3):
+    enqueue_buy(w, s, "npc_0", "shop", "food_apple_001", 1)
+    for _ in range(QUEUE_GIVEUP + 3):
         E.tick(w, s, CFG)
     assert npc.money == 500.0                        # 一分没花
     assert npc.favor_of("shop") < 1.0                 # 白跑一次记住了
@@ -116,7 +117,7 @@ def test_closed_shop_does_not_serve(tmp_path) -> None:
     w, s = _load(tmp_path, _scene(1), counters=1)
     comp = w.companies["org_test"]
     comp.open_minute, comp.close_minute = 480, 1140   # 08:00–19:00
-    E.enqueue_buy(w, s, "npc_0", "shop", "food_apple_001", 1)
+    enqueue_buy(w, s, "npc_0", "shop", "food_apple_001", 1)
     for _ in range(5):
         E.tick(w, s, CFG)
     assert w.npcs["npc_0"].money == 500.0
@@ -126,7 +127,7 @@ def test_closed_shop_does_not_serve(tmp_path) -> None:
 def test_multi_qty_is_sold_one_by_one(tmp_path) -> None:
     """想买 3 份 → 柜台一份一份卖(3 个 tick), 不是一次给 3 份。"""
     w, s = _load(tmp_path, _scene(1), counters=1)
-    E.enqueue_buy(w, s, "npc_0", "shop", "food_apple_001", 3)
+    enqueue_buy(w, s, "npc_0", "shop", "food_apple_001", 3)
     for i in range(3):
         E.tick(w, s, CFG)
         assert 500 - w.npcs["npc_0"].money == 5.0 * (i + 1), i

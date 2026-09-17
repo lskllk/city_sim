@@ -91,7 +91,7 @@ def test_editor_scene_worker_is_staffed_headless(tmp_path) -> None:
 
     这正是"商铺能编物件"的意义: 没有前台 → 员工没工位 → 永远不上岗。
     """
-    from citysim.world.tick.engine import staffed_counters
+    from citysim.world.tick.shop import staffed_counters
     scene = _scene()
     scene["companies"][0].update({"open": "00:00", "close": "24:00",
                                   "staff": ["a"]})

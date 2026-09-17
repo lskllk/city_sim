@@ -10,6 +10,8 @@ import json
 from citysim.core.config import load_config
 from citysim.gateway.scenarios import load_scene
 from citysim.world.tick import engine as E
+from citysim.world.tick.company import hire_at
+from citysim.world.tick.shop import enqueue_buy
 from citysim.world.companies import Company
 
 CFG = load_config("config/sim.toml")
@@ -54,7 +56,7 @@ def _market(w) -> None:
 
 def _buy(w, s, qty=2):
     from citysim.core.types import Buy
-    from citysim.world.tick.engine import _execute_buy
+    from citysim.world.tick.economy import _execute_buy
     w.place_npc("npc_a", "shop")
     _execute_buy(w, s, CFG, "npc_a", w.npcs["npc_a"], Buy("food_apple_001", qty=qty))
 
@@ -92,7 +94,7 @@ def _employ_one(w, s, wage: float = 60.0) -> None:
     comp.open_minute, comp.close_minute = 0, 1440   # 测试里全天, 省得等到 08:00
     comp.wage_per_hour = wage
     comp.hiring_open, comp.hiring_slots = True, 1
-    E.hire_at(w, s, CFG)
+    hire_at(w, s, CFG)
     E.tick(w, s, CFG)            # 热身: 新员工先站上台(claim)
 
 
@@ -156,7 +158,7 @@ def test_money_circulates(tmp_path) -> None:
         return orig(ev)
 
     w.bus.publish = hook
-    E.enqueue_buy(w, s, "buyer", "shop", "food_apple_001", 2)   # 顾客排队买 2 份
+    enqueue_buy(w, s, "buyer", "shop", "food_apple_001", 2)   # 顾客排队买 2 份
     for _ in range(60):        # 店员要从家走到店里(~20 tick)才能开台
         E.tick(w, s, CFG)
     w.bus.publish = orig

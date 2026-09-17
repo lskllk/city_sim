@@ -153,7 +153,9 @@ class WorldPortImpl:
             return Ack(ok=False, reason="人不存在")
         # 延迟 import: 买卖/排队的 world 侧实现暂在 engine(避免 engine ⇄ port 顶层环)。
         # TODO(WP-16): shop/queue 逻辑抽到 world/shop.py 后改为顶层 import。
-        from citysim.world.tick.engine import _execute_buy, _set_bubble, enqueue_buy
+        from citysim.world.tick.economy import _execute_buy
+        from citysim.world.tick.gossip import _set_bubble
+        from citysim.world.tick.shop import enqueue_buy
         qty = max(1, int(qty))
         shop = world.entities.get(item_id)
         if shop is None or shop.location_id != world.loc_of(pid):

@@ -107,13 +107,16 @@ def tick(world, systems, cfg: SimConfig) -> None:
         said = npc.pending_speech(world.clock_tick, SAY_COOLDOWN)
         if said is not None:
             _set_bubble(systems, npc,
-                        _sem.render(said, speaker_name=npc.name), said.act,
+                        _sem.render(said, speaker_name=npc.name,
+                                    ticks_per_day=cfg.ticks_per_day),
+                        said.act,
                         world.clock_tick)
         intent = decision.intent
         kind = intent_kind(intent)
         target = intent_target(intent)
         if isinstance(intent, Idle):
-            _notify_due(world, systems, npc, said)   # 空闲才把这话说给别人听
+            _notify_due(world, systems, npc, said,
+                        cfg)   # 空闲才把这话说给别人听
         # 观测去重: 只在【任务变更】时记一条; 持续同一任务/空闲不刷屏。
         # 签名始终更新(含 idle), 否则"吃→空闲→再吃同一个"会被吞掉。
         sig = f"{decision.source}:{kind}:{target or ''}"

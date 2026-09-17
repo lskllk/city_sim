@@ -2,7 +2,7 @@
 
 一个类分布在多个文件里(mixin), 每个文件管一个方面:
   body.py    身体: 信号 / 消化 / 膀胱 / 活动
-  decide.py  决策: 目标推进 / 打分 / 日程
+  goal.py    目标: 何时重算 / 走完 / 放弃
   speech.py  说话: 气泡 / 语义草稿 / 惊讶
   work.py    工作: 雇佣 / 班次 / 出勤 + 好感
   memo.py    记忆门面: 记一笔 / 还记不记得
@@ -38,7 +38,7 @@ from citysim.npc.memory import MemBase
 from citysim.npc.schedule import Schedule
 
 from citysim.npc.person.body import BodyMixin
-from citysim.npc.person.decide import DecideMixin
+from citysim.npc.person.goal import GoalMixin
 from citysim.npc.person.memo import MemoMixin
 from citysim.npc.person.speech import SpeechMixin
 from citysim.npc.person.work import WorkMixin
@@ -48,7 +48,7 @@ from citysim.npc.person.body import (  # noqa: F401
     _ActiveGrant, _clamp, apply_metabolism, full_signals,
     signals_as_percent,
 )
-from citysim.npc.person.decide import _Goal  # noqa: F401
+from citysim.npc.person.goal import _Goal  # noqa: F401
 
 if TYPE_CHECKING:  # pragma: no cover
     # 只出现在类型标注里(运行时用不到) —— 别让清 import 的脚本删掉
@@ -81,7 +81,7 @@ class Identity:
         return date(int(y), int(m), int(d))
 
 
-class Person(BodyMixin, DecideMixin, SpeechMixin,
+class Person(BodyMixin, GoalMixin, SpeechMixin,
              WorkMixin, MemoMixin):
     """见模块头。各方面在 body/decide/speech/work/memo.py。"""
 

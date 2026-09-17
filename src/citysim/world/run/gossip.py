@@ -50,7 +50,7 @@ def _unit_hash(key: str) -> float:
 
 
 
-def _notify_due(world, systems, npc, ev) -> None:
+def _notify_due(world, systems, npc, ev, cfg) -> None:
     """这一轮张嘴: 把【刚才那句值得说的话】说给【一个】同地的人听。
 
     —— 2026-09-15: 改成【一对一搭桥】+【跟谁说得看关系】——
@@ -151,7 +151,9 @@ def _notify_due(world, systems, npc, ev) -> None:
     now = str(fact.get("now", _price_word(fact)))
     # 听者头顶: “王伟说：简餐8块”（看得见是谁跟他说的）
     rep = _sem.report(tick, npc.person_id, item_id, item_name, now, who=npc.name)
-    _set_bubble(systems, other, _sem.render(rep, speaker_name=npc.name),
+    _set_bubble(systems, other,
+                _sem.render(rep, speaker_name=npc.name,
+                            ticks_per_day=cfg.ticks_per_day),
                 "told", tick)
     # 说者头顶: “跟林静说：简餐8块”（另一半桥 —— 谁给谁说一眼看得出）
     _set_bubble(systems, npc, _sem.say_line(other.name, item_name, now),

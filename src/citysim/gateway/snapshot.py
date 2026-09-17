@@ -134,7 +134,8 @@ def economy_block(world, systems) -> dict:
             "queues": queues}
 
 
-def _npc_core(world, systems, pid: str, p) -> dict:
+def _npc_core(world, systems, pid: str, p,
+              ticks_per_day: int = 1440) -> dict:
     """NPC 的【渲染 + 列表】字段。
 
     刻意不含 intent/memory/events —— 它们会随时间越滚越大, 每帧发给每个人
@@ -167,7 +168,7 @@ def _npc_core(world, systems, pid: str, p) -> dict:
             "depart": tv.depart_tick, "arrive": tv.arrive_tick,
             "waypoints": [[round(x, 2), round(y, 2)]
                           for x, y in tv.waypoints]},
-        "plan": p.plan_snapshot(world.clock_tick),      # 当天计划表(时间线 viz; 每天才变)
+        "plan": p.plan_snapshot(world.clock_tick, ticks_per_day),  # 时间线 viz
         # 气泡: 瞬时事件(~40 tick)。前端自己按 until 决定何时消失,
         # 所以过期不需要再推一帧“空气泡”。
         "bubble": _bubble_of(p),
@@ -188,14 +189,16 @@ def _bubble_of(p) -> dict | None:
     return {"text": text, "until": int(until), "kind": kind}
 
 
-def _npc_base(world, systems, pid: str, p) -> dict:
+def _npc_base(world, systems, pid: str, p,
+              ticks_per_day: int = 1440) -> dict:
     """渲染/列表层(不含 memory/events/intent)。"""
-    return _npc_core(world, systems, pid, p)
+    return _npc_core(world, systems, pid, p, ticks_per_day)
 
 
-def _npc_rich(world, systems, pid: str, p) -> dict:
+def _npc_rich(world, systems, pid: str, p,
+              ticks_per_day: int = 1440) -> dict:
     """【被选中】的那个: 额外带意图 / 记忆 / 事件(仅供 Inspector)。"""
-    d = _npc_core(world, systems, pid, p)
+    d = _npc_core(world, systems, pid, p, ticks_per_day)
     mem = p.memory_dicts()
     d["intent"] = _intent_detail(p.last_intent)
     d["memory"] = mem
@@ -231,8 +234,10 @@ def build_snapshot(world, systems, cfg, speed: str,
     for pid, p in sorted(world.npcs.items()):
         if only is not None and pid not in only:
             continue
-        npcs.append(_npc_rich(world, systems, pid, p) if pid in rich_ids
-                    else _npc_base(world, systems, pid, p))
+        npcs.append(_npc_rich(world, systems, pid, p, cfg.ticks_per_day)
+                    if pid in rich_ids
+                    else _npc_base(world, systems, pid, p,
+                                   cfg.ticks_per_day))
     ents = [{"id": e.entity_id, "name": e.name, "loc": e.location_id,
              "item_type": e.item_type,
              "tags": sorted(e.tags), "stock": e.stock,

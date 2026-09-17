@@ -1,6 +1,10 @@
-"""npc/person/decide —— 决策: 目标推进 / 打分 / 日程
+"""npc/person/goal —— 目标: 何时重算 / 走完 / 放弃。
 
-把「记忆 + 自身状态」交给 brain 打分, 变成 committed goal 一步步走。
+决策这件事分两半, 这里是【有状态】的那半:
+  · 何时重算 —— 手上有 committed goal 就做完再算, 只有空闲才重算;
+    唯一能打断的是 PLAN(上班)。
+  · 怎么走完 —— 一步步 _advance(), 到期/失败就 _abandon()。
+纯打分(给定记忆+状态选一个 Intent)在 npc/brain/decide.py, 本文件不管。
 
 我拥有的字段: _goal, _last_intent
 我只读的字段: _home, _intake, _mem, _money, _perceived_loc, _personality, _places, _schedule, _signals, _travel_costs, _work
@@ -37,7 +41,7 @@ class _Goal:
     phase: str = "to_dest"
 
 
-class DecideMixin:
+class GoalMixin:
     """见文件头(它拥有哪些字段)。"""
 
 
@@ -54,7 +58,7 @@ class DecideMixin:
         #   其余时候守台是一个【committed goal】(时长 = 前台的 duration_ticks),
         #   —— 做完再决策: 需求只在每个 60t 边界被评估, 不会半路把守台打断。
         on_shift = self._on_shift(now_tick, cfg)
-        plan = self._plan_intent(now_tick, cfg) if on_shift else None
+        plan = self._plan_intent() if on_shift else None
         minute = now_tick % max(1, cfg.ticks_per_day)
         just_started = (on_shift and bool(self._work)
                         and minute == int(self._work.get("open", -1)))
@@ -169,10 +173,11 @@ class DecideMixin:
         return cands[idx]
 
 
-    def _plan_intent(self, now_tick: int, cfg: "SimConfig") -> "Intent | None":
+    def _plan_intent(self) -> "Intent | None":
         """班次内该做的那件事: 还没到店里 → 去店里; 到了 → 站上台。
 
-        就地取计划表里那条 daily 的上班条目(应聘时写一次, 之后不动)。
+        ★ 上班【不在计划表里】—— 它由 `_work`(应聘时绑定的公司/店/工位/班次)
+          直接派生。计划表只装作者写的脚本(场景的 `plans` 段)。
         """
         shop = str(self._work.get("shop", ""))
         station = str(self._work.get("station", ""))
@@ -259,7 +264,8 @@ class DecideMixin:
         self._goal = None
 
 
-    def plan_snapshot(self, now_tick: int = 0) -> list[dict]:
+    def plan_snapshot(self, now_tick: int = 0,
+                      ticks_per_day: int = 1440) -> list[dict]:
         """观测: 计划表只读快照(供前端时间线渲染)。
 
         含两部分:
@@ -273,7 +279,7 @@ class DecideMixin:
             "target": intent_target(e.intent) or "",
         } for e in self._schedule.entries()]
         if self._work and self._work.get("station"):
-            minute = int(now_tick) % 1440
+            minute = int(now_tick) % max(1, int(ticks_per_day))
             day_start = int(now_tick) - minute
             open_m = int(self._work.get("open", 0))
             close_m = int(self._work.get("close", 1440))

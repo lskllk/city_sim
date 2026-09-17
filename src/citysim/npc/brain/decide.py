@@ -1,7 +1,9 @@
-"""npc/brain/decide —— 决策入口: 候选 → 打分 → 选优。
+"""npc/brain/decide —— 纯打分: 候选 → 打分 → 选优(无状态)。
 
-  decide()         只回 Intent(调用方只关心"干什么")
-  decide_scored()  连打分一起回(观测/调试要看"为什么选了它")
+给定「记忆 + 自身状态」选一个 Intent, 不回写任何东西。
+【何时重算 + 怎么把手上的事做完】在 npc/person/goal.py。
+
+  decide_scored()  入口: 连打分一起回(观测/调试要看"为什么选了它")
   _choose()        把选中的候选分派成 Interact / Buy / MoveTo / Idle
 """
 from __future__ import annotations
@@ -13,38 +15,6 @@ from citysim.npc.memory import MemBase
 
 from citysim.npc.brain.candidates import MAX_BUY_QTY, _gather_candidates, _self_use
 from citysim.npc.brain.scoring import _score_candidates
-
-
-def decide(
-    signals: Mapping[str, float],
-    personality: Mapping[str, float],
-    mem: MemBase,
-    location_id: str,             # 自身状态: 我在哪(决策不看环境 percept)
-    cfg: SimConfig,
-    now_tick: int,                # 当前 tick(过滤失败冷却 cool_until)
-    self_id: str = "",            # 自身身份 id(判定"自己的"用品)
-    travel_ticks: Mapping[str, int] | None = None,   # "a|b" -> tick(可选)
-    money: float = float("inf"),  # 买不起的就不作为候选(否则反复失败刷屏)
-    home: str = "",               # 住址(囤货要看“我家还剩几个”)
-    favor: Mapping[str, float] | None = None,   # 对店铺的好感度(0..2, 中性 1.0)
-    workplace: str = "",         # 在班时的工位地点(离岗要算账)
-    leave_cost: float = 0.0,      # 离岗一次的代价(旷工扣日薪; 0=不上班/不计)
-) -> Intent:
-    """决策主算法。纯函数。铁律:
-
-      决策只读【记忆 mem + 自身状态 signals/personality/location】,
-      绝不看环境/现场(percept/world)。现场真值只在感知写入(observe)与执行失败
-      反证时进入记忆; decide 自己永远不查现场。
-
-    流程: 候选收集(无门槛) → 评分(需求 ÷ 成本) → 排序 → 选优分流。
-
-    注: 这里**不再有 fallback_need / REFLEX_SIGNALS 筛选层** —— 记忆里的行
-    全部参与打分, 唯一的阀值在得分上(cfg.utility_threshold)。
-    """
-    intent, _eff = decide_scored(signals, personality, mem, location_id, cfg,
-                                 now_tick, self_id, travel_ticks, money, home,
-                                 favor, workplace, leave_cost)
-    return intent
 
 
 def decide_scored(
@@ -62,10 +32,15 @@ def decide_scored(
     workplace: str = "",
     leave_cost: float = 0.0,
 ) -> tuple[Intent, float]:
-    """同 decide, 但多返回【得分】。
+    """决策主算法(纯函数): 候选收集 → 评分 → 排序 → 选优分流, 多回一个得分。
 
-    得分是“这件事现在值多少分”。**只在空闲时调** —— 手上有事就做完再决策,
-    没有迟滞/抢占这一层了。
+    铁律: 只读【记忆 mem + 自身状态 signals/personality/location】,
+      绝不看环境/现场(percept/world)。现场真值只在感知写入与执行失败反证时
+      进入记忆; 打分自己永远不查现场。
+
+    注: 记忆里的行**全部**参选(没有 fallback_need / REFLEX 筛选层),
+      唯一的阀值在得分上(cfg.utility_threshold)。
+    **只在空闲时调** —— 手上有事就做完再决策, 没有迟滞/抢占这一层。
     """
     cands = _gather_candidates(
         mem, signals, now_tick, self_id=self_id, home=home, cfg=cfg,

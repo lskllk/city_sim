@@ -85,7 +85,8 @@ def _pick(speaker: str, act: str, topic: str, salt: int) -> float:
     return (zlib.crc32(key.encode("utf-8")) % 10_000) / 10_000.0
 
 
-def render(ev: SemanticEvent, *, speaker_name: str = "") -> str:
+def render(ev: SemanticEvent, *, speaker_name: str = "",
+           ticks_per_day: int = 1440) -> str:
     """把语义事件渲染成一句人话(确定、可回放)。
 
     speaker_name 只在 REPORT 里用于“听{who}说” —— 必须是真名(来自 slots/调用方),
@@ -94,7 +95,7 @@ def render(ev: SemanticEvent, *, speaker_name: str = "") -> str:
     spec = _POOLS.get(ev.act)
     if spec is None:
         return ""
-    day = ev.tick // 1440
+    day = ev.tick // max(1, int(ticks_per_day))   # 措辞轮换的日界
     topic = f"{ev.topic}|{day}"
 
     def seg(name: str) -> str:

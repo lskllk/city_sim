@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 from citysim.npc.brain.decide import (  # noqa: F401
-    decide,
     decide_scored,
     _choose,
 )

@@ -880,54 +880,16 @@ func _sec_company(bid: String) -> void:
 	else:
 		_kv(sec, "货物", "%d 种 (在「物件」段增删)" % goods)
 		_kv(sec, "家具", "%d 件 (前台/货架…)" % decor)
-	# 员工: 勾选 = 在这家公司上班(工位自动分配); 时薪留空 = 跟公司默认
-	sec.add_child(_muted("员工(勾选 = 上班; 时薪留空 = 跟公司默认时薪)"))
-	var staff: Array = c.get("staff", [])
-	for pid in MapDoc.npcs:
-		var p := String(pid)
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
-		var cb := CheckBox.new()
-		cb.text = String(MapDoc.npcs[pid].get("name", pid))
-		cb.custom_minimum_size.x = 130
-		cb.button_pressed = MapDoc.staff_has(staff, p)
-		row.add_child(cb)
-		var we := LineEdit.new()
-		we.placeholder_text = "时薪"
-		we.text = MapDoc.staff_wage_text(staff, p)
-		we.custom_minimum_size.x = 54
-		we.tooltip_text = "逐人时薪(¥/小时); 留空 = 跟公司默认时薪"
-		row.add_child(we)
-		row.add_child(_muted("¥/时"))
-		# 只接“失焦/回车/点勾选” —— 边打边存会重建 inspector 抢焦点
-		cb.toggled.connect(func(on: bool) -> void: _set_staff(bid, p, on, we.text))
-		we.text_submitted.connect(func(_t: String) -> void:
-			_set_staff(bid, p, cb.button_pressed, we.text))
-		we.focus_exited.connect(func() -> void:
-			_set_staff(bid, p, cb.button_pressed, we.text))
-		sec.add_child(row)
+	# ★ 员工不由编辑器指派 —— 交给模拟自己招(每天 hire_minute 那一刻撮合):
+	#   公司发【招聘启事】(上面那个“招聘”人数 + 时薪), 没工作的人来应聘。
+	#   运行期要改谁上哪个工位, 去公司面板的【人员管理】。
+	sec.add_child(_muted("员工由模拟自己招：填上面的【招聘】人数，每天招人时刻自动撮合。"))
+	var preset: Array = c.get("staff", [])
+	if not preset.is_empty():
+		# 老场景里预置过员工: 保留(不删作者写的数据), 但它会跳过招聘直接上岗
+		sec.add_child(_muted("（这栋楼预置了 %d 名员工：他们会直接上岗，不再走招聘）"
+			% preset.size()))
 	_inspector.add_child(sec)
-
-
-## 改公司员工名单里的一个人(勾选/时薪)。值没变就不写 —— 否则每次失焦
-## 都会触 changed → 重建 inspector → 抢焦点。
-func _set_staff(bid: String, pid: String, on: bool, wage_text: String) -> void:
-	var cc := MapDoc.company_for_shop(bid)
-	if cc.is_empty():
-		return
-	var cur: Array = cc.get("staff", [])
-	var w := wage_text.strip_edges()
-	if MapDoc.staff_has(cur, pid) == on \
-			and MapDoc.staff_wage_text(cur, pid) == (w if on else ""):
-		return
-	var out: Array = []
-	for e in cur:
-		if MapDoc.staff_pid(e) != pid:
-			out.append(e)
-	if on:
-		out.append({"npc": pid, "wage": w.to_float()} if w != "" else pid)
-	cc["staff"] = out
-	MapDoc.set_company(cc)
 
 
 ## 一行输入框(标签 + LineEdit); 返回 LineEdit 供读取。

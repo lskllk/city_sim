@@ -26,8 +26,12 @@ from citysim.core.types import (
     Buy,
     Decision,
     Idle,
+    InteractionDone,
+    InteractionFailed,
     Interact,
+    ItemGone,
     MoveTo,
+    WagePaid,
     Wander,
     intent_kind,
     intent_target,
@@ -403,11 +407,6 @@ class Person:
         self._money -= amount
         return True
 
-    def earn(self, amount: float) -> None:
-        """进账(工资/卖货)。与 pay 对称 —— 只动自己的钱, 不做别的。"""
-        if amount > 0:
-            self._money += float(amount)
-
     # --- 语义层(M-S1): 攒“值得说的事”, 按优先级取 ---------------------
     def set_name_lookup(self, fn) -> None:
         """装配: 注入 npc_id -> 名字(世界侧提供, 本层只存不查)。"""
@@ -671,10 +670,6 @@ class Person:
     def memory_dicts(self) -> list:
         """观测: 记忆库只读快照(不对外暴露可写对象)。"""
         return self._mem.to_dicts()
-
-    def forget_item(self, item_id: str) -> None:
-        """删除一条记忆(物品已不存在/已交出/已消耗)。"""
-        self._mem.delete(item_id)
 
     def plan_snapshot(self, now_tick: int = 0) -> list[dict]:
         """观测: 计划表只读快照(供前端时间线渲染)。
@@ -971,20 +966,37 @@ class Person:
         self._last_intent = decision.intent
         return decision
 
-    def on_interaction_done(self, entity_id: str, tick: int = 0) -> None:
-        """窄协议: 世界告知某交互自然完成 → 结束对应 goal(计划推进下一条)。"""
-        g = self._goal
-        if g is not None and intent_target(g.intent) == entity_id:
-            self._finish_goal(g)
+    def notify(self, ev) -> None:
+        """★ world → NPC 的【唯一通知口】: 世界只说“发生了什么”。
+
+        以前是外面的世界直接调 on_interaction_done / on_failure / forget_item /
+        earn 四个 setter 改这个人; 现在只递一张【通知】进来, 怎么改自己是
+        NPC 自己的事(写记忆、开冷却、结束目标、进账…)。
+
+        对齐铁律: 世界不替 NPC 写认知 —— 它只把理由和结果交回去。
+        """
+        if isinstance(ev, InteractionDone):
+            g = self._goal
+            if g is not None and intent_target(g.intent) == ev.entity_id:
+                self._finish_goal(g)
+        elif isinstance(ev, InteractionFailed):
+            self._on_failed(ev.target_id, ev.why, ev.tick, ev.retry_ticks)
+        elif isinstance(ev, ItemGone):
+            self._mem.delete(ev.entity_id)
+        elif isinstance(ev, WagePaid):
+            if ev.amount > 0:
+                self._money += float(ev.amount)
+        else:                                # pragma: no cover - 开发期挡错
+            raise TypeError(f"未声明的通知 {ev!r}")
 
     def failure_log(self) -> list[dict]:
         """观测: 失败日志只读快照(0:00 交 LLM 用)。"""
         return list(self._failures)
 
 
-    def on_failure(self, target_id: str, why: str, now_tick: int,
+    def _on_failed(self, target_id: str, why: str, now_tick: int,
                    retry_ticks: int | None = None) -> None:
-        """窄协议: 交互失败 → 证伪/冷却记忆 + 记失败日志 + 跳过对应计划条。
+        """交互失败的内政: 证伪/冷却记忆 + 失败日志 + 推进(同 notify 的旧身)。
 
         - 目标不存在 / 已空(stock=0) → 删掉该 item 记忆。
         - 已被占用 / 不可打断 / 购买失败等 → 冷却(cool_until=now+retry), 到时再看。
@@ -1008,13 +1020,12 @@ class Person:
         g = self._goal
         if g is not None and intent_target(g.intent) == target_id:
             self._abandon()
-
     def step(self, port, cfg: "SimConfig") -> Decision:
         """★ 主动拉(WP-05): 观察 → 感知 → 决策 → 执行。
 
         与 process 的区别: 不再等 world 把 Percept 推过来; NPC 自己
         `port.observe(...)`, 决策后自己拿意图去 `port.try_*(...)`, 失败自己
-        `on_failure`(world 不再反写 NPC)。返回 Decision 供观测/日志。
+        `notify(InteractionFailed)`(world 不再反写 NPC)。返回 Decision 供观测/日志。
         """
         percept = port.observe(self.person_id)
         self.perceive(percept, percept.tick)
@@ -1028,7 +1039,7 @@ class Person:
         if isinstance(intent, MoveTo):
             r = port.try_move(self.person_id, intent.dest)
             if isinstance(r, Ack) and not r.ok:
-                self.on_failure(intent.dest, r.reason, now_tick)
+                self._on_failed(intent.dest, r.reason, now_tick)
             elif isinstance(r, Ack) and r.ok:
                 # WP-12: 起身离开 → 弃掉体内那份。world 在 preempt 时已释放 claim,
                 # 食物/床回到世界(不浪费), 也没“中止也扣一份”。
@@ -1036,7 +1047,7 @@ class Person:
         elif isinstance(intent, Interact):
             r = port.try_take(self.person_id, intent.target_id)
             if isinstance(r, Deny):
-                self.on_failure(intent.target_id, r.reason, now_tick,
+                self._on_failed(intent.target_id, r.reason, now_tick,
                                 retry_ticks=(r.retry_ticks or None))
             elif isinstance(r, Grant):
                 # 切到别的东西(而非继续当前目标) → 旧的那份弃掉
@@ -1046,7 +1057,7 @@ class Person:
         elif isinstance(intent, Buy):
             r = port.try_buy(self.person_id, intent.item_id, intent.qty)
             if isinstance(r, Ack) and not r.ok:
-                self.on_failure(intent.item_id, r.reason, now_tick)
+                self._on_failed(intent.item_id, r.reason, now_tick)
         elif isinstance(intent, Wander):
             r = port.try_wander(self.person_id, intent.dest)
             if isinstance(r, Grant):

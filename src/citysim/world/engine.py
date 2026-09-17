@@ -15,6 +15,10 @@ from citysim.core.config import SimConfig
 from citysim.core.types import (
     Buy,
     Idle,
+    InteractionDone,
+    InteractionFailed,
+    ItemGone,
+    WagePaid,
     intent_kind,
     intent_target,
 )
@@ -184,7 +188,7 @@ def _leave_queue(world, systems, pid: str, why: str = "") -> None:
         world.bus.publish(world.bus.make(
             world.clock_tick, "intent_failed", pid, {"target": shop_id, "why": why}))
         if npc is not None:
-            npc.on_failure(shop_id, why, world.clock_tick)
+            npc.notify(InteractionFailed(shop_id, why, world.clock_tick))
 
 
 def _active_at(world, systems, counter_id: str) -> str:
@@ -352,7 +356,7 @@ def pay_wages(world, cfg: SimConfig) -> None:
                      "cash": round(comp.cash, 2)}))
                 continue
             comp.cash -= due
-            npc.earn(due)
+            npc.notify(WagePaid(due))
             world.bus.publish(world.bus.make(
                 world.clock_tick, "wage_paid", npc_id,
                 {"audience": [npc_id], "company": cid, "wage": due,
@@ -758,7 +762,7 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
         world.bus.publish(world.bus.make(
             world.clock_tick, "intent_failed", pid,
             {"target": intent.item_id, "why": why}))
-        npc.on_failure(intent.item_id, why, world.clock_tick)
+        npc.notify(InteractionFailed(intent.item_id, why, world.clock_tick))
         return
     # ★ 定死三条规则: 免费自用的东西(住所授权 / 公共无主 / 本公司店员)
     #   一律不扣钱 —— 即使有人写了 Buy 意图, 引擎也不收钱。
@@ -789,7 +793,7 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
          "tags": list(container.tags) if container is not None else [],
          "shelf_life_ticks": int(container.shelf_life_ticks) if container else 0,
          "expires_tick": int(container.expires_tick) if container else 0}))
-    npc.on_interaction_done(intent.item_id, world.clock_tick)
+    npc.notify(InteractionDone(intent.item_id, world.clock_tick))
 
 
 
@@ -828,7 +832,7 @@ def tick(world, systems, cfg: SimConfig) -> None:
             if not e.persist_empty:
                 world.entities.pop(eid, None)
                 for other in world.npcs.values():
-                    other.forget_item(eid)     # 别人脑子里的那行也清掉
+                    other.notify(ItemGone(eid))     # 别人脑子里的那行也清掉
 
 
     # 1. 心跳(身体演化收进 Person; 世界只广播, 不改 signals): 代谢+hp+排泄
@@ -858,7 +862,7 @@ def tick(world, systems, cfg: SimConfig) -> None:
                     {"loc": trv.to_loc, "why": why}))
                 npc = world.npcs.get(pid)
                 if npc is not None:
-                    npc.on_failure(trv.to_loc, why, world.clock_tick)
+                    npc.notify(InteractionFailed(trv.to_loc, why, world.clock_tick))
 
     # 5a2. 闲逛到期 / 人已离开那个地方(world 侧会话; fun 由 NPC 自己消化)
     for pid in [p for p, r in systems.roaming.items()

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from citysim.core.types import Idle, Interact
+from citysim.core.types import Idle, InteractionDone, Interact, ItemGone
 from citysim.npc.person import Person
 from citysim.world.effects import apply_effects, compile_effects
 from citysim.world.world import Entity, World
@@ -167,9 +167,9 @@ class InteractionSystem:
         if (ent.stock == 0 and not ent.persist_empty
                 and (ent.is_consumable or _self_consumes(ent))):
             world.entities.pop(ent.entity_id, None)
-            npc.forget_item(ent.entity_id)
+            npc.notify(ItemGone(ent.entity_id))
         if not aborted:
-            npc.on_interaction_done(ent.entity_id, world.clock_tick)
+            npc.notify(InteractionDone(ent.entity_id, world.clock_tick))
 
     # --- 内部 ---------------------------------------------------------
     def release_active(self, world: World, pid: str) -> None:

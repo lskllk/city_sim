@@ -92,6 +92,48 @@ Intent = Idle | MoveTo | Interact | Buy | Wander
 
 
 # ---------------------------------------------------------------------------
+# world → npc 的【通知】(单向广播)
+# ---------------------------------------------------------------------------
+# 和 Intent 正好相反: Intent 是 NPC 说给世界听; Notify 是世界说给 NPC 听。
+#
+# ★ 为什么要有它: 以前 world 直接调二十几个 setter 改 NPC 身上的东西(身体/
+#   钱/工作/记忆/头顶的字), 没有一个统一的【门】—— 看不清“世界到底能改他什么”。
+#   现在世界只有两个口:
+#     notify(ev)  世界只说【发生了什么】, NPC 自己决定怎么改自己;
+#     assign(cmd) 老板/作者下的【指令】(雇佣/排班/计划…), 显式可审计。
+#   所以这层不叫“事件”而叫“通知”: 它不携带“你该变成什么样”。
+@dataclass(frozen=True, slots=True)
+class InteractionDone:
+    """一次交互自然完成(NPC 已经在 _intake 里消化完了)。"""
+    entity_id: str
+    tick: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class InteractionFailed:
+    """一次请求被否决/被打断 —— 只报【原因 + 时刻】, 证伪/冷却归 NPC 自己写。"""
+    target_id: str
+    why: str = ""
+    tick: int = 0
+    retry_ticks: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ItemGone:
+    """某件东西没了(吃光/过期销毁): 该不该忘、忘多深, NPC 自己决定。"""
+    entity_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class WagePaid:
+    """发工资(钱是进这个人的)。"""
+    amount: float
+
+
+Notify = InteractionDone | InteractionFailed | ItemGone | WagePaid
+
+
+# ---------------------------------------------------------------------------
 # 语义层契约
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True, slots=True)

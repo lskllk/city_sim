@@ -83,6 +83,13 @@
 - **世界端口（NPC 主动拉）**：`core/ports.py`（`WorldPort` 动词 + `Ack/Deny/Grant`）
   + `world/port.py`（`WorldPortImpl`）。`engine._apply` 已删；NPC 自己 `observe` +
   `try_move/try_take/try_buy/try_wander`，失败自己处理。
+- **world→NPC 只有一个通知口（进行中）**：`Person.notify(ev)` —— world 只说
+  「发生了什么」，怎么改自己是 NPC 的事。第一批已收：`notify` 取代
+  `on_interaction_done / on_failure / forget_item / earn`（这 4 个名字**必须消失**，
+  否则又是一条暗门；`tests/test_person_notify.py` 钉住）。
+  通知类型在 `core/types.py`：`InteractionDone / InteractionFailed / ItemGone /
+  WagePaid`。**还没收**：`set_activity`(×6) / `set_signal` 家族 / `pay` /
+  `set_work`家族 / `set_plan` / `bump_favor` / `worked` …（下一步 `assign(cmd)`）。
 - **信号数学在 NPC**：`Person._intake` 逐 tick 消化 `Grant`（`value/duration`）；
   「满了优先结束，否则按 duration」；world 只在 `interaction.step` 做收尾（扣货/回收）。
   中止 = 弃掉体内那份（不扣货、不触发 on_complete）。

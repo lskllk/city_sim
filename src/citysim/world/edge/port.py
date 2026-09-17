@@ -11,7 +11,7 @@ from __future__ import annotations
 from citysim.core.config import SimConfig
 from citysim.core.ports import Ack, Deny, Grant
 from citysim.core.types import Buy, Interact, Percept
-from citysim.world.mechanism.effects import compile_effects
+from citysim.world.model.itemdefs import compile_effects
 from citysim.world.edge.perception import build_percept
 from citysim.world.run.travel import Roam, Travel
 

@@ -1,15 +1,21 @@
-"""效果操作解释器 —— op 表 + apply_effects。
+"""world/mechanism/effects —— 【世界侧】的效果 op 表。
 
-首批 5 个 op(定死): set_signal / add_signal / add_pending /
-spawn_item(按物品类型在世界生成) / consume_self。
-效果从 Entity.on_complete / on_start(数据化)驱动, 替换硬编码分支。
+物品的效果写在 `config/items/*.json` 的 `on_start` / `on_complete` 里, 分两类:
+
+  · 认知侧的(改自己的信号/膀胱) —— 由 `model/itemdefs.compile_effects` 剥走,
+    编译成【不带 op 名的结构数据】交给 NPC 自己应用。所以 **npc/ 完全不认识
+    这里面的 op 名**。
+  · 世界侧的(生成东西 / 消耗自己) —— 留在本模块, 由 `apply_effects` 执行。
+    它需要 World / Entity, 所以归世界。
+
+因此本文件只认两个 op: `spawn_item` / `consume_self`。
+新增世界侧效果的步骤: 写个 `@register("名字")` 的函数 + 在 config/items 里用它。
 """
 from __future__ import annotations
 
 import logging
 from typing import Callable
 
-from citysim.core.config import SIGNALS
 from citysim.npc.person import Person
 from citysim.world.model.itemdefs import load_item_defs
 from citysim.world.world import Entity, World
@@ -26,47 +32,13 @@ def register(op_name: str):
     return deco
 
 
-def _clamp(v: float) -> float:
-    return max(0.0, min(1.0, float(v)))
-
-
-@register("set_signal")
-def _set_signal(world, npc, entity, eff) -> None:
-    s, v = eff["signal"], eff.get("value", 0.0)
-    if s in SIGNALS:
-        npc.set_signal(s, v)
-
-
-@register("add_signal")
-def _add_signal(world, npc, entity, eff) -> None:
-    s = eff["signal"]
-    v = float(eff.get("delta", eff.get("value", 0.0)))
-    if s in SIGNALS:
-        npc.add_signal(s, v)
-
-
-_PENDING_WHITELIST = frozenset({"bladder_pending"})
-
-
-@register("add_pending")
-def _add_pending(world, npc, entity, eff) -> None:
-    """膀胱等 pending 字段累加(on_start 用)。"""
-    f = eff.get("field", "")
-    if f not in _PENDING_WHITELIST:
-        log.warning("add_pending 拒绝字段 %r(白名单: %s)",
-                    f, sorted(_PENDING_WHITELIST))
-        return
-    npc.add_bladder_pending(float(eff.get("amount", 0.0)))
-
-
 @register("spawn_item")
 def _spawn_item(world, npc, entity, eff) -> None:
     """在世界按 item_type 生成 count 件物品(默认 npc 所在 location)。"""
     it = eff.get("item_type")
     if not it:
         return
-    defs = load_item_defs()
-    if it not in defs:
+    if it not in load_item_defs():
         return
     count = int(eff.get("count", 1))
     for _ in range(max(1, count)):
@@ -75,8 +47,13 @@ def _spawn_item(world, npc, entity, eff) -> None:
 
 @register("consume_self")
 def _consume_self(world, npc, entity, eff) -> None:
-    """消耗当前实体一份(stock-1)。回收不在此处 —— 统一由 _complete 第 5 步后
-    处理, 保证 interaction_done 事件先于实体移除(m3 时序契约)。"""
+    """消耗当前实体一份(stock-1)。
+
+    它同时是个【标记】: 带 `consumable` tag 的东西本来就会被 interaction 自动
+    扣一份; 不带这个 tag、却又该被用掉的(如一次性用品), 写这个 op 来声明
+    "我用完就没了" —— interaction 看到它就不自动扣, 改由这里扣。
+    回收不在此处: 统一在完成事件之后(保证 interaction_done 先于实体移除)。
+    """
     if entity.stock == -1:
         return
     if entity.stock > 0:
@@ -85,7 +62,7 @@ def _consume_self(world, npc, entity, eff) -> None:
 
 def apply_effects(world: World, npc: Person, entity: Entity,
                   effect_list: list[dict]) -> None:
-    """依序应用一列效果 op; 未知 op 记 warning 而非崩溃。"""
+    """依序应用一列【世界侧】效果; 未知 op 记 warning 而非崩溃。"""
     for eff in effect_list:
         fn = OPS.get(eff.get("op", ""))
         if fn is not None:
@@ -93,31 +70,3 @@ def apply_effects(world: World, npc: Person, entity: Entity,
         else:
             log.warning("未知 effect op=%s (entity=%s)",
                         eff.get("op"), entity.entity_id)
-
-
-# ---------------------------------------------------------------------------
-# 效果边界: 把一列 effect 拆成【NPC 侧(结构化, 无 op 名)】与【world 侧】。
-#
-#   NPC 侧 → 编译进 Grant.pending(on_start), 由 Person 开始消化时应用
-#            (npc/ 不认识 op 字符串, 只认 signal/set/add/field/amount)
-#   world 侧 → 留 world 应用(spawn_item / consume_self)
-# ---------------------------------------------------------------------------
-def compile_effects(effects) -> tuple[tuple[dict, ...], list[dict]]:
-    """(npc_effects_neutral, world_effects) —— 分解 on_start / on_complete。"""
-    npc: list[dict] = []
-    world: list[dict] = []
-    for e in (effects or ()):
-        op = e.get("op")
-        if op == "add_signal":
-            npc.append({"signal": e["signal"],
-                        "add": float(e.get("delta", e.get("value", 0.0)))})
-        elif op == "set_signal":
-            npc.append({"signal": e["signal"],
-                        "set": float(e.get("value", 0.0))})
-        elif op == "add_pending":
-            npc.append({"field": str(e.get("field", "")),
-                        "amount": float(e.get("amount", 0.0))})
-        else:
-            world.append(e)
-    return tuple(npc), world
-

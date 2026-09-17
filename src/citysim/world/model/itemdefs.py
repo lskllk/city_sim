@@ -26,10 +26,15 @@ class ConfigError(Exception):
     """物品/动作配置校验失败; message 含 文件 + 字段。"""
 
 
+# 认知侧 op: 不是由 world 执行的, 而是被 compile_effects 编译成【结构数据】
+# 交给 NPC 自己应用 —— 所以它们不在 OPS 里, 但仍是合法的 op。
+COGNITIVE_OPS: tuple[str, ...] = ("add_signal", "set_signal", "add_pending")
+
+
 def _registered_ops() -> set[str]:
-    """延迟导入避免模块级环(effects -> world -> itemdefs)。"""
+    """合法的 op = 认知侧(改自己的信号) ∪ 世界侧(已 @register 的)。"""
     from citysim.world.mechanism.effects import OPS  # noqa: PLC0415
-    return set(OPS)
+    return set(COGNITIVE_OPS) | set(OPS)
 
 
 @dataclass(frozen=True)
@@ -105,3 +110,32 @@ def load_item_defs(directory: str | Path | None = None) -> dict[str, ItemDef]:
     return _read_dir(str(d))
 
 
+
+# ---------------------------------------------------------------------------
+# 效果分流: 物品的效果写在 JSON 里, 但要分成"谁去执行"
+# ---------------------------------------------------------------------------
+#   认知侧(add_signal / set_signal / add_pending) → 编译成【不带 op 名】的
+#       结构数据, 塞进 Grant.pending, 由 Person 自己应用 ——
+#       这样 npc/ 完全不认识 config/items 里的 op 名。
+#   世界侧(spawn_item / consume_self 等) → 原样交回 world 执行。
+#
+# ★ 为什么它跟着【物品定义】走而不跟着任一侧: 拆分规则必须同时知道两边的
+#   词汇(JSON 的 op 名 + NPC 的结构字段), 所以它是物品格式的一部分。
+def compile_effects(effects) -> tuple[tuple[dict, ...], list[dict]]:
+    """把一列效果拆成 (认知侧, 世界侧)。见上。"""
+    npc: list[dict] = []
+    world: list[dict] = []
+    for e in (effects or ()):
+        op = e.get("op")
+        if op not in COGNITIVE_OPS:
+            world.append(e)
+        elif op == "add_signal":
+            npc.append({"signal": e["signal"],
+                        "add": float(e.get("delta", e.get("value", 0.0)))})
+        elif op == "set_signal":
+            npc.append({"signal": e["signal"],
+                        "set": float(e.get("value", 0.0))})
+        else:                          # add_pending
+            npc.append({"field": str(e.get("field", "")),
+                        "amount": float(e.get("amount", 0.0))})
+    return tuple(npc), world

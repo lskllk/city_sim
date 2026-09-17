@@ -7,3 +7,6 @@ dist/
 .venv/
 venv/
 .logs/
+
+# 临时分析脚本(不进版本库)
+.tmp_exp/

@@ -130,15 +130,15 @@ def tick(world, systems, cfg: SimConfig) -> None:
                     "payload": {},
                 })
 
-    # 10. 遗忘(0 点) + 夜间计划(LLM/规则模板生成次日计划)
+    # 10. 遗忘(0 点) + 夜间计划(装了 planner 才生成次日计划; 否则纯 utility)
     if world.clock_tick % cfg.ticks_per_day == 0:
         for npc in world.npcs.values():
             npc.on_day(cfg, world.clock_tick)
         planner = getattr(systems, "planner", None)
         if planner is not None:
             for npc in world.npcs.values():
-                res = planner.plan_for_person(npc, world.clock_tick)
-                npc.assign(Plan(res.entries))
+                npc.assign(Plan(planner.plan_for_person(
+                    npc, world.clock_tick)))
 
     # 11. 行为段记录(时间线 viz; 纯观测)
     _record_activity(world, systems, cfg)

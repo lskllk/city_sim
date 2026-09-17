@@ -1,75 +1,29 @@
-"""planner —— LLM 日计划生成器(接口骨架 + 规则模板降级)。
+"""planner —— 计划【从哪来】: 把作者写的计划脚本变成当天的 PlanEntry[]。
 
-铁律(npc 层): 不 import world。世界状态由调用方以 PlannerInput(纯数据)注入。
+分工:
+  schedule.py  计划表的【运行时状态机】(今天这批条子怎么执行/到期/中断)
+  planner.py   计划【从哪来】(明天的条子由谁产出) —— 只有这一件事
 
-设计:
-- LLM 只\"生成计划\", 不执行; 输出经 schema + \"目标必须在记忆里\" 校验后才入库。
-- 无 client / 抛错 / 非法输出 → 规则模板降级(保证不停摆)。
-- 结果按输入指纹缓存 → 回放不重新调 API(确定性)。
-- 计划条目 = (at_tick, 具体 Intent); target 只能取自该 NPC 记忆。
+现状只有一种来源: 场景 JSON 的 `plans` 段(导演脚本 —— 作者负责 target 存在,
+执行时不查记忆)。不设计划器 = **纯 utility 驱动**。
+
+★ 为什么不做"时刻表"式的日计划器:
+  吃饭/睡觉是【需求】, 由 utility 主导(energy 到点自然去睡) —— 写进计划表
+  等于用时钟驱动行为。计划表只留【有事在等人】的承诺: 上班 / 上学 / 约会。
+  (原来还挂着一套 LLM 计划器: 它让模型输出 "at HH:MM → interact 谁",
+   正是上面被否掉的"时刻 → 行为", 所以整条路已删除。)
 """
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Mapping, Sequence
 
 from citysim.core.types import Buy, Interact, MoveTo
 from citysim.npc.schedule import PlanEntry
 
 
-# ----------------------------------------------------------------------
-# 输入快照(纯数据, 只含 NPC 已知/自身的东西)
-# ----------------------------------------------------------------------
-@dataclass(frozen=True)
-class KnownItem:
-    """NPC 记忆里的一行(计划只能引用这里的 item_id / located)。"""
-    item_id: str
-    located: str = ""
-    afford: str = ""
-    value: float = 0.0
-    price: float = 0.0
-    owner: str = ""
-    stock: int = 0
-
-
-@dataclass(frozen=True)
-class PlannerInput:
-    person_id: str
-    home: str
-    day_start_tick: int                        # 当天 0:00 的绝对 tick
-    signals: Mapping[str, float] = field(default_factory=dict)
-    money: float = 0.0
-    known: tuple[KnownItem, ...] = ()
-    failures: tuple[Mapping[str, Any], ...] = ()
-
-    def known_ids(self) -> frozenset[str]:
-        return frozenset(k.item_id for k in self.known)
-
-    def known_locations(self) -> frozenset[str]:
-        locs = {k.located for k in self.known if k.located}
-        locs.add(self.home)
-        return frozenset(locs)
-
-
-@dataclass
-class PlanResult:
-    entries: list[PlanEntry]
-    source: str = "template"                   # "llm" | "template"
-
-
-class LLMClient(Protocol):
-    """注入的 LLM 客户端: 给 prompt, 返回 JSON 文本(计划 spec)。"""
-    def plan(self, prompt: str) -> str: ...
-
-
-# ----------------------------------------------------------------------
-# 时间: 支持标准时间 "HH:MM"(推荐) 或旧 at_minute(int, 0..1439)
-# ----------------------------------------------------------------------
 def parse_clock(s: str) -> int | None:
     """"HH:MM" → 当天分钟 0..1439; 非法返回 None。"""
-    s = s.strip()
-    hh, sep, mm = s.partition(":")
+    hh, sep, mm = s.strip().partition(":")
     if sep == "" or not (hh.isdigit() and mm.isdigit()):
         return None
     h, m = int(hh), int(mm)
@@ -88,34 +42,16 @@ def _at_minute(item: Mapping[str, Any]) -> int | None:
     return None
 
 
-# ----------------------------------------------------------------------
-# 规则模板(降级路径) —— 只产出【工作/上学】这类承诺
-# ----------------------------------------------------------------------
-# 2026-09-14: 删掉“三餐 + 睡觉”。
-#   吃饭/睡觉是【需求】, 由 utility 主导(energy 到点自然去睡) ——
-#   写进计划表等于用时钟驱动行为, 违反“数据里不出现 时刻→行为”。
-#   计划表只留【有事在等人】的承诺: 上班 / 上学 / 约会。
-# 现状: roles.json 还没做 → 没有工作锚点 → 模板返回空(纯 utility 驱动)。
-# TODO(roles): 读 config/roles.json, 按 role/@affiliation 编译工作锚点。
+def entries_from_spec(spec: Any, day_start_tick: int,
+                      prefix: str = "p") -> list[PlanEntry]:
+    """计划脚本 → PlanEntry[]（按 at_tick 排序; 结构不对的那条丢掉, 不崩）。
 
-def template_plan(inp: PlannerInput) -> list[PlanEntry]:
-    """规则模板: 只出【工作锚点】。没有工作的角色 → 空计划(交给 utility)。"""
-    return []
-
-
-# ----------------------------------------------------------------------
-# LLM spec → PlanEntry(schema + 记忆校验)
-# ----------------------------------------------------------------------
-def entries_from_spec(spec: Any, inp: PlannerInput) -> list[PlanEntry]:
-    """把 LLM 输出的 JSON spec 校验成 PlanEntry[]。
-
-    spec: [{"id","at_minute","intent":"interact|move_to","target"|"dest"}, ...]
-    非法(目标不在记忆 / 时间越界 / 结构错) → 丢弃该条(不崩)。
+    spec: [{"id","at":"HH:MM"|"at_minute", "intent":"interact|buy|move_to",
+            "target"|"dest": ...}, ...]
+    同刻保持脚本顺序(稳定排序)。
     """
     if not isinstance(spec, list):
         return []
-    ids = inp.known_ids()
-    locs = inp.known_locations()
     out: list[PlanEntry] = []
     for i, item in enumerate(spec):
         if not isinstance(item, dict):
@@ -123,153 +59,31 @@ def entries_from_spec(spec: Any, inp: PlannerInput) -> list[PlanEntry]:
         minute = _at_minute(item)
         if minute is None:
             continue
-        eid = str(item.get("id") or f"llm{i}")
+        eid = str(item.get("id") or f"{prefix}{i}")
+        at = day_start_tick + minute
         kind = item.get("intent")
-        if kind == "interact":
-            target = item.get("target")
-            if target not in ids:              # 红线: 只能引用记忆里的目标
-                continue
-            out.append(PlanEntry(eid, inp.day_start_tick + minute,
-                                 Interact(str(target))))
-        elif kind == "buy":
-            target = item.get("target")
-            if target not in ids:              # 只能买记忆里知道的商品
-                continue
-            qty = max(1, int(item.get("qty", 1)))
-            out.append(PlanEntry(eid, inp.day_start_tick + minute,
-                                 Buy(str(target), qty=qty)))
-        elif kind == "move_to":
-            dest = item.get("dest")
-            if dest not in locs:
-                continue
-            out.append(PlanEntry(eid, inp.day_start_tick + minute,
-                                 MoveTo(dest=str(dest))))
+        if kind == "interact" and item.get("target"):
+            out.append(PlanEntry(eid, at, Interact(str(item["target"]))))
+        elif kind == "buy" and item.get("target"):
+            out.append(PlanEntry(eid, at,
+                                 Buy(str(item["target"]),
+                                     qty=max(1, int(item.get("qty", 1))))))
+        elif kind == "move_to" and item.get("dest"):
+            out.append(PlanEntry(eid, at, MoveTo(dest=str(item["dest"]))))
     out.sort(key=lambda e: e.at_tick)
     return out
 
 
-def render_prompt(inp: PlannerInput) -> str:
-    """构造 LLM prompt(确定性输出, 便于回放缓存)。"""
-    payload = {
-        "person_id": inp.person_id,
-        "home": inp.home,
-        "signals": {k: round(v, 3) for k, v in sorted(inp.signals.items())},
-        "money": round(inp.money, 2),
-        "known": [
-            {"id": k.item_id, "at": k.located, "afford": k.afford,
-             "value": round(k.value, 3), "price": k.price}
-            for k in inp.known
-        ],
-        "failures": [dict(f) for f in inp.failures],
-    }
-    return (
-        "你是城市 NPC 的日计划器。计划用\"和什么物体交互\"表达:"
-        "每条写 {\"id\",\"at\",\"intent\":\"interact\","
-        "\"target\":<known 里的 id>}; 执行器会自动先走到该物体的所在地。"
-        "at 用标准时间 \"HH:MM\"(24 小时制)。"
-        "只有\"不需任何交互的纯移动\"才用 "
-        "{\"intent\":\"move_to\",\"dest\":<已知地点>}。\n"
-        + json.dumps(payload, ensure_ascii=False, sort_keys=True)
-    )
+class ScriptedPlanner:
+    """按场景里写死的脚本发计划: 每天把同一张表重新基准到当天 0:00。
 
-
-def fingerprint(inp: PlannerInput) -> str:
-    """输入指纹(缓存 key): 同输入 → 同计划, 回放不重调 API。"""
-    payload = {
-        "id": inp.person_id, "home": inp.home, "day": inp.day_start_tick,
-        "signals": {k: round(v, 4) for k, v in sorted(inp.signals.items())},
-        "money": round(inp.money, 2),
-        "known": sorted(
-            (k.item_id, k.located, k.afford, round(k.value, 4),
-             round(k.price, 2), k.owner, k.stock) for k in inp.known),
-        "failures": sorted(str(dict(f)) for f in inp.failures),
-    }
-    return json.dumps(payload, sort_keys=True, ensure_ascii=False)
-
-
-# ----------------------------------------------------------------------
-# 门面
-# ----------------------------------------------------------------------
-class Planner:
-    """LLM 计划器: 有 client 走 LLM(带缓存), 否则/失败 → 规则模板。"""
-
-    def __init__(self, client: LLMClient | None = None,
-                 cache: dict[str, Any] | None = None) -> None:
-        self._client = client
-        self._cache = cache if cache is not None else {}
-
-    def plan_day(self, inp: PlannerInput) -> PlanResult:
-        if self._client is not None:
-            key = fingerprint(inp)
-            if key in self._cache:                       # 回放: 命中缓存
-                return PlanResult(
-                    entries_from_spec(self._cache[key], inp), "llm")
-            try:
-                raw = self._client.plan(render_prompt(inp))
-                spec = json.loads(raw)
-                entries = entries_from_spec(spec, inp)
-                self._cache[key] = spec                  # 缓存原始响应
-                return PlanResult(entries, "llm")
-            except Exception:                            # 降级, 不停摆
-                pass
-        return PlanResult(template_plan(inp), "template")
-
-    def plan_for_person(self, person, day_start_tick: int) -> PlanResult:
-        """窄协议: 直接给 Person 生成次日计划(engine 0:00 调用)。"""
-        return self.plan_day(build_input(person, day_start_tick))
-
-
-def build_input(person, day_start_tick: int) -> PlannerInput:
-    """从 Person(只读门面) 构造纯数据输入。npc 层内, 不触世界。"""
-    known = tuple(
-        KnownItem(
-            item_id=r["item_id"], located=r.get("located", ""),
-            afford=r.get("afford", ""), value=float(r.get("value", 0.0)),
-            price=float(r.get("price", 0.0)), owner=r.get("owner", ""),
-            stock=int(r.get("stock", 0)),
-        )
-        for r in person.memory_dicts()
-    )
-    return PlannerInput(
-        person_id=person.person_id,
-        home=person.home,
-        day_start_tick=day_start_tick,
-        signals=dict(person.signals),
-        money=person.money,
-        known=known,
-        failures=tuple(person.failure_log()),
-    )
-
-
-class ScriptedPlanner(Planner):
-    """固定日计划(演示/观察用): 每天把同一份脚本重新基准到 day_start。
-
-    不查记忆/不校验(作者负责 target 存在)——它是"导演脚本", 不是 LLM 推理。
-    用它替换 systems.planner 即可让场景"每天按同一张表"执行。
+    它是【导演脚本】不是推理 —— 作者负责 target 存在; 缺了也不崩
+    (执行时会被世界 Deny「目标不存在」, NPC 记一次失败并跳过该条)。
     """
 
     def __init__(self, plans: Mapping[str, Sequence[Mapping[str, Any]]]) -> None:
-        super().__init__(client=None)
         self._plans = {k: [dict(x) for x in v] for k, v in plans.items()}
 
-    def plan_for_person(self, person, day_start_tick: int) -> PlanResult:
-        spec = self._plans.get(person.person_id, [])
-        entries: list[PlanEntry] = []
-        for i, item in enumerate(spec):
-            minute = _at_minute(item)
-            if minute is None:
-                continue
-            eid = str(item.get("id") or f"s{i}")
-            kind = item.get("intent")
-            if kind == "interact" and item.get("target"):
-                entries.append(PlanEntry(eid, day_start_tick + minute,
-                                         Interact(str(item["target"]))))
-            elif kind == "buy" and item.get("target"):
-                qty = max(1, int(item.get("qty", 1)))
-                entries.append(PlanEntry(eid, day_start_tick + minute,
-                                         Buy(str(item["target"]), qty=qty)))
-            elif kind == "move_to" and item.get("dest"):
-                entries.append(PlanEntry(eid, day_start_tick + minute,
-                                         MoveTo(dest=str(item["dest"]))))
-        entries.sort(key=lambda e: e.at_tick)     # 稳定: 同刻保持脚本顺序
-        return PlanResult(entries, "scripted")
+    def plan_for_person(self, person, day_start_tick: int) -> list[PlanEntry]:
+        return entries_from_spec(self._plans.get(person.person_id, []),
+                                 day_start_tick)

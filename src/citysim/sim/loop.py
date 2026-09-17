@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 
 from citysim.core.config import SimConfig
 from citysim.core.ring import RingBuffer
-from citysim.npc.planner import Planner
 from citysim.world.mechanism.events import Event
 from citysim.world.mechanism.interaction import InteractionSystem
 from citysim.world.run.travel import Travel
@@ -56,7 +55,10 @@ class Systems:
     # 场景顶层 travel.default: 矩阵缺项时的兜底
     # (以前这个字段【没人读】—— 编辑器每次导出都白写一行, 调它也没有任何反应)
     travel_default: int = 0
-    planner: Planner | None = None       # 日计划器(0:00 生成次日计划; 缺省规则模板)
+    planner: object | None = None        # 日计划器: 有 `plan_for_person(person,
+                                         # day_start_tick) -> list[PlanEntry]` 就算;
+                                         # None = 纯 utility 驱动(不写时刻表)
+                                         # 缺省 None = 纯 utility 驱动)
     roads: object | None = None          # world.roads.RoadGraph; 有则 MoveTo 走最短路
     last_decision: dict = field(default_factory=dict)  # 观测去重: npc_id -> 上次决策签名
 
@@ -67,7 +69,6 @@ def make_systems(*, log: bool = False, tell_p: float = 0.0,
                  roads: object | None = None,
                  seed: int = 0) -> Systems:
     return Systems(interaction=InteractionSystem(),
-                   planner=Planner(),
                    log_lines=[] if log else None, tell_p=tell_p,
                    listen_p=listen_p,
                    tell_same_home=tell_same_home,

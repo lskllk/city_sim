@@ -206,13 +206,13 @@ def load_scene(path: str | Path | None = None,
             world.bind_home(pid, p.home)
     world.resolve_access()
 
-    # ---- 固定日计划(演示/观察): 有 plans 段就用 ScriptedPlanner 替换模板 ----
+    # ---- 固定日计划(演示/观察): 场景写了 plans 段就装上 ScriptedPlanner ----
     plans = data.get("plans", {})
     if plans:
         systems.planner = ScriptedPlanner(plans)
         for pid, p in world.npcs.items():
-            res = systems.planner.plan_for_person(p, 0)       # 应用当天计划
-            p.assign(Plan(res.entries))
+            p.assign(Plan(  # 应用当天计划
+                systems.planner.plan_for_person(p, 0)))
     # ---- 位移成本矩阵 + 【可闲逛的公共建筑】(建完所有 NPC 之后再注入) ----
     #   places = 所有【非住所】地点 id。闲逛时从里面随机选一个走过去。
     places = [lid for lid in sorted(world.locations)

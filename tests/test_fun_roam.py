@@ -372,3 +372,33 @@ def test_need_triggered_look_only_writes_what_the_need_wants() -> None:
     npc._mem.clear()
     brain.perceive_into(npc._mem, percept, 1, only_affords=None)
     assert all(npc._mem.get(i) is not None for i in ("apple", "bed", "toilet"))
+
+
+def test_exploring_refreshes_known_rows_but_looking_for_something_does_not() -> None:
+    """★ 写不写取决于为什么看:
+
+      第一次来 / 闲逛(探索) → 现场为准【整行覆盖】—— 这就是"闲逛 = 不断刷新 view";
+      缺东西才看(找东西)     → 已有的行【不动】—— 找东西不算探索。
+    """
+    from citysim.core.types import EntityView, Percept
+    from citysim.npc import brain
+    w, s, _ = make_runtime(CFG)
+    view = EntityView(entity_id="apple", name="苹果", location_id="loc",
+                      item_type="food_apple", tags=frozenset({"consumable"}),
+                      affordances={"hunger": 0.35}, duration_ticks=12, stock=5)
+    percept = Percept(tick=100, hour_f=8.0, location_id="loc", visible=(view,))
+
+    # ① 闲逛(探索): 已有的行被刷成新鲜
+    npc = add_npc(w, s, "a", location="loc")
+    npc.note("apple", located="loc", afford="hunger", value=0.35, stock=5)
+    npc._mem.update("apple", remember=0.2)
+    brain.perceive_into(npc._mem, percept, 100, only_affords=None)
+    assert npc._mem.get("apple").remember == 1.0            # 刷新 view ✓
+    assert npc._mem.get("apple").last_seen == 100
+
+    # ② 缺东西才看(找东西): 已有的行原封不动
+    npc2 = add_npc(w, s, "b", location="loc")
+    npc2.note("apple", located="loc", afford="hunger", value=0.35, stock=5)
+    npc2._mem.update("apple", remember=0.2)
+    brain.perceive_into(npc2._mem, percept, 100, only_affords={"hunger"})
+    assert npc2._mem.get("apple").remember == 0.2           # 不动 ✓

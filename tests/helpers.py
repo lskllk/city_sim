@@ -67,7 +67,7 @@ def register_company(world: World, shop_ids, cash: float = 1000.0,
 
     测试里凡是要真的成交, 都得先注册。返回 Company。
     """
-    from citysim.world.companies import Company
+    from citysim.world.model.companies import Company
     cid = "org_test"
     ids = tuple(shop_ids) if not isinstance(shop_ids, str) else (shop_ids,)
     # 测试里默认【全天营业】—— 不然跑几十 tick 还在清晨, 店没开门什么都不会发生
@@ -85,7 +85,7 @@ def add_counter(world: World, shop_id: str, n: int = 1) -> list:
 
     现在交易是【柜台一份一份卖】: 没有前台 → 服务不了 → 顾客排队然后放弃。
     """
-    from citysim.world.itemdefs import load_item_defs
+    from citysim.world.model.itemdefs import load_item_defs
     from citysim.world.world import entity_from_def
     d = load_item_defs()["station_counter"]
     out = []

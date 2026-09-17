@@ -92,5 +92,5 @@ def test_notify_rejects_undeclared_events() -> None:
 
 
 def _port(w, s):
-    from citysim.world.port import WorldPortImpl
+    from citysim.world.edge.port import WorldPortImpl
     return WorldPortImpl(w, s, CFG)

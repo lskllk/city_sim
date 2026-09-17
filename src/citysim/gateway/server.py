@@ -443,8 +443,8 @@ def _admin_company(r, op: str, args: dict) -> dict:
     注: 招聘只是【发布启事】, 真正撮合还是每天 hire_minute 那次(媒婆)。
     """
     from citysim.core.types import Wage
-    from citysim.world.companies import Company
-    from citysim.world.market import purchase
+    from citysim.world.model.companies import Company
+    from citysim.world.econ.market import purchase
     world = r.world
     op = str(op)
     if op == "register":
@@ -512,13 +512,13 @@ def _admin_company(r, op: str, args: dict) -> dict:
         res["company"] = cid
         return res
     if op == "assign":
-        from citysim.world.tick.company import assign_station
+        from citysim.world.econ.company import assign_station
         res = assign_station(world, r.systems, r.cfg, comp,
                              str(args.get("npc", "")), str(args.get("station", "")))
         res["company"] = cid
         return res
     if op == "schedule":
-        from citysim.world.tick.company import schedule_worker
+        from citysim.world.econ.company import schedule_worker
         res = schedule_worker(world, r.systems, r.cfg, comp,
                               str(args.get("npc", "")),
                               int(args.get("open", 0)),
@@ -526,7 +526,7 @@ def _admin_company(r, op: str, args: dict) -> dict:
         res["company"] = cid
         return res
     if op == "decorate":
-        from citysim.world.market import decorate
+        from citysim.world.econ.market import decorate
         shop = str(args.get("shop", "") or (comp.shops[0] if comp.shops else ""))
         item = str(args.get("item_type", ""))
         public = bool(args.get("public", False))   # 家具权限: True=公共
@@ -604,7 +604,7 @@ async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
                          "ok": admin["ok"], "data": admin, "why": admin["why"]})
     elif name == "hire_now":
-        from citysim.world.tick.company import hire_at
+        from citysim.world.econ.company import hire_at
         hired = hire_at(r.world, r.systems, r.cfg)
         r.note_world_changed()          # 新员工/公司名额变了 → 暂停时也要推
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,

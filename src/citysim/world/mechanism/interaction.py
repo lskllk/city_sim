@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from citysim.core.types import Idle, InteractionDone, Interact, ItemGone
 from citysim.npc.person import Person
-from citysim.world.effects import apply_effects, compile_effects
+from citysim.world.mechanism.effects import apply_effects, compile_effects
 from citysim.world.world import Entity, World
 
 

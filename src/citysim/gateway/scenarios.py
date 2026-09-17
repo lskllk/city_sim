@@ -20,10 +20,10 @@ from citysim.core.types import Plan, Work
 from citysim.npc.person import Identity, Person
 from citysim.npc.planner import ScriptedPlanner
 from citysim.sim.loop import attach_replay, make_systems
-from citysim.world.buildings import build_locations
-from citysim.world.pulses import normalize as _norm_pulses
-from citysim.world.roads import RoadGraph
-from citysim.world.itemdefs import load_item_defs
+from citysim.world.model.buildings import build_locations
+from citysim.world.mechanism.pulses import normalize as _norm_pulses
+from citysim.world.model.roads import RoadGraph
+from citysim.world.model.itemdefs import load_item_defs
 from citysim.world.world import Entity, World, entity_from_def
 
 log = logging.getLogger(__name__)
@@ -267,7 +267,7 @@ def _load_companies(world: World, data: dict) -> None:
       ]
     兼容旧的 int 写法 open_minute/close_minute。
     """
-    from citysim.world.companies import Company
+    from citysim.world.model.companies import Company
     for spec in (data.get("companies") or []):
         if not isinstance(spec, dict):
             continue
@@ -301,7 +301,7 @@ def _bind_company_staff(world: World, data: dict) -> None:
     · 给了 station 就用它; 没给就自动挑公司第一个【空着的销售台】;
     · 写 work 绑定 + 角色 + 员工名单(和运行期 hire_at 一样)。
     """
-    from citysim.world.tick.company import vacant_counters
+    from citysim.world.econ.company import vacant_counters
     for spec in (data.get("companies") or []):
         if not isinstance(spec, dict):
             continue

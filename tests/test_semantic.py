@@ -22,7 +22,7 @@ CFG = load_config(ROOT / "config" / "sim.toml")
 
 
 def _see(w, npc, tick: int = 10):
-    from citysim.world.perception import build_percept
+    from citysim.world.edge.perception import build_percept
     npc.perceive(build_percept(w, npc), tick)
 
 

@@ -73,7 +73,7 @@ def test_move_and_queue_flags() -> None:
 
 def test_activity_class_equals_legacy_world_guess_when_idle() -> None:
     """world 侧 act_class_of 现在只是转发 —— 两者必须一致。"""
-    from citysim.world.tick.engine import act_class_of
+    from citysim.world.run.engine import act_class_of
     w, s, _ = make_runtime(CFG)
     add_npc(w, s, "npc", location="loc")
     assert act_class_of(w, s, "npc") == "idle"

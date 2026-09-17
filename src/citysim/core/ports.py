@@ -55,7 +55,7 @@ class Grant:
 class WorldPort(Protocol):
     """NPC 主动使用的世界能力接口。
 
-    实现体在 world 侧(`world/port.py`); 权限与仲裁都在实现里, NPC 只能"请求"。
+    实现体在 world 侧(`world/edge/port.py`); 权限与仲裁都在实现里, NPC 只能"请求"。
     """
 
     def observe(self, pid: str) -> Percept:

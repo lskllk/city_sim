@@ -13,8 +13,8 @@ import json
 
 from citysim.core.config import load_config
 from citysim.gateway.scenarios import load_scene
-from citysim.world.tick import engine as E
-from citysim.world.tick.company import assign_station, hire_at, schedule_worker
+from citysim.world.run import engine as E
+from citysim.world.econ.company import assign_station, hire_at, schedule_worker
 
 CFG = load_config("config/sim.toml")
 
@@ -39,7 +39,7 @@ def _load(tmp_path, data, counters: int = 2, hiring_slots: int = 0, wage=60.0):
     p = tmp_path / "s.json"
     p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     w, s, r = load_scene(p)
-    from citysim.world.companies import Company
+    from citysim.world.model.companies import Company
     comp = Company("org_a", "甲店", cash=5000.0, shops=("shop",),
                    open_minute=480, close_minute=1140, wage_per_hour=wage,
                    hiring_open=hiring_slots > 0, hiring_slots=hiring_slots)

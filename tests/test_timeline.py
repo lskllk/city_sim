@@ -9,7 +9,7 @@ from pathlib import Path
 
 from citysim.core.config import load_config
 from citysim.gateway.snapshot import _npc_rich
-from citysim.world.tick import engine as E
+from citysim.world.run import engine as E
 
 from helpers import add_entity, add_npc, make_runtime
 

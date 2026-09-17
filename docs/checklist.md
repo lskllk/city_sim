@@ -81,7 +81,7 @@
 ## 2.1 当前口径（最近收口，覆盖上面旧描述）
 
 - **世界端口（NPC 主动拉）**：`core/ports.py`（`WorldPort` 动词 + `Ack/Deny/Grant`）
-  + `world/port.py`（`WorldPortImpl`）。`engine._apply` 已删；NPC 自己 `observe` +
+  + `world/edge/port.py`（`WorldPortImpl`）。`engine._apply` 已删；NPC 自己 `observe` +
   `try_move/try_take/try_buy/try_wander`，失败自己处理。
 - **world→NPC 只有两个口（进行中）**：
   - `Person.notify(ev)` —— 世界只说「发生了什么」，怎么改自己是 NPC 的事。

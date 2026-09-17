@@ -1,4 +1,4 @@
-"""world/market —— 批发市场。**它是一个建筑(地点), 不是配置文件。**
+"""world/econ/market —— 批发市场。**它是一个建筑(地点), 不是配置文件。**
 
 用户定的规矩:
     · 市场是一栋楼(编辑器决定放哪), 自带【无限库存】
@@ -28,7 +28,7 @@ def market_places(world) -> list:
 
 def wholesale_price(world, item_type: str) -> float | None:
     """批发价 = 物品定义里的基准价(市场"正常定价")。"""
-    from citysim.world.itemdefs import load_item_defs
+    from citysim.world.model.itemdefs import load_item_defs
     d = load_item_defs().get(item_type)
     return float(d.price) if d is not None else None
 
@@ -39,14 +39,14 @@ def is_fixture(item_type: str) -> bool:
     靠物品定义上的 tag "fixture" 判定 —— 不写死类型清单(加了新装修件
     只要在 config/items 里打这个 tag, 市场和面板都自动认得)。
     """
-    from citysim.world.itemdefs import load_item_defs
+    from citysim.world.model.itemdefs import load_item_defs
     d = load_item_defs().get(item_type)
     return d is not None and "fixture" in d.tags
 
 
 def fixture_catalog() -> list:
     """所有可装修件: [{type, name, price}]。前端【装修管理】页读它。"""
-    from citysim.world.itemdefs import load_item_defs
+    from citysim.world.model.itemdefs import load_item_defs
     out = []
     for t, d in sorted(load_item_defs().items()):
         if "fixture" in d.tags:
@@ -60,7 +60,7 @@ def market_catalog() -> list:
 
     前端【货物管理】页按它列“向市场进货”的清单(装修件不算)。
     """
-    from citysim.world.itemdefs import load_item_defs
+    from citysim.world.model.itemdefs import load_item_defs
     out = []
     for t, d in sorted(load_item_defs().items()):
         if "fixture" in d.tags:
@@ -76,7 +76,7 @@ def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
     返回 {"ok": bool, "why": str, "cost": float, "stock": int}
     钱不够 → 能买多少买多少(不借钱、不欠款); 一份都买不起 → ok=False。
     """
-    from citysim.world.itemdefs import load_item_defs
+    from citysim.world.model.itemdefs import load_item_defs
     from citysim.world.world import entity_from_def
 
     if is_fixture(item_type):
@@ -133,7 +133,7 @@ def decorate(world, company, shop_id: str, item_type: str,
     返回 {"ok": bool, "why": str, "cost": float, "entity": str}。
     装修件与"货"分开: 它不进货架、不零售, 一次买断地钉在店里(persist_empty)。
     """
-    from citysim.world.itemdefs import load_item_defs
+    from citysim.world.model.itemdefs import load_item_defs
     from citysim.world.world import entity_from_def
 
     if shop_id not in company.shops or shop_id not in world.locations:

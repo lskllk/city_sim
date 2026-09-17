@@ -11,8 +11,8 @@ import json
 
 from citysim.core.config import load_config
 from citysim.gateway.scenarios import load_scene
-from citysim.world.tick import engine as E
-from citysim.world.tick.shop import QUEUE_GIVEUP, enqueue_buy
+from citysim.world.run import engine as E
+from citysim.world.econ.shop import QUEUE_GIVEUP, enqueue_buy
 from helpers import add_counter, register_company, staff_counter
 
 CFG = load_config("config/sim.toml")

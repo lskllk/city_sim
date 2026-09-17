@@ -15,7 +15,12 @@ python -m pip install -e ".[viz]"     # 额外: 观察器后端 (fastapi + uvico
 src/citysim/
   core/     契约层: types(Percept/Intent/Notify/Command) · ports(5 个动词) · config
   npc/      认知侧: person(门面) · brain(决策) · memory · schedule · semantic · planner
-  world/    世界侧: engine(tick 主循环) · world · market · interaction · perception · port
+  world/    世界侧: world(容器) + 四个子包:
+               model/      世界长什么样(buildings · roads · itemdefs · companies)
+               edge/       与 npc 的边界(port · perception)
+               run/        世界的时钟(run/engine.py = 主循环)
+               econ/       钱与货(shop · economy · company · market)
+               mechanism/  通用机制(interaction · effects · events · pulses)
   sim/      loop.py(推进入口 run_tick + Systems 容器)
   gateway/  scenarios(场景→世界) · server(WS) · snapshot(世界→JSON)
 config/     sim.toml + items/ · buildings/ · scenes/   ← 数值与内容都在这

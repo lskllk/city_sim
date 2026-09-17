@@ -1,4 +1,4 @@
-"""world/tick/company —— 公司经营: 工资/招聘/排班/分岗
+"""world/econ/company —— 公司经营: 工资/招聘/排班/分岗
 
 工资按【在岗时间】发(出勤多少小时领多少; 没到岗=没收入, 不搞欠薪);
 招聘 = 公司发启事 + 意愿撮合(架构只做媒婆, 名额/时薪都是公司给的);
@@ -9,7 +9,7 @@ from __future__ import annotations
 from citysim.core.config import SimConfig
 from citysim.core.types import Shift, Unwork, WagePaid, Work
 
-from citysim.world.tick.shop import _counters
+from citysim.world.econ.shop import _counters
 
 
 

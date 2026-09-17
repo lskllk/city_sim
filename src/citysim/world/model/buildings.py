@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from math import sqrt
 from pathlib import Path
 
-_DIR = Path(__file__).resolve().parents[3] / "config" / "buildings"
+_DIR = Path(__file__).resolve().parents[4] / "config" / "buildings"
 
 _DOOR_RE = re.compile(r"_(\d+)$")   # 地点 id 末尾序号 → 门牌号
 

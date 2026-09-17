@@ -7,7 +7,7 @@ from citysim.core.config import load_config
 from citysim.core.types import Interact
 from citysim.npc.person import Identity, Person
 from citysim.sim.loop import run_tick
-from citysim.world.interaction import ActiveInteraction, InteractionSystem
+from citysim.world.mechanism.interaction import ActiveInteraction, InteractionSystem
 from citysim.world.world import World
 
 from helpers import (add_entity, add_npc, is_asleep, make_runtime,
@@ -90,7 +90,7 @@ def test_new_interaction_replaces_old() -> None:
 
 def test_sleep_is_interruptible_by_new_action() -> None:
     """睡觉不再是“不可打断”: 上班/换目标能把他从床上叫起来。"""
-    from citysim.world.port import WorldPortImpl
+    from citysim.world.edge.port import WorldPortImpl
     w, s, _ = make_runtime(CFG)
     add_entity(w, "bed", location="home", tags=("sleepable",),
                affordances={}, duration_ticks=1000)

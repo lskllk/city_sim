@@ -10,7 +10,7 @@ from pathlib import Path
 from citysim.core.config import load_config
 from citysim.core.ports import Ack, Deny, Grant
 from citysim.core.types import Percept
-from citysim.world.port import WorldPortImpl
+from citysim.world.edge.port import WorldPortImpl
 
 from helpers import add_entity, add_npc, make_runtime, register_company
 

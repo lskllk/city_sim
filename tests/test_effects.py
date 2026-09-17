@@ -10,7 +10,7 @@ import pytest
 
 from citysim.core.config import load_config
 from citysim.npc.person import Identity, Person
-from citysim.world.effects import OPS, apply_effects
+from citysim.world.mechanism.effects import OPS, apply_effects
 from citysim.world.world import World
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -105,7 +105,7 @@ def test_consume_self_stock_only_no_pop() -> None:
 
 # --- interaction.py 无领域硬编码字面 -------------------------
 def test_interaction_has_no_domain_hardcode_literal() -> None:
-    p = ROOT / "src" / "citysim" / "world" / "interaction.py"
+    p = ROOT / "src" / "citysim" / "world" / "mechanism" / "interaction.py"
     text = p.read_text(encoding="utf-8")
     for tok in ("_TAKE_FOOD", "_PLAN_ZH", "厕所", "马桶", "bladder_pending"):
         assert tok not in text, f"interaction.py 残留 {tok!r}"

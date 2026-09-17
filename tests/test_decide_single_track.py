@@ -184,7 +184,7 @@ def _run(w, s, ticks: int) -> None:
 
 def _perceive(w, npc) -> None:
     """决策只读【记忆】—— 世界里的实体得先被看见。"""
-    from citysim.world.perception import build_percept
+    from citysim.world.edge.perception import build_percept
     npc.perceive(build_percept(w, npc), 0)
 
 

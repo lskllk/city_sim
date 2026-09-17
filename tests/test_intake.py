@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from citysim.core.config import load_config
 from citysim.core.types import Decision, Interact, MoveTo, Work
-from citysim.world.port import WorldPortImpl
+from citysim.world.edge.port import WorldPortImpl
 
 from helpers import add_entity, add_npc, make_runtime
 

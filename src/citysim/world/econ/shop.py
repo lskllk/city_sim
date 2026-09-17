@@ -1,4 +1,4 @@
-"""world/tick/shop —— 柜台/排队/成交服务
+"""world/econ/shop —— 柜台/排队/成交服务
 
 员工站在【销售台】上才能交易: 一个前台每 tick 服务 1 人, 多的排队。
 买不起/没人招待/排太久 → 离队 + 好感掉一截(惩罚 = 状态调制产出)。
@@ -9,7 +9,7 @@ from __future__ import annotations
 from citysim.core.config import SimConfig
 from citysim.core.types import Buy, InteractionFailed
 
-from citysim.world.tick.economy import _execute_buy
+from citysim.world.econ.economy import _execute_buy
 
 COUNTER_ITEM = "station_counter"   # 销售前台: 1 个 = 1 个销售位
 QUEUE_GIVEUP = 180                # 排队等超过这么久就放弃(3 小时; 白跑一次要记住)

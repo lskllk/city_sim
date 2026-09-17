@@ -400,7 +400,7 @@ class Person:
                 self._finished.append(g.handle)
 
     def _apply_neutral(self, effects) -> None:
-        """应用【结构化】NPC 侧效果(无 op 名; 见 world/effects.compile_effects)。
+        """应用【结构化】NPC 侧效果(无 op 名; 见 world/mechanism/effects.compile_effects)。
 
         world 那边把 add_signal/set_signal/add_pending 编译成 {signal, add|set}
         / {field, amount} —— 所以 npc/ 不认识 op 字符串。

@@ -19,7 +19,7 @@ from typing import Any, Mapping
 
 from citysim.core.config import SIGNALS
 
-_ITEMS_DIR = Path(__file__).resolve().parents[3] / "config" / "items"
+_ITEMS_DIR = Path(__file__).resolve().parents[4] / "config" / "items"
 
 
 class ConfigError(Exception):
@@ -28,7 +28,7 @@ class ConfigError(Exception):
 
 def _registered_ops() -> set[str]:
     """延迟导入避免模块级环(effects -> world -> itemdefs)。"""
-    from citysim.world.effects import OPS  # noqa: PLC0415
+    from citysim.world.mechanism.effects import OPS  # noqa: PLC0415
     return set(OPS)
 
 

@@ -13,8 +13,8 @@ from pathlib import Path
 from citysim.core.config import load_config
 from citysim.npc import brain
 from citysim.sim.loop import run_tick
-from citysim.world.tick.economy import _deliver  # noqa: PLC2701  (测试专用: 直接验送货)
-from citysim.world.itemdefs import load_item_defs
+from citysim.world.econ.economy import _deliver  # noqa: PLC2701  (测试专用: 直接验送货)
+from citysim.world.model.itemdefs import load_item_defs
 
 from helpers import add_entity, add_npc, make_runtime
 

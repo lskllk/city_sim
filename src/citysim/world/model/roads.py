@@ -1,4 +1,4 @@
-"""world/roads —— 路网图 + 最短路(纯几何/图论, 不依赖 World/Person)。
+"""world/model/roads —— 路网图 + 最短路(纯几何/图论, 不依赖 World/Person)。
 
 数据来源: scene 的 `map` 段(编辑器导出) = `nodes`(id→xy) + `edges`(id→{a,b,geom,oneway,speed,width})。
 

@@ -1,4 +1,4 @@
-"""world/tick/economy —— 钱的去向: 成交/过户/进货/发货
+"""world/econ/economy —— 钱的去向: 成交/过户/进货/发货
 
 _execute_buy 是【唯一的成交处】: 钱从买家 → 店铺所属公司(双分录),
 _deliver 把货送到手里/家里(带保质期戳), _restock_if_open 在开门前
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from citysim.core.config import SimConfig
 from citysim.core.types import Buy, InteractionDone, InteractionFailed
-from citysim.world.itemdefs import load_item_defs
+from citysim.world.model.itemdefs import load_item_defs
 from citysim.world.world import entity_from_def
 
 
@@ -158,7 +158,7 @@ def _execute_buy(world, systems, cfg: SimConfig, pid: str, npc,
 
 def _restock_if_open(world, systems, cfg: SimConfig) -> None:
     """每天开门那一刻, 各公司补一次货(只补货架, 不动任何 NPC)。"""
-    from citysim.world.market import restock_all
+    from citysim.world.econ.market import restock_all
     minute = world.clock_tick % max(1, cfg.ticks_per_day)
     day = world.clock_tick // max(1, cfg.ticks_per_day)
     for cid in sorted(world.companies):

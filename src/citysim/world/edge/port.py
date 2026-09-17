@@ -1,4 +1,4 @@
-"""world/port —— WorldPortImpl: NPC 主动拉的 world 侧实现。
+"""world/edge/port —— WorldPortImpl: NPC 主动拉的 world 侧实现。
 
 权限 / 仲裁都在这里, 一步做全(校验 → 改账 → 发事件, 原子)。
 NPC 只拿到返回值(`Grant` / `Deny` / `Ack` / `Percept`), **永远拿不到 world / Entity**。
@@ -11,9 +11,9 @@ from __future__ import annotations
 from citysim.core.config import SimConfig
 from citysim.core.ports import Ack, Deny, Grant
 from citysim.core.types import Buy, Interact, Percept
-from citysim.world.effects import compile_effects
-from citysim.world.perception import build_percept
-from citysim.world.tick.travel import Roam, Travel
+from citysim.world.mechanism.effects import compile_effects
+from citysim.world.edge.perception import build_percept
+from citysim.world.run.travel import Roam, Travel
 
 
 # ---------------------------------------------------------------------------
@@ -153,9 +153,9 @@ class WorldPortImpl:
             return Ack(ok=False, reason="人不存在")
         # 延迟 import: 买卖/排队的 world 侧实现暂在 engine(避免 engine ⇄ port 顶层环)。
         # 延迟 import: tick.shop 与 port 互相引用(engine 建端口), 顶层 import 会成环。
-        from citysim.world.tick.economy import _execute_buy
-        from citysim.world.tick.gossip import _set_bubble
-        from citysim.world.tick.shop import enqueue_buy
+        from citysim.world.econ.economy import _execute_buy
+        from citysim.world.run.gossip import _set_bubble
+        from citysim.world.econ.shop import enqueue_buy
         qty = max(1, int(qty))
         shop = world.entities.get(item_id)
         if shop is None or shop.location_id != world.loc_of(pid):

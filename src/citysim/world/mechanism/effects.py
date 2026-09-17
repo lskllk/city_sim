@@ -11,7 +11,7 @@ from typing import Callable
 
 from citysim.core.config import SIGNALS
 from citysim.npc.person import Person
-from citysim.world.itemdefs import load_item_defs
+from citysim.world.model.itemdefs import load_item_defs
 from citysim.world.world import Entity, World
 
 log = logging.getLogger(__name__)

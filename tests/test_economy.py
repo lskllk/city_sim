@@ -9,10 +9,10 @@ import json
 
 from citysim.core.config import load_config
 from citysim.gateway.scenarios import load_scene
-from citysim.world.tick import engine as E
-from citysim.world.tick.company import hire_at
-from citysim.world.tick.shop import enqueue_buy
-from citysim.world.companies import Company
+from citysim.world.run import engine as E
+from citysim.world.econ.company import hire_at
+from citysim.world.econ.shop import enqueue_buy
+from citysim.world.model.companies import Company
 
 CFG = load_config("config/sim.toml")
 
@@ -56,7 +56,7 @@ def _market(w) -> None:
 
 def _buy(w, s, qty=2):
     from citysim.core.types import Buy
-    from citysim.world.tick.economy import _execute_buy
+    from citysim.world.econ.economy import _execute_buy
     w.place_npc("npc_a", "shop")
     _execute_buy(w, s, CFG, "npc_a", w.npcs["npc_a"], Buy("food_apple_001", qty=qty))
 
@@ -171,7 +171,7 @@ def test_money_circulates(tmp_path) -> None:
 
 def test_market_purchase_puts_goods_on_company_shelf(tmp_path) -> None:
     """公司向市场进货: 钱从公司账出、货上架到自己的店。"""
-    from citysim.world.market import purchase
+    from citysim.world.econ.market import purchase
     w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=100.0,
                                               shops=("shop",))])
     _market(w)
@@ -185,7 +185,7 @@ def test_market_purchase_puts_goods_on_company_shelf(tmp_path) -> None:
 
 def test_market_is_company_only_and_never_short(tmp_path) -> None:
     """市场数量无限(不因买多次而减少); 公司钱不够 → 只买得起几份, 一份买不起就不买。"""
-    from citysim.world.market import purchase
+    from citysim.world.econ.market import purchase
     w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=7.0,
                                               shops=("shop",))])
     _market(w)
@@ -198,7 +198,7 @@ def test_market_is_company_only_and_never_short(tmp_path) -> None:
 
 def test_purchase_refused_for_shop_not_owned(tmp_path) -> None:
     """只能给自己旗下的店进货。"""
-    from citysim.world.market import purchase
+    from citysim.world.econ.market import purchase
     w, s = _load(tmp_path, _scene(), [Company("org_a", "甲店", cash=100.0,
                                               shops=("shop",))])
     _market(w)

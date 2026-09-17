@@ -1,4 +1,4 @@
-"""路网寻路(world/roads.py)契约测试。
+"""路网寻路(world/model/roads.py)契约测试。
 
 钉死三件事:
 1. **确实取最短** —— 平行的两条路, 选里程小的那条; 把小的换成大的能翻转。
@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from citysim.gateway.scenarios import NAV_SCENE, load_scene
-from citysim.world.roads import RoadGraph
+from citysim.world.model.roads import RoadGraph
 
 ROOT = Path(__file__).resolve().parents[1]
 

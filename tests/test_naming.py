@@ -13,8 +13,8 @@ import re
 from pathlib import Path
 
 from citysim.gateway.scenarios import load_scene, DEMO_SCENE
-from citysim.world.buildings import load_building_types
-from citysim.world.itemdefs import load_item_defs
+from citysim.world.model.buildings import load_building_types
+from citysim.world.model.itemdefs import load_item_defs
 
 ROOT = Path(__file__).resolve().parents[1]
 SCENES_DIR = ROOT / "config" / "scenes"

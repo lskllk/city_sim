@@ -1,4 +1,4 @@
-"""world/travel —— 跨地点移动(世界进程, 归 World 层)。
+"""world/run/travel —— 跨地点移动(世界进程, 归 World 层)。
 
 记录逻辑 region 时间线(from region → to region, depart/arrive tick), 供世界判
 "在途/忙碌"与前端做动画时间轴。

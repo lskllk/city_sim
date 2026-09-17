@@ -1,4 +1,4 @@
-"""world/tick/engine —— 世界执行器: 主循环 tick() + 观察/死亡
+"""world/run/engine —— 世界执行器: 主循环 tick() + 观察/死亡
 
 tick() 是【主循环】: 13 个步骤的编排(脉冲 → 补货/招聘/工资/过期 →
 心跳 → 交互 → 旅行/闲逛 → 柜台 → 决策 → 遗忘/计划 → 记时间线)。
@@ -13,14 +13,14 @@ from __future__ import annotations
 from citysim.npc import semantic as _sem
 from citysim.core.config import SimConfig
 from citysim.core.types import Idle, InteractionFailed, ItemGone, Plan, intent_kind, intent_target
-from citysim.world.tick.drive import due_npcs
-from citysim.world.pulses import apply as apply_pulses
-from citysim.world.port import WorldPortImpl
+from citysim.world.run.drive import due_npcs
+from citysim.world.mechanism.pulses import apply as apply_pulses
+from citysim.world.edge.port import WorldPortImpl
 
-from citysim.world.tick.company import (_hire_due, _wage_due, hire_at, pay_wages)
-from citysim.world.tick.economy import _restock_if_open
-from citysim.world.tick.gossip import SAY_COOLDOWN, _notify_due, _set_bubble
-from citysim.world.tick.shop import _serve_shops
+from citysim.world.econ.company import (_hire_due, _wage_due, hire_at, pay_wages)
+from citysim.world.econ.economy import _restock_if_open
+from citysim.world.run.gossip import SAY_COOLDOWN, _notify_due, _set_bubble
+from citysim.world.econ.shop import _serve_shops
 
 def tick(world, systems, cfg: SimConfig) -> None:
     """推进一个 tick 的世界演化(唯一执行入口)。世界进程在此, loop 只薄转发。"""

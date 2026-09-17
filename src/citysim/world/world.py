@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from citysim.npc.person import Person
-from citysim.world.events import EventBus
-from citysim.world.itemdefs import ItemDef, load_item_defs
+from citysim.world.mechanism.events import EventBus
+from citysim.world.model.itemdefs import ItemDef, load_item_defs
 
 
 def _region_center(rect: dict) -> tuple[float, float]:

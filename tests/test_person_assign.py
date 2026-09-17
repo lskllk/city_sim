@@ -78,7 +78,7 @@ def test_assign_shift_and_wage_need_a_job_and_clamp() -> None:
 
 def test_assign_plan_replaces_but_keeps_a_need_goal() -> None:
     """0 点计划器灌新计划 → 不能把【需求】goal 清掉(否则睡觉被饥饿中止)。"""
-    from citysim.world.perception import build_percept
+    from citysim.world.edge.perception import build_percept
     w, s, _ = make_runtime(CFG)
     add_entity(w, "bed", tags=("sleepable",), affordances={"energy": 0.5},
                duration_ticks=800)

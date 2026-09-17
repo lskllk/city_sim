@@ -252,12 +252,13 @@ func _render() -> void:
 		var e := Store.entity(String(items[i]))
 		var st := int(Protocol.num(e.get("stock", 1.0)))
 		var pr := Protocol.num(e.get("price", 0.0))
-		var qty := "∞" if st < 0 else str(st)
+		var is_fur := Protocol.as_array(e.get("tags", [])).has("fixture")
+		var qty := "家具" if is_fur else str(st)
 		var nm := String(e.get("name", items[i]))
 		if Protocol.s(e.get("item_type", "")) == "station_counter":
 			qty = "工位"                      # 销售前台: 交易靠它
 		elif Protocol.as_array(e.get("tags", [])).has("fixture"):
-			nm = "%s（家具）" % nm            # 装修件: 标注一下
+			nm = "%s（家具）" % nm            # 家具: 标注一下
 		var row = _i.row(i)
 		if not row.selected.is_connected(_on_item):
 			row.selected.connect(_on_item)

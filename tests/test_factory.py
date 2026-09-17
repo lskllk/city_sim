@@ -49,15 +49,14 @@ def _factory_scene(**over) -> dict:
     base = {
         "scene": "f", "display_name": "厂", "canvas": {"w": 600, "h": 400},
         "locations": {
-            "plant": {"type": "shop_small", "name": "加工厂",
+            "plant": {"type": "factory_plant", "name": "加工厂",
                       "x": 300, "y": 100, "w": 40, "h": 40},
             "home": {"type": "home_small", "name": "家",
                      "x": 100, "y": 100, "w": 40, "h": 40},
         },
         "companies": [{
             "id": "org_plant", "name": "商品加工厂", "shops": ["plant"],
-            "cash": 1000, "kind": "manufacture",
-            "produces_item": "meal_simple_raw",
+            "cash": 1000, "produces_item": "meal_simple_raw",
             "open": "08:00", "close": "19:00", "wage_per_hour": 1.5,
             "hiring_slots": 0, "staff": [{"npc": "a", "station": "w"}],
         }],
@@ -178,3 +177,20 @@ def test_fixture_catalog_is_tagged_by_company_kind() -> None:
     assert k["station_counter"] == ["retail"]
     assert k["station_workbench"] == ["manufacture"]
     assert k["toilet_basic"] == []                     # 空 = 通用
+
+
+def test_company_kind_is_decided_by_the_building(tmp_path) -> None:
+    """类型由【建筑】定死: 店铺只能零售、工厂只能制造, 别处不能开公司。
+
+    为什么: 类型和岗位对不上就招不到人(实测: 零售公司里摆工位 → 零岗位 → 无人应聘)。
+    """
+    from citysim.world.model.companies import kind_for_building
+    assert kind_for_building("shop") == "retail"
+    assert kind_for_building("factory") == "manufacture"
+    assert kind_for_building("home") == "" and kind_for_building("market") == ""
+    # 场景里把制造公司写在店铺上 → 以建筑为准, 纠正成零售
+    scene = _factory_scene()
+    scene["companies"][0]["kind"] = "manufacture"
+    scene["locations"]["plant"]["type"] = "shop_small"
+    w, _s, _r = _load(tmp_path, scene)
+    assert w.companies["org_plant"].kind == "retail"

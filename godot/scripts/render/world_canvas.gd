@@ -298,9 +298,9 @@ func _hover_lines(hit: Dictionary) -> PackedStringArray:
 				for t in (tags as Array):
 					zh.append(Zh.tag_zh(str(t)))
 				out.append("、".join(zh))
-			var stock := Protocol.num(e.get("stock"), -1.0)
-			if stock >= 0.0:
-				out.append("库存 %d" % int(stock))
+			# 家具一件一个, 不报库存; 货物才报份数(没有"无限"这回事)
+			if not (tags as Array).has("fixture"):
+				out.append("库存 %d" % int(Protocol.num(e.get("stock"), 1.0)))
 			if Protocol.s(e.get("claimed_by", "")) != "":
 				out.append("使用中")
 		"npc":

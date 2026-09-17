@@ -76,8 +76,10 @@ static func item_name(e: Dictionary, fallback: String) -> String:
 
 
 static func qty_txt(e: Dictionary) -> String:
-	var s := int(Protocol.num(e.get("stock"), -1.0))
-	return "∞" if s < 0 else str(s)
+	# 家具一件一个(数量恒为 1), 货物才报份数 —— 没有"无限库存"这回事
+	if Protocol.as_array(e.get("tags", [])).has("fixture"):
+		return "家具"
+	return str(int(Protocol.num(e.get("stock"), 1.0)))
 
 
 static func price_txt(e: Dictionary) -> String:

@@ -28,7 +28,7 @@ var scenario: String = ""
 var scene_error: String = ""
 ## 公司(只读镜像): [{id,name,cash,owner,shops,staff}] —— 经营面板读它
 var companies: Array = []
-## 装修件目录(静态, 来自 hello): [{type,name,price}] —— 【装修管理】页列可放的东西
+## 家具目录(静态, 来自 hello): [{type,name,price}] —— 【家具管理】页列可放的东西
 var fixtures: Array = []
 ## 批发市场(静态, 来自 hello): {exists, places, items:[{type,name,price}]}
 var market: Dictionary = {}

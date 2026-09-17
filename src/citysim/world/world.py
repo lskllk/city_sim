@@ -48,9 +48,8 @@ class Entity:
     duration_ticks: int = 30
     location_id: str = ""
     claimants: set[str] = field(default_factory=set)  # 占用者集合(可并发)
-    stock: int = 1                        # 容器/消耗品库存; -1=无限
-                                          # ★ 同时可被多少人占用 = stock(-1=无限)。
-                                          #   3 张床合并成 stock=3 → 3 人能同时睡;
+    stock: int = 1                        # 数量/剩余。★ 没有"无限"(-1)这回事:
+                                          #   家具恒为 1, 货物可以多; 合并只发生在货物上。
     attrs: dict[str, Any] = field(default_factory=dict)  # 如 bladder_load
     price: float = 0.0                      # 价格(0=免费)
     owner: str = ""                         # 归属(""=无主/商店; npc_id=某人拥有)
@@ -93,8 +92,18 @@ class Entity:
         return out or []
 
     @property
+    def is_furniture(self) -> bool:
+        """家具: 摆下去就一直在的东西(工位/销售台/马桶…)。
+
+        数量恒为 1、不合并、用了也不消耗 —— 所以它能被反复使用、
+        并且"同时只能一个人用"(容量=stock=1: 一个马桶不会被两个人一起占)。
+        """
+        return "fixture" in self.tags
+
+    @property
     def is_consumable(self) -> bool:
-        return "consumable" in self.tags
+        """货物才会被消耗。家具永远不算 —— 哪怕定义里误打了 consumable。"""
+        return "consumable" in self.tags and not self.is_furniture
 
     @property
     def claimed_by(self) -> str | None:
@@ -113,15 +122,13 @@ class Entity:
         """还能不能被 npc_id 占用。
 
         ★ 定死: 容量 = stock —— 一件实体代表 stock 个可用单位,
-          因此最多 stock 人可【同时】占用它(-1 = 无限)。>1 的实体不再变成
-          “一个床位锁死一排人”(3 张床/一堆食物被合并后正是这个 bug)。
+          因此最多 stock 人可【同时】占用它。家具 stock=1 → 一次只一个人用;
+          货物合并后 stock=N → 一"堆"货可被 N 人同时取(取走即减)。
         """
         if self.stock == 0:
             return False
         if npc_id is not None and npc_id in self.claimants:
             return True                       # 已经是我在用 → 继续
-        if self.stock < 0:
-            return True                       # 无限库存 → 无限并发
         return len(self.claimants) < self.stock
 
 

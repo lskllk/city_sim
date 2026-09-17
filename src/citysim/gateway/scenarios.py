@@ -151,12 +151,17 @@ def load_scene(path: str | Path | None = None,
         e.open_hours = Entity.parse_open_hours(spec.get("open_hours"))
         if "position" in spec:          # 显式锚点优先(可选)
             e.position = (float(spec["position"][0]), float(spec["position"][1]))
-        # 同一商品(同 类型/地点/归属/售价) → 库存合并, 不重复建实体
+        # 同一【货物】(同 类型/地点/归属/售价) → 数量合并, 不重复建实体。
+        # ★ 家具【不合并】也不带数量: 每件独立一个(两个马桶 = 两个实体, 各 stock=1)
+        #   —— 否则会变成"一件实体代表 N 个马桶", 容量/归属/位置都会串。
+        if e.is_furniture:
+            e.stock = 1                    # 家具数量恒为 1(场景里写几都归一)
+            world.spawn_entity(e)
+            continue
         key = (e.item_type, e.location_id, e.owner, round(e.price, 6))
         prev = merged.get(key)
         if prev is not None:
-            prev.stock = -1 if (prev.stock == -1 or e.stock == -1) \
-                else prev.stock + e.stock
+            prev.stock += e.stock
             continue
         merged[key] = e
         world.spawn_entity(e)
@@ -261,7 +266,7 @@ def _load_companies(world: World, data: dict) -> None:
       ]
     兼容旧的 int 写法 open_minute/close_minute。
     """
-    from citysim.world.model.companies import Company
+    from citysim.world.model.companies import Company, kind_for_building
     for spec in (data.get("companies") or []):
         if not isinstance(spec, dict):
             continue
@@ -272,7 +277,9 @@ def _load_companies(world: World, data: dict) -> None:
             company_id=cid, name=str(spec.get("name", cid)),
             cash=float(spec.get("cash", 1000.0)),
             owner=str(spec.get("owner", "")),
-            kind=str(spec.get("kind", "retail")),
+            # 类型由【建筑】定死(店铺→零售 / 工厂→制造): 场景里写错也以建筑为准
+            kind=(kind_for_building(str((world.locations.get(shops[0]) or {})
+                                       .get("kind", ""))) or "retail"),
             produces_item=str(spec.get("produces_item", "")),
             shops=shops,
             open_minute=_clock_minutes(spec.get("open"),

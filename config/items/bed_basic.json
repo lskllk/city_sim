@@ -2,12 +2,14 @@
   "item_type": "bed_basic",
   "name": "床",
   "tags": [
-    "sleepable"
+    "sleepable",
+    "fixture"
   ],
   "affordances": {
     "energy": 1.0
   },
   "duration_ticks": 800,
   "attrs": {},
-  "stock": 1
+  "stock": 1,
+  "build_cost": 200.0
 }

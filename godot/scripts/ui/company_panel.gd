@@ -6,7 +6,7 @@
 #     2 HR 管理    员工名单 + 发布/撤回招聘(标题/时薪) + 立刻招一次
 #     3 货物管理   在售货架/库存 + 向批发市场进货
 #     4 价格调整   逐条改售价(只改世界真值)
-#     5 装修管理   摆装修件(马桶/销售前台/工位), 从公司账出钱
+#     5 家具管理   摆家具(马桶/销售前台/工位), 从公司账出钱
 #
 # 打开方式:
 #   · 店铺【注册公司成功】→ 自动弹出
@@ -14,7 +14,7 @@
 #
 # 铁律:
 #   · 监控页是自绘 Control(每帧只画, 不建控件);
-#   · 货物/价格/装修三个列表只在【打开 / 收到应答】时重建 —— 绝不每帧增删控件;
+#   · 货物/价格/家具三个列表只在【打开 / 收到应答】时重建 —— 绝不每帧增删控件;
 #   · 面板只读 Store, 写操作一律走 Commands。
 extends CanvasLayer
 
@@ -119,7 +119,7 @@ func _build() -> void:
 	# 4 价格调整(零售能改售价; 制造的价格由批发市场定)
 	_tab_prices = _build_prices()
 	_tabs.add_child(_tab_prices)
-	# 5 装修管理(家具目录按公司类型过滤)
+	# 5 家具管理(家具目录按公司类型过滤)
 	_tab_decor = _build_decor()
 	_tabs.add_child(_tab_decor)
 	box.add_child(_tabs)
@@ -158,10 +158,10 @@ func _build_prices() -> Control:
 	return v
 
 
-# --- 装修管理 --------------------------------------------------------------
+# --- 家具管理 --------------------------------------------------------------
 func _build_decor() -> Control:
-	var v := _scroll_tab("装修管理",
-		"摆装修件(马桶/销售前台/工位…) —— 从公司账出钱, 摆完就一直在店里。")
+	var v := _scroll_tab("家具管理",
+		"摆家具(马桶/销售前台/工位…) —— 从公司账出钱, 摆完就一直在店里。")
 	_decor_list = VBoxContainer.new()
 	_decor_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_decor_list.add_theme_constant_override("separation", 4)
@@ -227,12 +227,12 @@ func open_for(cid: String) -> void:
 		_set_hint(_tab_prices,
 			"加工厂的货价由批发市场定（= 物品定义价，通常是成品的 80%）—— 这一页是只读的。")
 		_set_hint(_tab_decor,
-			"摆装修件（工位/马桶…）—— 从公司账出钱，摆完就一直在厂里。工位越多，能同时上岗的人越多。")
+			"摆家具（工位/马桶…）—— 从公司账出钱，摆完就一直在厂里。工位越多，能同时上岗的人越多。")
 	else:
 		_set_hint(_tab_goods, "货架上的货 = 向批发市场进的货; 顾客在销售台成交。")
 		_set_hint(_tab_prices, "改货架上的【售价】—— 顾客按记忆里的价格决定来不来。")
 		_set_hint(_tab_decor,
-			"摆装修件（销售前台/马桶…）—— 从公司账出钱，摆完就一直在店里。")
+			"摆家具（销售前台/马桶…）—— 从公司账出钱，摆完就一直在店里。")
 	if _monitor != null and _monitor.has_method("setup"):
 		_monitor.call("setup", cid)
 	_refresh_all()
@@ -268,7 +268,7 @@ func _is_mfg() -> bool:
 	return _kind() == "manufacture"
 
 
-## 这家公司能用的装修件 —— 按公司类型过滤(kinds 空 = 通用, 谁都能摆)。
+## 这家公司能用的家具 —— 按公司类型过滤(kinds 空 = 通用, 谁都能摆)。
 func _fixtures_here() -> Array:
 	var k := _kind()
 	var out: Array = []
@@ -493,7 +493,9 @@ func _shelf_row(e: Dictionary) -> Control:
 	row.add_child(name)
 	var stock := int(Protocol.num(e.get("stock", 0)))
 	var sl := Label.new()
-	sl.text = "库存 %s" % ("∞" if stock < 0 else str(stock))
+	# 家具数量恒为 1(不显示库存); 货物才报数
+	var is_fur := Protocol.as_array(e.get("tags", [])).has("fixture")
+	sl.text = "" if is_fur else "库存 %s" % str(stock)
 	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sl.add_theme_color_override("font_color", Color("7f8ea3"))
 	row.add_child(sl)
@@ -571,7 +573,7 @@ func _price_row(e: Dictionary) -> Control:
 	return row
 
 
-# --- 装修管理 --------------------------------------------------------------
+# --- 家具管理 --------------------------------------------------------------
 func _refresh_decor() -> void:
 	if _decor_list == null:
 		return
@@ -579,7 +581,7 @@ func _refresh_decor() -> void:
 	if _shop == "":
 		_decor_list.add_child(_muted("这家公司还没登记店铺"))
 		return
-	# 店里【已摆】的装修件 —— 按【所属】分两区: 内部(公司) / 公共(谁都能用)
+	# 店里【已摆】的家具 —— 按【所属】分两区: 内部(公司) / 公共(谁都能用)
 	var mine: Array = []
 	var pub: Array = []
 	var other: Array = []
@@ -608,15 +610,15 @@ func _refresh_decor() -> void:
 		_decor_list.add_child(_head("个人 · 别人的 (%d)" % other.size()))
 		_decor_list.add_child(_placed_rows(other, true))
 	_decor_list.add_child(HSeparator.new())
-	_decor_list.add_child(_head("装修件目录 · 放置"))
+	_decor_list.add_child(_head("家具目录 · 放置"))
 	var cat := _fixtures_here()
 	if cat.is_empty():
-		_decor_list.add_child(_muted("没有可用的装修件(config/items 里打 fixture 标签)"))
+		_decor_list.add_child(_muted("没有可用的家具(config/items 里打 fixture 标签)"))
 	for f in cat:
 		_decor_list.add_child(_decor_row(f))
 
 
-## 一区里已摆的装修件: 按类型汇总成 "· 销售前台 ×2"。
+## 一区里已摆的家具: 按类型汇总成 "· 销售前台 ×2"。
 func _placed_rows(rows: Array, show_owner: bool = false) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
@@ -673,7 +675,7 @@ func _place_btn(itype: String, public: bool, text: String) -> Button:
 	return b
 
 
-## 这个物品类型是不是装修件(在 fixtures 目录里)。
+## 这个物品类型是不是家具(在 fixtures 目录里)。
 func _is_fixture(itype: String) -> bool:
 	for f in Store.fixtures:
 		if Protocol.s((f as Dictionary).get("type", "")) == itype:
@@ -681,7 +683,7 @@ func _is_fixture(itype: String) -> bool:
 	return false
 
 
-## 装修件类型的显示名。
+## 家具类型的显示名。
 func _type_name(itype: String) -> String:
 	for f in Store.fixtures:
 		var d: Dictionary = f
@@ -691,7 +693,7 @@ func _type_name(itype: String) -> String:
 
 
 # --- 只读镜像查询 ----------------------------------------------------------
-## 店里的【货】(售价 > 0 的实体; 装修件售价为 0, 不算货)。
+## 店里的【货】(售价 > 0 的实体; 家具售价为 0, 不算货)。
 func _shelves() -> Array:
 	var out: Array = []
 	for e in Store.entities.values():

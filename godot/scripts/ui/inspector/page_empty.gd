@@ -52,7 +52,7 @@ func bind(_id: String) -> void:
 		for sid in Protocol.as_array(cd.get("shops", [])):
 			reg[Protocol.s(sid)] = true
 
-	# --- 物件: 装修件(fixture) vs 货 ---
+	# --- 物件: 家具(fixture) vs 货 ---
 	var n_decor := 0
 	for e in Store.entities.values():
 		if Protocol.as_array((e as Dictionary).get("tags", [])).has("fixture"):
@@ -76,7 +76,7 @@ func bind(_id: String) -> void:
 	UiKit.kv(sec.body(), "公司").text = "%d 家 · 员工 %d 人" % [Store.companies.size(), n_staff]
 	UiKit.kv(sec.body(), "居民").text = "%d 人%s" % [Store.npcs.size(),
 		("  ← 无住所 %d" % homeless) if homeless > 0 else ""]
-	UiKit.kv(sec.body(), "物件").text = "%d 件 (货 %d / 装修 %d)" % [
+	UiKit.kv(sec.body(), "物件").text = "%d 件 (货 %d / 家具 %d)" % [
 		Store.entities.size(), n_goods, n_decor]
 
 	var sim := UiKit.section(_box, "模拟")

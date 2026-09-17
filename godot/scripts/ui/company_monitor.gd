@@ -68,7 +68,7 @@ func _draw() -> void:
 		HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FS_HEAD, C_DIM)
 	y += 20.0
 	if counters.is_empty():
-		draw_string(font, Vector2(pad, y + 16), "还没有工位 —— 去【装修管理】摆一个销售前台",
+		draw_string(font, Vector2(pad, y + 16), "还没有工位 —— 去【家具管理】摆一个销售前台",
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FS_BODY, C_DIM)
 		y += 30.0
 	else:
@@ -140,7 +140,7 @@ func _draw_facilities(font: Font, pad: float, y: float) -> void:
 		HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FS_HEAD, C_DIM)
 	y += 20.0
 	if f.is_empty():
-		draw_string(font, Vector2(pad, y + 16), "没有设施 —— 去【装修管理】加一个",
+		draw_string(font, Vector2(pad, y + 16), "没有设施 —— 去【家具管理】加一个",
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FS_BODY, C_DIM)
 		return
 	var w := 132.0

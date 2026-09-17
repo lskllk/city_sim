@@ -376,7 +376,7 @@ func _rebuild_city_summary() -> void:
 	_kv(sec, "公司", "%d 家 · 员工 %d 人" % [s["companies"], s["staff"]])
 	_kv(sec, "居民", "%d 人%s" % [s["npcs"],
 		("  ← 无住所 %d" % s["homeless"]) if int(s["homeless"]) > 0 else ""])
-	_kv(sec, "物件", "%d 件(货 %d / 装修 %d)" % [s["items"], s["goods"], s["decor"]])
+	_kv(sec, "物件", "%d 件(货 %d / 家具 %d)" % [s["items"], s["goods"], s["decor"]])
 	_kv(sec, "初始认知", "%d 条" % s["knowledge"])
 	_city_sec.add_child(sec)
 	var by_type: Dictionary = s["by_type"]
@@ -508,7 +508,7 @@ func _header_row(text: String) -> Label:
 ##   其它  : 编辑器只管"这栋楼是什么、几层、谁能进" → 基本/楼层/权限
 ##
 ## 商铺: “基本/楼层/权限” + 【经营·公司】(注册公司 + 勾选员工 → 无头跑也生效)
-##       + 【物件】= 初始货物(meal/梨等) + 装修(销售前台/货架等 fixture)。
+##       + 【物件】= 初始货物(meal/梨等) + 家具(销售前台/货架等 fixture)。
 ## (认知注入本质也是经营, 代码留在 _sec_knowledge; 想让某类建筑重新显示,
 ##  在本表里写上 "knowledge" 即可。)
 const BLD_SECTIONS := {
@@ -710,6 +710,10 @@ func _sec_items(bid: String) -> void:
 	_f_item_type = OptionButton.new()
 	_f_item_type.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_f_item_type.item_selected.connect(func(_i: int) -> void: pass)
+	# ★ 只列【这栋楼能摆的】: 家具按建筑类型过滤(销售台只进店铺、工位只进工厂)
+	_item_type_keys = MapDoc.item_types.keys().filter(
+		func(t: String) -> bool: return MapDoc.item_allowed(bid, t))
+	_item_type_keys.sort()
 	for k in _item_type_keys:
 		_f_item_type.add_item("%s" % MapDoc.item_display(String(k)))
 	var add_i := Button.new()
@@ -748,7 +752,7 @@ func _list_items(sec: Control, ids: Array) -> void:
 		var p := float(it.get("price", 0.0))
 		psec_append(sec, _row_button("%s    %s    %s    %s" % [
 			MapDoc.item_display(String(it.get("type", ""))),
-			"∞" if st < 0 else str(st),
+			"家具" if MapDoc.is_fixture(String(it.get("type", ""))) else str(st),
 			"—" if p <= 0.0 else "¥%d" % int(p),
 			_owner_label(String(it.get("owner", "")))],
 			func() -> void: _view.select("item", String(iid))))
@@ -789,20 +793,23 @@ func _sec_company(bid: String) -> void:
 	if c.is_empty():
 		sec.add_child(_muted("未注册 —— 注册后: 有店/岗位/薪/招聘; 场景无头也能跑"))
 	var f_name := _field_row(sec, "公司名", String(c.get("name", "")), "甲店")
-	# ★ 类型决定这家公司用哪套运营: 零售(进货→上架→卖给居民) / 制造(工人站工位产出原料)
-	var kind := String(c.get("kind", "retail"))
+	# ★ 类型【由建筑定死】: 店铺只能零售、工厂只能制造(不能手选) ——
+	#   类型和岗位对不上就招不到人(实测: 零售公司里摆工位 → 零岗位 → 无人应聘)。
+	var kind := MapDoc.company_kind_for(bid)
+	if kind == "":
+		sec.add_child(_muted("这栋楼不能开公司 —— 要【店铺】(零售)或【工厂】(制造)"))
+		_inspector.add_child(sec)
+		return
 	var kind_row := HBoxContainer.new()
 	var kind_l := Label.new()
 	kind_l.text = "类型"
 	kind_l.custom_minimum_size.x = 56
 	kind_row.add_child(kind_l)
-	var kind_ob := OptionButton.new()
-	var KINDS: Array = ["retail", "manufacture"]
-	for k in KINDS:
-		kind_ob.add_item(Zh.company_kind_zh(String(k)))
-	kind_ob.select(maxi(0, KINDS.find(kind)))
-	kind_ob.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	kind_row.add_child(kind_ob)
+	var kind_v := Label.new()
+	kind_v.text = "%s（由建筑决定）" % Zh.company_kind_zh(kind)
+	kind_v.add_theme_color_override("font_color", Color("7f8ea3"))
+	kind_v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	kind_row.add_child(kind_v)
 	sec.add_child(kind_row)
 	# 制造公司必须说清产出什么 —— 下拉列出【所有可卖的货】(原料/食物…作者自由选)
 	var prod_row := HBoxContainer.new()
@@ -823,12 +830,9 @@ func _sec_company(bid: String) -> void:
 	sec.add_child(prod_row)
 	var prod_hint := _muted("制造公司只靠工人站工位产出; 产出物不能给员工吃, 每天零点由批发市场按定义价全收。")
 	sec.add_child(prod_hint)
-	var refresh_kind := func() -> void:
-		var is_mfg: bool = KINDS[maxi(0, kind_ob.selected)] == "manufacture"
-		prod_row.visible = is_mfg
-		prod_hint.visible = is_mfg
-	kind_ob.item_selected.connect(func(_k: int) -> void: refresh_kind.call())
-	refresh_kind.call()
+	var is_mfg := kind == "manufacture"
+	prod_row.visible = is_mfg
+	prod_hint.visible = is_mfg
 	var f_cash := _field_row(sec, "现金", str(int(c.get("cash", 1000))), "1000")
 	var f_open := _field_row(sec, "开门", String(c.get("open", "08:00")), "08:00")
 	var f_close := _field_row(sec, "关门", String(c.get("close", "19:00")), "19:00")
@@ -837,11 +841,10 @@ func _sec_company(bid: String) -> void:
 	var save := Button.new()
 	save.text = "注册公司" if c.is_empty() else "保存公司"
 	save.pressed.connect(func() -> void:
-		var ksel: String = String(KINDS[maxi(0, kind_ob.selected)])
 		MapDoc.set_company({
 			"id": String(c.get("id", "")), "name": f_name.text.strip_edges(),
 			"shops": [bid], "cash": f_cash.text.to_float(),
-			"kind": ksel, "produces_item": String(PROD[maxi(0, prod_ob.selected)]),
+			"kind": kind, "produces_item": String(PROD[maxi(0, prod_ob.selected)]),
 			"open": f_open.text.strip_edges(), "close": f_close.text.strip_edges(),
 			"wage_per_hour": f_wage.text.to_float(),
 			"hiring_slots": int(f_slots.text),
@@ -857,7 +860,7 @@ func _sec_company(bid: String) -> void:
 		MapDoc.remove_company(String(c.get("id", "")))
 		_rebuild_inspector())
 	sec.add_child(del)
-	# 归属: 这店里的货/装修都算这家公司的(世界按“所在地公司”判)
+	# 归属: 这店里的货/家具都算这家公司的(世界按“所在地公司”判)
 	var goods := 0
 	var decor := 0
 	for iid in (_unit_info(bid)["all_items"] as Array):
@@ -869,10 +872,10 @@ func _sec_company(bid: String) -> void:
 	if kind == "manufacture":
 		# 加工厂没有“进货” —— 地上堆的就是工人产出的原料
 		_kv(sec, "产出库存", "%d 种 (在「物件」段摆; 每天零点被市场全收)" % goods)
-		_kv(sec, "装修", "%d 件 (工位/马桶…)" % decor)
+		_kv(sec, "家具", "%d 件 (工位/马桶…)" % decor)
 	else:
 		_kv(sec, "货物", "%d 种 (在「物件」段增删)" % goods)
-		_kv(sec, "装修", "%d 件 (前台/货架…)" % decor)
+		_kv(sec, "家具", "%d 件 (前台/货架…)" % decor)
 	# 员工: 勾选 = 在这家公司上班(工位自动分配); 时薪留空 = 跟公司默认
 	sec.add_child(_muted("员工(勾选 = 上班; 时薪留空 = 跟公司默认时薪)"))
 	var staff: Array = c.get("staff", [])
@@ -1218,7 +1221,7 @@ func _build_item(iid: String) -> void:
 	for pid in MapDoc.npcs:
 		_f_owner_ids.append(pid)
 		_f_owner.add_item(String(MapDoc.npcs[pid].get("name", pid)))
-	# 公司也可以当归属; 【本店那家】标出来(店里的货/装修本就是它的)
+	# 公司也可以当归属; 【本店那家】标出来(店里的货/家具本就是它的)
 	var bld_cid := String(MapDoc.company_for_shop(
 		MapDoc.building_of(String(it.get("at", "")))).get("id", ""))
 	for cid in MapDoc.companies:

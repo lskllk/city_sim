@@ -7,7 +7,7 @@
     {
       "cash": 1000.0,
       "close": "19:00",
-      "hiring_slots": 0,
+      "hiring_slots": 0.0,
       "id": "org_bld_004",
       "name": "吵吵小店",
       "open": "08:00",
@@ -21,6 +21,21 @@
         }
       ],
       "wage_per_hour": 10.0
+    },
+    {
+      "cash": 1000.0,
+      "close": "19:00",
+      "hiring_slots": 3,
+      "id": "org_bld_013",
+      "kind": "retail",
+      "name": "食品加工",
+      "open": "08:00",
+      "produces_item": "",
+      "shops": [
+        "bld_013"
+      ],
+      "staff": [],
+      "wage_per_hour": 3.0
     }
   ],
   "display_name": "scene",
@@ -95,6 +110,30 @@
       "price": 5.0,
       "stock": 1000,
       "type": "food_apple"
+    },
+    {
+      "at": "bld_013",
+      "id": "toilet_basic_049",
+      "owner": "org_bld_013",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_013",
+      "id": "station_workbench_050",
+      "owner": "org_bld_013",
+      "type": "station_workbench"
+    },
+    {
+      "at": "bld_013",
+      "id": "station_workbench_052",
+      "owner": "org_bld_013",
+      "type": "station_workbench"
+    },
+    {
+      "at": "bld_013",
+      "id": "station_workbench_053",
+      "owner": "org_bld_013",
+      "type": "station_workbench"
     }
   ],
   "knowledge": [],
@@ -138,6 +177,14 @@
       "w": 42.43,
       "x": 342.16,
       "y": 242.0
+    },
+    "bld_013": {
+      "h": 21.91,
+      "name": "店铺2号",
+      "type": "shop_small",
+      "w": 21.91,
+      "x": 692.0,
+      "y": 405.28
     }
   },
   "map": {
@@ -248,6 +295,25 @@
           28.284
         ],
         "type": "public_plaza"
+      },
+      "bld_013": {
+        "center": [
+          702.954,
+          416.232
+        ],
+        "doors": [
+          [
+            692.0,
+            416.232
+          ]
+        ],
+        "floors": 1,
+        "rot": -270.0,
+        "size": [
+          21.909,
+          21.909
+        ],
+        "type": "shop_small"
       }
     },
     "edges": {
@@ -669,12 +735,17 @@
       "bld_004|bld_009": 29,
       "bld_004|bld_010": 7,
       "bld_004|bld_011": 29,
+      "bld_004|bld_013": 11,
       "bld_008|bld_009": 1,
       "bld_008|bld_010": 38,
       "bld_008|bld_011": 2,
+      "bld_008|bld_013": 40,
       "bld_009|bld_010": 36,
       "bld_009|bld_011": 2,
-      "bld_010|bld_011": 35
+      "bld_009|bld_013": 38,
+      "bld_010|bld_011": 35,
+      "bld_010|bld_013": 4,
+      "bld_011|bld_013": 37
     }
   }
 }

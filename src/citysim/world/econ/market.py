@@ -135,9 +135,6 @@ def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
         world.spawn_entity(shelf)
     # ★ 商品固定归属这家公司(不再靠“地点公司”推断): 顾客要买, 店员免费。
     shelf.owner = company.company_id
-    if shelf.stock == -1:
-        return {"ok": False, "why": "货架是无限货(不需要进货)", "cost": 0.0,
-                "stock": shelf.stock}
     cost = unit * qty
     company.cash -= cost
     shelf.stock += qty
@@ -195,11 +192,11 @@ def restock_all(world) -> list[dict]:
                 continue
             types = {e.item_type for e in world.entities.values()
                      if e.location_id == shop_id and e.price > 0
-                     and e.stock != -1 and not is_fixture(e.item_type)}
+                     and not is_fixture(e.item_type)}
             for itype in sorted(types):
                 have = sum(e.stock for e in world.entities.values()
                            if e.location_id == shop_id and e.item_type == itype
-                           and e.price > 0 and e.stock != -1)
+                           and e.price > 0)
                 need = int(getattr(comp, "restock_to", 60)) - int(have)
                 if need <= 0:
                     continue

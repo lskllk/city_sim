@@ -448,7 +448,7 @@ def _admin_company(r, op: str, args: dict) -> dict:
     注: 招聘只是【发布启事】, 真正撮合还是每天 hire_minute 那次(媒婆)。
     """
     from citysim.core.types import Wage
-    from citysim.world.model.companies import Company
+    from citysim.world.model.companies import Company, kind_for_building
     from citysim.world.econ.market import purchase
     world = r.world
     op = str(op)
@@ -460,15 +460,19 @@ def _admin_company(r, op: str, args: dict) -> dict:
         if loc_rec.get("company"):
             return {"ok": False, "why": "这栋楼已经登记过公司了",
                     "company": str(loc_rec["company"])}
-        if str(loc_rec.get("kind", "")) != "shop":
-            return {"ok": False, "why": "只有商铺才能注册公司", "company": ""}
+        bkind = str(loc_rec.get("kind", ""))
+        if not kind_for_building(bkind):
+            return {"ok": False, "why": "这栋楼不能开公司(要【店铺】或【工厂】)",
+                    "company": ""}
         name = str(args.get("name", "")).strip()
         if name == "":
             return {"ok": False, "why": "公司名不能空", "company": ""}
-        kind = str(args.get("kind", "retail"))
-        if kind not in COMPANY_KINDS:
-            return {"ok": False, "why": "没有这种公司类型: %s" % kind,
-                    "company": "", "kinds": sorted(COMPANY_KINDS)}
+        # 类型由建筑定死(店铺→零售 / 工厂→制造); 手选只做一致性检查
+        kind = kind_for_building(bkind)
+        if "kind" in args and str(args["kind"]) not in ("", kind):
+            return {"ok": False,
+                    "why": "这栋楼只能开【%s】公司(类型由建筑定)" % kind,
+                    "company": ""}
         produces = str(args.get("produces_item", ""))
         if kind == "manufacture" and produces == "":
             return {"ok": False, "why": "制造公司要指定产出什么(produces_item)",

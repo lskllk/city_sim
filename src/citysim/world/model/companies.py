@@ -17,6 +17,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# 建筑 kind → 它能开什么公司。"" = 不能注册公司(住宅/广场/市场…)。
+KIND_BY_BUILDING = {"shop": "retail", "factory": "manufacture"}
+
+
+def kind_for_building(building_kind: str) -> str:
+    """这栋楼能开什么公司(空 = 不能开)。类型由建筑定, 不由注册时手选。"""
+    return KIND_BY_BUILDING.get(str(building_kind), "")
+
 
 @dataclass
 class Company:
@@ -34,9 +42,11 @@ class Company:
     #   ★ 定这个值要对着【产出净值】看(见 config/sim.toml 的 [produce]):
     #     两头是「工人的伙食管饱」(下限) 和「公司不亏」(上限) ——
     #     新手约 1.8..4.5 元/时, 老手约 1.8..7.3 元/时。3.0 是两边都活的中间值。
-    # —— 公司类型(注册时定; 决定用哪套运营界面/接口) ——
-    #   "retail"      零售: 向市场进货 → 上架 → 卖给居民
-    #   "manufacture" 制造(加工厂): 工人站工位产出【原料】→ 只能卖给批发市场
+    # —— 公司类型(决定用哪套运营界面/接口) ——
+    #   "retail"      零售: 向市场进货 → 上架 → 卖给居民      ← 只能开在【店铺】里
+    #   "manufacture" 制造(加工厂): 工人站工位产出原料 → 只卖批发市场 ← 只能开在【工厂】里
+    #   ★ 不是"注册时随便选" —— 由【建筑类型】定死(见 kind_for_building):
+    #     店铺只能零售、工厂只能制造。类型和岗位对不上就招不到人(实测踩过)。
     kind: str = "retail"
     produces_item: str = ""         # 制造: 产出哪种货(空 = 不产; 见 world/econ/factory)
 

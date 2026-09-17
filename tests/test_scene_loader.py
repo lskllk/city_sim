@@ -38,7 +38,8 @@ def test_scene_explicit_geometry_gender_traits(tmp_path) -> None:
     assert p.role == "engineer"
     assert p.home == "bld_001"
     e = world.entities["bed_basic_001"]
-    assert e.location_id == "bld_001" and e.stock == 2 and e.owner == "npc_gao_jun"
+    # 床是【家具】: 数量恒为 1(场景里写 stock=2 也归一), 想要两张就摆两件
+    assert e.location_id == "bld_001" and e.stock == 1 and e.owner == "npc_gao_jun"
 
 
 def test_scene_floor_units(tmp_path) -> None:

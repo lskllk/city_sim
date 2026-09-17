@@ -17,7 +17,7 @@ const ROOM_KIND := {
 const TAG := {
 	"edible": "食物", "sleepable": "床铺", "toilet": "卫生间",
 	"consumable": "消耗品", "work": "工作台",
-	"material": "原料", "fixture": "装修件", "station": "岗位",
+	"material": "原料", "fixture": "家具", "station": "岗位",
 }
 
 # 事件 kind -> 中文。★ 后端每个 publish 的 kind 都要在这里有一行 ——

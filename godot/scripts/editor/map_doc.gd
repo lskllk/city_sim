@@ -918,7 +918,41 @@ func city_stats() -> Dictionary:
 		"knowledge": knowledge.size()}
 
 
-## 能被"生产"的货(非装修件、有定价): 制造公司产出物的下拉用。
+## 这栋楼是什么 kind(店铺/工厂/住宅…)。
+func building_kind(bid: String) -> String:
+	var tp := String(buildings.get(bid, {}).get("type", ""))
+	return String(building_types.get(tp, {}).get("kind", ""))
+
+
+## 这栋楼能开什么公司: 店铺→零售, 工厂→制造, 别的空(不能注册)。
+## ★ 与后端 world/model/companies.py 的 KIND_BY_BUILDING 同一口径 ——
+##   公司类型由【建筑】定死, 不是注册时手选(类型和岗位对不上就招不到人)。
+func company_kind_for(bid: String) -> String:
+	match building_kind(bid):
+		"shop":
+			return "retail"
+		"factory":
+			return "manufacture"
+	return ""
+
+
+## 这个物件能不能摆在这栋楼里。
+## 家具要合得上建筑类型(销售台只进店铺 / 工位只进工厂 / 马桶床通用);
+## 货(食物/原料)不分建筑, 哪都能放。
+func item_allowed(bid: String, type_id: String) -> bool:
+	var tags: Array = (item_types.get(type_id, {}) as Dictionary).get("tags", [])
+	if not tags.has("fixture"):
+		return true
+	var kinds: Array = []
+	for k in ["retail", "manufacture"]:
+		if tags.has(k):
+			kinds.append(k)
+	if kinds.is_empty():
+		return true
+	return kinds.has(company_kind_for(bid))
+
+
+## 能被"生产"的货(非家具、有定价): 制造公司产出物的下拉用。
 ## 与后端 market_catalog 同一口径 —— 原料(meal_simple_raw)也算, 它正是加工厂的产品。
 func sellable_types() -> Array:
 	var out: Array = []
@@ -932,7 +966,7 @@ func sellable_types() -> Array:
 	return out
 
 
-## 这个物件类型是不是【装修件】(fixture): 销售前台/货架/马桶…
+## 这个物件类型是不是【家具】(fixture): 销售前台/货架/马桶…
 func is_fixture(type_id: String) -> bool:
 	var d: Dictionary = item_types.get(type_id, {})
 	return (d.get("tags", []) as Array).has("fixture")

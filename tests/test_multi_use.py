@@ -1,11 +1,14 @@
-"""★ 多件同类型物件 = 多人可同时用。
+"""★ 货物可合并、家具各摆各的 —— 两条路都保证"多件 = 多人能同时用"。
 
-bug: 编辑器在家里摆 3 张床/多份食物, load_scene 会把同类型物件【合并成一个
-实体】并把数量记在 stock 上。旧占用模型 `claimed_by` 只能记一个人 → 第二个人
-就被判“已被他人占用”, 于是 3 张床只睡 1 个人、多份食物只吃 1 个人。
+历史 bug: 编辑器摆 3 张床, load_scene 把同类型物件合并成一个实体、数量记在
+stock 上; 旧的 `claimed_by` 只记一个人 → 3 张床只睡 1 个人。
 
-修法(定死): 实体的【同时占用容量 = stock】(-1 = 无限)。一件实体代表 stock 个
-可用单位, 因此最多 stock 人可同时占用它。
+现在的模型(用户拍板):
+  · 【货物】(食物/原料…): 同类型同地点同归属同售价 → 数量合并成一个实体,
+    stock = 总数; 可被消耗; 容量 = stock → 一"堆"货能被 N 人同时取。
+  · 【家具】(床/马桶/工位/销售台…): 一件一个实体, stock 恒为 1, 永不合并,
+    永不消耗 —— 3 张床就是 3 个实体, 3 个人各占一个。
+  · 没有"无限库存"(-1)这回事。
 """
 from __future__ import annotations
 
@@ -51,19 +54,20 @@ def _claim_all(w, s, entity_id: str, pids=("a", "b", "c")) -> list[bool]:
     return out
 
 
-def test_three_beds_merge_to_stock3_and_three_can_sleep(tmp_path) -> None:
+def test_three_beds_stay_three_entities_so_three_can_sleep(tmp_path) -> None:
+    """床是【家具】: 不合并、每件 stock=1 —— 3 张床 = 3 个实体, 3 人各占一个。"""
     w, s, _r = _load(tmp_path, _scene("bed_basic", 3))
-    beds = [e for e in w.entities.values() if e.item_type == "bed_basic"]
-    assert len(beds) == 1, "同类型同地点的床应先合并成一个实体"
-    bed = beds[0]
-    assert bed.stock == 3, "合并后的库存应等于床数"
-
-    assert _claim_all(w, s, bed.entity_id) == [True, True, True]
-    assert bed.claimants == {"a", "b", "c"}
-    # 容量 = 3 → 第四个人不行(这里用不存在的 d 直接查容量)
-    assert bed.claimable_by("d") is False
-    # 一个还没走, 就有床被占满
-    assert bed.claimable_by("a") is True       # 自己已在用 → 可继续
+    beds = sorted((e for e in w.entities.values() if e.item_type == "bed_basic"),
+                  key=lambda e: e.entity_id)
+    assert len(beds) == 3, "家具不合并: 三张床就是三个实体"
+    assert all(b.stock == 1 for b in beds), "家具数量恒为 1"
+    # 一人一张床 → 都睡得下(各占各的实体)
+    for pid, bed in zip(("a", "b", "c"), beds):
+        w.place_npc(pid, "home")
+        assert s.interaction.submit(w, w.npcs[pid],
+                                    Interact(target_id=bed.entity_id)) is True
+    # 一张床仍然只能一个人用
+    assert beds[0].claimable_by("d") is False
 
 
 def test_three_meals_merge_to_stock3_and_three_can_eat(tmp_path) -> None:
@@ -86,13 +90,15 @@ def test_single_food_still_exclusive(tmp_path) -> None:
     assert ok[1] is False and ok[2] is False       # 后来者被占
 
 
-def test_infinite_stock_allows_unlimited_concurrent(tmp_path) -> None:
-    """stock=-1(无限) → 任意多个人可同时用。"""
-    w, s, _r = _load(tmp_path, _scene("bed_basic", 1, stock=-1))
-    bed = [e for e in w.entities.values() if e.item_type == "bed_basic"][0]
-    assert bed.stock == -1
-    assert _claim_all(w, s, bed.entity_id) == [True, True, True]
-    assert bed.claimable_by("d") is True
+def test_furniture_stock_is_normalized_to_one(tmp_path) -> None:
+    """家具数量恒为 1 —— 场景里写 -1/5 都会被归一, 且一次只一个人用。
+
+    (没有"无限库存"这回事: 想多一个就多摆一件。)
+    """
+    w, s, _r = _load(tmp_path, _scene("toilet_basic", 1, stock=-1))
+    t = [e for e in w.entities.values() if e.item_type == "toilet_basic"][0]
+    assert t.stock == 1 and t.is_furniture
+    assert _claim_all(w, s, t.entity_id) == [True, False, False]
 
 
 def test_release_frees_a_slot(tmp_path) -> None:
@@ -110,8 +116,8 @@ def test_release_frees_a_slot(tmp_path) -> None:
 
 def test_eat_consumes_bed_does_not(tmp_path) -> None:
     """★ 区分"消耗"与"占用":
-    - 食物: 吃完 stock-1; 三人同时吃 → 吃完 stock 归 0, 实体回收;
-    - 床: 睡完 stock 不变; 三人同时睡 → 醒来 stock 仍是 3, 实体还在, 可再用。
+    - 食物(货物): 吃完 stock-1; 三人同时吃一堆 → 吃完 stock 归 0, 实体回收;
+    - 床(家具):   睡完 stock 不变(恒为 1), 实体还在, 可以再睡。
     两者共用同一套 [当前占用人数 < stock] 名额判定 —— 所以都对。
     """
     w, s, _r = _load(tmp_path, _scene("meal_simple", 3))
@@ -126,13 +132,14 @@ def test_eat_consumes_bed_does_not(tmp_path) -> None:
     assert meal.entity_id not in w.entities      # 空食物回收
     assert meal.claimants == set()
 
-    w2, s2, _r2 = _load(tmp_path, _scene("bed_basic", 3))
+    w2, s2, _r2 = _load(tmp_path, _scene("bed_basic", 1))
     bed = [e for e in w2.entities.values() if e.item_type == "bed_basic"][0]
     bed.duration_ticks = 1
-    assert _claim_all(w2, s2, bed.entity_id) == [True, True, True]
-    for pid in ("a", "b", "c"):
-        s2.interaction.finish(w2, pid, s2.interaction.active[pid].handle)
-    assert bed.stock == 3                        # 床不消耗, 还是 3 张
+    w2.place_npc("a", "home")
+    assert s2.interaction.submit(w2, w2.npcs["a"],
+                                 Interact(target_id=bed.entity_id)) is True
+    s2.interaction.finish(w2, "a", s2.interaction.active["a"].handle)
+    assert bed.stock == 1                        # 家具不消耗, 还是 1
     assert bed.entity_id in w2.entities
-    assert bed.claimants == set()                # 但都醒了, 名额全空
+    assert bed.claimants == set()                # 睡醒 → 名额空出来
     assert bed.claimable_by("d") is True

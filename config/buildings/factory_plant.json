@@ -1,0 +1,14 @@
+{
+  "type": "factory_plant",
+  "name": "加工厂",
+  "kind": "factory",
+  "capacity": 36,
+  "pattern": "diag",
+  "aspect": 1.3,
+  "doors": [
+    {
+      "side": "south",
+      "offset": 0.0
+    }
+  ]
+}

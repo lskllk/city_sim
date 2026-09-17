@@ -315,6 +315,21 @@ def _fixture_catalog() -> list:
     return fixture_catalog()
 
 
+def _producible_catalog() -> list:
+    """能当【产出】的货: 非家具、有定价。加工厂注册时要选产什么。
+
+    ★ 不能复用 market 那张表 —— 批发市场的目录【排除了原料】(原料只被收购),
+      而原料正是加工厂的产品。两边口径不同, 所以这里单独列。
+    """
+    from citysim.world.model.itemdefs import load_item_defs
+    out = []
+    for t, d in sorted(load_item_defs().items()):
+        if "fixture" in d.tags or float(getattr(d, "price", 0.0)) <= 0.0:
+            continue
+        out.append({"type": t, "name": d.name, "price": float(d.price)})
+    return out
+
+
 def _market_info(runner) -> dict:
     """批发市场(静态): 在不在 + 能进什么货/批发价。【货物管理】页读它。"""
     from citysim.world.econ.market import market_catalog, market_places
@@ -357,6 +372,7 @@ def hello_payload(runner) -> dict:
                 for cid, comp in sorted(runner.world.companies.items())],
             # 装修件目录(静态): 【装修管理】页按它列可放的东西与价格。
             "fixtures": _fixture_catalog(),
+            "producible": _producible_catalog(),
             # 批发市场(静态): 在不在 + 可进货清单。【货物管理】页读它。
             "market": _market_info(runner),
             "tell_p": runner.systems.tell_p,

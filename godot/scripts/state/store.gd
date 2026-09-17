@@ -30,6 +30,7 @@ var scene_error: String = ""
 var companies: Array = []
 ## 家具目录(静态, 来自 hello): [{type,name,price}] —— 【家具管理】页列可放的东西
 var fixtures: Array = []
+var producible: Array = []      # 能当「产出」的货(加工厂注册时选)
 ## 批发市场(静态, 来自 hello): {exists, places, items:[{type,name,price}]}
 var market: Dictionary = {}
 ## 经济观测块(每帧更新, 只有数字): 公司账/前台数/在岗数/排队数
@@ -77,6 +78,7 @@ func init_hello(h: Dictionary) -> void:
 	scene_error = Protocol.s(h.get("scene_error"))
 	companies = Protocol.as_array(h.get("companies", []))
 	fixtures = Protocol.as_array(h.get("fixtures", []))
+	producible = Protocol.as_array(h.get("producible", []))
 	market = Protocol.as_dict(h.get("market", {}))
 	seed_value = int(Protocol.num(h.get("seed")))
 	n_npc = int(Protocol.num(h.get("n_npc")))

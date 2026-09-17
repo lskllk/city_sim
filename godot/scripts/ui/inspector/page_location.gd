@@ -40,6 +40,10 @@ var _comp_body: VBoxContainer
 # —— 铁律: bind() 绝不增删控件, 否则按钮每 100ms 被重建一次 = 闪烁 + 点不中。
 var _reg_hint: Label
 var _reg_name: LineEdit
+var _reg_prod: OptionButton           # 加工厂: 产什么(注册前必选)
+var _reg_prod_lab: Label
+var _reg_prod_hint: Label
+var _prod_types: Array = []           # 下拉里的 item_type(下标对齐 OptionButton)
 var _reg_btn: Button
 var _go_btn: Button
 var _company_id := ""                # 当前店铺已注册到的公司(解析后的真 id)
@@ -69,11 +73,21 @@ func build() -> void:
 	_reg_hint = UiKit.muted(_comp_body, "没注册公司的店【不能卖、不能招人】")
 	_reg_name = LineEdit.new()
 	_comp_body.add_child(_reg_name)
+	# 加工厂: 注册前要选【产出什么】(后端要求制造公司必须指定产出)
+	_reg_prod_lab = UiKit.muted(_comp_body, "产出什么（加工厂必选）")
+	_reg_prod = OptionButton.new()
+	_reg_prod.item_selected.connect(func(_i: int) -> void: _sync_reg_btn())
+	_comp_body.add_child(_reg_prod)
+	_reg_prod_hint = UiKit.muted(_comp_body,
+		"工人站在【工位】上按在岗时间产出它; 只卖批发市场(每天零点全部收走)。")
 	_reg_btn = Button.new()
 	_reg_btn.text = "注册公司（现金 ¥1000）"
 	_reg_btn.pressed.connect(func() -> void:
 		Commands.cmd("register_company", {"location": _cur_bid,
-			"name": _reg_name.text.strip_edges()}))
+			"name": _reg_name.text.strip_edges(),
+			"produces_item": String(_prod_types[_reg_prod.selected])
+				if _is_factory() and _reg_prod.selected >= 0
+					and _reg_prod.selected < _prod_types.size() else ""}))
 	# 【必须填公司名】: 名字空 → 按钮禁用(并说明为什么)
 	_reg_name.text_changed.connect(func(_s: String) -> void: _sync_reg_btn())
 	_sync_reg_btn()
@@ -126,6 +140,7 @@ func bind(id: String) -> void:
 		_msg.text = ""
 		_seen_reply = Commands.reply_seq
 		_company_id = ""
+		_fill_producible()      # 换楼才重建下拉(每帧重建会闪)
 	var multi := Store.is_multi(bid)
 	var is_home := Zh.kind_zh(Protocol.s(room.get("kind", ""))) == "住所"
 	_floor_sec.visible = multi and is_home
@@ -269,12 +284,33 @@ func _render() -> void:
 
 
 ## 注册按钮: 名字空就不能点(用户定: 一定要输入公司名字)
+## 现在看的是不是【加工厂】(能开制造公司)。
+func _is_factory() -> bool:
+	return Protocol.s(_room.get("kind", "")) == "factory"
+
+
+## 填"产出"下拉 —— 只在【换楼】时调一次(OptionButton 的 clear/add 会闪)。
+func _fill_producible() -> void:
+	_prod_types.clear()
+	_reg_prod.clear()
+	if not _is_factory():
+		return
+	for it in Store.producible:
+		var d: Dictionary = it
+		_prod_types.append(Protocol.s(d.get("type", "")))
+		_reg_prod.add_item("%s　¥%.0f" % [Protocol.s(d.get("name", "")),
+			Protocol.num(d.get("price", 0.0))])
+	_sync_reg_btn()
+
+
 func _sync_reg_btn() -> void:
 	if _reg_btn == null:
 		return
 	var blank := _reg_name.text.strip_edges() == ""
-	_reg_btn.disabled = blank
-	_reg_btn.tooltip_text = "先填公司名" if blank else "注册后直接进入公司管理"
+	var need_prod := _is_factory() and _prod_types.is_empty()
+	_reg_btn.disabled = blank or need_prod
+	_reg_btn.tooltip_text = ("先填公司名" if blank else
+		"城里没有可产出的货(config/items)" if need_prod else "注册后直接进入公司管理")
 
 
 ## 公司段(商铺): 未注册 → 注册按钮; 注册了 → 只显示【进入公司管理】。
@@ -293,8 +329,10 @@ func _sync_company(kind: String, bid: String) -> void:
 		if ok and new_cid != "":
 			CompanyPanelScript.open_company(new_cid)      # 注册成功 → 直接进运营界面
 	var cid := Protocol.s(_room.get("company", ""))
-	_comp_sec.visible = kind == "shop"
-	if kind != "shop":
+	# 能开公司的建筑: 店铺(零售) 与 加工厂(制造)
+	var can_own := kind == "shop" or kind == "factory"
+	_comp_sec.visible = can_own
+	if not can_own:
 		return
 	# 兜底: location 上的 company 还没同步到, 但某家公司已把这栋楼列进 shops
 	# → 也算已注册(否则会出现"注册过了还显示注册按钮")
@@ -307,8 +345,12 @@ func _sync_company(kind: String, bid: String) -> void:
 	var registered := cid != ""
 	_company_id = cid                  # 供【进入公司管理】按钮使用
 	# 注册组 / 管理组: 二选一, 绝不同时出现
+	var is_factory := kind == "factory"
 	_reg_hint.visible = not registered
 	_reg_name.visible = not registered
+	_reg_prod_lab.visible = (not registered) and is_factory
+	_reg_prod.visible = (not registered) and is_factory
+	_reg_prod_hint.visible = (not registered) and is_factory
 	_reg_btn.visible = not registered
 	_go_btn.visible = registered
 	_comp_sec.set_title("公司管理" if registered else "公司 · 未注册")

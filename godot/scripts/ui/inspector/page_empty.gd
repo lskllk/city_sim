@@ -38,8 +38,8 @@ func bind(_id: String) -> void:
 			"home":
 				n_home += 1
 				beds += int(Protocol.num(r.get("capacity", 0)))
-			"shop":
-				n_shop += 1
+			"shop", "factory":
+				n_shop += 1          # 能开公司的建筑: 店铺(零售)/工厂(制造)
 			"market":
 				n_market += 1
 
@@ -70,7 +70,7 @@ func bind(_id: String) -> void:
 	UiKit.kv(sec.body(), "建筑").text = "%d 栋%s" % [n_bld,
 		("  (%d 个楼层单元)" % n_units) if n_units > 0 else ""]
 	UiKit.kv(sec.body(), "住宅").text = "%d 栋 · 床位 %d" % [n_home, beds]
-	UiKit.kv(sec.body(), "商铺").text = "%d 栋 · 已注册公司 %d" % [n_shop, reg.size()]
+	UiKit.kv(sec.body(), "商铺/工厂").text = "%d 栋 · 已注册公司 %d" % [n_shop, reg.size()]
 	if n_market > 0:
 		UiKit.kv(sec.body(), "市场").text = "%d 栋" % n_market
 	UiKit.kv(sec.body(), "公司").text = "%d 家 · 员工 %d 人" % [Store.companies.size(), n_staff]

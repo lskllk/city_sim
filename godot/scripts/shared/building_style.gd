@@ -25,6 +25,7 @@ const ROAD_COLOR := Color("59636f")
 const KIND_COLOR := {
 	"home": Color("7a5a3a"),
 	"shop": Color("2f7d78"),
+	"factory": Color("6f7078"),
 	"work": Color("8a5a34"),
 	"public": Color("42557f"),
 	"school": Color("6b5a8a"),
@@ -176,6 +177,13 @@ static func draw_emblem(ci: CanvasItem, center: Vector2, kind: String, base: Col
 			for i in range(1, 3):
 				var x := c.x - 10.0 + float(i) * 6.6667
 				ci.draw_line(Vector2(x, c.y - 5), Vector2(x, c.y + 2), col, 1.0)
+		"factory":
+			# 厂房: 屋顶锯齿 + 烟囱
+			ci.draw_rect(Rect2(c + Vector2(-10, -3), Vector2(20, 9)), col, false, 1.5)
+			for i in range(1, 4):
+				var x := c.x - 10.0 + float(i) * 5.0
+				ci.draw_line(Vector2(x, c.y - 3), Vector2(x + 2.5, c.y - 7), col, 1.0)
+			ci.draw_rect(Rect2(c + Vector2(6, -11), Vector2(3, 8)), col, false, 1.5)
 		"work":
 			ci.draw_line(c + Vector2(-9, 7), c + Vector2(2, -9), col, 2.0)
 			ci.draw_line(c + Vector2(-2, 9), c + Vector2(9, -7), col, 2.0)

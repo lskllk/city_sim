@@ -404,6 +404,8 @@ func _kind_zh(k: String) -> String:
 			return "住宅"
 		"shop":
 			return "商铺"
+		"factory":
+			return "加工厂"
 		"market":
 			return "市场"
 		"office":
@@ -513,7 +515,9 @@ func _header_row(text: String) -> Label:
 ##  在本表里写上 "knowledge" 即可。)
 const BLD_SECTIONS := {
 	"home": ["basic", "floors", "access", "people", "items"],
+	# 能开公司的建筑: 店铺(零售) 与 加工厂(制造) —— 公司段给它们同一套界面
 	"shop": ["basic", "floors", "access", "company", "items"],
+	"factory": ["basic", "floors", "access", "company", "items"],
 	"_default": ["basic", "floors", "access"],
 }
 

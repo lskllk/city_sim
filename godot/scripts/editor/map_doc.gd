@@ -886,8 +886,8 @@ func city_stats() -> Dictionary:
 		if k == "home":
 			homes += 1
 			beds += total_capacity(String(bid))
-		elif k == "shop":
-			shops += 1
+		elif k == "shop" or k == "factory":
+			shops += 1            # 能开公司的建筑(零售 / 制造)
 	var housed := 0
 	for pid in npcs:
 		var h := String(npcs[pid].get("home", ""))

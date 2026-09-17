@@ -226,3 +226,33 @@ def test_wandering_reports_activity_class() -> None:
     npc.decide(CFG, 1)                       # 开窗口
     assert npc.activity() == ("wander", "闲逛")
     assert npc.activity_class == "wander"
+
+
+# --- 家里的东西不衰减(常识), 别处的照常丢 ---------------------------------
+
+def test_home_rows_are_never_deleted() -> None:
+    """家 = 常识: 落在家的行【永不删除】; 别处的行照常变旧/被删。
+
+    为什么: 能否【忘掉】一个地方衡量的是【熟悉度】, 不是时间。天天住的地方不该忘
+    —— 否则"忘了自家的床 → 困了也想不到回家"会变成死锁。
+
+    但【只是不删, 仍照常衰减】: "衰减"同时兼任"该不该再看一眼"的信号
+    (掉到 obs_refresh_below 以下就触发观察)。若连衰减都免了, 家会被【冻结】——
+    永远不进观察 → 家里新出现的东西永远发现不了。
+    """
+    from citysim.npc.brain.memory_io import forget, place_id
+    w, s, _ = make_runtime(CFG)
+    npc = add_npc(w, s, "n", location="home", home="home")   # ← home 要显式给
+    npc.note("bed_home", located="home", afford="energy", value=0.5, stock=1)
+    npc.note("apple_shop", located="shop", afford="hunger", value=0.35, stock=1)
+    npc.note(place_id("home"), located="home", afford="", stock=1)
+    # 跑 30 个"游戏日"的遗忘(远超删行阈值 7 天)
+    for day in range(1, 31):
+        forget(npc._mem, CFG.half_life_ticks, CFG.ticks_per_day,
+               keep_located=npc.home)
+    assert npc._mem.get("bed_home") is not None          # 家的: 还在 ✓
+    assert npc._mem.get(place_id("home")) is not None    # 家的地点行也在 ✓
+    assert npc._mem.get("apple_shop") is None            # 店里的: 早丢了 ✓
+    # 但【只是不删, 仍然照常衰减】(否则家会被冻结 → 新出现的东西永远发现不了)
+    assert npc._mem.get("bed_home").remember < 1.0       # 淡了 ✓
+    assert npc._mem.get("bed_home").remember <= CFG.obs_refresh_below  # 低到会触发"再看一眼" ✓

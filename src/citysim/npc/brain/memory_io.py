@@ -83,10 +83,20 @@ def _touch_place(mem: MemBase, loc: str, tick: int) -> float:
 
 
 def forget(mem: MemBase, half_life_ticks: int, step_ticks: int = 1440,
-           forget_threshold: float = FORGET_DEFAULT) -> int:
+           forget_threshold: float = FORGET_DEFAULT,
+           keep_located: str = "") -> int:
     """遗忘策略: 按【调用的间隔】做一步半衰衰减, 低于阈值删行。
 
     返回值 = 本次被遗忘删除的 item 数。何时调用/半衰/阈值由上层定(如每游戏日)。
+
+    ★ `keep_located`: 落在这个地点上的行【永不删除】—— 传"家"的 id。
+      语义: 能否【忘掉】一个地方衡量的是【熟悉度】, 不是时间。天天住的地方是常识
+      (否则"忘了自家的床 → 困了也想不起回家"就成了死锁)。
+      但注意: **只是不删, 仍然照常衰减** —— 因为"衰减"同时兼任
+      "该不该再看一眼"的信号(掉到 obs_refresh_below 以下就触发观察)。
+      若连衰减都免了, 家会变成【冻结】: 永远不进观察 → 家里新出现的东西永远发现不了。
+      别处的知识照常变旧 → 常去的地方靠上面那条信号周期刷新, 不去的地方真的会忘
+      —— 这正好是"认知差"的来源。
 
     ★ 为什么是"一步"而不是"按距上次观察的 dt":
       本函数由上层【按固定节奏】调(现在 = 每个游戏日 0:00)。早先的实现用
@@ -100,6 +110,10 @@ def forget(mem: MemBase, half_life_ticks: int, step_ticks: int = 1440,
     gone = 0
     for r in mem.items():
         rem = float(r.remember) * factor
+        if keep_located and r.located == keep_located:
+            # 家 = 常识: 照常衰减(以便隔几天被"再看一眼"刷新), 但永不删。
+            mem.update(r.item_id, remember=max(rem, forget_threshold))
+            continue
         if rem < forget_threshold:
             mem.delete(r.item_id)
             gone += 1

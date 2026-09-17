@@ -355,7 +355,9 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
 
     def decay_memory(self, cfg: "SimConfig") -> int:
         """遗忘(remember 衰减删行)。每游戏日调; 返回遗忘条数。"""
-        return brain.forget(self._mem, cfg.half_life_ticks, cfg.ticks_per_day)
+        # 家的东西不忘(衰减衡量熟悉度, 不是时间; 否则"忘了自家的床"会死锁)
+        return brain.forget(self._mem, cfg.half_life_ticks,
+                            cfg.ticks_per_day, keep_located=self._home)
 
 
     # ------------------------------------------------------------------

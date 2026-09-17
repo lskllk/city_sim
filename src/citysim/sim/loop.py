@@ -1,6 +1,6 @@
 """sim/loop —— 引擎装配与薄 tick 入口。
 
-世界执行(每个 tick 的演化/编排)已下沉到 world/engine.tick。本模块只负责:
+世界执行(每个 tick 的演化/编排)已下沉到 world/run/engine.tick。本模块只负责:
   Systems(执行环境容器) + make_systems + attach_replay(观测/回放) + run_tick(薄转发)。
 """
 from __future__ import annotations
@@ -11,9 +11,9 @@ from dataclasses import dataclass, field
 from citysim.core.config import SimConfig
 from citysim.core.ring import RingBuffer
 from citysim.npc.planner import Planner
-from citysim.world.events import Event
-from citysim.world.interaction import InteractionSystem
-from citysim.world.travel import Travel
+from citysim.world.mechanism.events import Event
+from citysim.world.mechanism.interaction import InteractionSystem
+from citysim.world.run.travel import Travel
 from citysim.world.world import World
 
 
@@ -99,6 +99,6 @@ def attach_replay(world: World, systems: Systems) -> None:
 
 def run_tick(world: World, systems: Systems, cfg: SimConfig,
              rng_pool=None) -> None:
-    """推进一个 tick(薄转发到 world/engine.tick; rng_pool 保留兼容, 暂未用)。"""
-    from citysim.world.engine import tick as _engine_tick
+    """推进一个 tick(薄转发到 world/run/engine.tick; rng_pool 保留兼容, 暂未用)。"""
+    from citysim.world.run.engine import tick as _engine_tick
     _engine_tick(world, systems, cfg)

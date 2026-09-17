@@ -119,7 +119,7 @@ def test_eat_consumes_bed_does_not(tmp_path) -> None:
             if e.item_type == "meal_simple"][0]
     meal.duration_ticks = 1
     assert _claim_all(w, s, meal.entity_id) == [True, True, True]
-    # WP-09: 完成由 NPC 消化驱动(world 只收尾) —— 这里直接触发收尾, 测消耗账。
+    # 完成由 NPC 消化驱动(world 只收尾) —— 这里直接触发收尾, 测消耗账。
     for pid in ("a", "b", "c"):
         s.interaction.finish(w, pid, s.interaction.active[pid].handle)
     assert meal.stock == 0                       # 3 份被吃光

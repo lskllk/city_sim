@@ -1,19 +1,19 @@
-"""world/port —— WorldPortImpl: NPC 主动拉的 world 侧实现。
+"""world/edge/port —— WorldPortImpl: NPC 主动拉的 world 侧实现。
 
 权限 / 仲裁都在这里, 一步做全(校验 → 改账 → 发事件, 原子)。
 NPC 只拿到返回值(`Grant` / `Deny` / `Ack` / `Percept`), **永远拿不到 world / Entity**。
 
-本模块是 `engine._apply` 各分支的归属地: WP-02 搬 `MoveTo`, WP-03 搬 `Interact`,
-WP-04 搬 `Buy`; WP-06 之后 engine 只做 dispatch(端口由 tick 建一次)。
+每种意图一个动词, 一一对应: MoveTo→try_move, Interact→try_take,
+Buy→try_buy, Wander→try_wander。端口由 tick 建一次, 传入 Person.step。
 """
 from __future__ import annotations
 
 from citysim.core.config import SimConfig
 from citysim.core.ports import Ack, Deny, Grant
 from citysim.core.types import Buy, Interact, Percept
-from citysim.world.effects import compile_effects
-from citysim.world.perception import build_percept
-from citysim.world.travel import Roam, Travel
+from citysim.world.mechanism.effects import compile_effects
+from citysim.world.edge.perception import build_percept
+from citysim.world.run.travel import Roam, Travel
 
 
 # ---------------------------------------------------------------------------
@@ -132,12 +132,13 @@ class WorldPortImpl:
             return Deny(why or "提交失败", retry_ticks=retry)
         signal, value = (next(iter(ent.affordances.items()), ("", 0.0))
                          if ent is not None else ("", 0.0))
-        # WP-10: on_start 的【NPC 侧】编译成结构化字段(NPC 不认识 op)
+        # on_start 的【NPC 侧】编译成结构化字段(NPC 不认识 op 名)
         pending, _ = compile_effects(getattr(ent, "on_start", None))
         act = systems.interaction.active.get(pid)
         return Grant(
             handle=(act.handle if act is not None else entity_id),
             entity_id=entity_id,
+            name=str(getattr(ent, "name", "") or ""),
             signal=str(signal), value=float(value),
             duration_ticks=max(1, int(getattr(ent, "duration_ticks", 1) or 1)),
             pending=pending,
@@ -151,8 +152,10 @@ class WorldPortImpl:
         if npc is None:
             return Ack(ok=False, reason="人不存在")
         # 延迟 import: 买卖/排队的 world 侧实现暂在 engine(避免 engine ⇄ port 顶层环)。
-        # TODO(WP-16): shop/queue 逻辑抽到 world/shop.py 后改为顶层 import。
-        from citysim.world.engine import _execute_buy, _set_bubble, enqueue_buy
+        # 延迟 import: tick.shop 与 port 互相引用(engine 建端口), 顶层 import 会成环。
+        from citysim.world.econ.economy import _execute_buy
+        from citysim.world.run.gossip import _set_bubble
+        from citysim.world.econ.shop import enqueue_buy
         qty = max(1, int(qty))
         shop = world.entities.get(item_id)
         if shop is None or shop.location_id != world.loc_of(pid):
@@ -181,9 +184,6 @@ class WorldPortImpl:
         handle = "roam:%s:%d" % (pid, world.clock_tick)
         systems.roaming[pid] = Roam(dest=dest, handle=handle,
                                     until=world.clock_tick + ticks)
-        npc = world.npcs.get(pid)
-        if npc is not None:
-            npc.set_activity("闲逛")
         return Grant(handle=handle, entity_id="", signal="fun",
                      value=float(self.cfg.fun_roam_value),
                      duration_ticks=ticks, tags=("roam",))

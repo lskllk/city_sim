@@ -10,7 +10,7 @@ from pathlib import Path
 
 from citysim.core.config import load_config
 from citysim.core.types import Idle, Interact, Wander
-from citysim.world.port import WorldPortImpl
+from citysim.world.edge.port import WorldPortImpl
 
 from helpers import add_entity, add_npc, make_runtime
 
@@ -82,7 +82,7 @@ def test_need_beats_wander() -> None:
                affordances={"hunger": 0.5}, duration_ticks=20)
     npc = add_npc(w, s, "n", location="loc", fun=0.2, hunger=0.1)
     npc.set_places(["plaza"])
-    from citysim.world.perception import build_percept
+    from citysim.world.edge.perception import build_percept
     npc.perceive(build_percept(w, npc), 0)        # 先看见饭
     d = npc.decide(CFG, 100)
     assert isinstance(d.intent, Interact) and d.intent.target_id == "meal"
@@ -130,7 +130,7 @@ def test_roam_grant_raises_fun() -> None:
 
 def test_roaming_cleared_when_leaving() -> None:
     """人离开那个地方(被打断去干别的) → world 侧的 roaming 也要清掉。"""
-    from citysim.world import engine as E
+    from citysim.world.run import engine as E
     w, s, _ = make_runtime(CFG)
     add_entity(w, "plaza", location="plaza", tags=("building",), affordances={})
     npc = add_npc(w, s, "n", location="plaza", fun=0.2)
@@ -148,7 +148,7 @@ def test_wandering_cools_down_decisions() -> None:
                affordances={"hunger": 0.5}, duration_ticks=20)
     npc = add_npc(w, s, "n", location="loc", fun=0.2)
     npc.set_places(["loc"])                  # 只有这一个可逛地点 → 就地开逛
-    from citysim.world.perception import build_percept
+    from citysim.world.edge.perception import build_percept
     npc.perceive(build_percept(w, npc), 0)
     port = _port(w, s)
     d = npc.decide(CFG, 0)                         # fun 低 → 决定闲逛

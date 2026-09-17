@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from citysim.gateway.scenarios import load_scene, DEMO_SCENE
-from citysim.world.buildings import (DOOR_SIDES, build_locations,
+from citysim.world.model.buildings import (DOOR_SIDES, build_locations,
                                      load_building_types)
 
 

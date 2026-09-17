@@ -1,11 +1,13 @@
-"""数据契约层：NPC <-> 世界 通信数据结构(全部 frozen + slots, 0.2 铁律)。
+"""数据契约层 —— NPC 与世界的全部通信数据结构(全部 frozen + slots)。
 
-M2 定死: Percept / Intent / DecisionTrace / EntityView / EventView。
+世界给 NPC 看: Percept / EntityView / EventView
+NPC 想干什么: Intent
+世界对 NPC 说什么: Notify(发生了什么) / Command(照这个做)
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 @dataclass(frozen=True, slots=True)
 class EntityView:
@@ -51,8 +53,8 @@ class Percept:
 class DecisionTrace:
     ranked: tuple[tuple[str, float], ...] = ()   # (entity_id, utility分) 降序
     reason: str = ""
-    features: Mapping[str, float] = field(default_factory=dict)  # M8 前为 {}
-    # TASK001: 结构化 trace —— 相关信号及其缺口(need=1-signal, 降序)
+    features: Mapping[str, float] = field(default_factory=dict)
+    # 结构化 trace: 相关信号及其缺口(need = 1-signal, 降序)
     relevant_signals: tuple[tuple[str, float], ...] = ()
 
 
@@ -89,6 +91,98 @@ class Wander:
 
 
 Intent = Idle | MoveTo | Interact | Buy | Wander
+
+
+# ---------------------------------------------------------------------------
+# world → npc 的【通知】(单向广播)
+# ---------------------------------------------------------------------------
+# 和 Intent 正好相反: Intent 是 NPC 说给世界听; Notify 是世界说给 NPC 听。
+#
+# ★ 为什么要有它: 以前 world 直接调二十几个 setter 改 NPC 身上的东西(身体/
+#   钱/工作/记忆/头顶的字), 没有一个统一的【门】—— 看不清“世界到底能改他什么”。
+#   现在世界只有两个口:
+#     notify(ev)  世界只说【发生了什么】, NPC 自己决定怎么改自己;
+#     assign(cmd) 老板/作者下的【指令】(雇佣/排班/计划…), 显式可审计。
+#   所以这层不叫“事件”而叫“通知”: 它不携带“你该变成什么样”。
+@dataclass(frozen=True, slots=True)
+class InteractionDone:
+    """一次交互自然完成(NPC 已经在 _intake 里消化完了)。"""
+    entity_id: str
+    tick: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class InteractionFailed:
+    """一次请求被否决/被打断 —— 只报【原因 + 时刻】, 证伪/冷却归 NPC 自己写。"""
+    target_id: str
+    why: str = ""
+    tick: int = 0
+    retry_ticks: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ItemGone:
+    """某件东西没了(吃光/过期销毁): 该不该忘、忘多深, NPC 自己决定。"""
+    entity_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class WagePaid:
+    """发工资(钱是进这个人的)。"""
+    amount: float
+
+
+Notify = InteractionDone | InteractionFailed | ItemGone | WagePaid
+
+
+# --- 上面的人（老板/作者/计划器）下的【指令】(不是“发生了什么”，是“照这个做”）---
+# 和 notify 的分工:
+#   notify  世界说“发生了什么”         → NPC 自己决定怎么改自己;
+#   assign  上面的人说“你以后照这个做”   → NPC 照做(雇佣/排班/时薪/角色/日计划)。
+# 这两条是 world 能碰 NPC 的【全部】入口。
+@dataclass(frozen=True, slots=True)
+class Work:
+    """工作绑定(雇佣 / 改岗): 公司 + 店 + 工位 + 班次 + 时薪(+角色)。"""
+    company_id: str
+    shop_id: str = ""
+    station_id: str = ""
+    open_minute: int = 0
+    close_minute: int = 1440
+    wage_per_hour: float = 0.0
+    role: str = "worker"                 # "" = 不动现有角色
+
+
+@dataclass(frozen=True, slots=True)
+class Unwork:
+    """撤掉工作绑定(撤岗/辞退): 清掉 _work，保留人。"""
+
+
+@dataclass(frozen=True, slots=True)
+class Shift:
+    """改【本人班次】(不影响公司营业时间)。open 0..1439, close 1..1440。"""
+    open_minute: int
+    close_minute: int
+
+
+@dataclass(frozen=True, slots=True)
+class Wage:
+    """改【本人时薪】(逐人; 公司的 payroll 由 world 侧同步改)。"""
+    wage_per_hour: float
+
+
+@dataclass(frozen=True, slots=True)
+class Role:
+    """给/改角色。"""
+    role: str
+
+
+@dataclass(frozen=True, slots=True)
+class Plan:
+    """灌入当天日程表(LLM/作者产物)，覆盖旧计划。"""
+    entries: Sequence[Any] = ()
+
+
+Command = Work | Unwork | Shift | Wage | Role | Plan
 
 
 # ---------------------------------------------------------------------------

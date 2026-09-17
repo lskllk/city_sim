@@ -1,9 +1,9 @@
-"""语义层 M-S1。
+"""措辞层: NPC 说什么。
 
     act: STATE / INTENT / SURPRISE / DOUBT (+ REPORT 转述)
     随机只在措辞层 —— 谁/什么行为/什么强度全部为真。
 
-验收(semantic_event.md §9):
+验收:
   · “来了发现与听说不符” → DOUBT
   · 台词不重复(组合式模板池 + 话题冷却)
 """
@@ -22,7 +22,7 @@ CFG = load_config(ROOT / "config" / "sim.toml")
 
 
 def _see(w, npc, tick: int = 10):
-    from citysim.world.perception import build_percept
+    from citysim.world.edge.perception import build_percept
     npc.perceive(build_percept(w, npc), tick)
 
 

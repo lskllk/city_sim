@@ -1,4 +1,4 @@
-"""M0 DoD: 层隔离 CI 检查(挂进 pytest)。
+"""层隔离 CI 检查(挂进 pytest)。
 
 npc/ 不得 import citysim.world; legacy/(临时)除外。既以函数方式校验,
 也以子进程方式跑脚本验证退出码。

@@ -1,7 +1,7 @@
-"""WP-02..04: `WorldPortImpl` 的 world 侧行为(权限/仲裁/原子)。
+"""`WorldPortImpl` 的 world 侧行为(权限/仲裁/原子)。
 
 端口是 NPC 主动拉的入口; 这些测试钉【world 侧的决定权】。
-按票逐步补齐: WP-02 observe/try_move, WP-03 try_take, WP-04 try_buy。
+覆盖: observe / try_move / try_take / try_buy。
 """
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 from citysim.core.config import load_config
 from citysim.core.ports import Ack, Deny, Grant
 from citysim.core.types import Percept
-from citysim.world.port import WorldPortImpl
+from citysim.world.edge.port import WorldPortImpl
 
 from helpers import add_entity, add_npc, make_runtime, register_company
 
@@ -21,7 +21,7 @@ def _port(w, s) -> WorldPortImpl:
     return WorldPortImpl(w, s, CFG)
 
 
-# --- observe (WP-02) -------------------------------------------------------
+    # --- observe ----------------------------
 def test_observe_returns_percept_for_self() -> None:
     w, s, _ = make_runtime(CFG)
     add_npc(w, s, "npc", location="home")
@@ -30,7 +30,7 @@ def test_observe_returns_percept_for_self() -> None:
     assert p.location_id == "home"
 
 
-# --- try_move (WP-02) ------------------------------------------------------
+    # --- try_move ---------------------------
 def test_try_move_sets_travel() -> None:
     w, s, _ = make_runtime(CFG)
     add_npc(w, s, "npc", location="home")
@@ -58,7 +58,7 @@ def test_try_move_denied_by_capacity_leaves_npc_put() -> None:
     assert w.loc_of("b") == "home"
 
 
-# --- try_take (WP-03) ------------------------------------------------------
+    # --- try_take ---------------------------
 def test_try_take_free_item_returns_grant() -> None:
     w, s, _ = make_runtime(CFG)
     add_entity(w, "meal", location="loc", tags=("edible", "consumable"),
@@ -83,7 +83,7 @@ def test_try_take_denied_for_unowned_priced_item() -> None:
     assert "在售" in r.reason
 
 
-# --- try_buy (WP-04) -------------------------------------------------------
+    # --- try_buy ----------------------------
 def test_try_buy_enqueues_not_settles() -> None:
     """买是异步的: try_buy ok=True 只表示【已入队】, 货没扣。"""
     w, s, _ = make_runtime(CFG)

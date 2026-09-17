@@ -1,4 +1,4 @@
-"""world/companies —— 公司: 店铺属于它、钱进它的账、工资从它出。
+"""world/model/companies —— 公司: 店铺属于它、钱进它的账、工资从它出。
 
 为什么需要这一层(用户拍板: "经济做成公司的单位"):
     NPC 花出去的钱以前**凭空消失** —— 城里只有支出没有收入, 于是所有人慢慢破产饿死。
@@ -11,7 +11,7 @@
   公司落到 world.companies + 那个建筑挂上 location["company"] →
   然后才谈得上装修(摆销售前台)、发布招聘、进货。
 
-id 规则见 docs/naming.md: org_<kind>_<slug>。
+id 规则: org_<kind>_<slug>。
 """
 from __future__ import annotations
 

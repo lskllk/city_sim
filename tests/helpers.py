@@ -1,9 +1,10 @@
-"""M3 测试共享辅助：搭 scene(世界+系统+rng)。"""
+"""测试共享辅助: 搭最小 scene(世界 + 系统 + rng)。"""
 from __future__ import annotations
 
 import random
 
 from citysim.core.config import SimConfig
+from citysim.core.types import Work
 from citysim.npc.person import Identity, Person
 from citysim.sim.loop import attach_replay, make_systems
 from citysim.world.world import Entity, World
@@ -66,7 +67,7 @@ def register_company(world: World, shop_ids, cash: float = 1000.0,
 
     测试里凡是要真的成交, 都得先注册。返回 Company。
     """
-    from citysim.world.companies import Company
+    from citysim.world.model.companies import Company
     cid = "org_test"
     ids = tuple(shop_ids) if not isinstance(shop_ids, str) else (shop_ids,)
     # 测试里默认【全天营业】—— 不然跑几十 tick 还在清晨, 店没开门什么都不会发生
@@ -84,7 +85,7 @@ def add_counter(world: World, shop_id: str, n: int = 1) -> list:
 
     现在交易是【柜台一份一份卖】: 没有前台 → 服务不了 → 顾客排队然后放弃。
     """
-    from citysim.world.itemdefs import load_item_defs
+    from citysim.world.model.itemdefs import load_item_defs
     from citysim.world.world import entity_from_def
     d = load_item_defs()["station_counter"]
     out = []
@@ -103,6 +104,5 @@ def staff_counter(world: World, systems, npc_id: str, shop_id: str,
     测试里直接落状态, 省掉走路与排队(全天班: 0..1440)。
     """
     npc = world.npcs[npc_id]
-    npc.set_work(company_id, shop_id, counter_id)
-    npc.set_role("worker")
+    npc.assign(Work(company_id, shop_id, counter_id, role="worker"))
     world.place_npc(npc_id, shop_id)

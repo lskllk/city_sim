@@ -1,7 +1,7 @@
 """World 容器 —— 地点/实体/NPC 注册表 + 事件总线。
 
 世界是唯一事实源; Entity 为可变真实体。NPC Person 来自 npc/person(纯数据)。
-TASK001: 世界坐标 = scene 画布坐标(x/y/w/h 即 geometry, 无米制、无第二套地图);
+世界坐标 = 场景画布坐标(x/y/w/h 即几何, 没有米制、没有第二套地图);
 World.locations 存 region 矩形, NPC.position/Entity.position 为连续 2D 坐标。
 """
 from __future__ import annotations
@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from citysim.npc.person import Person
-from citysim.world.events import EventBus
-from citysim.world.itemdefs import ItemDef, load_item_defs
+from citysim.world.mechanism.events import EventBus
+from citysim.world.model.itemdefs import ItemDef, load_item_defs
 
 
 def _region_center(rect: dict) -> tuple[float, float]:
@@ -52,8 +52,8 @@ class Entity:
                                           # ★ 同时可被多少人占用 = stock(-1=无限)。
                                           #   3 张床合并成 stock=3 → 3 人能同时睡;
     attrs: dict[str, Any] = field(default_factory=dict)  # 如 bladder_load
-    on_start: list[dict] = field(default_factory=list)       # M4 数据化效果
-    on_complete: list[dict] = field(default_factory=list)    # M4 数据化效果
+    on_start: list[dict] = field(default_factory=list)       # 数据化效果(物品 JSON)
+    on_complete: list[dict] = field(default_factory=list)    # 数据化效果(物品 JSON)
     price: float = 0.0                      # 价格(0=免费)
     owner: str = ""                         # 归属(""=无主/商店; npc_id=某人拥有)
     item_type: str = ""                     # 物品类型 id(合并同类容器/购买送货用)
@@ -62,7 +62,7 @@ class Entity:
     expires_tick: int = 0                   # 到点变质(0=不过期); 送货/生成时打戳
     # elm_lane 开放时段: None=全天; []=永久关闭; [[start,end],...]分钟-of-day
     open_hours: list | None = None
-    position: tuple[float, float] | None = None  # TASK001 空间锚点(scene 单位; None=未布置)
+    position: tuple[float, float] | None = None  # 空间锚点(场景单位; None=未布置)
 
     def is_open_now(self, hour_f: float) -> bool:
         """当前是否营业。hour_f: 0..24 (含跨天则 mod 1440)。"""
@@ -128,7 +128,7 @@ class Entity:
 
 
 # ----------------------------------------------------------------------
-# 物品定义 -> 真实体(M4: 从 config/items/*.json 生成, 零硬编码)
+# 物品定义 -> 真实体(从 config/items/*.json 生成, 零硬编码)
 # ----------------------------------------------------------------------
 def entity_from_def(d: ItemDef, location_id: str) -> Entity:
     """由 ItemDef 建一个可变 Entity。"""
@@ -155,7 +155,7 @@ class World:
     # 公司(经营单位): id -> Company。店铺的归属写在 location["company"] 上,
     # 成交时据此把款记进它的账(见 engine._execute_buy)。
     companies: dict = field(default_factory=dict)
-    # TASK001 region 几何: {loc: {"x":..,"y":..,"w":..,"h":..,"name":..,"kind":..}}
+    # region 几何: {loc: {"x":..,"y":..,"w":..,"h":..,"name":..,"kind":..}}
     # 来自 scene json 的 x/y/w/h, 直接作为世界坐标; 未注册 region = 无空间语义
 
     # --- NPC 逻辑位置(真实位置归 World; Person 不背坐标)------------
@@ -291,7 +291,7 @@ class World:
             return False, "已满"
         return True, ""
 
-    # --- TASK001 空间 helper ------------------------------------------
+    # --- 空间 helper ----------------------------------------------------
 
     def region_center(self, location_id: str) -> tuple[float, float] | None:
         r = self.locations.get(location_id)
@@ -325,7 +325,7 @@ class World:
     def spawn_entity(self, e: Entity) -> Entity:
         """加入世界; 没 id 的自动编号。
 
-        id 规则见 docs/naming.md §1: ``<itemtype>_<NNN>``(同一类型全局递增)。
+        id 规则: ``<itemtype>_<NNN>``(同一类型全局递增)。
         以前是 ``auto<N>`` —— 玩家在 Inspector 里看到的就是 “auto1”,
         而且和场景里的 id 不在一个命名空间, 没法对账。
         递增时要跳过已被占用的 id(场景导入的实体不参与计数)。

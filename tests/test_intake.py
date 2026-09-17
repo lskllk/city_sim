@@ -1,4 +1,4 @@
-"""WP-08: 吃东西 = NPC 自己消化(heartbeat 逐 tick 加信号)。
+"""吃东西 = NPC 自己消化(heartbeat 逐 tick 加信号)。
 
 world 只签发 `Grant`(一份可用之物), 信号怎么涨由 NPC 自己的身体循环决定。
 """
@@ -6,8 +6,8 @@ from __future__ import annotations
 
 
 from citysim.core.config import load_config
-from citysim.core.types import Decision, Interact, MoveTo
-from citysim.world.port import WorldPortImpl
+from citysim.core.types import Decision, Interact, MoveTo, Work
+from citysim.world.edge.port import WorldPortImpl
 
 from helpers import add_entity, add_npc, make_runtime
 
@@ -67,7 +67,7 @@ def test_take_finished_is_destructive() -> None:
     assert npc.take_finished() == []              # 取走即清
 
 
-# --- WP-10: 效果边界(编译进 Grant, NPC 自己应用) --------------------------
+# --- 效果边界(编译进 Grant, NPC 自己应用) --------------------------
 def test_on_start_pending_applied_by_npc_once() -> None:
     """on_start 的 add_pending 编译成 Grant.pending, 开始时应用一次。"""
     w, s, _ = make_runtime(CFG)
@@ -82,7 +82,7 @@ def test_on_start_pending_applied_by_npc_once() -> None:
     assert npc.bladder_pending < 0.3             # 开始转为膀胱
 
 
-# --- WP-11: sleep/busy 自持 -------------------------------------------------
+# --- sleep/busy 自持 -------------------------------------------------
 def test_sleep_freezes_energy_self_derived() -> None:
     """体内 intake 带 sleepable → 自己判“在睡”, 冻结 energy(不再由 world 注入)。"""
     w, s, _ = make_runtime(CFG)
@@ -96,7 +96,7 @@ def test_sleep_freezes_energy_self_derived() -> None:
     assert npc.signal("energy") == 0.3           # 睡着 → 冻结
 
 
-# --- WP-12: 中止 = 暂停(弃掉体内那份, 不浪费、不重复) ----------------------
+# --- 中止 = 暂停(弃掉体内那份, 不浪费、不重复) ----------------------
 def test_moving_away_drops_intake_without_wasting() -> None:
     """吃着吃着起身走 → 体内那份弃掉; 库存没被扣(不浪费)。"""
     w, s, _ = make_runtime(CFG)
@@ -125,7 +125,7 @@ def test_switching_target_drops_old_intake() -> None:
     assert [ag.grant.entity_id for ag in npc._intake] == ["b"]
 
 
-# --- 回归: 快照进度必须来自 NPC(WP-09 后 world 不再存进度) ------------------
+# --- 回归: 快照进度必须来自 NPC(world 不再存进度) ------------------
 def test_snapshot_active_progress_follows_npc_intake() -> None:
     from citysim.gateway.snapshot import _npc_core
     w, s, _ = make_runtime(CFG)
@@ -147,7 +147,7 @@ def test_work_intake_ends_when_shift_ends() -> None:
     add_entity(w, "station", location="loc", tags=("work", "station"),
                affordances={}, duration_ticks=600, stock=1)
     npc = add_npc(w, s, "npc", location="loc")
-    npc.set_work("org", "loc", "station", open_minute=480, close_minute=1140)
+    npc.assign(Work("org", "loc", "station", open_minute=480, close_minute=1140))
     npc.intake_add(_port(w, s).try_take("npc", "station"))
     npc.heartbeat(600, CFG)                       # 10:00 在班 → 继续
     assert len(npc._intake) == 1

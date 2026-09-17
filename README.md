@@ -1,90 +1,61 @@
 # citysim · 城市生活模拟内核
 
-确定性、数据驱动的城市 / NPC 认知模拟。NPC 与世界解耦：`npc/`(认知侧，纯数据 + 决策 + 双层知识库) 与 `world/`(世界侧) 通过 `core/types.py` 的数据契约交互，规则大量从 `config/` 下的 JSON 导入，改动优先改数据。
-
-- Python ≥ 3.10
-- 内核零第三方依赖（仅条件依赖 tomli<3.11）
-- 观察器 / 前端额外依赖 `fastapi`、`uvicorn`（见下方安装）
-
-## 目录速览
-
-```
-src/citysim/
-  core/      信号全集 + 契约类型(types.py) + SimConfig(config/sim.toml)
-  npc/       person(纯数据) · brain(决策纯函数) · knowledge(双层知识库)
-  world/     世界容器 + 物品/副作用/交互/感知/事件/调度
-  sim/       推进入口 run_tick
-  gateway/   FastAPI+WS 只读观察器
-config/      sim.toml + items/archetypes/scenes 数据(改数值首选)
-tools/       终端观察 / 叙事 / 压力脚本
-tests/       pytest 测试
-```
+确定性、数据驱动的城市 / NPC 认知模拟。规则大量从 `config/` 的 JSON 导入 —— **改动优先改数据**。
 
 ## 安装
 
 ```bash
-git clone <repo-url> && cd sim_city
-
-# 仅跑内核/测试:
-python -m pip install -e .
-
-# 观察器前端(带 viz 可选依赖):
-python -m pip install -e ".[viz]"
+python -m pip install -e .            # 内核 + 测试(零第三方依赖)
+python -m pip install -e ".[viz]"     # 额外: 观察器后端 (fastapi + uvicorn)
 ```
 
-## 运行
+## 目录
 
-### 1) 终端观察器(无依赖，最快看行为)
+```
+src/citysim/
+  core/     契约层: types(Percept/Intent/Notify/Command) · ports(5 个动词) · config
+  npc/      认知侧: person(门面) · brain(决策) · memory · schedule · semantic · planner
+  world/    世界侧: world(容器) + 四个子包:
+               model/      世界长什么样(buildings · roads · itemdefs · companies)
+               edge/       与 npc 的边界(port · perception)
+               run/        世界的时钟(run/engine.py = 主循环)
+               econ/       钱与货(shop · economy · company · market)
+               mechanism/  通用机制(interaction · effects · events · pulses)
+  sim/      loop.py(推进入口 run_tick + Systems 容器)
+  gateway/  scenarios(场景→世界) · server(WS) · snapshot(世界→JSON)
+config/     sim.toml + items/ · buildings/ · scenes/   ← 数值与内容都在这
+godot/      观察器 + 编辑器(只渲染/发命令, 不算模拟)
+tools/      观测脚本: sim_report · watch · narrate · soak_report …
+tests/      pytest
+```
+
+## 跑起来
 
 ```bash
-python tools/watch.py --npc 6 --ticks 2400 --period 240
-python tools/watch.py --1x          # 真实节拍 2 tick/s
+python tools/sim_report.py config/scenes/scene.json 30   # 无头跑 30 天, 出健康度报告
+
+python tools/watch.py --npc 6 --ticks 2400               # 终端观察器(无依赖, 最快看行为)
+
+python -m uvicorn citysim.gateway.server:app --port 8765 # 只跑后端
+
+"D:/Godot_v4.7.2-stable_win64.exe" --path godot                              # 观察器
+"D:/Godot_v4.7.2-stable_win64.exe" --path godot res://scenes/editor/editor.tscn  # 编辑器
 ```
 
-### 2) Godot 观察器 / 编辑器
-
-后端只做 WS 推流端点(纯数据), UI 是 `godot/` 这一个 Godot 项目里的两个场景:
-
-- 观察器: `scenes/main.tscn`(连 `/ws`, 渲染世界 + Inspector)
-- 编辑器: `scenes/editor/editor.tscn`(画路网/摆建筑/放人物物件, 导出场景 JSON)
-
-```bash
-# 观察器(后端由 Godot 自己拉起, 默认【后台隐藏】不弹窗口)
-"D:/Godot_v4.7.2-stable_win64.exe" --path godot
-
-# 编辑器(不启动后端)
-"D:/Godot_v4.7.2-stable_win64.exe" --path godot res://scenes/editor/editor.tscn
-
-# 只想单跑后端(自动化/无头调试)
-python -m uvicorn citysim.gateway.server:app --port 8765
-```
-
-**不需要一键启动脚本。** Godot 观察器启动时会自己拉起后端
-(见 `godot/scripts/net/backend.gd`), 端口已在监听则跳过; 退出时收掉自己拉起的进程。
-后端日志写 `.logs/backend.log`（默认不开控制台窗口；
-要看实时日志: `set CITYSIM_BACKEND_CONSOLE=1`）。
-后端启动即暂停；点建筑 → 右侧选人 / 看物件。
-编辑器导出场景后, 用环境变量让观察器加载它: `set CITYSIM_SCENE=godot\samples\scene.json`。
-
-### 3) 叙事 / 压力工具(可选)
-
-```bash
-python tools/narrate.py --days 3            # 事件流译成人话(供人工 review)
-python tools/soak.py                        # 7 天行为统计
-python tools/scarcity_check.py              # 稀缺竞争观察
-```
+观察器会自己拉起后端(端口已监听则跳过)、退出时收掉；日志在 `.logs/backend.log`。
+编辑器导出的场景用 `set CITYSIM_SCENE=<路径>` 让观察器加载。
 
 ## 测试
 
 ```bash
-python -m pytest                      # 全部测试(默认 src、tools 在 path)
-python -m pytest tests/test_import_layers.py   # 层隔离(npc 禁 import world)
-python -m pytest tests/test_replay.py          # seed 固定回放确定性
-python -m pytest tests/test_behavior_soak.py   # 7 天行为安全网
+python -m pytest                                # 全量
+python -m pytest tests/test_import_layers.py    # 层隔离: npc/ 禁 import world/
+python tools/sim_report.py <scene> <days>       # 改动后跑一遍, 看行为有没有变
 ```
 
-## 常见排查
+## 两条红线
 
-- **数据改哪**：魔法数值改 `config/sim.toml`；物品副作用改 `config/items/*.json`；NPC 原型常识改 `config/archetypes/*.json`；场景装配改 `config/scenes/elm_lane.json`。
-- **认知侧红线**：`npc/` 严禁 `import citysim.world`，违反会被 `test_import_layers.py` 挂。
-- **goap 残留缓存**：`src/citysim/npc/__pycache__/goap*.pyc` 为删除 GOAP 前的陈旧产物，可 `rm -rf src/citysim/npc/__pycache__` 清理。
+1. **`npc/` 严禁 `import citysim.world`** —— CI 会挂（`tests/test_import_layers.py`）。
+   NPC 只能通过 `core/ports.py` 的 5 个动词向世界**请求**，世界只能通过
+   `Person.notify()` / `Person.assign()` 对 NPC 说话。
+2. **Godot 只渲染、只发命令，不算任何模拟**。

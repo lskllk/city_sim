@@ -7,7 +7,7 @@
 
 对外门面分四类:
   大脑   : perceive(现场→记忆) / decide(→Intent)
-  状态写 : set_signal/add_signal / move_to / arrive / set_activity / pay / set_signals…
+  状态写 : set_signal/add_signal / move_to / arrive / pay / set_signals…
   状态读 : 少量稳定 @property + snapshot()(观测一份)
   装配   : Person(…) 构造 + set_signals/set_personality 等设初值
 
@@ -26,9 +26,19 @@ from citysim.core.types import (
     Buy,
     Decision,
     Idle,
+    InteractionDone,
+    InteractionFailed,
     Interact,
+    ItemGone,
     MoveTo,
+    Plan,
+    Role,
+    Shift,
+    Unwork,
+    Wage,
+    WagePaid,
     Wander,
+    Work,
     intent_kind,
     intent_target,
 )
@@ -89,7 +99,7 @@ class _Goal:
 
 @dataclass
 class _ActiveGrant:
-    """体内正在消化的一份 Grant(WP-08)。
+    """体内正在消化的一份 Grant。
 
     `total` = max(1, duration_ticks); 每 tick 加 `value/total`, `remaining` 递减到 0
     就算吃完 —— 这就是“吃东西→饥饿下来”的循环, 现在归 NPC 自己。
@@ -146,7 +156,6 @@ class Person:
         *,
         signals: Mapping[str, float] | None = None,
         personality: Mapping[str, float] | None = None,
-        current_activity: str = "idle",
         home: str = "",
         tell_bias: float = 1.0,
         money: float = 100.0,
@@ -154,7 +163,6 @@ class Person:
         self._identity: Identity = identity or Identity(person_id="anon", name="匿名")
         self._signals: dict[str, float] = full_signals()
         self._personality: dict[str, float] = dict(personality or {})
-        self._current_activity: str = current_activity
         self._home: str = home
         self._tell_bias: float = tell_bias
         # 位移成本矩阵("a|b" -> tick): 由装配层从场景/路网注入。
@@ -177,10 +185,13 @@ class Person:
         self._perceived_loc: str = ""   # 最近一次感知到自己在哪(自身认知, 不长期维护坐标)
         self._schedule = Schedule()     # 当天计划表(空 = 纯需求驱动)
         self._goal: "_Goal | None" = None   # 唯一在执行的标的
-        self._intake: list[_ActiveGrant] = []   # 体内正在消化(WP-08)
+        self._intake: list[_ActiveGrant] = []   # 体内正在消化
         self._finished: list[str] = []          # 本 tick 消化完的 handle(取走即清)
+        # —— “我此刻在干什么”: 纯自身状态推导(world 不再写 set_activity 进来) ——
+        self._moving: bool = False    # 上次 try_move 成功了(在途; 到站后 step 里清)
+        self._queued: bool = False    # 刚 try_buy 成功 → 在店里等柜台(异步成交)
         self._bubble: tuple[str, int, str] | None = None   # (文字, 到期的 tick, 类型)
-        # —— 语义层(M-S1): 值得说的草稿 + 话题冷却 ——
+        # —— 语义层: 值得说的草稿 + 话题冷却 ——
         self._say_queue: list = []          # [SemanticEvent](未措辞的结构化真值)
         self._said_at: dict[str, int] = {}  # topic -> 上次说的 tick(别复读自己)
         self._name_of = None                # 注入: npc_id -> 名字(渲染“王哥说…”用)
@@ -224,7 +235,49 @@ class Person:
 
     @property
     def current_activity(self) -> str:
-        return self._current_activity
+        """显示文字。吃/睡时是【那件东西的名字】(前端显示“吃饭 · 苹果”)。"""
+        return self.activity()[1]
+
+    @property
+    def activity_class(self) -> str:
+        """行为大类: move/eat/sleep/toilet/work/wander/idle(前端/时间线配色)。"""
+        return self.activity()[0]
+
+    def activity(self) -> tuple[str, str]:
+        """我此刻在干什么 —— (行为大类, 显示文字)。**纯读自身状态, 不查世界**。
+
+        以前这些是 world 写进来的: 6 处 `set_activity(...)` 把“苹果”/“idle”/
+        “闲逛”写到 NPC 身上, `act_class_of` 再去 world 的 travel/roaming/
+        interaction 里猜大类。但“我在干什么”本来就是我自己最清楚的事 ——
+        现在从 _intake(消化中的那份 Grant, 带 tags) + _moving/_queued 自己推。
+        """
+        if self._intake:
+            g = self._intake[-1].grant          # 最后接下的那份 = 当前主要动作
+            cls = self._class_of_tags(g.tags)
+            if cls == "wander":
+                return "wander", "闲逛"
+            return cls, (g.name or "")
+        if self._moving:
+            return "move", ""
+        if self._queued:
+            return "idle", "queue"              # 在柜台排队(成交在柜台那边异步发生)
+        return "idle", "idle"
+
+    @staticmethod
+    def _class_of_tags(tags: "Sequence[str]") -> str:
+        """物件的 tags → 行为大类(数据驱动: 新物件不用改这里)。"""
+        t = set(tags or ())
+        if "sleepable" in t:
+            return "sleep"
+        if "toilet" in t:
+            return "toilet"
+        if "edible" in t:
+            return "eat"
+        if "work" in t or "station" in t:
+            return "work"
+        if "roam" in t:
+            return "wander"
+        return "idle"
 
     @property
     def last_intent(self) -> "Intent | None":
@@ -273,7 +326,7 @@ class Person:
         返回是否仍存活(死则不再往下)。
 
         sleep=None(默认) 时【自己判】: 体内 intake 里有没有 sleepable 的东西
-        (WP-11: 不再由 world 反向告诉 NPC“你在睡”)。
+        (世界不再反向告诉 NPC“你在睡”)。
         """
         if sleep is None:
             sleep = any("sleepable" in ag.grant.tags for ag in self._intake)
@@ -319,7 +372,7 @@ class Person:
             # 真·空闲(没事做也不在赶路) → 掉; 吃饭/睡觉/赶路 → 不变
             self._signals["fun"] = _clamp(
                 self._signals.get("fun", 1.0) - cfg.fun_idle_drop)
-        # 消化(WP-08): 体内 intake 逐 tick 均摊加信号。
+        # 消化: 体内 intake 逐 tick 均摊加信号。
         # 放在代谢/排泄【之后】—— 与旧 InteractionSystem.step 的相对顺序一致。
         self._digest(now_tick, cfg)
         return True
@@ -347,7 +400,7 @@ class Person:
                 self._finished.append(g.handle)
 
     def _apply_neutral(self, effects) -> None:
-        """应用【结构化】NPC 侧效果(无 op 名; 见 world/effects.compile_effects)。
+        """应用【结构化】NPC 侧效果(无 op 名; 见 world/mechanism/effects.compile_effects)。
 
         world 那边把 add_signal/set_signal/add_pending 编译成 {signal, add|set}
         / {field, amount} —— 所以 npc/ 不认识 op 字符串。
@@ -379,7 +432,7 @@ class Person:
     def intake_progress(self, entity_id: str = "") -> tuple[int, int]:
         """当前在消化那份的 (剩余, 总时长); 没在消化/不匹配 → (0, 0)。
 
-        WP-08 之后进度归 NPC(体内 _intake); 快照要显示进度条就取这里,
+        进度归 NPC 自己(体内 _intake); 快照要显示进度条就取这里,
         不要再去看 world 的 ActiveInteraction(那边已不存进度)。
         """
         for ag in self._intake:
@@ -388,11 +441,7 @@ class Person:
         return 0, 0
 
     # ------------------------------------------------------------------
-    # 状态写 —— 位置 / 活动 / 膀胱 / 钱
-    # ------------------------------------------------------------------
-    def set_activity(self, activity: str) -> None:
-        self._current_activity = activity
-
+    # 状态写 —— 位置 / 膀胱 / 钱(“我在干什么”已改成【只读推导】: 见 activity())
     def add_bladder_pending(self, delta: float) -> None:
         self._bladder_pending = max(0.0, self._bladder_pending + float(delta))
 
@@ -403,12 +452,7 @@ class Person:
         self._money -= amount
         return True
 
-    def earn(self, amount: float) -> None:
-        """进账(工资/卖货)。与 pay 对称 —— 只动自己的钱, 不做别的。"""
-        if amount > 0:
-            self._money += float(amount)
-
-    # --- 语义层(M-S1): 攒“值得说的事”, 按优先级取 ---------------------
+    # --- 语义层: 攒“值得说的事”, 按优先级取 ---------------------------
     def set_name_lookup(self, fn) -> None:
         """装配: 注入 npc_id -> 名字(世界侧提供, 本层只存不查)。"""
         self._name_of = fn
@@ -428,7 +472,7 @@ class Person:
     def pending_speech(self, now_tick: int, cooldown: int = 600):
         """取一件【值得说】的事(优先级最高 + 不在话题冷却里); 没有则 None。
 
-        优先级(§8): DOUBT > SURPRISE > INTENT > STATE。说完记冷却 ——
+        优先级: DOUBT > SURPRISE > INTENT > STATE。说完记冷却 ——
         NPC 不会短时间复读自己(上下文决定论 C 的 said_recently)。
         """
         best, best_rank, best_i = None, -1, -1
@@ -605,52 +649,60 @@ class Person:
         return v
 
 
-    def set_work(self, company_id: str, shop_id: str, station_id: str,
-                 open_minute: int = 0, close_minute: int = 1440,
-                 wage_per_hour: float = 0.0) -> None:
-        """被雇佣: 绑定公司/店/工位(销售前台) + 班次时间 + 时薪。
+    def assign(self, cmd) -> None:
+        """★ world → NPC 的【指令口】: 上面的人(老板/作者/计划器)说“照这个做”。
 
-        班次时间/时薪存在这里(而不是每次去问世界), 是因为决策层要自己算
-        “离岗要亏多少钱” —— 决策不查世界(铁律)。
+        和 notify 的分工:
+          notify  世界说“发生了什么”         → NPC 自己决定怎么改自己;
+          assign  上面的人说“你以后照这个做”   → NPC 照做。
+        这两条是 world 能碰 NPC 的**全部**入口(以前是散装 setter: set_work /
+        set_shift / set_wage / set_role / clear_work / set_plan 共 6 个)。
         """
-        self._work = {"company": company_id, "shop": shop_id,
-                      "station": station_id,
-                      "open": int(open_minute), "close": int(close_minute),
-                      "wage": float(wage_per_hour)}
+        if isinstance(cmd, Work):
+            # 班次/时薪存在身上(不去问世界), 因为决策层要自己算“离岗要亏多少”
+            self._work = {"company": cmd.company_id, "shop": cmd.shop_id,
+                          "station": cmd.station_id,
+                          "open": int(cmd.open_minute),
+                          "close": int(cmd.close_minute),
+                          "wage": float(cmd.wage_per_hour)}
+            if cmd.role:
+                self._role = str(cmd.role)
+        elif isinstance(cmd, Unwork):
+            self._work = {}
+        elif isinstance(cmd, Shift):
+            if self._work:
+                self._work["open"] = max(0, min(1439, int(cmd.open_minute)))
+                self._work["close"] = max(1, min(1440, int(cmd.close_minute)))
+        elif isinstance(cmd, Wage):
+            if self._work:
+                self._work["wage"] = max(0.0, float(cmd.wage_per_hour))
+        elif isinstance(cmd, Role):
+            self._role = str(cmd.role)
+        elif isinstance(cmd, Plan):
+            self._apply_plan(cmd.entries)
+        else:                                # pragma: no cover - 开发期挡错
+            raise TypeError(f"未声明的指令 {cmd!r}")
 
+    def _apply_plan(self, entries: "Sequence[PlanEntry]") -> None:
+        """灌入当天计划(LLM 产物)，覆盖旧计划。
+
+        ★ 只作废【计划来源】的 goal —— 不能碰需求 goal(如睡到一半跨 0 点,
+          日计划器调到这里, 若把 sleep goal 也清了 → 下一 tick 重算需求,
+          饿了就把床顶掉 = “睡觉被饥饿中止”)。
+        """
+        self._schedule = Schedule(entries)
+        if self._goal is not None and self._goal.source == "plan":
+            self._goal = None
+
+    # --- 工作绑定的只读视图(决策层/观察层要看, 但只能走 assign 改) -------
     @property
     def work(self) -> dict:
         return dict(self._work)
 
-    def set_shift(self, open_minute: int, close_minute: int) -> None:
-        """改【本人的班次】(不影响公司营业时间): 只动 _work 里的 open/close。
-
-        open 0..1439; close 0..1440(1440 = 24:00)。没工作的人不动。
-        """
-        if not self._work:
-            return
-        self._work["open"] = max(0, min(1439, int(open_minute)))
-        self._work["close"] = max(1, min(1440, int(close_minute)))
-
-    def set_wage(self, wage_per_hour: float) -> None:
-        """改【本人的时薪】(只动 _work): 决策层要用它算"离岗亏多少钱"。
-
-        公司 payroll(comp.staff) 由世界侧同步改 —— 发工资是按那个发的。
-        """
-        if not self._work:
-            return
-        self._work["wage"] = max(0.0, float(wage_per_hour))
-
     @property
     def role(self) -> str:
-        """角色: 雇佣写上的优先, 否则看人设里的 traits.role。"""
+        """角色: assign 写上的优先, 否则看人设里的 traits.role。"""
         return self._role or str(self.identity.traits.get("role", ""))
-
-    def set_role(self, role: str) -> None:
-        self._role = str(role)
-
-    def clear_work(self) -> None:
-        self._work = {}
 
     def worked(self, ticks: int = 1) -> None:
         """在岗计时(工资按在岗时间算)。"""
@@ -671,10 +723,6 @@ class Person:
     def memory_dicts(self) -> list:
         """观测: 记忆库只读快照(不对外暴露可写对象)。"""
         return self._mem.to_dicts()
-
-    def forget_item(self, item_id: str) -> None:
-        """删除一条记忆(物品已不存在/已交出/已消耗)。"""
-        self._mem.delete(item_id)
 
     def plan_snapshot(self, now_tick: int = 0) -> list[dict]:
         """观测: 计划表只读快照(供前端时间线渲染)。
@@ -722,7 +770,7 @@ class Person:
         brain.perceive_into(self._mem, percept, tick)
 
     def _absorb_events(self, events, tick: int) -> None:
-        """把 world 发来的事件吸收成自己的状态(WP-13: world 不再反写 NPC)。
+        """把 world 发来的事件吸收成自己的状态(world 不反写 NPC)。
 
         目前: `bought` → 把送货进家的容器写进记忆。afford/value 随事件带回,
         所以 NPC 不需要当期看到家里。
@@ -746,16 +794,6 @@ class Person:
                 shelf_life_ticks=int(p.get("shelf_life_ticks", 0)),
                 expires_tick=int(p.get("expires_tick", 0)))
 
-    def set_plan(self, entries: "Sequence[PlanEntry]") -> None:
-        """装配/每日 0 点: 灌入当天计划(LLM 产物), 覆盖旧计划。
-
-        ★ 只作废【计划来源】的 goal —— 不能碰需求 goal(如睡到一半跨 0 点,
-          日计划器调到这里, 若把 sleep goal 也清了 → 下一 tick 重算需求,
-          饿了就把床顶掉 = “睡觉被饥饿中止”)。
-        """
-        self._schedule = Schedule(entries)
-        if self._goal is not None and self._goal.source == "plan":
-            self._goal = None
 
 
     def _wander_dest(self, cfg: "SimConfig", now_tick: int) -> str:
@@ -971,20 +1009,40 @@ class Person:
         self._last_intent = decision.intent
         return decision
 
-    def on_interaction_done(self, entity_id: str, tick: int = 0) -> None:
-        """窄协议: 世界告知某交互自然完成 → 结束对应 goal(计划推进下一条)。"""
-        g = self._goal
-        if g is not None and intent_target(g.intent) == entity_id:
-            self._finish_goal(g)
+    def notify(self, ev) -> None:
+        """★ world → NPC 的【唯一通知口】: 世界只说“发生了什么”。
+
+        以前是外面的世界直接调 on_interaction_done / on_failure / forget_item /
+        earn 四个 setter 改这个人; 现在只递一张【通知】进来, 怎么改自己是
+        NPC 自己的事(写记忆、开冷却、结束目标、进账…)。
+
+        对齐铁律: 世界不替 NPC 写认知 —— 它只把理由和结果交回去。
+        """
+        if isinstance(ev, (InteractionDone, InteractionFailed)):
+            # 一次请求收了尾 → 不再在柜台排队(activity() 自己就不再报 queue)
+            self._queued = False
+        if isinstance(ev, InteractionDone):
+            g = self._goal
+            if g is not None and intent_target(g.intent) == ev.entity_id:
+                self._finish_goal(g)
+        elif isinstance(ev, InteractionFailed):
+            self._on_failed(ev.target_id, ev.why, ev.tick, ev.retry_ticks)
+        elif isinstance(ev, ItemGone):
+            self._mem.delete(ev.entity_id)
+        elif isinstance(ev, WagePaid):
+            if ev.amount > 0:
+                self._money += float(ev.amount)
+        else:                                # pragma: no cover - 开发期挡错
+            raise TypeError(f"未声明的通知 {ev!r}")
 
     def failure_log(self) -> list[dict]:
         """观测: 失败日志只读快照(0:00 交 LLM 用)。"""
         return list(self._failures)
 
 
-    def on_failure(self, target_id: str, why: str, now_tick: int,
+    def _on_failed(self, target_id: str, why: str, now_tick: int,
                    retry_ticks: int | None = None) -> None:
-        """窄协议: 交互失败 → 证伪/冷却记忆 + 记失败日志 + 跳过对应计划条。
+        """交互失败的内政: 证伪/冷却记忆 + 失败日志 + 推进(同 notify 的旧身)。
 
         - 目标不存在 / 已空(stock=0) → 删掉该 item 记忆。
         - 已被占用 / 不可打断 / 购买失败等 → 冷却(cool_until=now+retry), 到时再看。
@@ -1008,13 +1066,12 @@ class Person:
         g = self._goal
         if g is not None and intent_target(g.intent) == target_id:
             self._abandon()
-
     def step(self, port, cfg: "SimConfig") -> Decision:
-        """★ 主动拉(WP-05): 观察 → 感知 → 决策 → 执行。
+        """★ 主动拉: 观察 → 感知 → 决策 → 执行。
 
         与 process 的区别: 不再等 world 把 Percept 推过来; NPC 自己
         `port.observe(...)`, 决策后自己拿意图去 `port.try_*(...)`, 失败自己
-        `on_failure`(world 不再反写 NPC)。返回 Decision 供观测/日志。
+        `notify(InteractionFailed)`(world 不再反写 NPC)。返回 Decision 供观测/日志。
         """
         percept = port.observe(self.person_id)
         self.perceive(percept, percept.tick)
@@ -1023,20 +1080,26 @@ class Person:
         return d
 
     def _execute(self, port, decision: Decision, now_tick: int) -> None:
-        """把意图交给 world 的动词, 失败自己处理(Deny/Ack 都是数据)。"""
+        """把意图交给 world 的动词, 失败自己处理(Deny/Ack 都是数据)。
+
+        ★ “我在干什么”也在这里自己记: 上一步的 move/queue 标志先清掉, 成功了再立 ——
+          move 立了之后会一直生效到下一次 step(在途时 world 不叫 step, 正好表示“还在走”)。
+        """
         intent = decision.intent
+        self._moving = False
         if isinstance(intent, MoveTo):
             r = port.try_move(self.person_id, intent.dest)
             if isinstance(r, Ack) and not r.ok:
-                self.on_failure(intent.dest, r.reason, now_tick)
+                self._on_failed(intent.dest, r.reason, now_tick)
             elif isinstance(r, Ack) and r.ok:
-                # WP-12: 起身离开 → 弃掉体内那份。world 在 preempt 时已释放 claim,
+                # 起身离开 → 弃掉体内那份。world 在 preempt 时已释放 claim,
                 # 食物/床回到世界(不浪费), 也没“中止也扣一份”。
                 self._intake.clear()
+                self._moving = True
         elif isinstance(intent, Interact):
             r = port.try_take(self.person_id, intent.target_id)
             if isinstance(r, Deny):
-                self.on_failure(intent.target_id, r.reason, now_tick,
+                self._on_failed(intent.target_id, r.reason, now_tick,
                                 retry_ticks=(r.retry_ticks or None))
             elif isinstance(r, Grant):
                 # 切到别的东西(而非继续当前目标) → 旧的那份弃掉
@@ -1046,15 +1109,18 @@ class Person:
         elif isinstance(intent, Buy):
             r = port.try_buy(self.person_id, intent.item_id, intent.qty)
             if isinstance(r, Ack) and not r.ok:
-                self.on_failure(intent.item_id, r.reason, now_tick)
+                self._on_failed(intent.item_id, r.reason, now_tick)
+            elif isinstance(r, Ack) and r.ok:
+                self._queued = True          # 已入队 → 在店里等柜台
         elif isinstance(intent, Wander):
             r = port.try_wander(self.person_id, intent.dest)
             if isinstance(r, Grant):
                 self.intake_add(r)          # 闲逛的 fun 由这份 Grant 自己涨
-        elif isinstance(intent, Idle):
-            # 身上没事 → 把活动名收回 idle(否则“闲逛”会粘着不走)
-            if not self._intake:
-                self.set_activity("idle")
+            elif isinstance(r, Ack) and r.ok:
+                # 闲逛是两段式: 没到 dest 时 try_wander 复用移动 → 也在途
+                self._moving = True
+            elif isinstance(r, Ack):
+                self._on_failed(intent.dest, r.reason, now_tick)
 
     def on_day(self, cfg: "SimConfig", now_tick: int) -> int:
         """窄协议: 每游戏日 ① 重算年龄 ② 遗忘。返回遗忘条数。"""

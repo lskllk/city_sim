@@ -44,6 +44,7 @@ class Grant:
     """
     handle: str
     entity_id: str
+    name: str = ""                         # 这件东西叫什么(NPC 自报"我在吃苹果"用)
     signal: str = ""                       # 作用在哪个信号("hunger"/"energy"/…)
     value: float = 0.0                     # 总共补多少
     duration_ticks: int = 1                # 分多少 tick 补
@@ -54,7 +55,7 @@ class Grant:
 class WorldPort(Protocol):
     """NPC 主动使用的世界能力接口。
 
-    实现体在 world 侧(`world/port.py`); 权限与仲裁都在实现里, NPC 只能"请求"。
+    实现体在 world 侧(`world/edge/port.py`); 权限与仲裁都在实现里, NPC 只能"请求"。
     """
 
     def observe(self, pid: str) -> Percept:

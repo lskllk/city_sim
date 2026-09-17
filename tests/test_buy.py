@@ -1,10 +1,10 @@
-"""TASK006: 计划里的购买(Buy) —— 扣钱 + 减店库存 + 合并进家容器。"""
+"""计划里的购买(Buy): 扣钱 + 减店库存 + 合并进家容器。"""
 from __future__ import annotations
 
 from pathlib import Path
 
 from citysim.core.config import load_config
-from citysim.core.types import Buy
+from citysim.core.types import Buy, Plan
 from citysim.npc.schedule import PlanEntry
 from citysim.sim.loop import run_tick
 
@@ -43,7 +43,7 @@ def test_plan_buy_deducts_money_and_merges_stock() -> None:
 
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng, home="home")   # money=100
     npc.note("market_1", located="market", believe=1.0)         # 知道店在哪
-    npc.set_plan([PlanEntry("e0", 1, Buy("market_1", qty=3))])
+    npc.assign(Plan([PlanEntry("e0", 1, Buy("market_1", qty=3))]))
     _run(w, s, rng, 240)      # 柜台一份一份卖(排队+每 tick 1 份), 多跑一点
 
     # 注(2026-09-14): 现在一次买【缺口】(不是固定 3 件) → 不锁死具体金额,
@@ -71,7 +71,7 @@ def test_plan_buy_insufficient_money_fails_and_skips() -> None:
     npc = add_npc(w, s, "npc", location="home", rng_pool=rng, home="home")
 
     npc.note("market_1", located="market", believe=1.0)
-    npc.set_plan([PlanEntry("e0", 1, Buy("market_1", qty=3))])
+    npc.assign(Plan([PlanEntry("e0", 1, Buy("market_1", qty=3))]))
     _run(w, s, rng, 80)
     assert npc.money == 100.0                # 没扣钱
     assert any("钱不够" == f["why"] for f in npc.failure_log())

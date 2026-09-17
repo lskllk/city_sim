@@ -81,8 +81,22 @@
 ## 2.1 当前口径（最近收口，覆盖上面旧描述）
 
 - **世界端口（NPC 主动拉）**：`core/ports.py`（`WorldPort` 动词 + `Ack/Deny/Grant`）
-  + `world/port.py`（`WorldPortImpl`）。`engine._apply` 已删；NPC 自己 `observe` +
+  + `world/edge/port.py`（`WorldPortImpl`）。`engine._apply` 已删；NPC 自己 `observe` +
   `try_move/try_take/try_buy/try_wander`，失败自己处理。
+- **world→NPC 只有两个口（进行中）**：
+  - `Person.notify(ev)` —— 世界只说「发生了什么」，怎么改自己是 NPC 的事。
+    已收：`on_interaction_done / on_failure / forget_item / earn`。
+    类型：`InteractionDone / InteractionFailed / ItemGone / WagePaid`。
+  - `Person.assign(cmd)` —— 上面的人（老板/作者/计划器）下指令。
+    已收：`set_work / set_shift / set_wage / set_role / clear_work / set_plan`。
+    类型：`Work / Unwork / Shift / Wage / Role / Plan`。
+  - 这两个名字**必须消失**（否则又是一条暗门）；`tests/test_person_notify.py` /
+    `test_person_assign.py` / `test_person_activity.py` 用 `hasattr` 反向钉住。
+  - **「我在干什么」也是 NPC 自己的**：删了 `set_activity`(×6)，改由
+    `Person.activity() -> (大类, 文字)` 从 `_intake`(Grant 带 `name`+`tags`) +
+    `_moving/_queued` 推导；`world.act_class_of` 只转发。
+  - **还没收**：`set_signal/add_signal/add_bladder_pending`(身体) / `pay` /
+    `bump_favor` / `worked/reset_worked` / `set_bubble` / `mark_said` / `note` / `heartbeat`。
 - **信号数学在 NPC**：`Person._intake` 逐 tick 消化 `Grant`（`value/duration`）；
   「满了优先结束，否则按 duration」；world 只在 `interaction.step` 做收尾（扣货/回收）。
   中止 = 弃掉体内那份（不扣货、不触发 on_complete）。

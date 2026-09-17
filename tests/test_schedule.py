@@ -1,4 +1,4 @@
-"""TASK006: Schedule(计划表)纯逻辑单测。"""
+"""Schedule(计划表)纯逻辑单测。"""
 from __future__ import annotations
 
 from citysim.core.types import Interact, MoveTo

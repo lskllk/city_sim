@@ -1,4 +1,4 @@
-"""scenarios —— 通用场景加载器(elm_lane 单一场景, M4 数据化规矩延伸)。
+"""scenarios —— 场景加载器: scene JSON → (World + Systems + rng)。
 
 把 config/scenes/elm_lane.json 建成 (world, systems, rng_pool):
   - 实体: 走 config/items defs(entity_from_def) + scene 覆盖 stock/open_hours, 零手搓;
@@ -16,13 +16,14 @@ import random
 from pathlib import Path
 
 from citysim.core.config import load_config
+from citysim.core.types import Plan, Work
 from citysim.npc.person import Identity, Person
 from citysim.npc.planner import ScriptedPlanner
 from citysim.sim.loop import attach_replay, make_systems
-from citysim.world.buildings import build_locations
-from citysim.world.pulses import normalize as _norm_pulses
-from citysim.world.roads import RoadGraph
-from citysim.world.itemdefs import load_item_defs
+from citysim.world.model.buildings import build_locations
+from citysim.world.mechanism.pulses import normalize as _norm_pulses
+from citysim.world.model.roads import RoadGraph
+from citysim.world.model.itemdefs import load_item_defs
 from citysim.world.world import Entity, World, entity_from_def
 
 log = logging.getLogger(__name__)
@@ -165,7 +166,7 @@ def load_scene(path: str | Path | None = None,
             continue
         merged[key] = e
         world.spawn_entity(e)
-    # TASK001 默认锚点: 每个 region 内按实体 id 稳定生成(显式 position 不覆盖)
+    # 默认锚点: 每个 region 内按实体 id 稳定生成(显式 position 不覆盖)
     for loc_id in world.locations:
         world.layout_location(loc_id)
 
@@ -217,7 +218,7 @@ def load_scene(path: str | Path | None = None,
         systems.planner = ScriptedPlanner(plans)
         for pid, p in world.npcs.items():
             res = systems.planner.plan_for_person(p, 0)       # 应用当天计划
-            p.set_plan(res.entries)
+            p.assign(Plan(res.entries))
     # ---- 位移成本矩阵 + 【可闲逛的公共建筑】(建完所有 NPC 之后再注入) ----
     #   places = 所有【非住所】地点 id。闲逛时从里面随机选一个走过去。
     places = [lid for lid in sorted(world.locations)
@@ -266,7 +267,7 @@ def _load_companies(world: World, data: dict) -> None:
       ]
     兼容旧的 int 写法 open_minute/close_minute。
     """
-    from citysim.world.companies import Company
+    from citysim.world.model.companies import Company
     for spec in (data.get("companies") or []):
         if not isinstance(spec, dict):
             continue
@@ -300,7 +301,7 @@ def _bind_company_staff(world: World, data: dict) -> None:
     · 给了 station 就用它; 没给就自动挑公司第一个【空着的销售台】;
     · 写 work 绑定 + 角色 + 员工名单(和运行期 hire_at 一样)。
     """
-    from citysim.world.engine import vacant_counters
+    from citysim.world.econ.company import vacant_counters
     for spec in (data.get("companies") or []):
         if not isinstance(spec, dict):
             continue
@@ -327,10 +328,9 @@ def _bind_company_staff(world: World, data: dict) -> None:
                 ent = world.entities.get(station)
                 if ent is not None and ent.location_id in comp.shops:
                     shop_id = ent.location_id
-            npc.set_work(comp.company_id, shop_id, station,
-                         comp.open_minute, comp.close_minute,
-                         wage_per_hour=wage)
-            npc.set_role("worker")
+            npc.assign(Work(comp.company_id, shop_id, station,
+                            comp.open_minute, comp.close_minute, wage,
+                            role="worker"))
             staff.append((nid, wage))
         comp.staff = tuple(staff)
 
@@ -391,7 +391,7 @@ def _seed_knowledge(world, data: dict) -> int:
                   按 home 展开 → 住户改了也不用改数据
       [id,...] —— 显式名单
 
-    语义: 写的是【他们的知识】而不是世界真值(与 P8 一致) —— believe < 1 时
+    语义: 写的是【他们的知识】而不是世界真值 —— believe < 1 时
     他们会拿这条记忆当参考, 但不如亲眼所见那么笃定。
     """
     rules = data.get("knowledge") or []

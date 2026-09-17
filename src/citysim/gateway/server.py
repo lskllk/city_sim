@@ -43,8 +43,7 @@ CLIENT_SEND_TIMEOUT = 1.5
 # 这样后端进程的工作目录无关紧要(Godot 自动拉起时尤其重要)。
 _ROOT = Path(__file__).resolve().parents[3]
 
-# TASK004-ext: legacy gateway/static 观察器已删除; server 只作 WS 推流端点。
-# UI 由独立 Godot 观察器 godot/ 提供(见 godot/README.md)。
+# server 只做 WS 推流端点(纯数据); UI 由独立的 Godot 项目(`godot/`)提供。
 
 
 class _Tee(io.TextIOBase):
@@ -365,7 +364,7 @@ class SimRunner:
                 "entities": sorted(self._seen_entities - cur_ents)}
         self._seen_npcs = cur_npcs
         self._seen_entities = cur_ents
-        # TASK002: Snapshot 与 Event 走独立消息; snapshot 不再内嵌事件流
+        # Snapshot 与 Event 走独立消息: snapshot 不内嵌事件流
         # 观察驱动: 只带 dirty 的 NPC(在家不动的座位不上车)
         msgs = [json.dumps(envelope(
             "snapshot",
@@ -431,7 +430,7 @@ async def _send(ws: WebSocket, payload: dict) -> None:
 
 
 def _admin_company(r, op: str, args: dict) -> dict:
-    """游戏内的经营动作(上帝视角/老板面板用)。**只改世界真值** —— P8 ✓。
+    """游戏内的经营动作(上帝视角/老板面板用)。**只改世界真值**。
 
     op:
       register  点一个商铺建筑 → 注册公司 {location, name, cash}
@@ -443,8 +442,9 @@ def _admin_company(r, op: str, args: dict) -> dict:
       decorate  给店摆装修件 {company, shop?, item_type}
     注: 招聘只是【发布启事】, 真正撮合还是每天 hire_minute 那次(媒婆)。
     """
-    from citysim.world.companies import Company
-    from citysim.world.market import purchase
+    from citysim.core.types import Wage
+    from citysim.world.model.companies import Company
+    from citysim.world.econ.market import purchase
     world = r.world
     op = str(op)
     if op == "register":
@@ -493,7 +493,7 @@ def _admin_company(r, op: str, args: dict) -> dict:
             return {"ok": False, "why": "这个人不是本公司员工", "company": cid}
         wage = max(0.0, float(args.get("wage", 0.0)))
         comp.staff = tuple((n, wage if n == nid else w) for n, w in comp.staff)
-        npc.set_wage(wage)
+        npc.assign(Wage(wage))
         return {"ok": True, "why": None, "company": cid,
                 "companies": _company_list(world)}
     if op == "hire":
@@ -512,13 +512,13 @@ def _admin_company(r, op: str, args: dict) -> dict:
         res["company"] = cid
         return res
     if op == "assign":
-        from citysim.world.engine import assign_station
+        from citysim.world.econ.company import assign_station
         res = assign_station(world, r.systems, r.cfg, comp,
                              str(args.get("npc", "")), str(args.get("station", "")))
         res["company"] = cid
         return res
     if op == "schedule":
-        from citysim.world.engine import schedule_worker
+        from citysim.world.econ.company import schedule_worker
         res = schedule_worker(world, r.systems, r.cfg, comp,
                               str(args.get("npc", "")),
                               int(args.get("open", 0)),
@@ -526,7 +526,7 @@ def _admin_company(r, op: str, args: dict) -> dict:
         res["company"] = cid
         return res
     if op == "decorate":
-        from citysim.world.market import decorate
+        from citysim.world.econ.market import decorate
         shop = str(args.get("shop", "") or (comp.shops[0] if comp.shops else ""))
         item = str(args.get("item_type", ""))
         public = bool(args.get("public", False))   # 家具权限: True=公共
@@ -604,7 +604,7 @@ async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
                          "ok": admin["ok"], "data": admin, "why": admin["why"]})
     elif name == "hire_now":
-        from citysim.world.engine import hire_at
+        from citysim.world.econ.company import hire_at
         hired = hire_at(r.world, r.systems, r.cfg)
         r.note_world_changed()          # 新员工/公司名额变了 → 暂停时也要推
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,

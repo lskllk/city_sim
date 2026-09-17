@@ -18,9 +18,9 @@ from pathlib import Path
 
 from citysim.core.types import intent_kind, intent_target
 from citysim.emojis import SEMANTIC_EMOJI
-from citysim.world.engine import act_class_of
+from citysim.world.run.engine import act_class_of
 
-# TASK002: WS 消息协议版本(协议变化时递增; 本契约变更故 +1)
+# WS 消息协议版本(协议变化时递增)
 PROTOCOL_VERSION = 2
 
 
@@ -110,7 +110,7 @@ def economy_block(world, systems) -> dict:
     刻意只放【数字】不放对象 —— 这块每帧都随 snapshot 下发, 必须很小。
     细节(员工是谁、队里都是谁)走 query 或 hello。
     """
-    from citysim.world.engine import COUNTER_ITEM, staffed_counters
+    from citysim.world.econ.shop import COUNTER_ITEM, staffed_counters
     counters: dict[str, int] = {}
     for e in world.entities.values():
         if e.item_type == COUNTER_ITEM:
@@ -175,7 +175,7 @@ def _npc_core(world, systems, pid: str, p) -> dict:
 
 
 def _active_view(p, act) -> dict:
-    """进度来自 NPC 自己的 intake(WP-08); world 的 ActiveInteraction 不再存进度。"""
+    """进度来自 NPC 自己的 intake; world 的 ActiveInteraction 不存进度。"""
     rem, total = p.intake_progress(act.entity_id)
     return {"entity": act.entity_id, "remaining": rem, "total": total}
 
@@ -307,13 +307,13 @@ def do_query(runner, args: dict) -> dict | None:
 
 
 def _fixture_catalog() -> list:
-    from citysim.world.market import fixture_catalog
+    from citysim.world.econ.market import fixture_catalog
     return fixture_catalog()
 
 
 def _market_info(runner) -> dict:
     """批发市场(静态): 在不在 + 能进什么货/批发价。【货物管理】页读它。"""
-    from citysim.world.market import market_catalog, market_places
+    from citysim.world.econ.market import market_catalog, market_places
     places = market_places(runner.world)
     return {"exists": bool(places), "places": places,
             "items": market_catalog()}

@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT))
 from citysim.core.config import load_config                      # noqa: E402
 from citysim.gateway.scenarios import load_scene                  # noqa: E402
 from citysim.sim.loop import run_tick                             # noqa: E402
-from citysim.world.engine import act_class_of                     # noqa: E402
+from citysim.world.run.engine import act_class_of                     # noqa: E402
 
 
 def main(scene: str = "config/scenes/scene.json", days: int = 30) -> int:

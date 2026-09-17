@@ -12,8 +12,8 @@ import json
 from citysim.core.config import load_config
 from citysim.core.types import Buy, Interact
 from citysim.gateway.scenarios import load_scene
-from citysim.world.port import WorldPortImpl
-from citysim.world.perception import build_percept
+from citysim.world.edge.port import WorldPortImpl
+from citysim.world.edge.perception import build_percept
 
 CFG = load_config("config/sim.toml")
 

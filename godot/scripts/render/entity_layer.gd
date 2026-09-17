@@ -2,7 +2,7 @@
 #
 # 规则: **只在路上显示**。人在建筑里不画圆点(否则点房子会误选到人)。
 # 位置来自后端 travel.waypoints + depart/arrive, 本层只沿折线插值, 不算路径
-# (寻路归后端 world/roads.py)。
+# (寻路归后端 world/model/roads.py)。
 # 帧间用本地 tick 时钟推进(delta × Store.tps), 按快照 tick 软纠偏 → 走起来连续。
 #
 # 为何用屏幕坐标: ① 不会被建筑/道路盖住 ② 圆点能按像素给最小尺寸

@@ -7,17 +7,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from citysim.core.types import Idle, Interact
+from citysim.core.types import Idle, InteractionDone, Interact, ItemGone
 from citysim.npc.person import Person
-from citysim.world.effects import apply_effects, compile_effects
+from citysim.world.mechanism.effects import apply_effects, compile_effects
 from citysim.world.world import Entity, World
 
 
 @dataclass
 class ActiveInteraction:
     entity_id: str
-    handle: str = ""          # world 签发的唯一持有凭证(WP-10: handle 不撞车)
-    # 注: 进度(remaining/total)归 NPC 自己的 intake(WP-08); 这里不再存。
+    handle: str = ""          # world 签发的唯一持有凭证(不撞车)
+    # 进度(remaining/total)归 NPC 自己的 intake; 这里不存。
 
 
 def _clamp(v: float) -> float:
@@ -80,8 +80,7 @@ class InteractionSystem:
             entity_id=tid, handle=f"{tid}#{self._seq}",
         )
         ent.claimants.add(pid)
-        npc.set_activity(ent.name)
-        # on_start 的 NPC 侧效果改由 Person 应用(WP-10: 编译进 Grant.pending);
+        # on_start 的 NPC 侧效果由 Person 应用(编译进 Grant.pending);
         # world 侧 on_start(如 spawn_item)很少见, 这里不再处理。
         _npc_start, _world_start = compile_effects(ent.on_start)
         if _world_start:
@@ -90,7 +89,7 @@ class InteractionSystem:
 
     # --- 每 tick 推进 --------------------------------------------------
     def step(self, world: World, cfg) -> None:
-        """[WP-09] 不再管信号/进度 —— NPC 自己消化(heartbeat), 这里只做收尾与清理。
+        """不管信号/进度 —— NPC 自己消化(heartbeat); 这里只做收尾与清理。
 
         ① NPC 消化完的 intake → 扣货 / on_complete / 事件 / 回收(自然完成);
         ② 目标消失 / NPC 死亡 → 撤 claim。
@@ -148,7 +147,7 @@ class InteractionSystem:
                        for eff in ent.on_complete)
 
         # 2.+3. 自然完成才扣货 / 跑 world 侧 on_complete;
-        #   中止(aborted) = 没吃完 → 不扣货、不触发 on_complete(WP-12:
+        #   中止(aborted) = 没吃完 → 不扣货、不触发 on_complete
         #   不再“中止也扣一份饭”)。claim 已释放 → 东西回到世界。
         if not aborted:
             if (ent.is_consumable and ent.stock > 0 and not _self_consumes(ent)):
@@ -157,9 +156,6 @@ class InteractionSystem:
                 _npc_done, world_o = compile_effects(ent.on_complete)
                 apply_effects(world, npc, ent, world_o)
 
-        # 4. 完成 → idle(下一 tick 由 drive 自然重评)
-        npc.set_activity("idle")
-
         # 5. 事件(先发布, 观察者可解析实体 tags) -> 6. 统一回收空消耗品
         kind = "interaction_aborted" if aborted else "interaction_done"
         world.bus.publish(world.bus.make(
@@ -167,13 +163,13 @@ class InteractionSystem:
         if (ent.stock == 0 and not ent.persist_empty
                 and (ent.is_consumable or _self_consumes(ent))):
             world.entities.pop(ent.entity_id, None)
-            npc.forget_item(ent.entity_id)
+            npc.notify(ItemGone(ent.entity_id))
         if not aborted:
-            npc.on_interaction_done(ent.entity_id, world.clock_tick)
+            npc.notify(InteractionDone(ent.entity_id, world.clock_tick))
 
     # --- 内部 ---------------------------------------------------------
     def release_active(self, world: World, pid: str) -> None:
-        """m5-rectify 10: 主动清掉某 NPC 的残留 claim(move_to 出发前调用)。"""
+        """主动清掉某 NPC 的残留 claim(move_to 出发前调用)。"""
         self._release(world, pid, cancel=True)
 
     def _release(self, world: World, pid: str, *, cancel: bool) -> None:
@@ -183,15 +179,12 @@ class InteractionSystem:
             ent = world.entities.get(act.entity_id)
             if ent is not None:
                 ent.claimants.discard(pid)
-        if npc is not None:
-            if cancel:
-                npc.set_activity("idle")
 
     def _fail(self, world: World, pid: str, tid: str, why: str) -> None:
         world.bus.publish(world.bus.make(
             world.clock_tick, "intent_failed", pid,
             {"target": tid, "why": why}))
-        # 只把“为什么失败 + 冷却提示”记下; 写记忆/放弃 goal 归 NPC 自己(WP-05)。
+        # 只把“为什么失败 + 冷却提示”记下; 写记忆/放弃 goal 归 NPC 自己。
         npc = world.npcs.get(pid)
         ent = world.entities.get(tid) if tid else None
         self.last_fail = (why, ent.duration_ticks if ent is not None else 0)

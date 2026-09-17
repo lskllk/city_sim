@@ -115,7 +115,7 @@ python -m uvicorn citysim.gateway.server:app --port 8765
 - 单位：米。节点只放交叉口/端点；路的弯曲放 edge 的 `geom` 折线。
 - `door_of` / `door_index`：该节点是某建筑的第几个门（缺省=普通路口）。后端忽略此字段。
 - 建筑 `type` 复用后端 `config/buildings/*.json`；新建时尺寸按 `面积 ∝ capacity` 自动算。
-- **后端 nav 已接**：`world/roads.py` 直接从此图做最短路（Dijkstra），
+- **后端 nav 已接**：`world/model/roads.py` 直接从此图做最短路（Dijkstra），
   门点投影到路边接入；耗时 = 里程 / `[motion].move_m_per_tick`。
 
 ## 尚未做（后续）

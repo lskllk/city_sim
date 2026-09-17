@@ -1,4 +1,4 @@
-"""TASK006: planner 接口骨架 + 规则模板降级 + 缓存/校验 单测。"""
+"""planner 接口骨架 + 规则模板降级 + 缓存/校验 单测。"""
 from __future__ import annotations
 
 import json

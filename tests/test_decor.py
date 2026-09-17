@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from citysim.world.market import (decorate, fixture_catalog, is_fixture,
+from citysim.world.econ.market import (decorate, fixture_catalog, is_fixture,
                                   market_catalog, purchase)
 from helpers import make_runtime, register_company
 

@@ -1,9 +1,9 @@
 """物品定义加载 —— config/items/*.json。
 
 仅标准库 + 数据类; 供 world 侧(交互/生成/感知)使用, 不反向依赖 world。
-字段对应 M4 4.1 定死的物品 schema。
+字段就是物品 schema(改字段 = 改数据契约)。
 
-加载即校验(testm4 Step 1, fail-fast):
+加载即校验(fail-fast):
   - affordances 的 key 必须 ∈ SIGNALS
   - on_start/on_complete 里的 op 必须是已注册 op
   - duration_ticks >= 1
@@ -19,7 +19,7 @@ from typing import Any, Mapping
 
 from citysim.core.config import SIGNALS
 
-_ITEMS_DIR = Path(__file__).resolve().parents[3] / "config" / "items"
+_ITEMS_DIR = Path(__file__).resolve().parents[4] / "config" / "items"
 
 
 class ConfigError(Exception):
@@ -28,7 +28,7 @@ class ConfigError(Exception):
 
 def _registered_ops() -> set[str]:
     """延迟导入避免模块级环(effects -> world -> itemdefs)。"""
-    from citysim.world.effects import OPS  # noqa: PLC0415
+    from citysim.world.mechanism.effects import OPS  # noqa: PLC0415
     return set(OPS)
 
 

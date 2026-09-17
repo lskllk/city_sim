@@ -76,10 +76,6 @@ def rename_items() -> None:
             continue
         new = ITEM_MAP[t]
         d["item_type"] = new
-        for grp in ("on_start", "on_complete"):
-            for eff in d.get(grp, []) or []:
-                if isinstance(eff, dict) and eff.get("item_type") in ITEM_MAP:
-                    eff["item_type"] = ITEM_MAP[eff["item_type"]]
         p.unlink()
         (ITEMS / f"{new}.json").write_text(
             json.dumps(d, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

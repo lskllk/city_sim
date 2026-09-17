@@ -242,8 +242,7 @@ def build_snapshot(world, systems, cfg, speed: str,
              "affordances": dict(e.affordances), "price": e.price,
              "owner": e.owner, "duration_ticks": e.duration_ticks,
              "attrs": dict(e.attrs),
-             "on_start": [dict(x) for x in (e.on_start or [])],
-             "on_complete": [dict(x) for x in (e.on_complete or [])]}
+             }
             for _, e in sorted(world.entities.items())]
     slot_of: dict[str, int] = {}
     by_loc: dict[str, list[str]] = {}

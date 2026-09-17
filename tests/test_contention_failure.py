@@ -17,14 +17,10 @@ from helpers import add_entity, add_npc, make_runtime, seed_reviews
 ROOT = Path(__file__).resolve().parents[1]
 CFG = load_config(ROOT / "config" / "sim.toml")
 
-TOILET_DONE = [{"op": "set_signal", "signal": "bladder", "value": 1.0}]
-
-
 def _setup(log=True):
     w, s, rng = make_runtime(CFG, log=log)
     add_entity(w, "toilet_1", name="wc", location="home", tags=("toilet",),
-               affordances={"bladder": 0.6}, duration_ticks=6,
-               on_complete=list(TOILET_DONE))
+               affordances={"bladder": 0.6}, duration_ticks=6)
     for pid in ("a", "b"):
         npc = add_npc(w, s, pid, location="home", rng_pool=rng, seed=1,
                       bladder=0.05)

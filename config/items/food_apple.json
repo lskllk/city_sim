@@ -10,14 +10,6 @@
   },
   "price": 3.0,
   "duration_ticks": 12,
-  "on_start": [
-    {
-      "op": "add_pending",
-      "field": "bladder_pending",
-      "amount": 0.15
-    }
-  ],
-  "on_complete": [],
   "attrs": {},
   "stock": 1,
   "shelf_life_ticks": 4320

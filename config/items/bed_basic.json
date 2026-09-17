@@ -8,8 +8,6 @@
     "energy": 1.0
   },
   "duration_ticks": 800,
-  "on_start": [],
-  "on_complete": [],
   "attrs": {},
   "stock": 1
 }

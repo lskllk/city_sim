@@ -103,3 +103,11 @@ def test_sleep_is_interruptible_by_new_action() -> None:
     assert port.try_move("n", "shop").ok              # 能起床走了
     assert "n" not in s.interaction.active
     assert s.travel["n"].to_loc == "shop"
+
+
+# --- interaction.py 无领域硬编码字面 --------------------------------------
+def test_interaction_has_no_domain_hardcode_literal() -> None:
+    p = ROOT / "src" / "citysim" / "world" / "mechanism" / "interaction.py"
+    text = p.read_text(encoding="utf-8")
+    for tok in ("_TAKE_FOOD", "_PLAN_ZH", "厕所", "马桶", "bladder_pending"):
+        assert tok not in text, f"interaction.py 残留 {tok!r}"

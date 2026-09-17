@@ -10,8 +10,6 @@
   },
   "build_cost": 120.0,
   "duration_ticks": 5,
-  "on_start": [],
-  "on_complete": [],
   "attrs": {},
   "stock": 1
 }

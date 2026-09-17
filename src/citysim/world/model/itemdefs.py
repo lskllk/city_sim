@@ -5,7 +5,6 @@
 
 加载即校验(fail-fast):
   - affordances 的 key 必须 ∈ SIGNALS
-  - on_start/on_complete 里的 op 必须是已注册 op
   - duration_ticks >= 1
 任何一条不过 → 抛 ConfigError 并指明文件+字段, 禁止静默跳过。
 """
@@ -26,12 +25,6 @@ class ConfigError(Exception):
     """物品/动作配置校验失败; message 含 文件 + 字段。"""
 
 
-def _registered_ops() -> set[str]:
-    """延迟导入避免模块级环(effects -> world -> itemdefs)。"""
-    from citysim.world.mechanism.effects import OPS  # noqa: PLC0415
-    return set(OPS)
-
-
 @dataclass(frozen=True)
 class ItemDef:
     item_type: str
@@ -39,8 +32,6 @@ class ItemDef:
     tags: frozenset[str] = frozenset()
     affordances: Mapping[str, float] = field(default_factory=dict)
     duration_ticks: int = 30
-    on_start: tuple[Mapping[str, Any], ...] = ()
-    on_complete: tuple[Mapping[str, Any], ...] = ()
     attrs: Mapping[str, Any] = field(default_factory=dict)
     stock: int = 1
     price: float = 0.0           # 零售/批发【售价】(>0 才算可卖的货)
@@ -56,8 +47,6 @@ def _parse(data: dict) -> ItemDef:
         tags=frozenset(data.get("tags", [])),
         affordances=dict(data.get("affordances", {})),
         duration_ticks=int(data.get("duration_ticks", 30)),
-        on_start=tuple(dict(x) for x in data.get("on_start", [])),
-        on_complete=tuple(dict(x) for x in data.get("on_complete", [])),
         attrs=dict(data.get("attrs", {})),
         stock=int(data.get("stock", 1)),
         price=float(data.get("price", 0.0)),
@@ -67,20 +56,13 @@ def _parse(data: dict) -> ItemDef:
     )
 
 
-def _validate(path: Path, d: ItemDef, ops: set[str]) -> None:
+def _validate(path: Path, d: ItemDef) -> None:
     if d.duration_ticks < 1:
         raise ConfigError(f"{path.name}: {d.item_type} duration_ticks<1")
     for s in d.affordances:
         if s not in SIGNALS:
             raise ConfigError(
                 f"{path.name}: {d.item_type} affordance key {s!r} 不在 SIGNALS")
-    for group in ("on_start", "on_complete"):
-        for eff in getattr(d, group):
-            op = eff.get("op")
-            if op not in ops:
-                raise ConfigError(
-                    f"{path.name}: {d.item_type} {group} 未注册 op {op!r}")
-
 @functools.lru_cache(maxsize=4)
 def _read_dir(directory: str) -> dict[str, ItemDef]:
     paths: dict[str, Path] = {}
@@ -93,9 +75,8 @@ def _read_dir(directory: str) -> dict[str, ItemDef]:
         d = _parse(data)
         paths[d.item_type] = p
         parsed[d.item_type] = d
-    ops = _registered_ops()
     for it, d in parsed.items():
-        _validate(paths[it], d, ops)
+        _validate(paths[it], d)
     return parsed
 
 
@@ -103,5 +84,3 @@ def load_item_defs(directory: str | Path | None = None) -> dict[str, ItemDef]:
     """读 config/items/*.json -> {item_type: ItemDef}。缺省指向工程 config/items。"""
     d = _ITEMS_DIR if directory is None else Path(directory)
     return _read_dir(str(d))
-
-

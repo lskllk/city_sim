@@ -52,8 +52,6 @@ class Entity:
                                           # ★ 同时可被多少人占用 = stock(-1=无限)。
                                           #   3 张床合并成 stock=3 → 3 人能同时睡;
     attrs: dict[str, Any] = field(default_factory=dict)  # 如 bladder_load
-    on_start: list[dict] = field(default_factory=list)       # 数据化效果(物品 JSON)
-    on_complete: list[dict] = field(default_factory=list)    # 数据化效果(物品 JSON)
     price: float = 0.0                      # 价格(0=免费)
     owner: str = ""                         # 归属(""=无主/商店; npc_id=某人拥有)
     item_type: str = ""                     # 物品类型 id(合并同类容器/购买送货用)
@@ -136,7 +134,6 @@ def entity_from_def(d: ItemDef, location_id: str) -> Entity:
         entity_id="", name=d.name, tags=set(d.tags),
         affordances=dict(d.affordances), duration_ticks=d.duration_ticks,
         location_id=location_id, stock=d.stock, attrs=dict(d.attrs),
-        on_start=list(d.on_start), on_complete=list(d.on_complete),
         price=d.price, item_type=d.item_type,
         persist_empty=d.persist_empty,
         shelf_life_ticks=d.shelf_life_ticks,

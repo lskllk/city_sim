@@ -94,7 +94,8 @@ func _build() -> void:
 	_sub.add_theme_color_override("font_color", Color("7f8ea3"))
 	tcol.add_child(_sub)
 	_msg = Label.new()
-	_msg.add_theme_font_size_override("font_size", 12)
+	# 结果提示: 它是"刚才那条命令成功没有"的唯一回执 —— 大一点、加粗(以前太不显眼)
+	_msg.add_theme_font_size_override("font_size", 13)
 	tcol.add_child(_msg)
 	head.add_child(tcol)
 	var close := Button.new()
@@ -337,70 +338,69 @@ func _staff_row(it: Variant, comp: Dictionary) -> Control:
 		wage = Protocol.num((it as Dictionary).get("wage", wage))
 	else:
 		pid = Protocol.s(it)
-	var station := Protocol.s(Protocol.as_dict(
-		Store.npc(pid).get("work", {})).get("station", ""))
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", 6)
+	# 姓名: 【固定宽度】—— 以前用 EXPAND_FILL 把整行吃掉, 后面的控件被挤到边上
 	var name := Label.new()
 	name.text = Store.name_of(pid)
-	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name.custom_minimum_size.x = 72
+	name.clip_text = true
 	row.add_child(name)
-	# 【分配工位】: 下拉选定这个员工守哪个销售台(或“未分配")
-	var ob := OptionButton.new()
-	var ids: Array = [""]
-	ob.add_item("未分配")
-	var counters := _company_counters()
-	var slot_name := "工位" if _is_mfg() else "销售台"
-	for i in counters.size():
-		var cid2 := Protocol.s((counters[i] as Dictionary).get("id", ""))
-		ids.append(cid2)
-		ob.add_item("%s %d%s" % [slot_name, i + 1,
-			"（占用）" if _station_taken(cid2, pid) else ""])
-		if cid2 == station:
-			ob.select(i + 1)
-	ob.custom_minimum_size.x = 150
-	ob.item_selected.connect(func(k: int) -> void:
-		Commands.cmd("company_assign", {"company": _cid, "npc": pid,
-			"station": Protocol.s(ids[k]) if k < ids.size() else ""}))
-	row.add_child(ob)
+	# 在岗灯: 直接跟在名字后面(一眼扫)
+	var on_post := bool(Store.npc(pid).get("on_post", false))
+	var st := Label.new()
+	st.text = "在岗" if on_post else "——"
+	st.custom_minimum_size.x = 34
+	st.add_theme_color_override("font_color",
+		Color("7fe0a8") if on_post else Color("4a5568"))
+	st.tooltip_text = "现在正守着自己那个工位" if on_post else "不在岗(没到班 / 正去吃饭睡觉)"
+	row.add_child(st)
+	# 弹性空档: 推右边的控件, 比"让某个控件 EXPAND"可控
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(sp)
+	# 逐人时薪
+	row.add_child(_muted("时薪"))
 	var w := LineEdit.new()
-	w.text = _wage_txt(wage)          # ★ 保留小数(以前 "%.0f" 把 1.1 显示成 1)
+	w.text = _wage_txt(wage)
 	w.custom_minimum_size.x = 52
 	w.tooltip_text = "这个人的时薪(¥/时) —— 逐人, 不动公司默认时薪"
 	row.add_child(w)
-	row.add_child(_muted("¥/时"))
 	var wb := Button.new()
 	wb.text = "改薪"
 	wb.pressed.connect(func() -> void:
-		# ★ 命令名要对: 以前发的是 `company` + op, 服务端没这个名字 → 按了没反应
 		Commands.cmd("company_wage", {"company": _cid, "npc": pid,
 			"wage": w.text.strip_edges().to_float()}))
 	row.add_child(wb)
-	var on_post := bool(Store.npc(pid).get("on_post", false))
-	var st := Label.new()
-	st.text = "在岗" if on_post else "不在岗"
-	st.add_theme_color_override("font_color",
-		Color("7fe0a8") if st.text == "在岗" else Color("e8a34d"))
-	row.add_child(st)
-	# 【排班】: 每人一个班次(上班/下班 HH:MM; 只影响他自己, 不动公司营业时间)
+	# 排班: 每人一个班次(上班/下班 HH:MM; 只影响他自己, 不动公司营业时间)
 	var work := Protocol.as_dict(Store.npc(pid).get("work", {}))
+	row.add_child(_muted("班"))
 	var oe := LineEdit.new()
 	oe.text = _hm(int(Protocol.num(work.get("open", 0))))
-	oe.custom_minimum_size.x = 48
+	oe.custom_minimum_size.x = 46
 	row.add_child(oe)
 	row.add_child(_muted("–"))
 	var ce := LineEdit.new()
 	ce.text = _hm(int(Protocol.num(work.get("close", 1440))))
-	ce.custom_minimum_size.x = 48
+	ce.custom_minimum_size.x = 46
 	row.add_child(ce)
 	var sb := Button.new()
 	sb.text = "排班"
 	sb.pressed.connect(func() -> void:
-		# ★ 同上: 以前发到不存在的 `company` 命令 → 按了没反应
 		Commands.cmd("company_schedule", {"company": _cid, "npc": pid,
 			"open": _minutes(oe.text), "close": _minutes(ce.text)}))
 	row.add_child(sb)
 	return row
+
+
+## 时薪显示: 保留小数, 但不要把 3.00 写成 3.00 —— 3 / 1.1 / 12.5 这样。
+func _wage_txt(v: float) -> String:
+	var s := "%.2f" % v
+	while s.contains(".") and s.ends_with("0"):
+		s = s.substr(0, s.length() - 1)
+	if s.ends_with("."):
+		s = s.substr(0, s.length() - 1)
+	return s
 
 
 func _hire_row(comp: Dictionary) -> Control:
@@ -777,38 +777,6 @@ func _owns_shop(loc: String) -> bool:
 	var b := Store.building_of(loc)
 	return Protocol.as_array(
 		Store.company(_cid).get("shops", [])).has(b)
-
-
-## 公司旗下【所有】销售台(按 id 排)—— 分配工位的下拉列表。
-func _company_counters() -> Array:
-	var shops := Protocol.as_array(Store.company(_cid).get("shops", []))
-	# 岗位长什么样由公司类型定: 零售=销售台, 制造=工位
-	var want := "station_workbench" if _is_mfg() else "station_counter"
-	var out: Array = []
-	for e in Store.entities.values():
-		var d: Dictionary = e
-		if Protocol.s(d.get("item_type", "")) != want:
-			continue
-		if not shops.has(Store.building_of(Protocol.s(d.get("loc", "")))):
-			continue
-		out.append(d)
-	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return Protocol.s(a.get("id", "")) < Protocol.s(b.get("id", "")))
-	return out
-
-
-## 这个台是不是已经被【别人】占了(except_pid = 自己, 不算)。
-func _station_taken(station_id: String, except_pid: String) -> bool:
-	for pid in Store.npcs:
-		if String(pid) == except_pid:
-			continue
-		var w := Protocol.as_dict(Store.npc(pid).get("work", {}))
-		if Protocol.s(w.get("station", "")) == station_id:
-			return true
-	return false
-
-
-## 不换行的短标签(用于表单同行; autowrap 在窄行里会把字挤成一列)。
 func _lbl(text: String) -> Label:
 	var l := Label.new()
 	l.text = text

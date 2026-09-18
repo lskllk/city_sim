@@ -159,9 +159,10 @@ func _draw_facilities(font: Font, pad: float, y: float) -> void:
 		draw_string(font, r.position + Vector2(8, 15),
 			Protocol.s(e.get("name", f[i])),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FS_BODY, C_TEXT)
-		draw_string(font, r.position + Vector2(8, 30),
-			"—" if users.is_empty()
-			else ", ".join(users.map(func(n): return Store.name_of(n))),
+		var sub := "—" if users.is_empty() 			else ", ".join(users.map(func(n): return Store.name_of(n)))
+		if Protocol.s(e.get("item_type", "")) == "industry_machine":
+			sub = "产量 ×3（配一个工位）"      # 倍数见 config/sim.toml [produce].machine_bonus
+		draw_string(font, r.position + Vector2(8, 30), sub,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FS_SMALL,
 			C_DIM if users.is_empty() else C_STAFF)
 

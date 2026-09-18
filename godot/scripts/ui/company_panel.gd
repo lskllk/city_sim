@@ -407,7 +407,7 @@ func _add_staff_cells(grid: GridContainer, it: Variant, comp: Dictionary) -> voi
 		var a := _minutes(oe.text)
 		var b := _minutes(ce.text)
 		if a < 0 or b < 0 or a >= b:                  # ★ 时刻要合法(以前安静地排成空班)
-			_flash("班次要像 08:00–19:00（且上班早于下班）", false)
+			_flash("班次填 08:00 / 19:00 这样（只写小时也行；上班要早于下班）", false)
 			return
 		Commands.cmd("company_schedule", {"company": _cid, "npc": pid,
 			"open": a, "close": b}))
@@ -744,9 +744,25 @@ func _hm(minutes: int) -> String:
 
 
 ## "HH:MM" → 当天分钟; 【非法返回 -1】(以前回 0 → 打错的时刻会安静地变成 00:00)
+##
+## ★ 宽容一点: 中文输入法打出来的是【全角冒号 ：】, 而 split(":") 切不开它
+##   → 一切"12：00"都会被判成非法, 看着就像"排班失败"(实测用户报的就是这个)。
+##   所以先把常见的手打变体都归一: 全角冒号/点号/逗号、只写小时、中间空格。
 func _minutes(s: String) -> int:
-	var parts := s.strip_edges().split(":")
-	if parts.size() != 2 or not parts[0].is_valid_int() 			or not parts[1].is_valid_int():
+	var t := s.strip_edges()
+	for a in ["：", "．", "。", "，", ","]:
+		t = t.replace(a, ":")
+	t = t.replace(".", ":").replace(" ", "").replace("点", ":")
+	if t == "":
+		return -1
+	if t.ends_with(":"):
+		t = t.substr(0, t.length() - 1)    # "12:" / "12点" 都是"12 点整"
+	var parts := t.split(":")
+	if parts.size() == 1:
+		parts.append("0")            # 只写小时: "12" / "19:00" 都行
+	if parts.size() != 2:
+		return -1
+	if not parts[0].is_valid_int() or not parts[1].is_valid_int():
 		return -1
 	var h := int(parts[0])
 	var m := int(parts[1])

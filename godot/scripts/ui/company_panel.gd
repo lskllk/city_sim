@@ -393,16 +393,6 @@ func _staff_row(it: Variant, comp: Dictionary) -> Control:
 	return row
 
 
-## 时薪显示: 保留小数, 但不要把 3.00 写成 3.00 —— 3 / 1.1 / 12.5 这样。
-func _wage_txt(v: float) -> String:
-	var s := "%.2f" % v
-	while s.contains(".") and s.ends_with("0"):
-		s = s.substr(0, s.length() - 1)
-	if s.ends_with("."):
-		s = s.substr(0, s.length() - 1)
-	return s
-
-
 func _hire_row(comp: Dictionary) -> Control:
 	var wage := Protocol.num(comp.get("wage_per_hour", 10.0))
 	var slots := int(Protocol.num(comp.get("hiring_slots", 0)))

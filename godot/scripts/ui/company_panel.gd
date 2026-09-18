@@ -30,11 +30,9 @@ var _msg: Label
 var _tabs: TabContainer
 var _monitor: Control
 var _goods_list: VBoxContainer
-var _price_list: VBoxContainer
 var _hr_list: VBoxContainer
 var _decor_list: VBoxContainer
 var _tab_goods: Control
-var _tab_prices: Control
 var _tab_decor: Control
 const STAFF_COLS := 7          # 员工行网格列数(见 _refresh_hr / _add_staff_cells)
 
@@ -119,10 +117,8 @@ func _build() -> void:
 	# 3 货物管理(零售=进货+货架 / 制造=产出库存)
 	_tab_goods = _build_goods()
 	_tabs.add_child(_tab_goods)
-	# 4 价格调整(零售能改售价; 制造的价格由批发市场定)
-	_tab_prices = _build_prices()
-	_tabs.add_child(_tab_prices)
-	# 5 家具管理(家具目录按公司类型过滤)
+	# 4 家具管理(家具目录按公司类型过滤)
+	# (原"价格调整"页已并入【货物管理】: 每行货就地改价, 少一次来回)
 	_tab_decor = _build_decor()
 	_tabs.add_child(_tab_decor)
 	box.add_child(_tabs)
@@ -147,17 +143,6 @@ func _build_goods() -> Control:
 	_goods_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_goods_list.add_theme_constant_override("separation", 4)
 	(v.get_child(v.get_child_count() - 1) as ScrollContainer).add_child(_goods_list)
-	return v
-
-
-# --- 价格调整 --------------------------------------------------------------
-func _build_prices() -> Control:
-	var v := _scroll_tab("价格调整",
-		"改的是世界真值 —— 顾客要【看见】或【听人说】才会知道新价格。")
-	_price_list = VBoxContainer.new()
-	_price_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_price_list.add_theme_constant_override("separation", 4)
-	(v.get_child(v.get_child_count() - 1) as ScrollContainer).add_child(_price_list)
 	return v
 
 
@@ -258,13 +243,11 @@ func open_for(cid: String) -> void:
 	if _is_mfg():
 		_set_hint(_tab_goods,
 			"加工厂：工人站在【工位】上按在岗时间产出原料。产出不进自家货架、也不给员工吃 —— 每天零点由批发市场按物品定义价【全部收走】，钱从城外进来。")
-		_set_hint(_tab_prices,
-			"加工厂的货价由批发市场定（= 物品定义价，通常是成品的 80%）—— 这一页是只读的。")
 		_set_hint(_tab_decor,
 			"摆家具（工位/马桶…）—— 从公司账出钱，摆完就一直在厂里。工位越多，能同时上岗的人越多。")
 	else:
-		_set_hint(_tab_goods, "货架上的货 = 向批发市场进的货; 顾客在销售台成交。")
-		_set_hint(_tab_prices, "改货架上的【售价】—— 顾客按记忆里的价格决定来不来。")
+		_set_hint(_tab_goods,
+			"货架上的货 = 向批发市场进的货；每行右边可以就地改售价（顾客要看见或听人说才会知道新价）。")
 		_set_hint(_tab_decor,
 			"摆家具（销售前台/马桶…）—— 从公司账出钱，摆完就一直在店里。")
 	if _monitor != null and _monitor.has_method("setup"):
@@ -289,7 +272,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _refresh_all() -> void:
 	_refresh_hr()
 	_refresh_goods()
-	_refresh_prices()
 	_refresh_decor()
 
 
@@ -570,9 +552,30 @@ func _shelf_row(e: Dictionary) -> Control:
 	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sl.add_theme_color_override("font_color", Color("7f8ea3"))
 	row.add_child(sl)
-	var pl := Label.new()
-	pl.text = "售价 ¥%.0f" % Protocol.num(e.get("price", 0.0))
-	row.add_child(pl)
+	var price := Protocol.num(e.get("price", 0.0))
+	if _is_mfg():
+		# 加工厂不零售: 价由批发市场按物品定义定, 这里只显示(以前单独一页纯只读, 太浪费)
+		var pl := Label.new()
+		pl.text = "收购价 ¥%s（市场定）" % _wage_txt(price)
+		pl.add_theme_color_override("font_color", Color("7f8ea3"))
+		row.add_child(pl)
+		return row
+	# ★ 零售: 就地改售价(原"价格调整"页并入这里)
+	var le := LineEdit.new()
+	le.text = _wage_txt(price)
+	le.custom_minimum_size.x = 62
+	le.tooltip_text = "这个的售价 ¥ —— 顾客要看见或听人说, 才会知道新价格"
+	row.add_child(le)
+	var pb := Button.new()
+	pb.text = "改价"
+	var eid := Protocol.s(e.get("id", ""))
+	pb.pressed.connect(func() -> void:
+		var txt := le.text.strip_edges()
+		if txt == "" or not txt.is_valid_float() or txt.to_float() <= 0.0:
+			_flash("售价要填正数", false)         # 别把货改成 0 价(会被白拿)
+			return
+		Commands.cmd("set_price", {"entity": eid, "price": txt.to_float()}))
+	row.add_child(pb)
 	return row
 
 
@@ -596,50 +599,6 @@ func _market_row(item: Dictionary) -> Control:
 	btn.pressed.connect(func() -> void:
 		Commands.cmd("company_restock", {"company": _cid, "shop": _shop,
 			"item_type": itype, "qty": int(qty.value)}))
-	row.add_child(btn)
-	return row
-
-
-# --- 价格调整 --------------------------------------------------------------
-func _refresh_prices() -> void:
-	if _price_list == null:
-		return
-	_clear(_price_list)
-	if _shop == "":
-		_price_list.add_child(_muted("这家公司还没登记店铺"))
-		return
-	var shelves := _shelves()
-	if _is_mfg():
-		_price_list.add_child(_muted("加工厂不零售 —— 产出全部卖给批发市场, 价由物品定义定。"))
-		for e in shelves:
-			_price_list.add_child(_muted("· %s　收购价 ¥%.0f" % [
-				Protocol.s(e.get("name", e.get("id", ""))),
-				Protocol.num(e.get("price", 0.0))]))
-		return
-	if shelves.is_empty():
-		_price_list.add_child(_muted("货架上还没有货 —— 先去【货物管理】进货"))
-		return
-	for e in shelves:
-		_price_list.add_child(_price_row(e))
-
-
-func _price_row(e: Dictionary) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	var name := Label.new()
-	name.text = Protocol.s(e.get("name", e.get("id", "")))
-	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(name)
-	var le := LineEdit.new()
-	le.text = "%d" % int(Protocol.num(e.get("price", 0.0)))
-	le.custom_minimum_size.x = 80
-	row.add_child(le)
-	var btn := Button.new()
-	btn.text = "保存"
-	var eid := Protocol.s(e.get("id", ""))
-	btn.pressed.connect(func() -> void:
-		Commands.cmd("set_price", {"entity": eid,
-			"price": le.text.strip_edges().to_float()}))
 	row.add_child(btn)
 	return row
 

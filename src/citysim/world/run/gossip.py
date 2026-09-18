@@ -143,6 +143,9 @@ def _notify_due(world, systems, npc, ev, cfg) -> None:
                value=float(fact.get("value", 0.0)),
                price=float(fact.get("price", 0.0)),
                item_type=str(fact.get("item_type", "")),
+               # ★ tags 必须一起传: "囤货"判据要 consumable —— 没有 tags 的行
+               #   永远买不了(实测: 只"听说"过店里苹果的人全饿死了)
+               tags=tuple(fact.get("tags", ()) or ()),
                stock=int(fact.get("stock", -1)),
                shelf_life_ticks=int(fact.get("shelf_life_ticks", 0)),
                believe=float(fact.get("believe", 1.0)) * trust,

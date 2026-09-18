@@ -7,7 +7,7 @@
     {
       "cash": 1000.0,
       "close": "19:00",
-      "hiring_slots": 1,
+      "hiring_slots": 1.0,
       "id": "org_bld_004",
       "kind": "retail",
       "name": "吵吵小店",
@@ -35,6 +35,21 @@
       "produces_item": "",
       "shops": [
         "bld_013"
+      ],
+      "staff": [],
+      "wage_per_hour": 3.0
+    },
+    {
+      "cash": 1000.0,
+      "close": "19:00",
+      "hiring_slots": 3,
+      "id": "org_bld_014",
+      "kind": "manufacture",
+      "name": "食品加工",
+      "open": "08:00",
+      "produces_item": "meal_simple_raw",
+      "shops": [
+        "bld_014"
       ],
       "staff": [],
       "wage_per_hour": 3.0
@@ -112,6 +127,30 @@
       "price": 5.0,
       "stock": 1000,
       "type": "food_apple"
+    },
+    {
+      "at": "bld_014",
+      "id": "station_workbench_049",
+      "owner": "org_bld_014",
+      "type": "station_workbench"
+    },
+    {
+      "at": "bld_014",
+      "id": "toilet_basic_050",
+      "owner": "org_bld_014",
+      "type": "toilet_basic"
+    },
+    {
+      "at": "bld_014",
+      "id": "station_workbench_051",
+      "owner": "org_bld_014",
+      "type": "station_workbench"
+    },
+    {
+      "at": "bld_014",
+      "id": "station_workbench_052",
+      "owner": "org_bld_014",
+      "type": "station_workbench"
     }
   ],
   "knowledge": [],

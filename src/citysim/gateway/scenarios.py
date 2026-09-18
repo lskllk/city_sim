@@ -55,7 +55,8 @@ NAV_SCENE = TESTS_DIR / "scenefornav.json"
 CFG = load_config(ROOT / "config" / "sim.toml")
 _ARGS_ORDER = ("energy", "hunger", "bladder", "hp")
 # 初始记忆行允许的字段(与 Person.note 对齐; 其余忽略)
-_MEM_FIELDS = frozenset({"located", "owner", "afford", "value", "price", "stock"})
+_MEM_FIELDS = frozenset({"located", "owner", "afford", "value", "price",
+                              "stock", "tags", "item_type", "shelf_life_ticks"})
 
 
 def load_scene(path: str | Path | None = None,

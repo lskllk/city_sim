@@ -78,23 +78,9 @@ func _ready() -> void:
 	var hud := _rate_bar.get_parent()
 	move_child(hud_bg, mini(hud.get_index(), get_child_count() - 1))
 
-	# ★ 播放条挪到【底部】: 它是全屏最常用的控件, 却挤在右上角和公司画布抢位置,
-	#   而且那里最容易被盖。底部一条是播放器的通用位置, 也最稳定。
-	var bottom := HBoxContainer.new()
-	bottom.name = "BottomBar"
-	bottom.alignment = BoxContainer.ALIGNMENT_END
-	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bottom.anchor_left = 0.0
-	bottom.anchor_right = 1.0
-	bottom.anchor_top = 1.0
-	bottom.anchor_bottom = 1.0
-	bottom.offset_left = 8.0
-	bottom.offset_right = -12.0
-	bottom.offset_top = -42.0
-	bottom.offset_bottom = -8.0
-	add_child(bottom)
-	_rate_bar.get_parent().remove_child(_rate_bar)
-	bottom.add_child(_rate_bar)
+	# 播放条【保持原位】: 一度想把它挪到底部(播放器的通用位置), 但实测在那台机器上
+	# 它没能显示出来 —— 与其赌一个看不到的布局, 不如留在原处、把【跟它抢位置的东西】
+	# 挪开: 公司画布已经下移到 HUD 之下(见上面 offset_top=52), 遮挡问题就没了。
 
 	camera = WorldCamera.new(camera_root)
 	camera.resize(size.x, size.y)

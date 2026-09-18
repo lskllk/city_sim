@@ -56,10 +56,45 @@ func _ready() -> void:
 	company_canvas.anchor_right = 1.0
 	company_canvas.offset_left = -420.0
 	company_canvas.offset_right = -12.0
-	company_canvas.offset_top = 12.0
-	company_canvas.offset_bottom = 320.0
+	# ★ 从 HUD 下面开始: 以前是 12, 而 HUD 占 8..40 → 公司画布正好盖住
+	#   右上角的【时钟/吞吐/倍数条】(用户报的"悬浮栏遮住播放条")。
+	company_canvas.offset_top = 52.0
+	company_canvas.offset_bottom = 360.0
 	company_canvas.visible = false
 	add_child(company_canvas)
+
+	# HUD 底衬: 顶栏是直接压在地图上的, 浅色建筑/道路上的数字几乎看不清。
+	# 垫一条半透明横带 —— 插在【地图图层之后、HUD 之前】, 不盖任何别的东西。
+	var hud_bg := ColorRect.new()
+	hud_bg.name = "HudBackdrop"
+	hud_bg.color = Color(0.055, 0.065, 0.085, 0.78)
+	hud_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_bg.anchor_right = 1.0
+	hud_bg.offset_left = 0.0
+	hud_bg.offset_top = 0.0
+	hud_bg.offset_right = 0.0
+	hud_bg.offset_bottom = 48.0
+	add_child(hud_bg)
+	var hud := _rate_bar.get_parent()
+	move_child(hud_bg, mini(hud.get_index(), get_child_count() - 1))
+
+	# ★ 播放条挪到【底部】: 它是全屏最常用的控件, 却挤在右上角和公司画布抢位置,
+	#   而且那里最容易被盖。底部一条是播放器的通用位置, 也最稳定。
+	var bottom := HBoxContainer.new()
+	bottom.name = "BottomBar"
+	bottom.alignment = BoxContainer.ALIGNMENT_END
+	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bottom.anchor_left = 0.0
+	bottom.anchor_right = 1.0
+	bottom.anchor_top = 1.0
+	bottom.anchor_bottom = 1.0
+	bottom.offset_left = 8.0
+	bottom.offset_right = -12.0
+	bottom.offset_top = -42.0
+	bottom.offset_bottom = -8.0
+	add_child(bottom)
+	_rate_bar.get_parent().remove_child(_rate_bar)
+	bottom.add_child(_rate_bar)
 
 	camera = WorldCamera.new(camera_root)
 	camera.resize(size.x, size.y)

@@ -188,6 +188,13 @@ func _scroll_tab(title: String, hint: String) -> VBoxContainer:
 	return v
 
 
+## 本地即时回执(不等服务端): 输入不合法时就地说明, 别让人以为"点了没反应"。
+func _flash(text: String, ok: bool) -> void:
+	_msg.text = ("✓ %s" % text) if ok else ("✗ %s" % text)
+	_msg.add_theme_color_override("font_color",
+		Color("7fe0a8") if ok else Color("e05252"))
+
+
 func _process(_delta: float) -> void:
 	if not visible:
 		return
@@ -208,9 +215,33 @@ func _process(_delta: float) -> void:
 
 
 func _on_snapshot() -> void:
-	if visible and _pending_refresh:
-		_pending_refresh = false
-		_refresh_all()
+	if not visible or not _pending_refresh:
+		return
+	# ★ 有人正在输入就别重建 —— _refresh_all 会销毁并重建所有输入框,
+	#   把他刚打的字和焦点一起丢掉(实测: "改完 A 再改 B" 时 A 白打了)。
+	#   点按钮会让输入框失焦, 所以正常流程不会卡住; 停在输入框里就一直等。
+	if _editing():
+		return
+	_pending_refresh = false
+	_refresh_all()
+
+
+## 面板里现在有输入框拿着键盘焦点吗?
+func _editing() -> bool:
+	var f := get_viewport().gui_get_focus_owner() if get_viewport() != null else null
+	return f != null and is_ancestor_of(f) and (f is LineEdit or f is TextEdit)
+
+
+## 重建列表时保住滚动位置(否则改完一个人的薪, 列表跳回顶部 → 像"出问题")
+func _scroll_of(node: Node) -> int:
+	var sc := node.get_parent()
+	return int((sc as ScrollContainer).scroll_vertical) if sc is ScrollContainer else 0
+
+
+func _restore_scroll(node: Node, v: int) -> void:
+	var sc := node.get_parent()
+	if sc is ScrollContainer:
+		(sc as ScrollContainer).scroll_vertical = v
 
 
 func open_for(cid: String) -> void:
@@ -306,6 +337,7 @@ func _clear(v: Node) -> void:
 func _refresh_hr() -> void:
 	if _hr_list == null:
 		return
+	var keep := _scroll_of(_hr_list)
 	_clear(_hr_list)
 	if _cid == "":
 		return
@@ -329,6 +361,7 @@ func _refresh_hr() -> void:
 		_hr_list.add_child(grid)
 	_hr_list.add_child(_head("招聘启事"))
 	_hr_list.add_child(_hire_row(comp))
+	_restore_scroll(_hr_list, keep)
 
 
 ## 一个员工的 7 个格子(顺序必须和 STAFF_COLS 对齐)。
@@ -367,8 +400,12 @@ func _add_staff_cells(grid: GridContainer, it: Variant, comp: Dictionary) -> voi
 	wb.text = "改"
 	wb.tooltip_text = "按左边填的时薪给这个人改薪"
 	wb.pressed.connect(func() -> void:
+		var txt := w.text.strip_edges()
+		if txt == "" or not txt.is_valid_float():     # ★ 空/乱填 → 不改(别悄悄归零)
+			_flash("时薪要填数字", false)
+			return
 		Commands.cmd("company_wage", {"company": _cid, "npc": pid,
-			"wage": w.text.strip_edges().to_float()}))
+			"wage": txt.to_float()}))
 	grid.add_child(wb)
 	# 5/6 排班(只影响他自己, 不动公司营业时间)
 	var work := Protocol.as_dict(Store.npc(pid).get("work", {}))
@@ -385,8 +422,13 @@ func _add_staff_cells(grid: GridContainer, it: Variant, comp: Dictionary) -> voi
 	sb.text = "排"
 	sb.tooltip_text = "按左边填的上班/下班时刻给他排班"
 	sb.pressed.connect(func() -> void:
+		var a := _minutes(oe.text)
+		var b := _minutes(ce.text)
+		if a < 0 or b < 0 or a >= b:                  # ★ 时刻要合法(以前安静地排成空班)
+			_flash("班次要像 08:00–19:00（且上班早于下班）", false)
+			return
 		Commands.cmd("company_schedule", {"company": _cid, "npc": pid,
-			"open": _minutes(oe.text), "close": _minutes(ce.text)}))
+			"open": a, "close": b}))
 	grid.add_child(sb)
 
 
@@ -435,8 +477,12 @@ func _hire_row(comp: Dictionary) -> Control:
 	var pub := Button.new()
 	pub.text = "发布 / 更新招聘"
 	pub.pressed.connect(func() -> void:
+		var txt := le.text.strip_edges()
+		if txt == "" or not txt.is_valid_float():     # ★ 空/乱填 → 别把招聘时薪悄悄写成 0
+			_flash("招聘时薪要填数字", false)
+			return
 		Commands.cmd("company_hire", {"company": _cid,
-			"slots": int(sp.value), "wage_per_hour": le.text.strip_edges().to_float()}))
+			"slots": int(sp.value), "wage_per_hour": txt.to_float()}))
 	btns.add_child(pub)
 	var stop := Button.new()
 	stop.text = "撤回招聘"
@@ -738,11 +784,17 @@ func _hm(minutes: int) -> String:
 	return "%02d:%02d" % [minutes / 60, minutes % 60]
 
 
+## "HH:MM" → 当天分钟; 【非法返回 -1】(以前回 0 → 打错的时刻会安静地变成 00:00)
 func _minutes(s: String) -> int:
 	var parts := s.strip_edges().split(":")
 	if parts.size() != 2 or not parts[0].is_valid_int() 			or not parts[1].is_valid_int():
-		return 0
-	return int(parts[0]) * 60 + int(parts[1])
+		return -1
+	var h := int(parts[0])
+	var m := int(parts[1])
+	if h < 0 or h > 24 or m < 0 or m > 59:
+		return -1
+	var v := h * 60 + m
+	return v if v <= 1440 else -1
 
 
 ## 公司旗下【空着的】销售前台数(= 还能招几个人)。已绑员工的台不算。

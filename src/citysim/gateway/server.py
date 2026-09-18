@@ -512,7 +512,10 @@ def _admin_company(r, op: str, args: dict) -> dict:
             return {"ok": False, "why": "没有这个人", "company": cid}
         if nid not in [n for n, _ in comp.staff]:
             return {"ok": False, "why": "这个人不是本公司员工", "company": cid}
-        wage = max(0.0, float(args.get("wage", 0.0)))
+        try:
+            wage = max(0.0, float(args.get("wage", 0.0)))
+        except (TypeError, ValueError):
+            return {"ok": False, "why": "时薪要填数字", "company": cid}
         comp.staff = tuple((n, wage if n == nid else w) for n, w in comp.staff)
         npc.assign(Wage(wage))
         return {"ok": True, "why": None, "company": cid,
@@ -621,6 +624,20 @@ async def handle_cmd(r: SimRunner, ws: WebSocket, cmd: dict) -> None:
                          "ok": admin["ok"], "data": admin, "why": admin["why"]})
     elif name == "company_assign":
         admin = _admin_company(r, "assign", args)
+        if admin["ok"]:
+            r.note_world_changed()
+        await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
+                         "ok": admin["ok"], "data": admin, "why": admin["why"]})
+    elif name == "company_wage":
+        # ★ 逐人时薪(和 company_update 改的"公司默认时薪"是两回事)
+        admin = _admin_company(r, "wage", args)
+        if admin["ok"]:
+            r.note_world_changed()
+        await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,
+                         "ok": admin["ok"], "data": admin, "why": admin["why"]})
+    elif name == "company_schedule":
+        # ★ 逐人排班(只改他自己, 不动公司营业时间)
+        admin = _admin_company(r, "schedule", args)
         if admin["ok"]:
             r.note_world_changed()
         await _send(ws, {"kind": "reply", "type": "reply", "req_id": rid,

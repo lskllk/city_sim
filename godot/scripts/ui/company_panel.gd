@@ -319,6 +319,16 @@ func _refresh_hr() -> void:
 	_hr_list.add_child(_hire_row(comp))
 
 
+## 时薪显示: 保留小数, 但不要把 3.00 写成 3.00 —— 3 / 1.1 / 12.5 这样。
+func _wage_txt(v: float) -> String:
+	var s := "%.2f" % v
+	while s.contains(".") and s.ends_with("0"):
+		s = s.substr(0, s.length() - 1)
+	if s.ends_with("."):
+		s = s.substr(0, s.length() - 1)
+	return s
+
+
 func _staff_row(it: Variant, comp: Dictionary) -> Control:
 	var pid := ""
 	var wage := Protocol.num(comp.get("wage_per_hour", 0.0))
@@ -354,16 +364,17 @@ func _staff_row(it: Variant, comp: Dictionary) -> Control:
 			"station": Protocol.s(ids[k]) if k < ids.size() else ""}))
 	row.add_child(ob)
 	var w := LineEdit.new()
-	w.text = "%.0f" % wage
-	w.custom_minimum_size.x = 44
+	w.text = _wage_txt(wage)          # ★ 保留小数(以前 "%.0f" 把 1.1 显示成 1)
+	w.custom_minimum_size.x = 52
 	w.tooltip_text = "这个人的时薪(¥/时) —— 逐人, 不动公司默认时薪"
 	row.add_child(w)
 	row.add_child(_muted("¥/时"))
 	var wb := Button.new()
 	wb.text = "改薪"
 	wb.pressed.connect(func() -> void:
-		Commands.cmd("company", {"op": "wage", "company": _cid, "npc": pid,
-			"wage": w.text.to_float()}))
+		# ★ 命令名要对: 以前发的是 `company` + op, 服务端没这个名字 → 按了没反应
+		Commands.cmd("company_wage", {"company": _cid, "npc": pid,
+			"wage": w.text.strip_edges().to_float()}))
 	row.add_child(wb)
 	var on_post := bool(Store.npc(pid).get("on_post", false))
 	var st := Label.new()
@@ -385,7 +396,8 @@ func _staff_row(it: Variant, comp: Dictionary) -> Control:
 	var sb := Button.new()
 	sb.text = "排班"
 	sb.pressed.connect(func() -> void:
-		Commands.cmd("company", {"op": "schedule", "company": _cid, "npc": pid,
+		# ★ 同上: 以前发到不存在的 `company` 命令 → 按了没反应
+		Commands.cmd("company_schedule", {"company": _cid, "npc": pid,
 			"open": _minutes(oe.text), "close": _minutes(ce.text)}))
 	row.add_child(sb)
 	return row
@@ -466,6 +478,22 @@ func _refresh_goods() -> void:
 			_goods_list.add_child(_muted("厂里还没有产出 —— 去【人员管理】把工人派到工位, 他站着就会产"))
 		for e in piles:
 			_goods_list.add_child(_shelf_row(e))
+		# 工业机器: 一台配一个工位 → 产量 ×3(多余机器没用)
+		var machines := 0
+		var benches := 0
+		for e in Store.entities.values():
+			var d: Dictionary = e
+			if Store.building_of(Protocol.s(d.get("loc", ""))) != _shop:
+				continue
+			var t := Protocol.s(d.get("item_type", ""))
+			if t == "industry_machine":
+				machines += 1
+			elif t == "station_workbench":
+				benches += 1
+		if machines > 0 or benches > 0:
+			_goods_list.add_child(_muted(
+				"工业机器 %d 台 / 工位 %d 个 —— 每台机器给一个工位产量 ×3；多余机器没用（想再提就再加机器 + 工位）"
+				% [machines, benches]))
 		_goods_list.add_child(_muted("每天零点批发市场按物品定义价全部收走 → 钱进公司账。"))
 		return
 	# 在售货架

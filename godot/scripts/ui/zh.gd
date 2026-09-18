@@ -45,6 +45,7 @@ const ITEM := {
 	"meal_simple": "简餐", "food_apple": "苹果", "food_pear": "梨",
 	"bed_basic": "床", "toilet_basic": "马桶",
 	"station_workbench": "工位", "station_counter": "销售台",
+	"industry_machine": "工业机器",
 	"meal_simple_raw": "简餐原料",
 }
 

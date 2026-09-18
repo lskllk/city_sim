@@ -194,3 +194,79 @@ def test_company_kind_is_decided_by_the_building(tmp_path) -> None:
     scene["locations"]["plant"]["type"] = "shop_small"
     w, _s, _r = _load(tmp_path, scene)
     assert w.companies["org_plant"].kind == "retail"
+
+
+def test_industrial_machine_triples_one_workbench(tmp_path) -> None:
+    """工业机器(家具, ¥1200): 一台配一个工位 → 那个工位产量 ×3。
+
+    ★ 多余机器【没用】—— 想再提产量得"再加机器 + 再加工位":
+      单买机器不加工位是白花钱(实测: 1 工位 + 3 台机器 = 和 1 台一样)。
+    """
+    def run(machines: int, days: int = 6) -> int:
+        scene = _factory_scene()
+        scene["companies"][0]["cash"] = 99999
+        scene["entities"] = [{"id": "w", "type": "station_workbench", "at": "plant"}]
+        scene["entities"] += [{"id": "m%d" % i, "type": "industry_machine",
+                               "at": "plant"} for i in range(1, machines + 1)]
+        scene["entities"].append({"id": "m", "type": "meal_simple",
+                                  "at": "home", "stock": 9999})
+        w, s, rng = _load(tmp_path, scene)
+        made = 0
+        for _ in range(days * 1440):
+            before = sum(e.stock for e in w.entities.values()
+                         if e.item_type == "meal_simple_raw")
+            run_tick(w, s, CFG, rng)
+            after = sum(e.stock for e in w.entities.values()
+                        if e.item_type == "meal_simple_raw")
+            if after >= before:                  # 跳过零点被收走那一下
+                made += after - before
+        return made
+
+    plain = run(0)
+    one = run(1)
+    three = run(3)
+    assert one > plain * 2, "一台机器该把产量拉到 ~3 倍"
+    assert abs(three - one) <= max(2, one // 10), "1 个工位配 3 台机器 = 和 1 台一样"
+
+
+# --- 员工管理: 分派工位 / 改薪(面板上踩过的两个坑) -----------------------
+
+def test_reassigning_a_station_keeps_the_persons_own_wage(tmp_path) -> None:
+    """★ 换个工位不能把【逐人时薪】冲掉。
+
+    以前 assign_station 写的是 company.wage_per_hour → 一重派, 面板上被调过的
+    逐人时薪就自己变回公司默认值了("改薪之后又变回去")。
+    """
+    from citysim.world.econ.company import assign_station
+    scene = _factory_scene()
+    scene["entities"].append({"id": "w2", "type": "station_workbench",
+                              "at": "plant"})
+    scene["companies"][0]["wage_per_hour"] = 3.0
+    scene["companies"][0]["staff"] = [{"npc": "a", "station": "w", "wage": 7.5}]
+    w, s, _r = _load(tmp_path, scene)
+    comp = w.companies["org_plant"]
+    assert w.npcs["a"].work["wage"] == 7.5
+    res = assign_station(w, s, CFG, comp, "a", "w2")      # 换个工位
+    assert res["ok"] is True
+    assert w.npcs["a"].work["station"] == "w2"
+    assert w.npcs["a"].work["wage"] == 7.5, "逐人时薪不该被公司默认值冲掉"
+
+
+def test_wage_op_updates_only_that_person(tmp_path) -> None:
+    """改薪只动一个人 —— 公司的默认时薪不跟着变。"""
+    from citysim.gateway.server import _admin_company
+    scene = _factory_scene()
+    scene["companies"][0]["staff"] = ["a"]
+    scene["companies"][0]["wage_per_hour"] = 3.0
+    w, _s, _r = _load(tmp_path, scene)
+    class R: world = w
+    res = _admin_company(R(), "wage", {"company": "org_plant", "npc": "a",
+                                      "wage": 6.5})
+    assert res["ok"] is True
+    assert dict(w.companies["org_plant"].staff)["a"] == 6.5
+    assert w.npcs["a"].work["wage"] == 6.5
+    assert w.companies["org_plant"].wage_per_hour == 3.0    # 公司默认值没动
+    # 空/坏输入不该炸
+    bad = _admin_company(R(), "wage", {"company": "org_plant", "npc": "a",
+                                       "wage": ""})
+    assert bad["ok"] is False and "数字" in bad["why"]

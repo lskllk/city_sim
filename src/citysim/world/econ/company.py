@@ -177,10 +177,15 @@ def assign_station(world, systems, cfg: SimConfig, company,
         if other.work.get("station") == station_id:
             return {"ok": False, "why": "这个台已经有别人在守",
                     "npc": npc_id, "station": ""}
+    # ★ 时薪取【这个人自己的】(comp.staff 里那条), 不是公司的默认时薪 ——
+    #   以前这里写 company.wage_per_hour, 于是"换个工位/重派一下"就把他被调过的
+    #   逐人时薪冲掉了(面板上看到的就是"改薪之后自己变回去了")。
+    wage = next((float(w) for n, w in company.staff if n == npc_id),
+                float(company.wage_per_hour))
     npc.assign(Work(company.company_id, shop_id, station_id,
                      int(npc.work.get("open", company.open_minute)),
                      int(npc.work.get("close", company.close_minute)),
-                     company.wage_per_hour))
+                     wage))
     return {"ok": True, "why": "", "npc": npc_id, "station": station_id,
             "shop": shop_id}
 

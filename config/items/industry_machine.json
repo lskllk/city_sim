@@ -1,0 +1,14 @@
+{
+  "item_type": "industry_machine",
+  "name": "工业机器",
+  "tags": [
+    "fixture",
+    "manufacture",
+    "machine"
+  ],
+  "affordances": {},
+  "build_cost": 1200.0,
+  "duration_ticks": 30,
+  "attrs": {},
+  "stock": 1
+}

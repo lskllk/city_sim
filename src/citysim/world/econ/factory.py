@@ -20,6 +20,25 @@ from citysim.core.config import SimConfig
 log = logging.getLogger("citysim.factory")
 
 WORKBENCH_ITEM = "station_workbench"   # 工位: 站着就是干活
+MACHINE_ITEM = "industry_machine"     # 工业机器(家具): 给一个工位提产量
+
+
+def machines_of(world, company) -> int:
+    """这家厂里摆了几台【工业机器】(家具, 从公司账买)。"""
+    return sum(1 for e in world.entities.values()
+               if e.item_type == MACHINE_ITEM and e.location_id in company.shops)
+
+
+def faster_benches(world, company, benches: list) -> set:
+    """哪几个工位被机器带快了 —— 一台机器配一个工位(按 id 排序, 先到先得)。
+
+    "每个工位的产量提高三倍": 有机器就 ×3; 机器比工位少时, 只有前几台工位吃到。
+    想再提就【再加机器 + 再加工位】—— 资本和岗位一起投, 单投哪一边都不划算。
+    """
+    n = machines_of(world, company)
+    if n <= 0:
+        return set()
+    return {b.entity_id for b in benches[:n]}
 
 
 def _workbenches(world, company) -> list:
@@ -58,7 +77,9 @@ def produce(world, systems, cfg: SimConfig) -> list[dict]:
         comp = world.companies[cid]
         if comp.kind != "manufacture" or not comp.produces_item:
             continue
-        for bench in _workbenches(world, comp):
+        benches = _workbenches(world, comp)
+        fast = faster_benches(world, comp, benches)     # 有机器带的工位 ×3
+        for bench in benches:
             pid = ""
             for cand, act in sorted(systems.interaction.active.items()):
                 if act is not None and act.entity_id == bench.entity_id:
@@ -70,6 +91,9 @@ def produce(world, systems, cfg: SimConfig) -> list[dict]:
             # 熟练度是【他自己】的(只读); 进度是【世界的账】(谁干到哪了)。
             skill = skill_of(npc.skill_ticks, cfg)
             per_unit = max(1.0, cfg.produce_base_ticks / skill)
+            # ★ 工业机器: 这个工位有机器 → 产出速度 ×bonus(默认 3)
+            if bench.entity_id in fast:
+                per_unit = max(1.0, per_unit / float(cfg.produce_machine_bonus))
             prog = float(systems.production.get(npc.person_id, 0.0)) + 1.0
             if prog < per_unit:
                 systems.production[npc.person_id] = prog

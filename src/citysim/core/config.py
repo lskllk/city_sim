@@ -39,6 +39,7 @@ class SimConfig:
     # 【唯一阈值】就设在这里(得分上), 不再有"候选收集门槛"那一层。
     # 低于此分什么都不做 —— 它同时承担了"琐碎需求别动"与"别乱走"两件事。
     utility_threshold: float = 0.05
+    explore_score: float = 0.3        # "去记得的地方看看"的分(没辙时的兜底)
     move_ticks: int = 30           # 跨地点移动耗时(无路网时的降级)
     move_m_per_tick: float = 10.0  # 有路网时: 每 tick 可走米数
     # —— 生命三态 ——
@@ -88,6 +89,7 @@ class SimConfig:
     favor_max: float = 2.0
     favor_trade_up: float = 0.02          # 顺利买到 → 涨
     favor_no_service_down: float = 0.15   # 到店却没人招待(白跑) → 掉得多
+    favor_drift: float = 0.05             # 每天向中性回升多少(忘了不愉快)
     # 招聘桥接: 每天几点匹配一次(0 = 午夜)
     hire_minute: int = 0
     collect_minute: int = 0        # 批发市场收货(制造公司的产出 → 现金)
@@ -157,6 +159,7 @@ class SimConfig:
             power_by_signal={str(k): float(v) for k, v in
                              (util.get("power_by_signal") or {}).items()},
             utility_threshold=float(util.get("threshold", 0.05)),
+            explore_score=float(util.get("explore_score", 0.3)),
             move_ticks=int(data.get("motion", {}).get("move_ticks", 30)),
             move_m_per_tick=float(data.get("motion", {}).get("move_m_per_tick", 10.0)),
             hp_decay=float(health.get("hp_decay", health.get("decay", 0.0005))),
@@ -179,6 +182,7 @@ class SimConfig:
             wage_minute=int(data.get("economy", {}).get("wage_minute", 480)),
             hire_minute=int(data.get("economy", {}).get("hire_minute", 0)),
             collect_minute=int(data.get("economy", {}).get("collect_minute", 0)),
+            favor_drift=float(data.get("favor", {}).get("drift", 0.05)),
             produce_base_ticks=float(
                 data.get("produce", {}).get("base_ticks_per_unit", 360)),
             produce_skill_min=float(data.get("produce", {}).get("skill_min", 2.0)),

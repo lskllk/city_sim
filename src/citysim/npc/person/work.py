@@ -119,6 +119,24 @@ class WorkMixin:
         return float(self._favor.get(shop_id, neutral))
 
 
+    def drift_favor(self, cfg) -> None:
+        """好感度【每天向中性靠一点】—— 忘了不愉快(每游戏日调一次)。
+
+        ★ 没有它好感度就是【只降不升】的: 一次白跑 −0.15, 七次就 0.0,
+          而打分里 "fav<=0 → 这条不成立" → 那家店的货【永远】不再进候选。
+          实测后果: 店里一没人守台, 排队的人全白跑 → 全城一起拉黑这家店 → 饿死。
+        """
+        n = float(cfg.favor_neutral)
+        step = float(cfg.favor_drift)
+        if step <= 0.0:
+            return
+        for sid in list(self._favor):
+            v = float(self._favor[sid])
+            if abs(v - n) <= step:
+                self._favor[sid] = n
+            else:
+                self._favor[sid] = v + step * (1.0 if n > v else -1.0)
+
     def bump_favor(self, shop_id: str, delta: float, cfg) -> float:
         """好感度加减(自动夹在 min..max)。返回新值。"""
         if not shop_id or delta == 0.0:

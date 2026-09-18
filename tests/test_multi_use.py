@@ -116,9 +116,10 @@ def test_release_frees_a_slot(tmp_path) -> None:
 
 def test_eat_consumes_bed_does_not(tmp_path) -> None:
     """★ 区分"消耗"与"占用":
-    - 食物(货物): 吃完 stock-1; 三人同时吃一堆 → 吃完 stock 归 0, 实体回收;
+    - 食物(货物): 吃完 stock-1; 三人同时吃一堆 → 吃完 stock 归 0;
+      ★ 有价的货(在售/货架)归 0 也留壳 —— 不然"开门前补货"再也找不到该补什么
+        (实测: 店里苹果卖空那一刻实体被销毁 → 永远不再进货 → 全城饿死)
     - 床(家具):   睡完 stock 不变(恒为 1), 实体还在, 可以再睡。
-    两者共用同一套 [当前占用人数 < stock] 名额判定 —— 所以都对。
     """
     w, s, _r = _load(tmp_path, _scene("meal_simple", 3))
     meal = [e for e in w.entities.values()
@@ -129,7 +130,8 @@ def test_eat_consumes_bed_does_not(tmp_path) -> None:
     for pid in ("a", "b", "c"):
         s.interaction.finish(w, pid, s.interaction.active[pid].handle)
     assert meal.stock == 0                       # 3 份被吃光
-    assert meal.entity_id not in w.entities      # 空食物回收
+    # 有价的货 = 货架: 留壳等补货(免费的食物才回收)
+    assert meal.entity_id in w.entities
     assert meal.claimants == set()
 
     w2, s2, _r2 = _load(tmp_path, _scene("bed_basic", 1))

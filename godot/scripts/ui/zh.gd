@@ -28,7 +28,7 @@ const EVENT := {
 	"interaction_aborted": "中止", "npc_died": "死亡",
 	"told": "转述", "spoiled": "变质", "entry_denied": "被拒",
 	"wage_paid": "发薪", "wage_failed": "欠薪",
-	"produced": "产出", "collected": "交货",
+	"produced": "产出", "collected": "交货", "staff_released": "员工离职",
 	"restocked": "补货",
 }
 

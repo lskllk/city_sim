@@ -42,7 +42,7 @@
     {
       "cash": 1000.0,
       "close": "19:00",
-      "hiring_slots": 3,
+      "hiring_slots": 5,
       "id": "org_bld_014",
       "kind": "manufacture",
       "name": "食品加工",
@@ -52,7 +52,7 @@
         "bld_014"
       ],
       "staff": [],
-      "wage_per_hour": 3.0
+      "wage_per_hour": 5.0
     }
   ],
   "display_name": "scene",
@@ -151,6 +151,24 @@
       "id": "station_workbench_052",
       "owner": "org_bld_014",
       "type": "station_workbench"
+    },
+    {
+      "at": "bld_014",
+      "id": "station_workbench_053",
+      "owner": "org_bld_014",
+      "type": "station_workbench"
+    },
+    {
+      "at": "bld_014",
+      "id": "station_workbench_054",
+      "owner": "org_bld_014",
+      "type": "station_workbench"
+    },
+    {
+      "at": "bld_014",
+      "id": "toilet_basic_055",
+      "owner": "org_bld_014",
+      "type": "toilet_basic"
     }
   ],
   "knowledge": [],
@@ -201,7 +219,7 @@
       "type": "factory_plant",
       "w": 23.53,
       "x": 692.0,
-      "y": 421.39
+      "y": 424.7
     }
   },
   "map": {
@@ -316,12 +334,12 @@
       "bld_014": {
         "center": [
           703.767,
-          436.686
+          440.0
         ],
         "doors": [
           [
             692.0,
-            436.686
+            440.0
           ]
         ],
         "floors": 1,
@@ -761,7 +779,7 @@
       "bld_009|bld_011": 2,
       "bld_009|bld_014": 39,
       "bld_010|bld_011": 35,
-      "bld_010|bld_014": 6,
+      "bld_010|bld_014": 7,
       "bld_011|bld_014": 38
     }
   }

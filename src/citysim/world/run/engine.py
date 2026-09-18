@@ -209,6 +209,15 @@ def _kill(world, systems, pid: str) -> None:
         return
     systems.interaction.release_active(world, pid)   # 清 claim
     systems.travel.pop(pid, None)                    # 清旅行
+    # ★ 从公司名册上撤下来 —— 否则他那个工位永远算"有人占",
+    #   公司再也招不到人补位 → 店永久停业(实测: 唯一店员一死, 全城买不到饭, 全灭)
+    for cid in sorted(world.companies):
+        comp = world.companies[cid]
+        if any(n == pid for n, _w in comp.staff):
+            comp.staff = tuple((n, w) for n, w in comp.staff if n != pid)
+            world.bus.publish(world.bus.make(
+                world.clock_tick, "staff_released", pid,
+                {"company": cid, "why": "死亡"}))
     world.npcs.pop(pid, None)                        # 从世界销毁
     world.bus.publish(world.bus.make(
         world.clock_tick, "npc_died", pid,

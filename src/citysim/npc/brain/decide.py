@@ -44,6 +44,7 @@ def decide_scored(
     """
     cands = _gather_candidates(
         mem, signals, now_tick, self_id=self_id, home=home, cfg=cfg,
+        location_id=location_id, workplace=workplace,
         future_weight=cfg.stock_future_weight,
         thrift=float(personality.get("thrift", 1.0)))
     scored, ranked, relevant = _score_candidates(
@@ -51,11 +52,13 @@ def decide_scored(
         hour_f=(now_tick % max(1, cfg.ticks_per_day)) / 60.0,
         favor=favor, home=home,
         workplace=workplace, leave_cost=leave_cost)
-    return _choose(scored, ranked, relevant, cfg, self_id, location_id, home)
+    return _choose(scored, ranked, relevant, cfg, self_id, location_id, home,
+                   workplace)
 
 
 def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
-            location_id: str, home: str = "") -> tuple[Intent, float]:
+            location_id: str, home: str = "",
+            workplace: str = "") -> tuple[Intent, float]:
     """[阶段4] 选优分流 —— 只凭记忆行字段, 不看现场。全不够格则 Idle。
 
     返回 (intent, score): Idle 时 score = 0。
@@ -67,7 +70,7 @@ def _choose(scored, ranked, relevant, cfg: SimConfig, self_id: str,
         if eff <= thresh:
             continue
         # 免费自用 → Interact; 在售(只会是囤货候选) → Buy。
-        self_use = _self_use(row, self_id, home)
+        self_use = _self_use(row, self_id, home, workplace)
         for_sale = row.price > 0 and not self_use
         if not (self_use or for_sale):
             continue

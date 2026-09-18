@@ -149,6 +149,10 @@ def load_scene(path: str | Path | None = None,
             e.price = float(spec["price"])
         if "persist_empty" in spec:    # 容器/货架: stock 归 0 不回收
             e.persist_empty = bool(spec["persist_empty"])
+        if e.price > 0 and not e.is_furniture:
+            # ★ 在售的货 = 货架: 卖空要留壳。否则卖空那一刻实体被回收,
+            #   "开门前补货"就找不到"这家店卖什么" → 永远不再补 → 全城饿死(实测 D87)
+            e.persist_empty = True
         e.open_hours = Entity.parse_open_hours(spec.get("open_hours"))
         if "position" in spec:          # 显式锚点优先(可选)
             e.position = (float(spec["position"][0]), float(spec["position"][1]))

@@ -41,6 +41,13 @@ def _score_candidates(cands, personality: Mapping[str, float],
         needs[sig] = need
         # 每种需求可以有自己的幂次(精力要钝: 不太困就别去躺)
         power = cfg.power_by_signal.get(sig, cfg.utility_power)
+        if driver == "explore":
+            # ★ "去我记得能解它的地方看看" —— 地点行没有价值/价格, 不走常规公式。
+            #   给个小而定、随缺口线性长起来的分: 够过阈值(不然等于没去),
+            #   又不会盖过任何真候选(有真候选时根本不会生这条)。
+            scored.append((row.item_id, sig, cfg.explore_score * need,
+                           row.located, row, 1, driver))
+            continue
         # 走这一趟要多少 tick
         ticks = 0
         if row.located and location_id and row.located != location_id:
@@ -53,7 +60,7 @@ def _score_candidates(cands, personality: Mapping[str, float],
         # (旧版只看单价: 钱只够 1 件、却按缺口要买 4 件 → 白跑一趟再失败)
         qty = max(1, int(want))
         # 免费自用的不当商品算钱(口径与候选/分流同一个 _self_use)。
-        for_sale = row.price > 0 and not _self_use(row, self_id, home)
+        for_sale = row.price > 0 and not _self_use(row, self_id, home, workplace)
         if for_sale:
             affordable = int(float(money) // float(row.price))
             if affordable < 1:

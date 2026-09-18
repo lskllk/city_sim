@@ -81,7 +81,9 @@ def perceive_into(mem: MemBase, percept: Percept, tick: int,
                     shelf_life_ticks=int(v.shelf_life_ticks),
                     expires_tick=int(v.expires_tick),
                     believe=1.0, remember=1.0, last_seen=tick)
-    gain += _touch_place(mem, percept.location_id, tick)
+    gain += _touch_place(
+        mem, percept.location_id, tick,
+        affords=sorted({a for v in percept.visible for a in v.affordances if a}))
     return gain
 
 
@@ -90,24 +92,32 @@ def place_id(loc: str) -> str:
     return "loc:" + loc
 
 
-def _touch_place(mem: MemBase, loc: str, tick: int) -> float:
-    """写一行【地点记忆】("我逛过这里") —— 返回它这次的新奇量。
+def _touch_place(mem: MemBase, loc: str, tick: int, affords=()) -> float:
+    """写一行【地点记忆】("我逛过这里, 这儿能解 hunger…") —— 返回它这次的新奇量。
 
     为什么需要它:
       · 它是"我来过"的凭证 —— 闲逛选址靠它判断"**没去过**"(没去过才给乐观加成);
       · 它是"上次在这儿收获多少"的账(attrs["gain"]) —— 选址的第二项;
-      · afford="" → **不进决策候选**(不会干扰吃饭睡觉);
-      · 它自己也参与遗忘 → 忘了 = 重新变成"没去过" → 会再去看看。
+      · ★ `attrs["affords"]`: "**这个地方是干嘛的**" —— 比"这儿现在有几个苹果"
+        耐久得多的知识。东西的行会忘, 这条不会(见 forget 里的 place 例外):
+        所以"我记得那家店能弄到吃的"留得住, 饿了还能找过去(见 candidates 的 explore)。
+      · afford="" → **不进普通候选**(不会干扰吃饭睡觉); 只有"没撤了"才会用到它。
     """
     pid = place_id(loc)
     row = mem.get(pid)
     if row is None:
         mem.set(MemItem(item_id=pid, located=loc, afford="",
                         tags=("place",), believe=1.0, remember=1.0,
-                        last_seen=tick, attrs={"visits": 1, "gain": 0.0}))
+                        last_seen=tick,
+                        attrs={"visits": 1, "gain": 0.0,
+                               "affords": sorted(set(affords))}))
         return 1.0
     gain = max(0.0, 1.0 - float(row.remember))
-    mem.update(pid, remember=1.0, last_seen=tick)
+    known = set(row.attrs.get("affords") or ())
+    known |= set(affords)
+    attrs = dict(row.attrs)
+    attrs["affords"] = sorted(known)
+    mem.update(pid, remember=1.0, last_seen=tick, attrs=attrs)
     return gain
 
 
@@ -139,6 +149,12 @@ def forget(mem: MemBase, half_life_ticks: int, step_ticks: int = 1440,
         if keep_located and r.located == keep_located:
             continue                     # 家: 不衰减, 也不删
         rem = float(r.remember) * factor
+        if "place" in (r.tags or ()):
+            # ★ 地点行【永不删除】: 它记的是"那个地方是干嘛的"(常识), 不是"现在那儿
+            #   有几件东西"。东西的行照常忘 —— 需要时走过去看一眼就重新知道
+            #   (到了那儿会触发一次观察; 见 candidates 的 explore 候选)。
+            mem.update(r.item_id, remember=max(rem, forget_threshold))
+            continue
         if rem < forget_threshold:
             mem.delete(r.item_id)
             gone += 1

@@ -201,8 +201,11 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
         missing = self._needed(cfg) - self._checked_here
         if not missing:
             return False
+        # ★ 只看【还有货】的行: 记忆里那条"简餐 stock=0"(吃光了)不算"这儿有吃的"
+        #   —— 否则他永远觉得"本地有", 于是【永远不再观察】, 也就永远不知道
+        #   家里/店里又进了新货(实测: 家里摆了新苹果他也看不见, 饿死)。
         here_affords = {r.afford for r in self._mem.items()
-                        if r.located == here and r.afford}
+                        if r.located == here and r.afford and int(r.stock) != 0}
         return any(s not in here_affords for s in missing)
 
     def _needed(self, cfg: "SimConfig") -> "set[str]":
@@ -390,8 +393,9 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
 
 
     def on_day(self, cfg: "SimConfig", now_tick: int) -> int:
-        """窄协议: 每游戏日 ① 重算年龄 ② 遗忘。返回遗忘条数。"""
+        """窄协议: 每游戏日 ① 重算年龄 ② 遗忘 ③ 好感度回升。返回遗忘条数。"""
         self._age = self._age_from_birthday(now_tick // max(1, cfg.ticks_per_day))
+        self.drift_favor(cfg)
         return self.decay_memory(cfg)
 
 

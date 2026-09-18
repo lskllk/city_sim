@@ -147,7 +147,9 @@ class InteractionSystem:
         kind = "interaction_aborted" if aborted else "interaction_done"
         world.bus.publish(world.bus.make(
             world.clock_tick, kind, pid, {"entity": ent.entity_id}))
-        if ent.stock == 0 and not ent.persist_empty and ent.is_consumable:
+        # 在售的货是【货架】: 卖空也留壳(不然"开门前补货"再也找不到该补什么)
+        if (ent.stock == 0 and not ent.persist_empty and ent.is_consumable
+                and ent.price <= 0):
             world.entities.pop(ent.entity_id, None)
             npc.notify(ItemGone(ent.entity_id))
         if not aborted:

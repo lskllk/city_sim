@@ -36,6 +36,8 @@ var _decor_list: VBoxContainer
 var _tab_goods: Control
 var _tab_prices: Control
 var _tab_decor: Control
+const STAFF_COLS := 7          # 员工行网格列数(见 _refresh_hr / _add_staff_cells)
+
 var _cid := ""
 var _shop := ""
 var _seen_reply := 0
@@ -129,7 +131,7 @@ func _build() -> void:
 # --- 人员管理 ---------------------------------------------------------------
 func _build_hr() -> Control:
 	var v := _scroll_tab("人员管理",
-		"员工名单 + 工位分配 + 每人排班(上班/下班时刻); 发布招聘启事(几名/时薪) → 每天【招人时刻】媒婆才撮合。")
+		"员工名单 + 逐人时薪/排班。发布招聘启事(几名/时薪) → 每天【招人时刻】自动撮合, 岗位由系统自动分配。")
 	_hr_list = VBoxContainer.new()
 	_hr_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_hr_list.add_theme_constant_override("separation", 4)
@@ -308,16 +310,84 @@ func _refresh_hr() -> void:
 	if _cid == "":
 		return
 	var comp := Store.company(_cid)
-	# 员工名单
 	_hr_list.add_child(_head("员工名单"))
 	var staff := Protocol.as_array(comp.get("staff", []))
 	if staff.is_empty():
-		_hr_list.add_child(_muted("还没招到人 —— 发布招聘启事, 等每天招人时刻匹配"))
-	for it in staff:
-		_hr_list.add_child(_staff_row(it, comp))
-	# 招聘启事
+		_hr_list.add_child(_muted("还没招到人 —— 发布招聘启事, 等每天招人时刻自动撮合"))
+	else:
+		# ★ 用 GridContainer 列对齐 —— 以前一行一个 HBox, 宽窄靠互相挤,
+		#   窄窗口下"时薪"会被压成竖排。网格让每列按最宽的那个对齐。
+		var grid := GridContainer.new()
+		grid.columns = STAFF_COLS
+		grid.add_theme_constant_override("h_separation", 6)
+		grid.add_theme_constant_override("v_separation", 4)
+		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		for h in ["姓名", "在岗", "时薪 ¥/时", "", "上班", "下班", ""]:
+			grid.add_child(_muted(h))
+		for it in staff:
+			_add_staff_cells(grid, it, comp)
+		_hr_list.add_child(grid)
 	_hr_list.add_child(_head("招聘启事"))
 	_hr_list.add_child(_hire_row(comp))
+
+
+## 一个员工的 7 个格子(顺序必须和 STAFF_COLS 对齐)。
+func _add_staff_cells(grid: GridContainer, it: Variant, comp: Dictionary) -> void:
+	var pid := ""
+	var wage := Protocol.num(comp.get("wage_per_hour", 0.0))
+	if typeof(it) == TYPE_DICTIONARY:
+		pid = Protocol.s((it as Dictionary).get("npc", ""))
+		wage = Protocol.num((it as Dictionary).get("wage", wage))
+	else:
+		pid = Protocol.s(it)
+	# 1 姓名(固定宽 + 截断, 不许它把整行吃掉)
+	var name := Label.new()
+	name.text = Store.name_of(pid)
+	name.custom_minimum_size.x = 76
+	name.clip_text = true
+	name.tooltip_text = pid
+	grid.add_child(name)
+	# 2 在岗灯(窄, 色区分)
+	var on_post := bool(Store.npc(pid).get("on_post", false))
+	var st := Label.new()
+	st.text = "在岗" if on_post else "——"
+	st.custom_minimum_size.x = 30
+	st.add_theme_color_override("font_color",
+		Color("7fe0a8") if on_post else Color("4a5568"))
+	st.tooltip_text = "正守着自己那个工位" if on_post else "不在岗(没到班 / 去吃饭睡觉)"
+	grid.add_child(st)
+	# 3 逐人时薪
+	var w := LineEdit.new()
+	w.text = _wage_txt(wage)
+	w.custom_minimum_size.x = 50
+	w.tooltip_text = "这个人的时薪(¥/时) —— 逐人, 不动公司默认时薪"
+	grid.add_child(w)
+	# 4 改薪
+	var wb := Button.new()
+	wb.text = "改"
+	wb.tooltip_text = "按左边填的时薪给这个人改薪"
+	wb.pressed.connect(func() -> void:
+		Commands.cmd("company_wage", {"company": _cid, "npc": pid,
+			"wage": w.text.strip_edges().to_float()}))
+	grid.add_child(wb)
+	# 5/6 排班(只影响他自己, 不动公司营业时间)
+	var work := Protocol.as_dict(Store.npc(pid).get("work", {}))
+	var oe := LineEdit.new()
+	oe.text = _hm(int(Protocol.num(work.get("open", 0))))
+	oe.custom_minimum_size.x = 46
+	grid.add_child(oe)
+	var ce := LineEdit.new()
+	ce.text = _hm(int(Protocol.num(work.get("close", 1440))))
+	ce.custom_minimum_size.x = 46
+	grid.add_child(ce)
+	# 7 排班
+	var sb := Button.new()
+	sb.text = "排"
+	sb.tooltip_text = "按左边填的上班/下班时刻给他排班"
+	sb.pressed.connect(func() -> void:
+		Commands.cmd("company_schedule", {"company": _cid, "npc": pid,
+			"open": _minutes(oe.text), "close": _minutes(ce.text)}))
+	grid.add_child(sb)
 
 
 ## 时薪显示: 保留小数, 但不要把 3.00 写成 3.00 —— 3 / 1.1 / 12.5 这样。
@@ -328,69 +398,6 @@ func _wage_txt(v: float) -> String:
 	if s.ends_with("."):
 		s = s.substr(0, s.length() - 1)
 	return s
-
-
-func _staff_row(it: Variant, comp: Dictionary) -> Control:
-	var pid := ""
-	var wage := Protocol.num(comp.get("wage_per_hour", 0.0))
-	if typeof(it) == TYPE_DICTIONARY:
-		pid = Protocol.s((it as Dictionary).get("npc", ""))
-		wage = Protocol.num((it as Dictionary).get("wage", wage))
-	else:
-		pid = Protocol.s(it)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	# 姓名: 【固定宽度】—— 以前用 EXPAND_FILL 把整行吃掉, 后面的控件被挤到边上
-	var name := Label.new()
-	name.text = Store.name_of(pid)
-	name.custom_minimum_size.x = 72
-	name.clip_text = true
-	row.add_child(name)
-	# 在岗灯: 直接跟在名字后面(一眼扫)
-	var on_post := bool(Store.npc(pid).get("on_post", false))
-	var st := Label.new()
-	st.text = "在岗" if on_post else "——"
-	st.custom_minimum_size.x = 34
-	st.add_theme_color_override("font_color",
-		Color("7fe0a8") if on_post else Color("4a5568"))
-	st.tooltip_text = "现在正守着自己那个工位" if on_post else "不在岗(没到班 / 正去吃饭睡觉)"
-	row.add_child(st)
-	# 弹性空档: 推右边的控件, 比"让某个控件 EXPAND"可控
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(sp)
-	# 逐人时薪
-	row.add_child(_muted("时薪"))
-	var w := LineEdit.new()
-	w.text = _wage_txt(wage)
-	w.custom_minimum_size.x = 52
-	w.tooltip_text = "这个人的时薪(¥/时) —— 逐人, 不动公司默认时薪"
-	row.add_child(w)
-	var wb := Button.new()
-	wb.text = "改薪"
-	wb.pressed.connect(func() -> void:
-		Commands.cmd("company_wage", {"company": _cid, "npc": pid,
-			"wage": w.text.strip_edges().to_float()}))
-	row.add_child(wb)
-	# 排班: 每人一个班次(上班/下班 HH:MM; 只影响他自己, 不动公司营业时间)
-	var work := Protocol.as_dict(Store.npc(pid).get("work", {}))
-	row.add_child(_muted("班"))
-	var oe := LineEdit.new()
-	oe.text = _hm(int(Protocol.num(work.get("open", 0))))
-	oe.custom_minimum_size.x = 46
-	row.add_child(oe)
-	row.add_child(_muted("–"))
-	var ce := LineEdit.new()
-	ce.text = _hm(int(Protocol.num(work.get("close", 1440))))
-	ce.custom_minimum_size.x = 46
-	row.add_child(ce)
-	var sb := Button.new()
-	sb.text = "排班"
-	sb.pressed.connect(func() -> void:
-		Commands.cmd("company_schedule", {"company": _cid, "npc": pid,
-			"open": _minutes(oe.text), "close": _minutes(ce.text)}))
-	row.add_child(sb)
-	return row
 
 
 func _hire_row(comp: Dictionary) -> Control:

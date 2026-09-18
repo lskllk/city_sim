@@ -119,6 +119,10 @@ def economy_block(world, systems) -> dict:
     for cid, c in sorted(world.companies.items()):
         comps.append({
             "id": cid, "name": c.name, "owner": c.owner,
+            # ★ kind/produces_item 必须下发: 前端【装修/家具】按公司类型过滤目录
+            #   (零售看销售台、加工厂看工位与工业机器)。漏了的话前端一律当零售,
+            #   加工厂就永远看不到工业机器(实测踩过)。
+            "kind": c.kind, "produces_item": c.produces_item,
             "cash": round(c.cash, 2),
             "hiring_open": bool(c.hiring_open), "hiring_slots": int(c.hiring_slots),
             "wage_per_hour": float(c.wage_per_hour),
@@ -368,6 +372,12 @@ def hello_payload(runner) -> dict:
             "companies": [
                 {"id": cid, "name": comp.name, "cash": round(comp.cash, 2),
                  "owner": comp.owner, "shops": list(comp.shops),
+                 "kind": comp.kind, "produces_item": comp.produces_item,
+                 "hiring_open": bool(comp.hiring_open),
+                 "hiring_slots": int(comp.hiring_slots),
+                 "wage_per_hour": float(comp.wage_per_hour),
+                 "open_minute": int(comp.open_minute),
+                 "close_minute": int(comp.close_minute),
                  "staff": [{"npc": n, "wage": w} for n, w in comp.staff]}
                 for cid, comp in sorted(runner.world.companies.items())],
             # 装修件目录(静态): 【装修管理】页按它列可放的东西与价格。

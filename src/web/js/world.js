@@ -13,9 +13,7 @@ export class World {
     this.store = store;
     this.assets = assets;
     this.view = new View(canvasEl, hudEl);
-    this.map = new MapLayer(assets, (lid, loc, p) =>
-      loc ? this.view.paper("sign:" + lid, loc.name, p.x / U, p.y / U, "plate", 5)
-          : this.view.paper("sign:" + lid, null));      // 房子没了 → 名牌也撤
+    this.map = new MapLayer(assets);
     this.npc = new Container();
     this.npc.sortableChildren = true;
     this._people = new Map();

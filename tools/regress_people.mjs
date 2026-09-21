@@ -123,7 +123,32 @@
     log.push("✗ 抛错  " + String((err && err.stack) || err).slice(0, 300));
   }
 
+  log.push(...await checkHover([...$("pList").children]));
+
   const after = await sceneReal();
   ok("真场景 scene.json 一个字节都没变", after === REAL_BEFORE);
   return { log };
 })()
+
+/* ── 悬浮高亮（人物 → 他的住处）───────────────────────────────────────
+   ★ 这条是用户点出来的：名单里划过一个名字，地图上要亮起对应的楼。
+     没有它的话，名字对得上、但地图上看不到是哪一栋。 */
+async function checkHover(npcList) {
+  const log = [];
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const e = window.citysim.editor, D = e.doc;
+  let idx = 0;
+  for (let i = 0; i < D.npcs.length; i++) if (D.npcs[i].home) { idx = i; break; }
+  npcList[idx].dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+  await wait(300);
+  const on = e.hoverLoc === D.npcs[idx].home && e.overlay2.children.length >= 1
+    && !!e.view._paper?.get("hover:loc");
+  log.push((on ? "✓" : "✗") + " 人物悬浮 → 地图高亮他的住处  "
+    + D.npcs[idx].name + " 住「" + D.nameOf(D.npcs[idx].home) + "」"
+    + " · 高亮层 " + e.overlay2.children.length);
+  npcList[idx].dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
+  await wait(250);
+  const off = e.hoverLoc === "" && !e.view._paper?.get("hover:loc");
+  log.push((off ? "✓" : "✗") + " 移开就撤掉");
+  return log;
+}

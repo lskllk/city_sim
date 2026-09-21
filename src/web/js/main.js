@@ -182,6 +182,7 @@ async function openEditor() {
       setDirty: (d) => { $("eDirty").textContent = d ? " •" : ""; },
       setUndo: (n) => { $("eUndo").textContent = n ? `↶${n}` : ""; },
       setCursor: (snap) => { $("eSnapLabel").textContent = editor.snapText() || "—"; },
+      openBuilding: (bid) => openBuilding(bid),   // 地图上点建筑 → 跳过来
       setTool: (t) => {
         for (const b of $("eTool").children) b.classList.toggle("on", b.dataset.tool === t);
         renderPalette();          // 调色盘那格的高亮跟着走
@@ -302,7 +303,13 @@ function renderPalette() {
 // ══ 接线 ══════════════════════════════════════════════════════════════
 // 模式切换
 for (const b of $("eModes").children)
-  b.onclick = () => (b.dataset.mode === "people" ? openPeople() : closePeople());
+  b.onclick = () => {
+    const m = b.dataset.mode;
+    closePeople(); closeBuilding();
+    if (m === "people") openPeople();
+    else if (m === "building") openBuilding();
+    else closePeople();
+  };
 $("pAdd").onclick = newNpc;
 
 $("mContinue").onclick = () => play();
@@ -427,6 +434,7 @@ async function openPeople() {
 function closePeople() {
   $("ePeople").classList.add("hide");
   $("eplace").classList.remove("hide");
+  editor.hoverLoc = "";
   editor.view.el.style.cursor = "crosshair";
   for (const b of $("eModes").children) b.classList.toggle("on", b.dataset.mode === "map");
 }
@@ -445,6 +453,9 @@ function renderPeople() {
       + '<span class="tag2">' + (n.gender === "female" ? "女" : "男") + "</span>";
     if (n.id === npcSel) b.classList.add("on");
     b.onclick = () => { npcSel = n.id; draft = null; renderPeople(); };
+    // ★ 悬浮 → 在地图上高亮他的住处
+    b.onmouseenter = () => { editor.hoverLoc = n.home || ""; editor.redraw(); };
+    b.onmouseleave = () => { editor.hoverLoc = ""; editor.redraw(); };
     host.appendChild(b);
   }
   renderNpcForm();
@@ -634,6 +645,200 @@ function randTraits() {
   for (let i = 0; i < 2 && pool.length; i++)
     out.push(...pool.splice(Math.floor(Math.random() * pool.length), 1));
   return out;
+}
+
+// ══ 建筑编辑 ══════════════════════════════════════════════════════════
+//  ★ 建筑【没有"新增"】—— 房子是在地图上摆的（画路 → 摆房），这里只编辑。
+//    右边能改的是"这栋楼是什么、归谁、里面摆了什么"。
+let BPARTS = null;          // /api/building-parts
+let bldSel = "";            // 选中的建筑 id
+
+async function openBuilding(pick) {
+  if (!BPARTS) BPARTS = await (await fetch("/api/building-parts", { cache: "no-store" })).json();
+  for (const b of $("eModes").children) b.classList.toggle("on", b.dataset.mode === "building");
+  $("eplace").classList.add("hide");
+  $("ePeople").classList.add("hide");
+  $("eBld").classList.remove("hide");
+  editor.hoverLoc = "";
+  bldSel = pick || "";
+  renderBuildings();
+}
+
+function closeBuilding() {
+  $("eBld").classList.add("hide");
+  $("eplace").classList.remove("hide");
+  editor.hoverLoc = "";
+}
+
+function renderBuildings() {
+  const D = editor.doc;
+  const ids = Object.keys(D.buildings).sort((a, b) => D.nameOf(a).localeCompare(D.nameOf(b), "zh"));
+  $("bCount").textContent = ids.length + " 栋";
+  const host = $("bList");
+  host.innerHTML = "";
+  for (const bid of ids) {
+    const b = D.buildings[bid];
+    const t2 = D.types[b.type] || {};
+    const el = document.createElement("button");
+    el.innerHTML = '<span class="nm">' + esc(D.nameOf(bid) || bid) + "</span>"
+      + '<span class="tag2">' + esc(t2.kind || "") + "</span>";
+    if (bid === bldSel) el.classList.add("on");
+    el.onclick = () => { bldSel = bid; renderBuildings(); };
+    // ★ 悬浮 → 在地图上高亮整栋楼
+    // ★ 改完 hoverLoc 要重绘 —— 不然地图上什么都不亮（踩过）
+    el.onmouseenter = () => { editor.hoverLoc = bid; editor.redraw(); };
+    el.onmouseleave = () => { editor.hoverLoc = ""; editor.redraw(); };
+    host.appendChild(el);
+  }
+  renderBldForm();
+}
+
+function renderBldForm() {
+  const host = $("bForm");
+  const D = editor.doc;
+  if (!bldSel || !D.buildings[bldSel]) {
+    host.innerHTML = '<div class="none2" style="text-align:center;padding:60px 0">'
+      + "点左边选一栋楼</div>";
+    return;
+  }
+  const bid = bldSel, b = D.buildings[bid], tp = D.types[b.type] || {};
+  const loc = D.meta.locations?.[bid] || {};
+  const inside = (D.meta.entities || []).filter((e) => e.at === bid);
+  const mine = (D.meta.companies || []).find((c) => (c.shop_list || c.shops || []).includes(bid));
+  const items = BPARTS?.items || [];
+  const iconOf = (ty) => (items.find((x) => x.type === ty)?.icon)
+    ? "/art/items/icon_" + ty + ".svg" : "";
+  const isFix = (ty) => (items.find((x) => x.type === ty)?.tags || []).includes("fixture");
+
+  const opt = (v, label, on) =>
+    '<option value="' + v + '"' + (on ? " selected" : "") + ">" + label + "</option>";
+  const typeOpts = (BPARTS?.types || []).map((x) =>
+    opt(x.type, esc(x.name) + "（" + esc(x.kind) + " " + x.capacity + "）", b.type === x.type)).join("");
+  const coOpts = opt("", "（无）", !mine)
+    + (BPARTS?.companies || []).map((c) => opt(esc(c.id), esc(c.name), !!mine && mine.id === c.id)).join("");
+
+  // 一行一件：图标 · 名字 · 存量 · 售价 · 拿走
+  const things = inside.length ? inside.map((e, i) => {
+    const it = items.find((x) => x.type === e.type) || {};
+    const fix = isFix(e.type);
+    const ic = iconOf(e.type);
+    return '<div class="th" title="' + esc(e.id) + '">'
+      + (ic ? '<img class="ic" src="' + ic + '">' : '<span class="ic"></span>')
+      + '<span class="nm3">' + esc(it.name || e.type) + "</span>"
+      + '<input type="number" data-stock="' + i + '" value="'
+      + (fix ? "—" : (e.stock ?? it.stock ?? 0)) + '"' + (fix ? " disabled" : "") + ">"
+      + '<input type="number" step="0.5" data-price="' + i + '" value="'
+      + (fix ? "—" : (e.price ?? it.price ?? 0)) + '"' + (fix ? " disabled" : "") + ">"
+      + '<button class="x2" data-del="' + i + '">×</button></div>';
+  }).join("") : '<div class="none2">空着</div>';
+
+  // 候选（和头像那个一样：点「放一件」才弹）
+  const cand = items.map((x) =>
+    '<button data-put="' + x.type + '" title="' + esc(x.name) + '">'
+    + (x.icon ? '<img src="/art/items/icon_' + x.type + '.svg">' : '<span class="ic"></span>')
+    + '<span class="nm4">' + esc(x.name) + "</span></button>").join("");
+
+  host.innerHTML =
+    "<h2>" + esc(D.nameOf(bid) || bid) + "</h2>"
+    + '<div class="row"><label>类型</label><select id="bType">' + typeOpts + "</select></div>"
+    + '<div class="row"><label>名字</label><input id="bName" type="text" value="'
+    + esc(D.nameOf(bid) || "") + '"></div>'
+    + '<div class="row"><label>占地</label><span class="hn">'
+    + b.size[0].toFixed(1) + " × " + b.size[1].toFixed(1) + " m</span></div>"
+    + '<div class="row"><label>公开</label><label class="cb"><input type="checkbox" id="bPub"'
+    + (loc.public === true ? " checked" : "") + ">谁都能进</label></div>"
+    + '<div class="row"><label>公司</label><select id="bCo">' + coOpts + "</select></div>"
+
+    + '<div class="sec">里面的东西 <span class="dim">' + inside.length + " 件</span></div>"
+    + '<div class="things">' + things + "</div>"
+    + '<div class="addrow"><button id="bAdd">+ 放一件</button></div>'
+    + '<div class="facepop hide" id="bItemPop">' + cand + "</div>"   // position:absolute，见 CSS
+
+    + '<div class="bar2"><button class="primary" id="bSave">保存</button>'
+    + '<span class="sp"></span>'
+    + '<button class="danger" id="bDel">拆掉这栋楼</button></div>';
+
+  const on = (id, fn) => { const e2 = $(id); if (e2) e2.onclick = fn; };
+
+  // 「放一件」→ 弹出候选（和头像一样），点一个就放进去
+  on("bAdd", () => {
+    const pop = $("bItemPop");
+    const open = pop.classList.contains("hide");
+    pop.classList.toggle("hide", !open);
+    let veil = $("popVeil");
+    if (open) {
+      if (!veil) { veil = document.createElement("div"); veil.id = "popVeil";
+                   document.body.appendChild(veil); }
+      veil.onclick = () => { pop.classList.add("hide"); veil.remove(); };
+    } else veil?.remove();
+  });
+  for (const el2 of host.querySelectorAll("[data-put]")) el2.onclick = () => {
+    const ty = el2.dataset.put;
+    const it = items.find((x) => x.type === ty) || {};
+    const fix = (it.tags || []).includes("fixture");
+    editor.pushUndo();
+    (D.meta.entities ||= []).push(fix
+      ? { id: ty + "_" + String(Date.now()).slice(-5), at: bid, type: ty,
+          owner: mine ? mine.id : undefined }
+      : { id: ty + "_" + String(Date.now()).slice(-5), at: bid, type: ty,
+          owner: mine ? mine.id : undefined, stock: it.stock ?? 1, price: it.price ?? 0 });
+    D.dirty = true; editor.ui.setDirty?.(true);
+    $("popVeil")?.remove();
+    renderBldForm();
+  };
+
+  for (const el2 of host.querySelectorAll("[data-del]")) el2.onclick = () => {
+    editor.pushUndo();
+    D.meta.entities.splice((D.meta.entities || []).indexOf(inside[+el2.dataset.del]), 1);
+    D.dirty = true; editor.ui.setDirty?.(true);
+    renderBldForm();
+  };
+  for (const el2 of host.querySelectorAll("[data-stock]")) el2.onchange = () => {
+    D.meta.entities[(D.meta.entities || []).indexOf(inside[+el2.dataset.stock])].stock
+      = Number(el2.value) || 0;
+    D.dirty = true; editor.ui.setDirty?.(true);
+  };
+  for (const el2 of host.querySelectorAll("[data-price]")) el2.onchange = () => {
+    D.meta.entities[(D.meta.entities || []).indexOf(inside[+el2.dataset.price])].price
+      = Number(el2.value) || 0;
+    D.dirty = true; editor.ui.setDirty?.(true);
+  };
+
+  on("bSave", () => {
+    const name = $("bName").value.trim();
+    const newType = $("bType").value;
+    const co = $("bCo").value;
+    editor.pushUndo();
+    if (name) D.names[bid] = name;
+    if (D.meta.locations?.[bid]) D.meta.locations[bid].name = name || bid;
+    if (newType !== b.type) {                      // 换类型：占地按新类型重算，中心不动
+      const sz = D.sizeFor(newType);
+      b.type = newType; b.size = sz;
+      if (D.meta.locations?.[bid]) {
+        D.meta.locations[bid].type = newType;
+        D.meta.locations[bid].w = sz[0]; D.meta.locations[bid].h = sz[1];
+        D.meta.locations[bid].x = +(b.center[0] - sz[0] / 2).toFixed(3);
+        D.meta.locations[bid].y = +(b.center[1] - sz[1] / 2).toFixed(3);
+      }
+    }
+    if (D.meta.locations?.[bid])
+      D.meta.locations[bid].public = $("bPub").checked ? true : null;
+    for (const c of D.meta.companies || [])
+      c.shops = (c.shops || []).filter((x) => x !== bid);        // 先从所有公司摘掉
+    if (co) { const c = (D.meta.companies || []).find((x) => x.id === co);
+              if (c) (c.shops ||= []).push(bid); }
+    D.dirty = true; editor.ui.setDirty?.(true);
+    renderBuildings();
+    toast("已保存");
+  });
+  on("bDel", () => {
+    if (!confirm("拆掉 " + (D.nameOf(bid) || bid) + "？")) return;
+    editor.pushUndo();
+    D.removeBuilding(bid);
+    bldSel = "";
+    D.dirty = true; editor.ui.setDirty?.(true);
+    renderBuildings();
+  });
 }
 
 // ── 真菜单：进来不自动开游戏，等玩家选 ──────────────────────────────

@@ -294,3 +294,42 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   padding:8px 16px;border-radius:999px;background:var(--ink);color:var(--paper);
   font-size:12px;box-shadow:0 6px 20px #00000033}
 
+
+/* 建筑编辑：复用 .plist / .pform 那一套，只加「里面的东西」那一段 */
+#eBld{position:static}
+#eBld .plist,#eBld .pform{z-index:20}
+
+/* 里面的东西：一行一件 —— 图标 · 名字 · 存量 · 售价 · 拿走 */
+.things{border-top:1px solid var(--line);margin-top:2px}
+.things .th{display:flex;align-items:center;gap:7px;padding:5px 0;
+  border-bottom:1px solid var(--line)}
+.things .ic{width:20px;height:20px;flex:0 0 auto;image-rendering:auto}
+.things .nm3{flex:1 1 auto;font-size:12px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.things input{width:52px;padding:3px 5px;border:1px solid var(--line);border-radius:5px;
+  font:11px ui-monospace,Consolas,monospace;text-align:right;background:#fff;flex:0 0 auto}
+.things input:disabled{border-color:transparent;background:transparent;color:#c8c1b2}
+.things .x2{width:20px;height:20px;border-radius:50%;color:var(--ink2);font-size:11px;
+  flex:0 0 auto}
+.things .x2:hover{background:#00000010;color:var(--hi)}
+.things .none2{color:var(--ink2);font-size:12px;padding:10px 0}
+.addrow{margin-top:9px}
+.addrow button{width:100%;padding:6px;border-radius:7px;border:1px dashed var(--line);
+  font-size:12px;color:var(--ink2)}
+.addrow button:hover{background:var(--paper2);color:var(--ink)}
+/* 候选弹框：和头像那个一套，只是格子多一点、带名字（物品光看图标不够确定） */
+/* ★ 居中弹出，不用"贴着按钮" —— 19 个候选挂在表单底部会超出屏幕被切掉
+   （踩过：bottom 836 > 视口 820）。 */
+#bItemPop{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:420px;max-height:72vh;overflow-y:auto;z-index:40;
+  display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:12px;
+  border-radius:12px;background:var(--paper);border:1px solid var(--line);
+  box-shadow:0 18px 50px #0000003d}
+#bItemPop::before{content:"放一件";grid-column:1/-1;font-size:10px;letter-spacing:.1em;
+  color:#a49c8d;font-weight:600}
+#popVeil{position:fixed;inset:0;z-index:39;background:#00000012}
+#bItemPop button{display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:5px 2px;border-radius:8px;border:1px solid transparent}
+#bItemPop button:hover{background:var(--paper2)}
+#bItemPop img{width:26px;height:26px}
+#bItemPop .nm4{font-size:10px;color:var(--ink2);text-align:center;line-height:1.2}

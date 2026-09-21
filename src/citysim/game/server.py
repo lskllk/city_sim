@@ -259,6 +259,52 @@ async def npc_parts(name: str = "scene.json") -> dict:
             "signals": list(api.SIGNALS)}
 
 
+@app.get("/api/building-parts")
+async def building_parts(name: str = "scene.json") -> dict:
+    """建筑编辑器要的可选项。和 /api/npc-parts 一个路子：全从内核侧算，前端不硬编码。
+
+    · types  改建筑类型用（容量/尺寸跟着变）
+    · items  "里面摆什么"用（config/items 全表）
+    · companies  这个场景里已有的公司（建筑可以挂在某家名下）
+    """
+    import json as _json
+    import math
+
+    scene = _json.loads(_scene_path(name).read_text(encoding="utf-8"))
+    apc = 20.0  # 面积 ∝ 容量，1 capacity ≈ 20 m²（和编辑器摆房子同一套）
+
+    types = []
+    bdir = ROOT / "config" / "buildings"
+    if bdir.is_dir():
+        for f in sorted(bdir.glob("*.json")):
+            b = _json.loads(f.read_text(encoding="utf-8"))
+            area = float(b.get("capacity", 12)) * apc
+            aspect = float(b.get("aspect", 1.0)) or 1.0
+            w = math.sqrt(area * aspect)
+            types.append({"type": b.get("type", f.stem), "name": b.get("name", f.stem),
+                          "kind": b.get("kind", ""), "capacity": b.get("capacity", 0),
+                          "size": [round(w, 3), round(w / aspect, 3)]})
+
+    items = []
+    idir = ROOT / "config" / "items"
+    if idir.is_dir():
+        for f in sorted(idir.glob("*.json")):
+            it = _json.loads(f.read_text(encoding="utf-8"))
+            ty = it.get("item_type", f.stem)
+            items.append({"type": ty, "name": it.get("name", f.stem),
+                          # 有没有图标 —— 前端照着决定是贴图还是占位
+                          "icon": (ROOT / "art" / "out" / "items" /
+                                   ("icon_" + ty + ".svg")).is_file(),
+                          "tags": sorted(it.get("tags", [])),
+                          "price": it.get("price", 0), "stock": it.get("stock", 1),
+                          "build_cost": it.get("build_cost", 0),
+                          "affordances": sorted((it.get("affordances") or {}).keys())})
+
+    return {"types": types, "items": items,
+            "companies": [{"id": c.get("id"), "name": c.get("name"), "kind": c.get("kind")}
+                          for c in scene.get("companies", [])]}
+
+
 @app.get("/api/catalog")
 async def catalog() -> dict:
     """编辑器左侧的调色盘：建筑类型 + 它们的默认占地。

@@ -52,6 +52,7 @@
       <span class="modes" id="eModes">
         <button data-mode="map" class="on">地图</button>
         <button data-mode="people">人物</button>
+        <button data-mode="building">建筑</button>
       </span>
       <span class="sep"></span>
       <span class="day"><b id="eName" class="mono">—</b><span id="eDirty" class="bad"></span></span>
@@ -80,6 +81,16 @@
       <div class="plist-body" id="pList"></div>
     </aside>
     <section class="pane pform" id="pForm"></section>
+  </div>
+
+  <!-- ★ 建筑编辑：和人物一个样子（左名单 + 右详情）。
+       建筑【没有"新增"】—— 房子是在地图上摆的，这里只编辑。 -->
+  <div id="eBld" class="hide">
+    <aside class="pane plist">
+      <div class="phead"><b>城里的建筑</b><span class="dim" id="bCount"></span></div>
+      <div class="plist-body" id="bList"></div>
+    </aside>
+    <section class="pane pform" id="bForm"></section>
   </div>
 
   <!-- ★ 摆放栏：上下两排。

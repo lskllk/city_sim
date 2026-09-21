@@ -23,9 +23,8 @@ const FILLET = 0.5;                        // 倒角半径 = 半路宽 × 这个
 const SIDEWALK = 6;                        // 人行道宽（asset: 32×6）
 
 export class MapLayer {
-  constructor(assets, onSign) {
+  constructor(assets) {
     this.assets = assets;
-    this.onSign = onSign;
     this.root = new Container();
     this.root.sortableChildren = true;
     this.ground = new Container();
@@ -385,14 +384,16 @@ export class MapLayer {
       e.box.position.set(x + w / 2, y + h / 2);
       e.box.rotation = rot;
       e.box.zIndex = Math.round(loc.y + loc.h);
-      this.onSign?.(lid, loc, { x, y: y + h });
+      // ★ 地图上【默认不显示建筑名称】（用户要的）。
+      //   名字只在"我正指着这栋"时出现 —— 见 editor 的 hoverLoc 高亮。
+      //   理由：地图是彩色的、有质感的；名字一多就变成一张表格。
+      //   （游戏那边要名字的话，同样是"看/选中才给"，不是默认铺满）
     }
     // ★ 拆掉的建筑，名牌也要撤 —— 否则地图上留一个没有房子的名字。
     for (const [lid, e] of [...this.buildings]) {
       if (seen.has(lid)) continue;
       e.box.destroy({ children: true });
       this.buildings.delete(lid);
-      this.onSign?.(lid, null, null);
     }
   }
 

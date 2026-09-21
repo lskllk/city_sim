@@ -41,9 +41,7 @@ export class Editor {
     this.ui = ui;
     this.view = new View(canvasEl, hudEl);
     this.doc = new MapDoc();
-    this.map = new MapLayer(assets, (lid, loc, p) =>
-      loc ? this.view.paper("sign:" + lid, loc.name, p.x / U, p.y / U, "plate", 5)
-          : this.view.paper("sign:" + lid, null));      // 房子没了 → 名牌也撤
+    this.map = new MapLayer(assets);
     this.handles = new Container();     // 手柄（节点 / 选中框 / 幽灵）
     this.overlay2 = new Container();    // 高亮（在更上面）
     this.tool = "select";
@@ -54,6 +52,7 @@ export class Editor {
     this.selectedArea = "";            // 选中的地面区域
     this._areaPath = [];               // 地面区域：正在围的节点 id 序列
     this._areaStack = [];              // 每加一个顶点存一张快照 → 右键退一张
+    this.hoverLoc = "";                // 人物/建筑名单悬浮时，在地图上高亮这栋楼
     this.selected = "";
     this.snapHint = null;
     this._pending = null;               // 画路中的起点（未提交）
@@ -226,20 +225,20 @@ export class Editor {
     if (bid) {
       const b = this.doc.buildings[bid];
       this.selected = bid;
-      this._drag = { kind: "bld", id: bid, snap: before,
+      this._drag = { kind: "bld", id: bid, snap: before, moved: false,
                      off: [p[0] - b.center[0], p[1] - b.center[1]] };
       return true;
     }
     const nid = this.hitNode(p);
     if (nid) {
       this.selected = nid;
-      this._drag = { kind: "node", id: nid, snap: before };
+      this._drag = { kind: "node", id: nid, snap: before, moved: false };
       return true;
     }
     const pi = this.doc.propNear(p);
     if (pi >= 0) {                               // 拖环境物件
       this.selected = "prop:" + pi;
-      this._drag = { kind: "prop", idx: pi, snap: before };
+      this._drag = { kind: "prop", idx: pi, snap: before, moved: false };
       return true;
     }
     // ★ 区域是"底"，所以【最后】判 —— 别把点房子 / 点物件挡住
@@ -253,6 +252,7 @@ export class Editor {
     const p = [x, y];
     this._last = p;
     const d = this._drag;
+    if (d) d.moved = true;                                // 动过就算拖动
     if (this._pending) this.snapHint = this._snapAt(p);   // 画路：橡皮筋跟着鼠标
     if (d?.kind === "bld") {
       this.doc.moveBuilding(d.id, [p[0] - d.off[0], p[1] - d.off[1]]);
@@ -276,7 +276,13 @@ export class Editor {
   _up(x, y) {
     const d = this._drag;
     this._drag = null;
-    if (d?.snap) this._undo.push(d.snap);       // 拖动 = 一步撤销（记开始前那张）
+    // ★ 只是【点了一下】建筑（没拖）= 跳进建筑编辑。
+    //   拖动还是要留给"挪房子"，所以必须区分这两者。
+    if (d && d.kind === "bld" && !d.moved) {
+      this.ui.openBuilding?.(d.id);
+      return;
+    }
+    if (d?.moved && d?.snap) this._undo.push(d.snap);  // 拖动 = 一步撤销（记开始前那张）
     if (d?.kind === "node" && this._dragTarget && this._dragTarget !== d.id) {
       // ★ 松手时落在另一个节点上 → 合并（两边接上，多余的节点消失）
       this.doc.mergeNodes(this._dragTarget, d.id);
@@ -433,6 +439,12 @@ export class Editor {
     this._last = [x, y];
     this.snapHint = this._snapAt([x, y]);
     this.ui.setCursor?.(this.snapHint);
+    // ★ 鼠标划过一栋楼也高亮（和"在名单里划"是同一个 hoverLoc）。
+    //   没有它的话，只能从名单反查地图，不能从地图反查是哪一栋。
+    if (!this._drag && !this._pending) {
+      const bid = this.hitBuilding([x, y]);
+      if (bid !== this.hoverLoc) this.hoverLoc = bid;
+    }
     this._paint();
   }
 
@@ -490,6 +502,26 @@ export class Editor {
       this.handles.addChild(new Graphics().circle(x, y, n.door_of ? 5 : 4.5)
         .fill(n.door_of ? 0xb4552d : 0xf7f4ee)
         .stroke({ color: sel ? 0xb4552d : 0x26221c, width: sel ? 3 : 1.5 }));
+    }
+
+    // ★ 悬浮高亮：人物名单 / 建筑名单里划过一个，地图上亮起对应的楼。
+    //   没有这个的话，名字对得上、但地图上看不到是哪一栋。
+    if (this.hoverLoc && this.doc.buildings[this.hoverLoc]) {
+      const hb = this.doc.buildings[this.hoverLoc];
+      const [hw, hh] = hb.size;
+      const g = new Graphics()
+        .poly([-hw / 2 * U, -hh / 2 * U, hw / 2 * U, -hh / 2 * U,
+               hw / 2 * U, hh / 2 * U, -hw / 2 * U, hh / 2 * U])
+        .fill({ color: 0xffc53d, alpha: 0.32 })
+        .stroke({ color: 0xffc53d, width: 3.5 });
+      g.position.set(hb.center[0] * U, hb.center[1] * U);
+      g.rotation = (hb.rot || 0) * Math.PI / 180;
+      this.overlay2.addChild(g);
+      // 名字也一起亮出来 —— 光有个框，不知道是哪栋
+      this.view.paper("hover:loc", this.doc.nameOf(this.hoverLoc),
+                      hb.center[0], hb.center[1] - hh / 2, "plate", -6);
+    } else if (this.view._paper?.has("hover:loc")) {
+      this.view.dropPaper("hover:loc");
     }
 
     // ③ 选中的建筑外框

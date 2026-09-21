@@ -8,6 +8,11 @@ dist/
 venv/
 .logs/
 
+# 一次性补丁 / 探查脚本（用完即删，别进版本库）
+.tmp_*
+_dump.mjs
+_extract.mjs
+
 # 临时分析脚本(不进版本库)
 .tmp_exp/
 

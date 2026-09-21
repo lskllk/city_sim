@@ -63,8 +63,11 @@
   ok("摆房 +1", s6.b === s5.b + 1);
   const nb = Object.keys(e.doc.buildings).pop(), B = e.doc.buildings[nb];
   const rd = e.doc.nearestRoad(B.center);
-  ok("落点自动贴到路边", Math.abs(rd.dist - (rd.width / 2 + 0.6)) < 0.35,
-     `离中线 ${rd.dist.toFixed(2)} m（路宽 ${rd.width} → 期望 ${(rd.width / 2 + 0.6).toFixed(2)}）`);
+  const wallGap = rd.dist - B.size[1] / 2;          // 中心距 − 半进深 = 墙到中线
+  ok("落点自动贴到路边（退开的是【墙】不是中心）",
+     Math.abs(wallGap - (rd.width / 2 + 0.3)) < 0.15,
+     `半路宽 ${rd.width / 2} + 0.3 = ${(rd.width / 2 + 0.3).toFixed(2)}，`
+     + `实际墙距中线 ${wallGap.toFixed(2)} m`);
 
   // 7 门即节点
   const door = e.doc.doorWorlds(B)[0].pos;

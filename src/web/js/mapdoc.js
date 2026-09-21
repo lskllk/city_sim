@@ -344,7 +344,12 @@ export class MapDoc {
     const side = (t?.doors?.[0]?.side) || "south";
     const base = { south: 90, north: -90, east: 0, west: 180 }[side] ?? 90;
     const want = Math.atan2(-dy / d, -dx / d) * 180 / Math.PI;   // 门朝【路】，所以反向
-    const back = (rd.width || 4) / 2 + 0.6;
+    // ★ 退开的是【墙到路的距离】，所以还要加上半个【自身进深】。
+    //   只退半个路宽的话，退的是"中心"—— 小房子整个压在路里，
+    //   大房子更夸张（21.9m 的店会盖住路 10m）。用户："被吸附在中心而不是门口"。
+    const side0 = (this.types[b.type]?.doors?.[0]?.side) || "south";
+    const depth = (side0 === "north" || side0 === "south") ? b.size[1] : b.size[0];
+    const back = (rd.width || 4) / 2 + depth / 2 + 0.3;
     return {
       center: [+(qx + dx / d * back).toFixed(3), +(qy + dy / d * back).toFixed(3)],
       rot: +(((want - base + 540) % 360) - 180).toFixed(1),

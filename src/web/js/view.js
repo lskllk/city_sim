@@ -81,11 +81,17 @@ export class View {
   setWorld(canvas) { this.world = { w: canvas.w * U, h: canvas.h * U }; }
 
   // ── 相机 ────────────────────────────────────────────────────────────
+  /** ★ 顺序不能反：先 clamp，再写 transform。
+   *
+   *  反了会怎样：渲染用的是 clamp【前】的相机，而 toWorld / screenOf
+   *  （名牌、气泡的定位）用的是 clamp【后】的 cam —— 两边不是同一个数。
+   *  症状就是"名牌跑偏""不在中间时缩放会漂"。
+   */
   apply() {
+    this.clamp();
     const { x, y, k } = this.cam;
     this.root.scale.set(k);
     this.root.position.set(-x * k, -y * k);
-    this.clamp();
     this.onView?.();
   }
   /** 限制在世界范围内（原型也是这么干的，± 一点余量）。 */
@@ -109,6 +115,26 @@ export class View {
     this.cam.y = wy * U - vh / this.cam.k / 2;
     this.apply();
   }
+  /** 每帧调一次：把缩放平滑逼近目标。返回 true = 相机动了（调用方该重画屏幕纸片）。 */
+  step() {
+    const z = this._zT;
+    if (!z) return false;
+    // ★★ 锚点必须【在改 k 之前】算。
+    //    先改 k 再 toWorld，等于用"新 k + 旧相机"去反推鼠标下的世界点 ——
+    //    算出来的已经不是原来那个点了，于是每帧漂一点点，滚轮一多就漂飞。
+    //    （测过：14 次滚轮累到 25 世界单位。）
+    const [wx, wy] = this.toWorld(z.sx, z.sy);
+    if (Math.abs(z.k - this.cam.k) < this.cam.k * 0.002) {
+      this.cam.k = z.k; this._zT = null;
+    } else {
+      this.cam.k += (z.k - this.cam.k) * 0.22;        // 每帧逼近 22% —— 平滑而非突变
+    }
+    this.cam.x = wx * U - z.sx / this.cam.k;          // 把那个世界点重新钉回鼠标下
+    this.cam.y = wy * U - z.sy / this.cam.k;
+    this.apply();
+    return true;
+  }
+
   toWorld(sx, sy) {
     const { x, y, k } = this.cam;
     return [(x + sx / k) / U, (y + sy / k) / U];
@@ -159,12 +185,12 @@ export class View {
       e.preventDefault();
       const r = el.getBoundingClientRect();
       const sx = e.clientX - r.left, sy = e.clientY - r.top;
-      const [wx, wy] = this.toWorld(sx, sy);
-      const k = Math.min(this.maxK, Math.max(this.minK, this.cam.k * Math.exp(-e.deltaY * 0.0016)));
-      this.cam.k = k;
-      this.cam.x = wx * U - sx / k;                    // ★ 缩放锚在鼠标：鼠标下那个点钉住
-      this.cam.y = wy * U - sy / k;
-      this.apply();
+      // ★ 不直接改 k，只记一个目标：真正的缩放在 step() 里逐帧逼近。
+      //   滚轮一格 Δk 很大，直接跳过去是"突变"；而且一帧到位会把
+      //   锚点算错（相机在 clamp 边界上时尤其明显）。
+      const want = (this._zT?.k ?? this.cam.k)
+        * Math.exp(-e.deltaY * 0.0016);
+      this._zT = { k: Math.min(this.maxK, Math.max(this.minK, want)), sx, sy };
     }, { passive: false });
   }
 

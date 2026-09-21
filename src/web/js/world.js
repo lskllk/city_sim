@@ -51,6 +51,7 @@ export class World {
   }
 
   frame() {
+    this.view.step();
     this.map.draw(this.scene());
     const alive = new Set();
     for (const [id, npc] of this.store.npcs) {

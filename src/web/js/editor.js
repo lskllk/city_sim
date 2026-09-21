@@ -59,6 +59,14 @@ export class Editor {
     this.view.onPick = (x, y) => this._click(x, y);
     this.view.onHover = (x, y) => this._hover(x, y);
     this.view.onView = () => this.view.syncPaper();
+    // 编辑器没有帧循环（只在输入时重画），但平滑缩放需要每帧推进一下。
+    // 只 step 相机的缩放，别整帧重画 —— 那才是卡的原因。
+    const loop = () => {
+      if (this.view.step() && !document.getElementById("editor")?.classList.contains("hide"))
+        this._paint();
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
     return this;
   }
 

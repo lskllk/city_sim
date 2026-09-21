@@ -16,7 +16,7 @@
     <button id="mContinue" class="primary">
       <b>继续</b><span id="mLast">最近一次的场景</span></button>
     <button id="mPick"><b>选择场景</b><span>从 config/scenes/ 里挑一个</span></button>
-    <button id="mEditor" disabled><b>编辑器</b><span>还没做 —— 等 demo 跑起来</span></button>
+    <button id="mEditor"><b>编辑器</b><span id="mEditorHint">地图 —— 默认打开最近编辑的那张</span></button>
   </nav>
   <div id="mStatus" class="status">没连上后端</div>
 </div>
@@ -24,6 +24,7 @@
 <!-- ══ 游戏 ════════════════════════════════════════════════════════════ -->
 <div id="game" class="screen hide">
   <canvas id="stage"></canvas>
+  <div id="ghud" class="hud"></div>
 
   <div id="topbar">
     <button id="gMenu" class="ghost">← 菜单</button>
@@ -35,8 +36,52 @@
   </div>
 
   <aside id="panel" class="hide"></aside>
-
   <div id="hint" class="hint"></div>
+</div>
+
+<!-- ══ 编辑器 ══════════════════════════════════════════════════════════ -->
+<div id="editor" class="screen hide">
+  <canvas id="ecanvas"></canvas>
+  <div id="ehud" class="hud"></div>
+
+  <div id="ebar">
+    <button id="eMenu" class="ghost">← 菜单</button>
+    <span class="scene"><b id="eName">scene.json</b><i id="eDirty"></i></span>
+    <span class="spacer"></span>
+    <span id="eStats" class="mono dim"></span>
+    <button id="eSave" class="ghost">保存</button>
+    <button id="eSaveAs" class="ghost">另存为…</button>
+  </div>
+
+  <aside id="etools">
+    <div class="grp">
+      <div class="glab">工具</div>
+      <div class="seg" id="eTool">
+        <button data-tool="select">选择</button>
+        <button data-tool="road">画路</button>
+        <button data-tool="build">摆房</button>
+        <button data-tool="erase">删除</button>
+      </div>
+    </div>
+    <div class="grp" id="ePaletteGrp">
+      <div class="glab">建筑类型 <span class="dim" id="ePickHint"></span></div>
+      <div class="palette" id="ePalette"></div>
+    </div>
+    <div class="grp">
+      <div class="glab">规则</div>
+      <ul class="rules">
+        <li>吸附：<b>节点 &gt; 门 &gt; 路中线 &gt; 栅格</b></li>
+        <li>门即节点 —— 挪房子，路口跟着走</li>
+        <li>没有边的节点会自动清掉</li>
+        <li><b>先有路，才能摆房</b>；松手自动贴边</li>
+      </ul>
+    </div>
+  </aside>
+
+  <div id="efoot">
+    <span id="eXY" class="mono"></span>
+    <span id="eSnap" class="snap"></span>
+  </div>
 </div>
 
 <script type="module" src="js/main.js"></script>

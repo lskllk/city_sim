@@ -127,3 +127,58 @@ body{
   animation:pop .18s ease-out;
 }
 @keyframes pop{from{opacity:0;transform:translate(-50%,-90%)}to{opacity:1}}
+
+/* ══ 编辑器 ══════════════════════════════════════════════════════════
+   同一套设计：地图是彩色的，面板是一张安静的纸。
+   （地图的渲染就是游戏那一份 —— maprender.js，不是另写一份。） */
+.hud{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+#ecanvas{display:block;width:100%;height:100%}
+
+#ebar{
+  position:absolute;left:0;right:0;top:0;height:44px;display:flex;align-items:center;
+  gap:10px;padding:0 12px;background:var(--paper);border-bottom:1px solid var(--line);
+  box-shadow:0 1px 0 #0000000d;
+}
+#ebar .scene b{font-size:13px}
+#ebar .scene i{font-style:normal;color:var(--accent);margin-left:6px;font-size:16px}
+#ebar .spacer{flex:1}
+#ebar .mono{font-size:11px}
+#ebar .ghost{
+  font:inherit;font-size:12px;padding:4px 11px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--line);background:#fff;color:var(--ink);
+}
+#ebar .ghost:hover{background:var(--paper2)}
+
+#etools{
+  position:absolute;left:12px;top:58px;width:214px;max-height:calc(100% - 110px);
+  overflow:auto;padding:12px 13px;border-radius:11px;background:var(--paper);
+  border:1px solid var(--line);box-shadow:0 8px 26px #00000026;
+}
+#etools .grp + .grp{margin-top:16px}
+#etools .glab{
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#a49c8d;
+  font-weight:600;margin-bottom:7px;
+}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.seg button,.palette button{
+  font:inherit;font-size:12px;padding:6px 8px;border-radius:7px;cursor:pointer;
+  border:1px solid var(--line);background:#fff;color:var(--ink);text-align:left;
+}
+.seg button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.palette{display:flex;flex-direction:column;gap:5px}
+.palette button{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.palette button .k{color:var(--dim);font-size:10px;font-family:ui-monospace,Consolas,monospace}
+.palette button.on{border-color:var(--accent);background:#b4552d14}
+.rules{margin:0;padding-left:16px;font-size:11px;color:var(--dim);line-height:1.65}
+.rules b{color:var(--ink)}
+
+#efoot{
+  position:absolute;left:12px;bottom:10px;display:flex;gap:14px;align-items:center;
+  padding:5px 12px;border-radius:999px;background:#f7f4eeeb;border:1px solid var(--line);
+  font-size:11px;
+}
+#efoot .snap{font-family:ui-monospace,Consolas,monospace}
+#efoot .snap.node{color:#4a7358}
+#efoot .snap.door{color:#b4552d}
+#efoot .snap.road{color:#a8761c}
+#efoot .snap.free{color:var(--dim)}

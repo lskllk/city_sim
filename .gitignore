@@ -25,3 +25,4 @@ wiki/out/
 # 前端构建产物
 node_modules/
 _uv.log
+config/scenes/*.bak

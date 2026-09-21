@@ -22,7 +22,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -83,3 +83,93 @@ if WEB.is_dir():
     @app.get("/game")
     async def _game() -> FileResponse:
         return FileResponse(str(WEB / "index.html"))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 编辑器要读写场景文件 —— 端点就这四个。
+#
+# 原则上编辑器只改 `map`（nodes/edges/buildings）和由它派生的 `locations`，
+# 人的那份（npcs/entities/companies/knowledge）原样透传 —— 地图编辑器和
+# 人物设计器是两个独立的部分，各改各的字段，不互相踩。
+# ══════════════════════════════════════════════════════════════════════════
+SCENES_DIR = ROOT / "config" / "scenes"
+LAST_SCENE = ROOT / ".logs" / "last_scene"        # 编辑器"默认加载最近的地图"
+
+
+def _scene_path(name: str) -> Path:
+    """只允许 config/scenes/ 下面的 .json —— 不接受任意路径。"""
+    p = (SCENES_DIR / name).resolve()
+    if p.suffix != ".json" or p.parent != SCENES_DIR.resolve():
+        raise HTTPException(400, "场景名不合法（只收 config/scenes/*.json）")
+    return p
+
+
+@app.get("/api/scenes")
+async def list_scenes() -> dict:
+    if not SCENES_DIR.is_dir():
+        return {"scenes": [], "last": ""}
+    last = ""
+    try:
+        last = LAST_SCENE.read_text(encoding="utf-8").strip()
+    except OSError:
+        pass
+    out = []
+    for f in sorted(SCENES_DIR.glob("*.json")):
+        st = f.stat()
+        out.append({"name": f.name, "bytes": st.st_size,
+                    "mtime": int(st.st_mtime)})
+    # 最近编辑的排最前：编辑器的"默认加载"就是它
+    out.sort(key=lambda s: (s["name"] != last, -s["mtime"]))
+    return {"scenes": out, "last": last}
+
+
+@app.get("/api/scene")
+async def get_scene(name: str = "scene.json") -> dict:
+    p = _scene_path(name)
+    if not p.is_file():
+        raise HTTPException(404, f"场景不存在: {name}")
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+@app.put("/api/scene")
+async def put_scene(body: dict, name: str = "scene.json") -> dict:
+    """保存。**先备份再写** —— 编辑器一个误操作能洗掉一天的地图。"""
+    p = _scene_path(name)
+    if p.is_file():
+        (p.parent / (p.name + ".bak")).write_bytes(p.read_bytes())
+    p.write_text(json.dumps(body, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    LAST_SCENE.parent.mkdir(exist_ok=True)
+    LAST_SCENE.write_text(p.name, encoding="utf-8")
+    return {"ok": True, "name": p.name, "bytes": p.stat().st_size}
+
+
+@app.get("/api/catalog")
+async def catalog() -> dict:
+    """编辑器左侧的调色盘：建筑类型 + 它们的默认占地。
+
+    占地公式与后端一致（见 world/model/buildings.py）: 面积 ∝ 容量。
+    放在服务端算一遍，免得两边公式漂。
+    """
+    import math
+    # ★ 编辑器摆房子用的占地公式：面积 ∝ 容量，1 capacity ≈ 20 m²。
+    #   和后端【自动布局】不是一回事 —— 那边是"等比缩放进画布"（后端无 x/y 时才用）。
+    #   编辑器导出的场景里 location 带显式 x/y/w/h，后端会原样保留，
+    #   所以两套公式不会打架：编辑器定的就是真值。
+    #   （对齐归档的 Godot 编辑器 map_doc.gd: AREA_PER_CAPACITY = 20.0）
+    area_per_capacity = 20.0
+    types = []
+    d = ROOT / "config" / "buildings"
+    if d.is_dir():
+        for f in sorted(d.glob("*.json")):
+            t = json.loads(f.read_text(encoding="utf-8"))
+            area = float(t.get("capacity", 12)) * area_per_capacity
+            aspect = float(t.get("aspect", 1.0)) or 1.0
+            w = math.sqrt(area * aspect)
+            types.append({"type": t.get("type", f.stem),
+                          "name": t.get("name", f.stem),
+                          "kind": t.get("kind", ""),
+                          "capacity": t.get("capacity", 0),
+                          "aspect": aspect,
+                          "doors": t.get("doors", []),
+                          "size": [round(w, 3), round(w / aspect, 3)]})
+    return {"buildings": types, "area_per_capacity": area_per_capacity}

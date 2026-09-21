@@ -1,804 +1,804 @@
 {
-  "canvas": {
-    "h": 600.0,
-    "w": 800.0
+ "canvas": {
+  "h": 600.0,
+  "w": 800.0
+ },
+ "companies": [
+  {
+   "cash": 1000.0,
+   "close": "19:00",
+   "hiring_slots": 1.0,
+   "id": "org_bld_004",
+   "kind": "retail",
+   "name": "吵吵小店",
+   "open": "08:00",
+   "produces_item": "",
+   "shops": [
+    "bld_004"
+   ],
+   "staff": [
+    {
+     "npc": "npc_sun_yan",
+     "wage": 1.1
+    }
+   ],
+   "wage_per_hour": 8.0
   },
-  "companies": [
-    {
-      "cash": 1000.0,
-      "close": "19:00",
-      "hiring_slots": 1.0,
-      "id": "org_bld_004",
-      "kind": "retail",
-      "name": "吵吵小店",
-      "open": "08:00",
-      "produces_item": "",
-      "shops": [
-        "bld_004"
-      ],
-      "staff": [
-        {
-          "npc": "npc_sun_yan",
-          "wage": 1.1
-        }
-      ],
-      "wage_per_hour": 8.0
-    },
-    {
-      "cash": 1000.0,
-      "close": "19:00",
-      "hiring_slots": 3.0,
-      "id": "org_bld_013",
-      "kind": "retail",
-      "name": "食品加工",
-      "open": "08:00",
-      "produces_item": "",
-      "shops": [
-        "bld_013"
-      ],
-      "staff": [],
-      "wage_per_hour": 3.0
-    },
-    {
-      "cash": 1000.0,
-      "close": "19:00",
-      "hiring_slots": 4,
-      "id": "org_bld_014",
-      "kind": "manufacture",
-      "name": "食品加工",
-      "open": "08:00",
-      "produces_item": "meal_simple_raw",
-      "shops": [
-        "bld_014"
-      ],
-      "staff": [],
-      "wage_per_hour": 5.0
-    }
-  ],
-  "display_name": "scene",
-  "entities": [
-    {
-      "at": "bld_008",
-      "id": "bed_basic_036",
-      "type": "bed_basic"
-    },
-    {
-      "at": "bld_008",
-      "id": "toilet_basic_037",
-      "type": "toilet_basic"
-    },
-    {
-      "at": "bld_009",
-      "id": "bed_basic_038",
-      "type": "bed_basic"
-    },
-    {
-      "at": "bld_009",
-      "id": "toilet_basic_039",
-      "type": "toilet_basic"
-    },
-    {
-      "at": "bld_008",
-      "id": "meal_simple_040",
-      "stock": 100,
-      "type": "meal_simple"
-    },
-    {
-      "at": "bld_009",
-      "id": "meal_simple_041",
-      "stock": 100,
-      "type": "meal_simple"
-    },
-    {
-      "at": "bld_008",
-      "id": "bed_basic_042",
-      "type": "bed_basic"
-    },
-    {
-      "at": "bld_008",
-      "id": "bed_basic_043",
-      "type": "bed_basic"
-    },
-    {
-      "at": "bld_009",
-      "id": "bed_basic_044",
-      "type": "bed_basic"
-    },
-    {
-      "at": "bld_009",
-      "id": "bed_basic_045",
-      "type": "bed_basic"
-    },
-    {
-      "at": "bld_004",
-      "id": "station_counter_046",
-      "owner": "org_bld_004",
-      "type": "station_counter"
-    },
-    {
-      "at": "bld_004",
-      "id": "toilet_basic_047",
-      "type": "toilet_basic"
-    },
-    {
-      "at": "bld_004",
-      "id": "food_apple_048",
-      "owner": "org_bld_004",
-      "price": 5.0,
-      "stock": 1000,
-      "type": "food_apple"
-    },
-    {
-      "at": "bld_014",
-      "id": "station_workbench_049",
-      "owner": "org_bld_014",
-      "type": "station_workbench"
-    },
-    {
-      "at": "bld_014",
-      "id": "toilet_basic_050",
-      "owner": "org_bld_014",
-      "type": "toilet_basic"
-    },
-    {
-      "at": "bld_014",
-      "id": "station_workbench_051",
-      "owner": "org_bld_014",
-      "type": "station_workbench"
-    },
-    {
-      "at": "bld_014",
-      "id": "station_workbench_052",
-      "owner": "org_bld_014",
-      "type": "station_workbench"
-    },
-    {
-      "at": "bld_014",
-      "id": "station_workbench_053",
-      "owner": "org_bld_014",
-      "type": "station_workbench"
-    },
-    {
-      "at": "bld_014",
-      "id": "toilet_basic_055",
-      "owner": "org_bld_014",
-      "type": "toilet_basic"
-    },
-    {
-      "at": "bld_014",
-      "id": "industry_machine_056",
-      "owner": "org_bld_014",
-      "type": "industry_machine"
-    },
-    {
-      "at": "bld_014",
-      "id": "industry_machine_057",
-      "owner": "org_bld_014",
-      "type": "industry_machine"
-    },
-    {
-      "at": "bld_014",
-      "id": "industry_machine_058",
-      "owner": "org_bld_014",
-      "type": "industry_machine"
-    },
-    {
-      "at": "bld_004",
-      "id": "station_counter_059",
-      "owner": "org_bld_004",
-      "type": "station_counter"
-    }
-  ],
-  "knowledge": [],
-  "locations": {
-    "bld_004": {
-      "h": 21.91,
-      "name": "店铺1号",
-      "type": "shop_small",
-      "w": 21.91,
-      "x": 639.05,
-      "y": 306.09
-    },
-    "bld_008": {
-      "h": 7.75,
-      "name": "小屋1号",
-      "type": "home_small",
-      "w": 7.75,
-      "x": 342.25,
-      "y": 230.25
-    },
-    "bld_009": {
-      "h": 7.75,
-      "name": "小屋2号",
-      "type": "home_small",
-      "w": 7.75,
-      "x": 358.95,
-      "y": 230.25
-    },
-    "bld_010": {
-      "h": 35.78,
-      "name": "批发市场1号",
-      "type": "market_hall",
-      "w": 22.36,
-      "x": 692.0,
-      "y": 352.11
-    },
-    "bld_011": {
-      "h": 28.28,
-      "name": "广场1号",
-      "type": "public_plaza",
-      "w": 42.43,
-      "x": 342.16,
-      "y": 242.0
-    },
-    "bld_014": {
-      "h": 30.59,
-      "name": "加工厂1号",
-      "type": "factory_plant",
-      "w": 23.53,
-      "x": 692.0,
-      "y": 424.7
-    }
+  {
+   "cash": 1000.0,
+   "close": "19:00",
+   "hiring_slots": 3.0,
+   "id": "org_bld_013",
+   "kind": "retail",
+   "name": "食品加工",
+   "open": "08:00",
+   "produces_item": "",
+   "shops": [
+    "bld_013"
+   ],
+   "staff": [],
+   "wage_per_hour": 3.0
   },
-  "map": {
-    "buildings": {
-      "bld_004": {
-        "center": [
-          650.0,
-          317.046
-        ],
-        "doors": [
-          [
-            650.0,
-            328.0
-          ]
-        ],
-        "floors": 1,
-        "rot": 0.0,
-        "size": [
-          21.909,
-          21.909
-        ],
-        "type": "shop_small"
-      },
-      "bld_008": {
-        "center": [
-          346.12,
-          234.127
-        ],
-        "doors": [
-          [
-            346.12,
-            238.0
-          ]
-        ],
-        "floors": 1,
-        "rot": 0.0,
-        "size": [
-          7.746,
-          7.746
-        ],
-        "type": "home_small"
-      },
-      "bld_009": {
-        "center": [
-          362.825,
-          234.127
-        ],
-        "doors": [
-          [
-            362.825,
-            238.0
-          ]
-        ],
-        "floors": 1,
-        "rot": 0.0,
-        "size": [
-          7.746,
-          7.746
-        ],
-        "type": "home_small"
-      },
-      "bld_010": {
-        "center": [
-          703.18,
-          370.0
-        ],
-        "doors": [
-          [
-            692.0,
-            370.0
-          ]
-        ],
-        "floors": 1,
-        "rot": -270.0,
-        "size": [
-          35.777,
-          22.361
-        ],
-        "type": "market_hall"
-      },
-      "bld_011": {
-        "center": [
-          363.371,
-          256.142
-        ],
-        "doors": [
-          [
-            363.371,
-            242.0
-          ],
-          [
-            363.371,
-            270.284
-          ],
-          [
-            342.158,
-            256.142
-          ],
-          [
-            384.584,
-            256.142
-          ]
-        ],
-        "floors": 1,
-        "rot": -180.0,
-        "size": [
-          42.426,
-          28.284
-        ],
-        "type": "public_plaza"
-      },
-      "bld_014": {
-        "center": [
-          703.767,
-          440.0
-        ],
-        "doors": [
-          [
-            692.0,
-            440.0
-          ]
-        ],
-        "floors": 1,
-        "rot": -270.0,
-        "size": [
-          30.594,
-          23.534
-        ],
-        "type": "factory_plant"
-      }
-    },
-    "edges": {
-      "e_002": {
-        "a": "n_001",
-        "b": "n_003",
-        "class": "local",
-        "geom": [
-          [
-            690.0,
-            330.0
-          ],
-          [
-            690.0,
-            480.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      },
-      "e_004": {
-        "a": "n_002",
-        "b": "n_005",
-        "class": "local",
-        "geom": [
-          [
-            330.0,
-            330.0
-          ],
-          [
-            400.0,
-            330.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      },
-      "e_006": {
-        "a": "n_006",
-        "b": "n_005",
-        "class": "local",
-        "geom": [
-          [
-            400.0,
-            240.0
-          ],
-          [
-            400.0,
-            330.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      },
-      "e_007": {
-        "a": "n_006",
-        "b": "n_007",
-        "class": "local",
-        "geom": [
-          [
-            400.0,
-            240.0
-          ],
-          [
-            330.0,
-            240.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      },
-      "e_008": {
-        "a": "n_007",
-        "b": "n_002",
-        "class": "local",
-        "geom": [
-          [
-            330.0,
-            240.0
-          ],
-          [
-            330.0,
-            330.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      },
-      "e_009": {
-        "a": "n_002",
-        "b": "n_008",
-        "class": "local",
-        "geom": [
-          [
-            330.0,
-            330.0
-          ],
-          [
-            330.0,
-            330.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      },
-      "e_010": {
-        "a": "n_003",
-        "b": "n_009",
-        "class": "local",
-        "geom": [
-          [
-            690.0,
-            480.0
-          ],
-          [
-            640.0,
-            480.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      },
-      "e_011": {
-        "a": "n_009",
-        "b": "n_004",
-        "class": "local",
-        "geom": [
-          [
-            640.0,
-            480.0
-          ],
-          [
-            640.0,
-            480.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      },
-      "e_012": {
-        "a": "n_010",
-        "b": "n_009",
-        "class": "local",
-        "geom": [
-          [
-            640.0,
-            380.0
-          ],
-          [
-            640.0,
-            480.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      },
-      "e_013": {
-        "a": "n_005",
-        "b": "n_011",
-        "class": "local",
-        "geom": [
-          [
-            400.0,
-            330.0
-          ],
-          [
-            640.0,
-            330.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      },
-      "e_014": {
-        "a": "n_011",
-        "b": "n_001",
-        "class": "local",
-        "geom": [
-          [
-            640.0,
-            330.0
-          ],
-          [
-            690.0,
-            330.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      },
-      "e_015": {
-        "a": "n_010",
-        "b": "n_011",
-        "class": "local",
-        "geom": [
-          [
-            640.0,
-            380.0
-          ],
-          [
-            640.0,
-            330.0
-          ]
-        ],
-        "oneway": false,
-        "speed": 1.3,
-        "width": 4.0
-      }
-    },
-    "format": "citysim.map",
-    "nodes": {
-      "n_001": {
-        "kind": "junction",
-        "xy": [
-          690.0,
-          330.0
-        ]
-      },
-      "n_002": {
-        "kind": "junction",
-        "xy": [
-          330.0,
-          330.0
-        ]
-      },
-      "n_003": {
-        "kind": "junction",
-        "xy": [
-          690.0,
-          480.0
-        ]
-      },
-      "n_004": {
-        "kind": "junction",
-        "xy": [
-          640.0,
-          480.0
-        ]
-      },
-      "n_005": {
-        "kind": "junction",
-        "xy": [
-          400.0,
-          330.0
-        ]
-      },
-      "n_006": {
-        "kind": "junction",
-        "xy": [
-          400.0,
-          240.0
-        ]
-      },
-      "n_007": {
-        "kind": "junction",
-        "xy": [
-          330.0,
-          240.0
-        ]
-      },
-      "n_008": {
-        "kind": "junction",
-        "xy": [
-          330.0,
-          330.0
-        ]
-      },
-      "n_009": {
-        "kind": "junction",
-        "xy": [
-          640.0,
-          480.0
-        ]
-      },
-      "n_010": {
-        "kind": "junction",
-        "xy": [
-          640.0,
-          380.0
-        ]
-      },
-      "n_011": {
-        "kind": "junction",
-        "xy": [
-          640.0,
-          330.0
-        ]
-      }
-    },
-    "version": 1,
-    "world": {
-      "bounds": [
-        0.0,
-        0.0,
-        800.0,
-        600.0
-      ],
-      "grid": 10.0,
-      "grid_snap": true,
-      "net_snap": true,
-      "unit": "m"
-    }
-  },
-  "npcs": [
-    {
-      "birthday": "1972-05-02",
-      "gender": "female",
-      "home": "bld_008",
-      "id": "npc_sun_yan",
-      "init": {},
-      "money": 303.0,
-      "name": "孙燕",
-      "personality": {
-        "energy": 1.0,
-        "hunger": 1.2
-      },
-      "role": "",
-      "tell_bias": 1.0,
-      "traits": {}
-    },
-    {
-      "birthday": "2007-05-21",
-      "gender": "male",
-      "home": "bld_008",
-      "id": "npc_lin_san",
-      "init": {},
-      "money": 384.0,
-      "name": "林三",
-      "personality": {
-        "energy": 1.2,
-        "hunger": 1.2
-      },
-      "role": "",
-      "tell_bias": 1.0,
-      "traits": {}
-    },
-    {
-      "birthday": "1986-04-05",
-      "gender": "female",
-      "home": "bld_008",
-      "id": "npc_zhang_jing",
-      "init": {},
-      "money": 235.0,
-      "name": "张静",
-      "personality": {
-        "energy": 1.2,
-        "hunger": 1.0
-      },
-      "role": "",
-      "tell_bias": 1.0,
-      "traits": {}
-    },
-    {
-      "birthday": "1965-11-05",
-      "gender": "male",
-      "home": "bld_009",
-      "id": "npc_he_tao",
-      "init": {},
-      "money": 486.0,
-      "name": "何涛",
-      "personality": {
-        "energy": 0.8,
-        "hunger": 1.2
-      },
-      "role": "",
-      "tell_bias": 1.0,
-      "traits": {}
-    },
-    {
-      "birthday": "1966-09-26",
-      "gender": "male",
-      "home": "bld_009",
-      "id": "npc_li_yang",
-      "init": {},
-      "money": 290.0,
-      "name": "李洋",
-      "personality": {
-        "energy": 1.3,
-        "hunger": 0.9
-      },
-      "role": "",
-      "tell_bias": 1.0,
-      "traits": {}
-    },
-    {
-      "birthday": "2001-11-16",
-      "gender": "male",
-      "home": "bld_009",
-      "id": "npc_he_san",
-      "init": {},
-      "money": 82.0,
-      "name": "何三",
-      "personality": {
-        "energy": 1.0,
-        "hunger": 0.9
-      },
-      "role": "",
-      "tell_bias": 1.0,
-      "traits": {}
-    }
-  ],
-  "plans": {},
-  "scene": "scene",
-  "travel": {
-    "default": 20,
-    "pairs": {
-      "bld_004|bld_008": 31,
-      "bld_004|bld_009": 29,
-      "bld_004|bld_010": 7,
-      "bld_004|bld_011": 29,
-      "bld_004|bld_014": 13,
-      "bld_008|bld_009": 1,
-      "bld_008|bld_010": 38,
-      "bld_008|bld_011": 2,
-      "bld_008|bld_014": 41,
-      "bld_009|bld_010": 36,
-      "bld_009|bld_011": 2,
-      "bld_009|bld_014": 39,
-      "bld_010|bld_011": 35,
-      "bld_010|bld_014": 7,
-      "bld_011|bld_014": 38
-    }
+  {
+   "cash": 1000.0,
+   "close": "19:00",
+   "hiring_slots": 4,
+   "id": "org_bld_014",
+   "kind": "manufacture",
+   "name": "食品加工",
+   "open": "08:00",
+   "produces_item": "meal_simple_raw",
+   "shops": [
+    "bld_014"
+   ],
+   "staff": [],
+   "wage_per_hour": 5.0
   }
+ ],
+ "display_name": "scene",
+ "entities": [
+  {
+   "at": "bld_008",
+   "id": "bed_basic_036",
+   "type": "bed_basic"
+  },
+  {
+   "at": "bld_008",
+   "id": "toilet_basic_037",
+   "type": "toilet_basic"
+  },
+  {
+   "at": "bld_009",
+   "id": "bed_basic_038",
+   "type": "bed_basic"
+  },
+  {
+   "at": "bld_009",
+   "id": "toilet_basic_039",
+   "type": "toilet_basic"
+  },
+  {
+   "at": "bld_008",
+   "id": "meal_simple_040",
+   "stock": 100,
+   "type": "meal_simple"
+  },
+  {
+   "at": "bld_009",
+   "id": "meal_simple_041",
+   "stock": 100,
+   "type": "meal_simple"
+  },
+  {
+   "at": "bld_008",
+   "id": "bed_basic_042",
+   "type": "bed_basic"
+  },
+  {
+   "at": "bld_008",
+   "id": "bed_basic_043",
+   "type": "bed_basic"
+  },
+  {
+   "at": "bld_009",
+   "id": "bed_basic_044",
+   "type": "bed_basic"
+  },
+  {
+   "at": "bld_009",
+   "id": "bed_basic_045",
+   "type": "bed_basic"
+  },
+  {
+   "at": "bld_004",
+   "id": "station_counter_046",
+   "owner": "org_bld_004",
+   "type": "station_counter"
+  },
+  {
+   "at": "bld_004",
+   "id": "toilet_basic_047",
+   "type": "toilet_basic"
+  },
+  {
+   "at": "bld_004",
+   "id": "food_apple_048",
+   "owner": "org_bld_004",
+   "price": 5.0,
+   "stock": 1000,
+   "type": "food_apple"
+  },
+  {
+   "at": "bld_014",
+   "id": "station_workbench_049",
+   "owner": "org_bld_014",
+   "type": "station_workbench"
+  },
+  {
+   "at": "bld_014",
+   "id": "toilet_basic_050",
+   "owner": "org_bld_014",
+   "type": "toilet_basic"
+  },
+  {
+   "at": "bld_014",
+   "id": "station_workbench_051",
+   "owner": "org_bld_014",
+   "type": "station_workbench"
+  },
+  {
+   "at": "bld_014",
+   "id": "station_workbench_052",
+   "owner": "org_bld_014",
+   "type": "station_workbench"
+  },
+  {
+   "at": "bld_014",
+   "id": "station_workbench_053",
+   "owner": "org_bld_014",
+   "type": "station_workbench"
+  },
+  {
+   "at": "bld_014",
+   "id": "toilet_basic_055",
+   "owner": "org_bld_014",
+   "type": "toilet_basic"
+  },
+  {
+   "at": "bld_014",
+   "id": "industry_machine_056",
+   "owner": "org_bld_014",
+   "type": "industry_machine"
+  },
+  {
+   "at": "bld_014",
+   "id": "industry_machine_057",
+   "owner": "org_bld_014",
+   "type": "industry_machine"
+  },
+  {
+   "at": "bld_014",
+   "id": "industry_machine_058",
+   "owner": "org_bld_014",
+   "type": "industry_machine"
+  },
+  {
+   "at": "bld_004",
+   "id": "station_counter_059",
+   "owner": "org_bld_004",
+   "type": "station_counter"
+  }
+ ],
+ "knowledge": [],
+ "locations": {
+  "bld_004": {
+   "h": 21.91,
+   "name": "店铺1号",
+   "type": "shop_small",
+   "w": 21.91,
+   "x": 639.05,
+   "y": 306.09
+  },
+  "bld_008": {
+   "h": 7.75,
+   "name": "小屋1号",
+   "type": "home_small",
+   "w": 7.75,
+   "x": 342.25,
+   "y": 230.25
+  },
+  "bld_009": {
+   "h": 7.75,
+   "name": "小屋2号",
+   "type": "home_small",
+   "w": 7.75,
+   "x": 358.95,
+   "y": 230.25
+  },
+  "bld_010": {
+   "h": 35.78,
+   "name": "批发市场1号",
+   "type": "market_hall",
+   "w": 22.36,
+   "x": 692.0,
+   "y": 352.11
+  },
+  "bld_011": {
+   "h": 28.28,
+   "name": "广场1号",
+   "type": "public_plaza",
+   "w": 42.43,
+   "x": 342.16,
+   "y": 242.0
+  },
+  "bld_014": {
+   "h": 30.59,
+   "name": "加工厂1号",
+   "type": "factory_plant",
+   "w": 23.53,
+   "x": 692.0,
+   "y": 424.7
+  }
+ },
+ "map": {
+  "buildings": {
+   "bld_004": {
+    "center": [
+     650.0,
+     317.046
+    ],
+    "doors": [
+     [
+      650.0,
+      328.0
+     ]
+    ],
+    "floors": 1,
+    "rot": 0.0,
+    "size": [
+     21.909,
+     21.909
+    ],
+    "type": "shop_small"
+   },
+   "bld_008": {
+    "center": [
+     346.12,
+     234.127
+    ],
+    "doors": [
+     [
+      346.12,
+      238.0
+     ]
+    ],
+    "floors": 1,
+    "rot": 0.0,
+    "size": [
+     7.746,
+     7.746
+    ],
+    "type": "home_small"
+   },
+   "bld_009": {
+    "center": [
+     362.825,
+     234.127
+    ],
+    "doors": [
+     [
+      362.825,
+      238.0
+     ]
+    ],
+    "floors": 1,
+    "rot": 0.0,
+    "size": [
+     7.746,
+     7.746
+    ],
+    "type": "home_small"
+   },
+   "bld_010": {
+    "center": [
+     703.18,
+     370.0
+    ],
+    "doors": [
+     [
+      692.0,
+      370.0
+     ]
+    ],
+    "floors": 1,
+    "rot": -270.0,
+    "size": [
+     35.777,
+     22.361
+    ],
+    "type": "market_hall"
+   },
+   "bld_011": {
+    "center": [
+     363.371,
+     256.142
+    ],
+    "doors": [
+     [
+      363.371,
+      242.0
+     ],
+     [
+      363.371,
+      270.284
+     ],
+     [
+      342.158,
+      256.142
+     ],
+     [
+      384.584,
+      256.142
+     ]
+    ],
+    "floors": 1,
+    "rot": -180.0,
+    "size": [
+     42.426,
+     28.284
+    ],
+    "type": "public_plaza"
+   },
+   "bld_014": {
+    "center": [
+     703.767,
+     440.0
+    ],
+    "doors": [
+     [
+      692.0,
+      440.0
+     ]
+    ],
+    "floors": 1,
+    "rot": -270.0,
+    "size": [
+     30.594,
+     23.534
+    ],
+    "type": "factory_plant"
+   }
+  },
+  "edges": {
+   "e_002": {
+    "a": "n_001",
+    "b": "n_003",
+    "class": "local",
+    "geom": [
+     [
+      690.0,
+      330.0
+     ],
+     [
+      690.0,
+      480.0
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4.0
+   },
+   "e_004": {
+    "a": "n_002",
+    "b": "n_005",
+    "class": "local",
+    "geom": [
+     [
+      330.0,
+      330.0
+     ],
+     [
+      400.0,
+      330.0
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4.0
+   },
+   "e_006": {
+    "a": "n_006",
+    "b": "n_005",
+    "class": "local",
+    "geom": [
+     [
+      400.0,
+      240.0
+     ],
+     [
+      400.0,
+      330.0
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4.0
+   },
+   "e_007": {
+    "a": "n_006",
+    "b": "n_007",
+    "class": "local",
+    "geom": [
+     [
+      400.0,
+      240.0
+     ],
+     [
+      330.0,
+      240.0
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4.0
+   },
+   "e_008": {
+    "a": "n_007",
+    "b": "n_002",
+    "class": "local",
+    "geom": [
+     [
+      330.0,
+      240.0
+     ],
+     [
+      330.0,
+      330.0
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4.0
+   },
+   "e_009": {
+    "a": "n_002",
+    "b": "n_008",
+    "class": "local",
+    "geom": [
+     [
+      330.0,
+      330.0
+     ],
+     [
+      330.0,
+      330.0
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4.0
+   },
+   "e_010": {
+    "a": "n_003",
+    "b": "n_009",
+    "class": "local",
+    "geom": [
+     [
+      690.0,
+      480.0
+     ],
+     [
+      640.0,
+      480.0
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4.0
+   },
+   "e_011": {
+    "a": "n_009",
+    "b": "n_004",
+    "class": "local",
+    "geom": [
+     [
+      640.0,
+      480.0
+     ],
+     [
+      640.0,
+      480.0
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4.0
+   },
+   "e_012": {
+    "a": "n_010",
+    "b": "n_009",
+    "class": "local",
+    "geom": [
+     [
+      640.0,
+      380.0
+     ],
+     [
+      640.0,
+      480.0
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4.0
+   },
+   "e_013": {
+    "a": "n_005",
+    "b": "n_011",
+    "class": "local",
+    "geom": [
+     [
+      400.0,
+      330.0
+     ],
+     [
+      640.0,
+      330.0
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4.0
+   },
+   "e_014": {
+    "a": "n_011",
+    "b": "n_001",
+    "class": "local",
+    "geom": [
+     [
+      640.0,
+      330.0
+     ],
+     [
+      690.0,
+      330.0
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4.0
+   },
+   "e_015": {
+    "a": "n_010",
+    "b": "n_011",
+    "class": "local",
+    "geom": [
+     [
+      640.0,
+      380.0
+     ],
+     [
+      640.0,
+      330.0
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4.0
+   }
+  },
+  "format": "citysim.map",
+  "nodes": {
+   "n_001": {
+    "kind": "junction",
+    "xy": [
+     690.0,
+     330.0
+    ]
+   },
+   "n_002": {
+    "kind": "junction",
+    "xy": [
+     330.0,
+     330.0
+    ]
+   },
+   "n_003": {
+    "kind": "junction",
+    "xy": [
+     690.0,
+     480.0
+    ]
+   },
+   "n_004": {
+    "kind": "junction",
+    "xy": [
+     640.0,
+     480.0
+    ]
+   },
+   "n_005": {
+    "kind": "junction",
+    "xy": [
+     400.0,
+     330.0
+    ]
+   },
+   "n_006": {
+    "kind": "junction",
+    "xy": [
+     400.0,
+     240.0
+    ]
+   },
+   "n_007": {
+    "kind": "junction",
+    "xy": [
+     330.0,
+     240.0
+    ]
+   },
+   "n_008": {
+    "kind": "junction",
+    "xy": [
+     330.0,
+     330.0
+    ]
+   },
+   "n_009": {
+    "kind": "junction",
+    "xy": [
+     640.0,
+     480.0
+    ]
+   },
+   "n_010": {
+    "kind": "junction",
+    "xy": [
+     640.0,
+     380.0
+    ]
+   },
+   "n_011": {
+    "kind": "junction",
+    "xy": [
+     640.0,
+     330.0
+    ]
+   }
+  },
+  "version": 1,
+  "world": {
+   "bounds": [
+    0.0,
+    0.0,
+    800.0,
+    600.0
+   ],
+   "grid": 10.0,
+   "grid_snap": true,
+   "net_snap": true,
+   "unit": "m"
+  }
+ },
+ "npcs": [
+  {
+   "birthday": "1972-05-02",
+   "gender": "female",
+   "home": "bld_008",
+   "id": "npc_sun_yan",
+   "init": {},
+   "money": 303.0,
+   "name": "孙燕",
+   "personality": {
+    "energy": 1.0,
+    "hunger": 1.2
+   },
+   "role": "",
+   "tell_bias": 1.0,
+   "traits": {}
+  },
+  {
+   "birthday": "2007-05-21",
+   "gender": "male",
+   "home": "bld_008",
+   "id": "npc_lin_san",
+   "init": {},
+   "money": 384.0,
+   "name": "林三",
+   "personality": {
+    "energy": 1.2,
+    "hunger": 1.2
+   },
+   "role": "",
+   "tell_bias": 1.0,
+   "traits": {}
+  },
+  {
+   "birthday": "1986-04-05",
+   "gender": "female",
+   "home": "bld_008",
+   "id": "npc_zhang_jing",
+   "init": {},
+   "money": 235.0,
+   "name": "张静",
+   "personality": {
+    "energy": 1.2,
+    "hunger": 1.0
+   },
+   "role": "",
+   "tell_bias": 1.0,
+   "traits": {}
+  },
+  {
+   "birthday": "1965-11-05",
+   "gender": "male",
+   "home": "bld_009",
+   "id": "npc_he_tao",
+   "init": {},
+   "money": 486.0,
+   "name": "何涛",
+   "personality": {
+    "energy": 0.8,
+    "hunger": 1.2
+   },
+   "role": "",
+   "tell_bias": 1.0,
+   "traits": {}
+  },
+  {
+   "birthday": "1966-09-26",
+   "gender": "male",
+   "home": "bld_009",
+   "id": "npc_li_yang",
+   "init": {},
+   "money": 290.0,
+   "name": "李洋",
+   "personality": {
+    "energy": 1.3,
+    "hunger": 0.9
+   },
+   "role": "",
+   "tell_bias": 1.0,
+   "traits": {}
+  },
+  {
+   "birthday": "2001-11-16",
+   "gender": "male",
+   "home": "bld_009",
+   "id": "npc_he_san",
+   "init": {},
+   "money": 82.0,
+   "name": "何三",
+   "personality": {
+    "energy": 1.0,
+    "hunger": 0.9
+   },
+   "role": "",
+   "tell_bias": 1.0,
+   "traits": {}
+  }
+ ],
+ "plans": {},
+ "scene": "scene",
+ "travel": {
+  "default": 20,
+  "pairs": {
+   "bld_004|bld_008": 31,
+   "bld_004|bld_009": 29,
+   "bld_004|bld_010": 7,
+   "bld_004|bld_011": 29,
+   "bld_004|bld_014": 13,
+   "bld_008|bld_009": 1,
+   "bld_008|bld_010": 38,
+   "bld_008|bld_011": 2,
+   "bld_008|bld_014": 41,
+   "bld_009|bld_010": 36,
+   "bld_009|bld_011": 2,
+   "bld_009|bld_014": 39,
+   "bld_010|bld_011": 35,
+   "bld_010|bld_014": 7,
+   "bld_011|bld_014": 38
+  }
+ }
 }

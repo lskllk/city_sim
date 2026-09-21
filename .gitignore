@@ -10,3 +10,6 @@ venv/
 
 # 临时分析脚本(不进版本库)
 .tmp_exp/
+
+# 美术构建产物（真源是 art/gen.mjs + style.json + characters.json）
+art/out/

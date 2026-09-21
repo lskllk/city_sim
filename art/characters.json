@@ -1,0 +1,121 @@
+{
+  "_": "角色的【可辨识性维度】。契约要求：任意两人至少 3 个维度不同。",
+  "_dims": "身体(3) × 头发(4) × 上衣色(4) × 配饰(5) = 240 种组合，远多于 40 人 → 不会撞脸。",
+  "_why": "这比画得好看重要：玩家要一眼认出『那是王阿姨』—— 这是 Demo 验收的第①条。",
+  "hairStyles": {
+    "short": {
+      "label": "短发",
+      "color": "#3a3128"
+    },
+    "long": {
+      "label": "长发",
+      "color": "#4a3f36"
+    },
+    "white": {
+      "label": "白发",
+      "color": "#d8d2c6"
+    },
+    "hat": {
+      "label": "帽子",
+      "color": "#6b7f9a"
+    }
+  },
+  "accessories": {
+    "none": {},
+    "glasses": {
+      "label": "眼镜"
+    },
+    "apron": {
+      "label": "围裙"
+    },
+    "cane": {
+      "label": "拐杖"
+    },
+    "bag": {
+      "label": "包"
+    }
+  },
+  "characters": [
+    {
+      "id": "me",
+      "name": "陈知远",
+      "body": "medium",
+      "skin": 0,
+      "hair": "short",
+      "top": "#b4552d",
+      "acc": "none",
+      "note": "玩家自己（强调色和你一致）"
+    },
+    {
+      "id": "n_wang",
+      "name": "王阿姨",
+      "body": "stocky",
+      "skin": 1,
+      "hair": "short",
+      "top": "#7c8f5e",
+      "acc": "bag",
+      "note": "爱打听 · 每周三来买梨"
+    },
+    {
+      "id": "n_li",
+      "name": "李大爷",
+      "body": "slim",
+      "skin": 2,
+      "hair": "white",
+      "top": "#8a7a66",
+      "acc": "cane",
+      "note": "几乎天天来"
+    },
+    {
+      "id": "n_zhang",
+      "name": "张大妈",
+      "body": "stocky",
+      "skin": 1,
+      "hair": "long",
+      "top": "#9a6b6b",
+      "acc": "none",
+      "note": "曾经最常来（要一眼看出她很久没来了）"
+    },
+    {
+      "id": "n_zhou",
+      "name": "周师傅",
+      "body": "medium",
+      "skin": 2,
+      "hair": "short",
+      "top": "#5d7183",
+      "acc": "apron",
+      "note": "加工厂工人"
+    },
+    {
+      "id": "n_sun",
+      "name": "孙妍",
+      "body": "slim",
+      "skin": 0,
+      "hair": "long",
+      "top": "#7a6f9a",
+      "acc": "apron",
+      "note": "你雇的店员"
+    },
+    {
+      "id": "n_lin",
+      "name": "林静",
+      "body": "slim",
+      "skin": 0,
+      "hair": "short",
+      "top": "#6f8a8a",
+      "acc": "bag",
+      "note": "生面孔 → 熟了之后要认得出来（体型拉开，别和玩家撞）"
+    },
+    {
+      "id": "n_zhao",
+      "name": "赵小雨",
+      "body": "slim",
+      "skin": 1,
+      "hair": "hat",
+      "top": "#a08258",
+      "acc": "glasses",
+      "note": "生面孔"
+    }
+  ],
+  "_check": "自查：上面 8 人两两对比，任意两人至少 3 个维度不同（身体/头发/上衣/配饰/主色）。新增角色请跑 gen.mjs 的 --check。"
+}

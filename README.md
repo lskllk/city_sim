@@ -4,7 +4,8 @@
 城里每个人都是**真的会想、会记、会打听的 agent** —— 他看不到全知地图，
 只知道**自己记得的东西**。这条约束自然长出信息差、传闻、误判与探索。
 
-> 8,025 行 Python（54 文件）· 10,009 行 GDScript（56 文件）· 274 个测试 · 内核零第三方依赖
+> 8,025 行 Python（54 文件）· 305 个测试 · 内核零第三方依赖
+> 前端用 PixiJS（web）。原先的 Godot 观察器已归档 —— 见文末「归档」。
 
 **规则与内容都在 `config/` 里 —— 改动优先改数据，而不是改代码。**
 
@@ -37,7 +38,7 @@
                         ▼
      game/  经营动词 · 快进编排 · 台词模板 · WS 服务   ← 知道玩家/老板/文风
                         ▼
-                   Godot 观察器 / 编辑器
+                   前端 (PixiJS / web)
                      (只渲染与发命令, 不算模拟)
 ```
 
@@ -50,7 +51,7 @@
 | **3** | **`api` 严禁 `import citysim.game`** | 门面只覆盖内核；反向依赖会让包变成一团，还会把 fastapi 拖进内核 |
 | **4** | **world → NPC 只有两个口**：`notify(ev)` + `assign(cmd)` | 世界只说"发生了什么"；怎么改自己是 NPC 的事 |
 | **5** | **决策只读记忆**，不查世界 | 记忆里没有的 = 他不知道 —— 整个认知系统的基础 |
-| **6** | **Godot 只渲染、只发命令，不算任何模拟** | 画面与逻辑不打架；换前端不用改内核 |
+| **6** | **前端只渲染、只发命令，不算任何模拟** | 画面与逻辑不打架；换前端不用改内核（已经换过一次：Godot → PixiJS）|
 
 ### 那两个口分别是什么
 
@@ -114,7 +115,7 @@ src/citysim/
                commands.py  WS 指令表: 名字 → 动作 → reply
                server.py    FastAPI app + WS 端点(接线与启动)
 config/     sim.toml + items/ · buildings/ · scenes/   ← 数值与内容都在这
-godot/      观察器 + 编辑器(只渲染/发命令, 不算模拟)
+（godot/ 观察器 + 编辑器已归档 —— 见文末「归档」）
 tools/      观测脚本: sim_report · watch · narrate · soak_report …
 tests/      pytest
 ```
@@ -129,14 +130,11 @@ python -m pip install -e ".[viz]"     # 额外: 观察器后端 (fastapi + uvico
 
 python tools/sim_report.py config/scenes/scene.json 30   # 无头跑 30 天, 出健康度报告
 python tools/watch.py --npc 6 --ticks 2400               # 终端观察器(无依赖, 最快看行为)
-python -m uvicorn citysim.game.server:app --port 8765 # 只跑后端
-
-"D:/Godot_v4.7.2-stable_win64.exe" --path godot                              # 观察器
-"D:/Godot_v4.7.2-stable_win64.exe" --path godot res://scenes/editor/editor.tscn  # 编辑器
+python -m uvicorn citysim.game.server:app --port 8765 # 后端(给前端用)
 ```
 
-观察器会自己拉起后端（端口已监听则跳过）、退出时收掉；日志在 `.logs/backend.log`。
-编辑器导出的场景用 `set CITYSIM_SCENE=<路径>` 让观察器加载。
+后端起来后连 `/ws` 就能拿到 60Hz 快照。前端是 `proto/ui-prototype.html`
+（冻结的参考实现）→ PixiJS。
 
 ## 四、测试
 
@@ -208,9 +206,9 @@ config/buildings/     12 种建筑(kind 决定能开什么公司)
 config/scenes/*.json  场景: 地点/建筑/NPC/物件/公司(含预置员工)/初始记忆/旅行成本
 ```
 
-**编辑器（Godot）能做**：摆建筑/道路与命名 · 摆物件（**家具按建筑类型过滤**）·
-注册公司（名字/现金/时薪/招聘数/营业时间/产出物）· NPC 取名/性别/生日/角色/性格/初始记忆 ·
-一键填满住户 · 导出/导入场景 JSON。
+**场景现在直接写 JSON**（`config/scenes/*.json`）：地点 / 建筑 / NPC / 物件 /
+公司（含预置员工）/ 初始记忆 / 旅行成本。
+原先有个 Godot 图形编辑器做这件事，已归档 —— 见文末「归档」。
 
 ---
 
@@ -255,13 +253,32 @@ config/scenes/*.json  场景: 地点/建筑/NPC/物件/公司(含预置员工)/�
 | `python tools/soak.py` / `soak_report.py` | 长局压力测试 |
 | `python tools/check_imports.py` | 层隔离（已挂进 pytest）|
 | `python -m uvicorn citysim.game.server:app` | 只跑后端（给别的前端用）|
-| Godot 编辑器 | 场景创作 + 导出 JSON |
+| `config/scenes/*.json` | 场景创作（原先靠 Godot 编辑器，已归档）|
 
 ---
 
 ## 九、正在基于它做的游戏
 
 见 **[游戏构思](docs/game-concept.md)**（我们要做什么）· **[Demo 计划](docs/demo-plan.md)**（怎么做 · 五条线 · 分工 · 契约）。
+
+---
+
+## 十、归档
+
+前端定成 **PixiJS（web）** 之后，Godot 那套观察器 + 编辑器归档了。
+
+```
+标签    archive/godot-observer
+内容    143 个文件：project.godot · 56 个 .gd / .tscn / .tres ·
+        map.json · samples/ · 4 篇自述 md
+恢复    git checkout archive/godot-observer -- godot
+```
+
+**为什么归档而不是删掉**：它证明过「换前端不用改内核」这句话 ——
+`game/` 对外只有 `/ws` 一条线，谁连都行。它还是"Godot 版长什么样"的唯一记录。
+
+`tools/gen_emoji_registry.py` 会往 `godot/scripts/ui/emojis.gd` 写一份 emoji 镜像；
+`godot/` 不在时它**自动跳过那一份**，恢复观察器后照样能用，不用改代码。
 
 前端设计已冻结：
 

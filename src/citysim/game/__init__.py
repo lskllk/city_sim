@@ -25,5 +25,5 @@ from pathlib import Path
 
 # 仓库根(src/citysim/game/__init__.py → parents[3])。
 # 配置与日志都用绝对路径 —— 后端进程的工作目录无关紧要
-# (Godot 自动拉起后端时尤其重要)。
+# (前端自动拉起后端时尤其重要)。
 ROOT = Path(__file__).resolve().parents[3]

@@ -113,7 +113,10 @@ x0                                                               x0+W
 - **dropped 后同刻 successor**：两节点会重叠，需按 `id` 稳定排序后 >1 时错位 6px。
 - **与当前活动的关系**：`active` 节点即 `active.entity`；若正在 `travel`，可在去往的 `dest` 上画一个“在途”游标。
 
-## 7. Godot 落地建议
+## 7. 落地建议（原 Godot 版，已归档）
+
+> Godot 观察器已归档（标签 `archive/godot-observer`）。
+> 下面留给任何自绘前端参考 —— 原理（自绘轨、不做每帧建节点、只读镜像）与具体框架无关。
 
 - 用 `Control` + `_draw()`（或 `Node2D`）自绘，避免每帧建节点：
   - `_draw`: 先画底轨/灰段/蓝段，再画 now 竖线，再遍历 `plan` 画节点。

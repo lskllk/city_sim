@@ -56,6 +56,6 @@ async def ws_endpoint(ws: WebSocket) -> None:
 
 @app.get("/")
 async def _root() -> dict:
-    """健康探针; 观察器 UI 由独立 Godot 项目 godot/ 提供(连接 /ws)。"""
+    """健康探针; 前端连 /ws 拿快照。原先的 Godot 观察器已归档(标签 archive/godot-observer)。"""
     return {"service": "citysim", "status": "ok",
-            "ws": "/ws", "observer": "run godot/ (Godot Editor)"}
+            "ws": "/ws", "observer": "(归档) archive/godot-observer"}

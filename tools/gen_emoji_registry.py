@@ -7,6 +7,9 @@
     src/citysim/emojis.py        -> SEMANTIC_EMOJI: 语义 key -> emoji
     godot/scripts/ui/emojis.gd   -> EMOJI:          语义 key -> emoji (观察器侧)
 
+★ Godot 观察器已归档(标签 archive/godot-observer)。godot/ 不在时只写 Python 那份,
+  镜像那份自动跳过 —— 这样把观察器恢复回来以后, 本脚本照样能用, 不用改。
+
 新增/调整项目 emoji: 只改下方 SEMANTIC 表(语义 key -> 库内规范英文名),
 再重跑本脚本即可; 若 key 指向的名字在库中缺失会报错, 防止用到库外字形。
 """
@@ -21,7 +24,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIB_DIR = os.path.join(ROOT, "emojis_by_category")
 
 OUT_PY = os.path.join(ROOT, "src", "citysim", "emojis.py")
-OUT_GD = os.path.join(ROOT, "godot", "scripts", "ui", "emojis.gd")
+OBSERVER_DIR = os.path.join(ROOT, "godot")          # 观察器已归档, 见文件头
+OUT_GD = os.path.join(OBSERVER_DIR, "scripts", "ui", "emojis.gd")
 
 # ---------------------------------------------------------------------------
 # 项目语义 key -> emojis_by_category 里的规范英文名(唯一真源, 改这里即可)
@@ -112,7 +116,14 @@ def render_gd(resolved: dict[str, str]) -> str:
 
 def main() -> None:
     resolved = resolve()
-    for path, text in ((OUT_PY, render_py(resolved)), (OUT_GD, render_gd(resolved))):
+    targets = [(OUT_PY, render_py(resolved))]
+    # 观察器归档后 godot/ 不在 —— 那就只写 Python 那份。
+    # (用 os.makedirs 无条件建目录的话, 会把空壳 godot/ 又造回来。)
+    if os.path.isdir(OBSERVER_DIR):
+        targets.append((OUT_GD, render_gd(resolved)))
+    else:
+        print(f"skip (观察器已归档, 无 {OBSERVER_DIR}): {OUT_GD}")
+    for path, text in targets:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(text)

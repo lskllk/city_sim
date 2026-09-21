@@ -51,7 +51,7 @@ export class MapLayer {
   // 地面：整块画布铺一张草地；地点是 public 的铺广场砖
   _ground_(scene) {
     const c = scene.canvas || { w: 1280, h: 800 };
-    const key = `${c.w}x${c.h}`;
+    const key = `${c.w}x${c.h}|v${this.assets.version || 0}`;
     if (key === this._groundKey) return;
     this._groundKey = key;
     this.ground.removeChildren();
@@ -158,7 +158,7 @@ export class MapLayer {
     //   路变成一片近黑纯色 —— 看起来就是"没用美术资产"。
     //   所以用贴图时 color 一律给白（白 × 贴图 = 贴图本身）。
     const segs = this._segs(scene);
-    const key = JSON.stringify(segs);
+    const key = JSON.stringify(segs) + "|v" + (this.assets.version || 0);
     if (key === this._roadKey) return;
     this._roadKey = key;
     this.road.removeChildren();
@@ -295,12 +295,24 @@ export class MapLayer {
           }
         }
       }
-      e.box.position.set(x, y);
+      // ★ 建筑要能转。rot 来自左边的编辑器地图（scene.map.buildings[lid].rot）——
+      //   编辑器和游戏共用这一段，所以两边转得一样。
+      //   pivot 放在【中心】：box 里的小精灵是按左上角摆的，
+      //   不给 pivot 就得绕左上角转，房子会飞出去。
+      const rot = (types[lid]?.rot || 0) * Math.PI / 180;
+      e.box.pivot.set(w / 2, h / 2);
+      e.box.position.set(x + w / 2, y + h / 2);
+      e.box.rotation = rot;
       e.box.zIndex = Math.round(loc.y + loc.h);
       this.onSign?.(lid, loc, { x, y: y + h });
     }
-    for (const [lid, e] of [...this.buildings])
-      if (!seen.has(lid)) { e.box.destroy({ children: true }); this.buildings.delete(lid); }
+    // ★ 拆掉的建筑，名牌也要撤 —— 否则地图上留一个没有房子的名字。
+    for (const [lid, e] of [...this.buildings]) {
+      if (seen.has(lid)) continue;
+      e.box.destroy({ children: true });
+      this.buildings.delete(lid);
+      this.onSign?.(lid, null, null);
+    }
   }
 
   /** 夜里点亮窗户（时间色调由调用方给，见 atmosphere） */

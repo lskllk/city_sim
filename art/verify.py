@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """art/verify.py —— 校验生成出来的美术资产。
 
-生成的资产不能靠肉眼验收。这个脚本检查五件事：
+生成的资产不能靠肉眼验收。这个脚本检查六件事：
   ① 清单里每个文件都在，且 SVG 是【合法 XML】
   ② 声明尺寸 == 逻辑尺寸 × authorScale（Pixi 靠这个算缩放，错了就糊或者错位）
   ③ 没有 NaN / undefined / null 混进坐标
   ④ 所有 url(#id) 都指得到对应的 <pattern>（引用不到 = 那块直接不画）
   ⑤ 所有 fill/stroke 都是合法颜色或 url(#)
+  ⑥ 固定格子类（图标/徽章/头像）必须填满画布 —— 见 ⑥ 的说明
 用法: python art/verify.py
 """
 from __future__ import annotations
@@ -136,6 +137,31 @@ def main() -> int:
                        for a in people):
                 errors.append(f"人物 {cid} 缺 {d} 站立帧")
 
+    # ⑥ ★ 固定格子类必须填满自己的画布。
+    #    图标/徽章/头像是同一个格子里的东西，大小不齐人一眼就看得出来。
+    #    ★ 只能查这一类 —— 夜光层、路虚线、影子本来就该是零星的；
+    #      一刀切会把它们全报成错，那种闸很快就会被无视。
+    #    ★ 判 max(横, 纵) 而不是 min：长条工位 0.80×0.38 是对的。
+    #      阈值 0.72 是按「坐标忘了乘 2」那个 bug 定的 —— 它会掉到 0.35〜0.5。
+    from bbox import fill_ratio  # noqa: E402  （同目录）
+    FIXED_TILE = {"iicon", "badge", "marker"}
+    checked = 0
+    for a in assets:
+        if a.get("sub") not in FIXED_TILE and a.get("cat") != "C":
+            continue
+        f = OUT / a["file"]
+        if not f.exists():
+            continue
+        r = fill_ratio(f)
+        if not r:
+            continue
+        W, H, fr, fh = r
+        checked += 1
+        if max(fr, fh) < 0.72:
+            errors.append(f"{a['file']}: 画得太小 —— 只占画布 {fr:.2f}×{fh:.2f}"
+                          f"（{W}×{H}）。是不是画的时候坐标没过 u()？")
+    print(f"固定格子类: {checked} 个（图标/徽章/头像），填充率下限 0.72")
+
     print(f"按图层: " + "  ".join(f"{k}:{v}" for k, v in sorted(by_layer.items())))
     print(f"总体积: {total_bytes / 1024:.0f} KB")
     print(f"人物: {len(ids)} 人 × {len(dirs)} 向 × {frames + 1} 帧 = {len(people)} 个文件")
@@ -147,7 +173,7 @@ def main() -> int:
         if len(errors) > 40:
             print(f"   … 还有 {len(errors) - 40} 条")
         return 1
-    print("\n✓ 全部通过（文件齐 / XML 合法 / 尺寸对 / 无脏值 / 图案引用有效 / 颜色合法）")
+    print("\n✓ 全部通过（文件齐 / XML 合法 / 尺寸对 / 无脏值 / 图案引用有效 / 颜色合法 / 填充率达标）")
     return 0
 
 

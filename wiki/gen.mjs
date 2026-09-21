@@ -437,6 +437,7 @@ function pageArt() {
         <button data-z="2">2×</button><button data-z="3">3×</button></span>
       <span class="dim">时间</span><span id="tones" class="zoom"></span>
       <button id="bGrid">格子</button>
+      <button id="bNorm">统一大小</button>
     </div>
     <h2>建筑类型覆盖 <span class="cnt">${Object.keys(BLD_TYPES).length}/${BUILDINGS.length}</span>
       <span class="h">config 的类型名和美术资产名【不该指望能对上】—— 所以由资产自己声明覆盖谁</span></h2>
@@ -600,6 +601,12 @@ h4 .cnt{font:11px ui-monospace,Consolas,monospace;color:#a49c8d}
 .gapbox{margin:4px 0 12px;padding:8px 12px;border:1px dashed #cfc7b6;border-radius:7px;
   color:#9a8f7c;font-size:12px;background:#00000004}
 .gapbox b{color:var(--hi)}
+/* 统一大小：把每个格子拉到一样大，按比例缩放（world 资产本来就是各自的世界尺寸，
+   验收图标一致性时才开这个）。 */
+body.norm .abox{width:78px!important;height:78px!important}
+body.norm .abox img{width:auto!important;height:auto!important;
+  max-width:100%;max-height:100%;object-fit:contain}
+body.norm .acell{min-width:96px}
 .zoom{display:inline-flex;gap:3px}
 .zoom button{font:inherit;font-size:11px;padding:2px 9px;border:1px solid var(--line);
   border-radius:999px;background:#fff;cursor:pointer}
@@ -815,6 +822,7 @@ function ARTJSFn(){ return `
       var Z = parseFloat(b.dataset.z);
       document.querySelectorAll("[data-z]").forEach(function(x){ x.classList.remove("on"); });
       b.classList.add("on");
+      if (document.body.classList.contains("norm")) return;   /* 统一大小时交给 CSS */
       document.querySelectorAll(".abox").forEach(function(bx){
         var W = parseFloat(bx.dataset.w), H = parseFloat(bx.dataset.h),
             k = parseFloat(bx.dataset.k);
@@ -825,6 +833,10 @@ function ARTJSFn(){ return `
       });
     };
   });
+  /* 统一大小 */
+  var nb = document.getElementById("bNorm");
+  if (nb) nb.onclick = function(){ this.classList.toggle("on");
+    document.body.classList.toggle("norm"); };
   /* 格子 */
   var g = document.getElementById("bGrid");
   if (g) g.onclick = function(){ this.classList.toggle("on");

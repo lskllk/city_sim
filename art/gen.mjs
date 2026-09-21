@@ -28,6 +28,25 @@ const svg = (w, h, body) =>
   `viewBox="0 0 ${u(w)} ${u(h)}" shape-rendering="geometricPrecision">${body}</svg>`;
 const rect = (x, y, w, h, fill, extra = "") =>
   `<rect x="${u(x)}" y="${u(y)}" width="${u(w)}" height="${u(h)}" fill="${fill}" ${extra}/>`;
+/* path()：d 里的坐标也过 u()。
+   ★ 直接写 d="..." 会绕过缩放 —— 在 16 逻辑单位的画布上画出来只有一半大，
+     而且缩在左上角。这个坑吃过一次（10 个物品图标全缩了一半）。
+   ★ 圆弧 a/A 的第 4、5 个参数是 large-arc-flag / sweep-flag，是布尔，不能缩放。 */
+const dp = (d, extra = "") => {
+  const toks = d.match(/[A-Za-z]|[+-]?(?:\d+\.?\d*|\.\d+)/g) || [];
+  const out = [];
+  let cmd = "M", k = 0;
+  for (const tk of toks) {
+    if (/[A-Za-z]/.test(tk)) { cmd = tk; k = 0; out.push(tk); continue; }
+    const up = cmd.toUpperCase();
+    const isFlag = up === "A" && (k === 3 || k === 4);
+    out.push(isFlag ? tk : String(u(parseFloat(tk))));
+    const n = up === "A" ? 7 : up === "C" ? 6 : (up === "S" || up === "Q") ? 4
+            : (up === "H" || up === "V") ? 1 : 2;
+    k = (k + 1) % n;
+  }
+  return `<path d="${out.join(" ")}" ${extra}/>`;
+};
 const rrect = (x, y, w, h, r, fill, extra = "") =>
   `<rect x="${u(x)}" y="${u(y)}" width="${u(w)}" height="${u(h)}" rx="${u(r)}" fill="${fill}" ${extra}/>`;
 const circ = (cx, cy, r, fill, extra = "") =>
@@ -379,13 +398,13 @@ function iconApple() {
   return circ(8, 9.6, 5, I.apple.dark) + circ(7.6, 9.2, 4.8, I.apple.base)
        + circ(6.2, 8, 1.5, I.apple.light, `opacity="0.85"`)
        + line(8, 5.2, 8, 3.2, I.apple.stem, 1)
-       + `<path d="M 8 4.6 Q 10.4 2.6 11.4 4.4 Q 9.6 6 8 4.6 Z" fill="${I.apple.leaf}"/>`;
+       + dp("M 8 4.6 Q 10.4 2.6 11.4 4.4 Q 9.6 6 8 4.6 Z", `fill="${I.apple.leaf}"`);
 }
 function iconPear() {
-  return `<path d="M 8 3.4 C 9.6 5 12.6 7.4 12.6 10.2 A 4.6 4.6 0 0 1 3.4 10.2 `
-       + `C 3.4 7.4 6.4 5 8 3.4 Z" fill="${I.pear.dark}"/>`
-       + `<path d="M 8 3.9 C 9.4 5.3 12.1 7.6 12.1 10.2 A 4.1 4.1 0 0 1 3.9 10.2 `
-       + `C 3.9 7.6 6.6 5.3 8 3.9 Z" fill="${I.pear.base}"/>`
+  return dp("M 8 3.4 C 9.6 5 12.6 7.4 12.6 10.2 A 4.6 4.6 0 0 1 3.4 10.2 "
+            + "C 3.4 7.4 6.4 5 8 3.4 Z", `fill="${I.pear.dark}"`)
+       + dp("M 8 3.9 C 9.4 5.3 12.1 7.6 12.1 10.2 A 4.1 4.1 0 0 1 3.9 10.2 "
+            + "C 3.9 7.6 6.6 5.3 8 3.9 Z", `fill="${I.pear.base}"`)
        + circ(6.4, 8.6, 1.3, I.pear.light, `opacity="0.8"`)
        + line(8, 3.6, 8.6, 1.8, I.pear.stem, 1);
 }
@@ -396,9 +415,9 @@ function iconMeal() {
        + rrect(9.2, 6.4, 3.4, 5, 1, I.meal.green);
 }
 function iconRaw() {
-  return `<path d="M 8 3 C 11 3 13 5.4 13 8.6 L 13 13 H 3 V 8.6 C 3 5.4 5 3 8 3 Z"`
-       + ` fill="${I.raw.sack}"/>`
-       + rrect(5.6, 1.6, 4.8, 2.4, 1, I.raw.tie)
+  return dp("M 8 2.4 C 11.6 2.4 14 5.2 14 8.8 L 14 13.6 H 2 V 8.8 C 2 5.2 4.4 2.4 8 2.4 Z",
+            `fill="${I.raw.sack}"`)
+       + rrect(5.4, 1, 5.2, 2.4, 1, I.raw.tie)
        + circ(6.4, 8, 0.8, I.raw.grain, `opacity="0.9"`)
        + circ(9.6, 9.6, 0.7, I.raw.grain, `opacity="0.8"`);
 }
@@ -568,43 +587,42 @@ function stoveUnit(w, h) {
 /* ── 新物品的图标（16×16 正视）───────────────────────────────────────── */
 function iconRice() {
   const C = I.rice;
-  return `<path d="M 2.4 7.4 h 11.2 v 5 a 1.4 1.4 0 0 1 -1.4 1.4 H 3.8 `
-       + `a 1.4 1.4 0 0 1 -1.4 -1.4 Z" fill="${C.barrel}"/>`
-       + `<ellipse cx="8" cy="7.4" rx="5.6" ry="2.6" fill="${C.grain}"/>`
-       + `<ellipse cx="8" cy="7.2" rx="4.2" ry="1.9" fill="${C.grain2}"/>`
-       + `<ellipse cx="6.4" cy="7" rx="1.2" ry="0.6" fill="${C.grain}"/>`
-       + `<ellipse cx="9.6" cy="7.6" rx="1" ry="0.5" fill="${C.grain}"/>`;
+  return dp("M 2.4 7.4 h 11.2 v 5 a 1.4 1.4 0 0 1 -1.4 1.4 H 3.8 "
+            + "a 1.4 1.4 0 0 1 -1.4 -1.4 Z", `fill="${C.barrel}"`)
+       + ell(8, 7.4, 5.6, 2.6, C.grain)
+       + ell(8, 7.2, 4.2, 1.9, C.grain2)
+       + ell(6.4, 7, 1.2, 0.6, C.grain)
+       + ell(9.6, 7.6, 1, 0.5, C.grain);
 }
 function iconBread() {
   const C = I.bread;
-  return `<path d="M 2 10.6 C 2 5.6 4.8 3 8 3 C 11.2 3 14 5.6 14 10.6 Z"`
-       + ` fill="${C.crust}"/>`
-       + `<path d="M 3.4 10.2 C 3.4 6.6 5.4 4.4 8 4.4 C 10.6 4.4 12.6 6.6 12.6 10.2 Z"`
-       + ` fill="${C.top}" opacity="0.55"/>`
+  return dp("M 2 10.6 C 2 5.6 4.8 3 8 3 C 11.2 3 14 5.6 14 10.6 Z", `fill="${C.crust}"`)
+       + dp("M 3.4 10.2 C 3.4 6.6 5.4 4.4 8 4.4 C 10.6 4.4 12.6 6.6 12.6 10.2 Z",
+              `fill="${C.top}" opacity="0.55"`)
        + line(5.4, 5.4, 6.4, 9.4, C.cut, 1.2) + line(8, 5, 9, 9.4, C.cut, 1.2)
        + line(10.4, 5.6, 11.2, 9.4, C.cut, 1.2);
 }
 function iconMilk() {
   const C = I.milk;
-  return `<path d="M 4 4.6 L 8 1.6 L 12 4.6 V 13.4 H 4 Z" fill="${C.carton}"
-       stroke="${C.dark}" stroke-width="${u(0.9)}"/>`
-       + `<path d="M 4 4.6 L 8 1.6 L 12 4.6 Z" fill="${C.dark}"/>`
+  return dp("M 4 4.6 L 8 1.6 L 12 4.6 V 13.4 H 4 Z",
+              `fill="${C.carton}" stroke="${C.dark}" stroke-width="${u(0.9)}"`)
+       + dp("M 4 4.6 L 8 1.6 L 12 4.6 Z", `fill="${C.dark}"`)
        + rect(4.6, 5.4, 6.8, 2.2, C.band) + rect(4.6, 9.4, 6.8, 1.4, C.band, `opacity="0.7"`);
 }
 function iconHotDish() {
   const C = I.dish;
-  return `<path d="M 2.4 8 h 11.2 a 5.6 5.6 0 0 1 -11.2 0 Z" fill="${C.rim}"/>`
-       + `<path d="M 3.6 8 h 8.8 a 4.4 4.4 0 0 1 -8.8 0 Z" fill="${C.plate}"/>`
-       + `<ellipse cx="8" cy="8" rx="3.2" ry="1" fill="${C.food}"/>`
+  return dp("M 2.4 8 h 11.2 a 5.6 5.6 0 0 1 -11.2 0 Z", `fill="${C.rim}"`)
+       + dp("M 3.6 8 h 8.8 a 4.4 4.4 0 0 1 -8.8 0 Z", `fill="${C.plate}"`)
+       + ell(8, 8, 3.2, 1, C.food)
        + line(5, 3, 5, 5, "#ffffff", 1.2, `opacity="0.9"`)
        + line(8, 2, 8, 4.6, "#ffffff", 1.2, `opacity="0.75"`)
        + line(11, 3.2, 11, 5, "#ffffff", 1.2, `opacity="0.6"`);
 }
 function iconBiscuit() {
   const C = I.biscuit;
-  return circ(8, 8, 5.2, C.dark) + circ(8, 8, 4.6, C.bake)
-       + circ(6, 6, 0.8, C.chip, `opacity="0.7"`) + circ(9.6, 6.8, 0.8, C.chip, `opacity="0.7"`)
-       + circ(7.2, 10, 0.8, C.chip, `opacity="0.7"`) + circ(10.2, 10.2, 0.6, C.chip, `opacity="0.6"`);
+  return circ(8, 8, 6.3, C.dark) + circ(8, 8, 5.7, C.bake)
+       + circ(5.7, 5.7, 0.95, C.chip, `opacity="0.7"`) + circ(10.2, 6.6, 0.95, C.chip, `opacity="0.7"`)
+       + circ(7, 10.6, 0.95, C.chip, `opacity="0.7"`) + circ(10.8, 10.6, 0.75, C.chip, `opacity="0.6"`);
 }
 function iconSoda() {
   const C = I.soda;
@@ -615,11 +633,11 @@ function iconSoda() {
 }
 function iconCoffee() {
   const C = I.coffee;
-  return `<path d="M 10.6 5.6 h 1.8 a 2 2 0 0 1 0 4 h -1.8" fill="none"
-       stroke="${C.dark}" stroke-width="${u(1.1)}"/>`
-       + `<path d="M 3.4 4.6 h 7.2 v 5.2 a 3.6 3.6 0 0 1 -7.2 0 Z" fill="${C.cup}"
-          stroke="${C.dark}" stroke-width="${u(0.9)}"/>`
-       + `<ellipse cx="7" cy="5" rx="3.4" ry="1.3" fill="${C.liquid}"/>`
+  return dp("M 10.6 5.6 h 1.8 a 2 2 0 0 1 0 4 h -1.8",
+              `fill="none" stroke="${C.dark}" stroke-width="${u(1.1)}"`)
+       + dp("M 3.4 4.6 h 7.2 v 5.2 a 3.6 3.6 0 0 1 -7.2 0 Z",
+              `fill="${C.cup}" stroke="${C.dark}" stroke-width="${u(0.9)}"`)
+       + ell(7, 5, 3.4, 1.3, C.liquid)
        + line(5.4, 1.2, 5.4, 3, "#ffffff", 1.1, `opacity="0.85"`)
        + line(8, 1.4, 8, 3.2, "#ffffff", 1.1, `opacity="0.65"`);
 }
@@ -661,8 +679,8 @@ function iconToilet() {
   const T = I.toilet;
   return rrect(4, 2, 8, 4, 1.2, T.body)
        + rect(4, 2, 8, 4, "none", `stroke="${T.dark}" stroke-width="${u(1)}"`)
-       + `<path d="M 4.4 6.4 H 11.6 A 3.6 3.6 0 0 1 8 13.6 A 3.6 3.6 0 0 1 4.4 6.4 Z"`
-       + ` fill="${T.body}" stroke="${T.dark}" stroke-width="${u(1)}"/>`
+       + dp("M 4.4 6.4 H 11.6 A 3.6 3.6 0 0 1 8 13.6 A 3.6 3.6 0 0 1 4.4 6.4 Z",
+            `fill="${T.body}" stroke="${T.dark}" stroke-width="${u(1)}"`)
        + ell(8, 9.6, 1.8, 1.8, T.water);
 }
 
@@ -762,8 +780,9 @@ function portrait(ch) {
   b += rrect(0, 0, W, H, 4, Q.bg);
   b += rrect(0, 0, W, H, 4, "none", `stroke="${Q.bg2}" stroke-width="${u(1)}"`);
   // 肩 / 胸（下缘出画）
-  b += `<path d="M 3.5 32 C 3.5 24 9 20.6 16 20.6 C 23 20.6 28.5 24 28.5 32 Z" fill="${top}"/>`;
-  b += `<path d="M 3.5 32 C 3.5 24 9 20.6 16 20.6 C 23 20.6 28.5 24 28.5 32 Z" fill="none" ${OL}/>`;
+  const SHOULDER = "M 3.5 32 C 3.5 24 9 20.6 16 20.6 C 23 20.6 28.5 24 28.5 32 Z";
+  b += dp(SHOULDER, `fill="${top}"`);
+  b += dp(SHOULDER, `fill="none" ${OL}`);
   if (ch.acc === "apron")
     b += rrect(11, 25, 10, 7, 1.4, "#f0ece2", `opacity="0.9"`);
   // 脖子
@@ -774,21 +793,21 @@ function portrait(ch) {
   b += circ(cx, 13, 8.2, skin);
   // 头发
   if (hs === "hat") {
-    b += `<path d="M 7.2 8.6 A 8.8 8.8 0 0 1 24.8 8.6 Z" fill="${hair.color}"/>`;
+    b += dp("M 7.2 8.6 A 8.8 8.8 0 0 1 24.8 8.6 Z", `fill="${hair.color}"`);
     b += rrect(5.4, 8.2, 21.2, 2.4, 1.2, hair.color);
     b += rrect(5.4, 8.2, 21.2, 1, 0.5, "#00000022");
   } else if (hs === "bald") {
     b += rrect(6.8, 12.4, 2.2, 5.4, 1.1, hair.color, `opacity="0.9"`);
     b += rrect(23, 12.4, 2.2, 5.4, 1.1, hair.color, `opacity="0.9"`);
   } else {
-    b += `<path d="M 7.5 13.4 A 8.5 8.5 0 0 1 24.5 13.4 Z" fill="${hair.color}"/>`;
+    b += dp("M 7.5 13.4 A 8.5 8.5 0 0 1 24.5 13.4 Z", `fill="${hair.color}"`);
     if (hs === "short") b += rrect(7.3, 9, 2.6, 5.2, 1.3, hair.color);
     if (hs === "bun") b += circ(cx, 3.6, 3.2, hair.color);
     if (hs === "long") {
       b += rrect(5.6, 11, 3.4, 11, 1.7, hair.color);
       b += rrect(23, 11, 3.4, 11, 1.7, hair.color);
     }
-    b += `<path d="M 7.5 13.4 A 8.5 8.5 0 0 1 24.5 13.4 Z" fill="none" ${OL}/>`;
+    b += dp("M 7.5 13.4 A 8.5 8.5 0 0 1 24.5 13.4 Z", `fill="none" ${OL}`);
   }
   // 眉 / 眼 / 嘴
   b += line(11, 12.2, 14, 11.7, "#3a3128", 0.9, `opacity="0.8"`);
@@ -797,8 +816,8 @@ function portrait(ch) {
   b += ell(19, 14.6, 1.5, 1.7, "#ffffff");
   b += circ(13.1, 14.7, 0.95, "#2b2620");
   b += circ(19.1, 14.7, 0.95, "#2b2620");
-  b += `<path d="M 13.6 19 Q 16 20.6 18.4 19" fill="none" stroke="#8a5a4a" `
-     + `stroke-width="${u(1)}" stroke-linecap="round"/>`;
+  b += dp("M 13.6 19 Q 16 20.6 18.4 19",
+           `fill="none" stroke="#8a5a4a" stroke-width="${u(1)}" stroke-linecap="round"`);
   if (ch.acc === "glasses") {
     b += rrect(10.4, 13.2, 5.4, 3, 1, "none", `stroke="#3a3128" stroke-width="${u(1)}"`);
     b += rrect(16.2, 13.2, 5.4, 3, 1, "none", `stroke="#3a3128" stroke-width="${u(1)}"`);
@@ -1217,10 +1236,11 @@ function fx() {
     emit(`fx/badge_${id}.svg`, svg(16, 16, b + inner));
     add(`badge_${id}`, `fx/badge_${id}.svg`, 16, 16, "center", "L6", ["badge"]);
   };
-  badge("hunger", `<path d="M3.6 7.4h8.8a4.4 4.4 0 0 1-8.8 0z" fill="${P.accent}"/>`
-                + `<rect x="3.6" y="6.4" width="8.8" height="1.1" fill="#7a7264"/>`);
-  badge("energy", `<path d="M8.6 2.4 4.8 8.2h2.7L6.6 13l4.8-6.2H8.5z" fill="#6b7f9a"/>`);
-  badge("bladder", `<path d="M8 2.2c2.5 3.4 3.5 5 3.5 6.3a3.5 3.5 0 0 1-7 0c0-1.3 1-2.9 3.5-6.3z" fill="#5a7f96"/>`);
+  badge("hunger", dp("M3.6 7.4h8.8a4.4 4.4 0 0 1-8.8 0z", `fill="${P.accent}"`)
+                + rect(3.6, 6.4, 8.8, 1.1, "#7a7264"));
+  badge("energy", dp("M8.6 2.4 4.8 8.2h2.7L6.6 13l4.8-6.2H8.5z", `fill="#6b7f9a"`));
+  badge("bladder", dp("M8 2.2c2.5 3.4 3.5 5 3.5 6.3a3.5 3.5 0 0 1-7 0c0-1.3 1-2.9 3.5-6.3z",
+    `fill="#5a7f96"`));
   badge("hesit", `<text x="8" y="11.4" text-anchor="middle" font-size="10" `
                + `font-family="system-ui,sans-serif" font-weight="700" fill="#a8761c">?</text>`);
   badge("sleep", `<text x="8" y="11" text-anchor="middle" font-size="9" `

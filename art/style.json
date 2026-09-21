@@ -1,12 +1,9 @@
 {
   "_": "美术风格的【唯一真源】。gen.mjs 读它，ui-spec 的色板也该跟它对齐。改这里 = 改全局画风。",
-
   "grid": 32,
   "_grid": "逻辑网格（px）。1 格 = 32px。所有贴图、建筑、人物都对齐它。",
-
   "authorScale": 2,
   "_authorScale": "SVG 用 2× 坐标绘制、按 2× 声明尺寸（Pixi 拿到 2× 纹理，sprite.scale=0.5）。清单里给的是【逻辑尺寸】。",
-
   "rules": [
     "平涂 + 1px 深色描边。不用渐变做体积（渐变只用在「高光偏一点」和「水」）。",
     "俯视，但底部留 4~5px 的【立面揭示】= 假的厚度。这是「看着立体」的全部秘密。",
@@ -15,64 +12,212 @@
     "单个资产最多 5 个颜色。多了就说明该拆图层。",
     "纹理 = 1px 重复图案，透明度 ≤22%。不用噪点、不用颗粒（缩小会糊成脏块）。"
   ],
-
   "palette": {
-    "grass":     { "base": "#6d8a52", "dark": "#5f7a47", "light": "#7b9660" },
-    "dirt":      { "base": "#a89476", "dark": "#96835f", "light": "#b8a486" },
-    "plaza":     { "base": "#c9c2b1", "dark": "#b5ad9a", "light": "#d7d1c2" },
-    "water":     { "base": "#5a7f96", "dark": "#4d6f85", "light": "#6d92a8" },
-
-    "asphalt":   { "base": "#4c4a4a", "light": "#565454" },
-    "sidewalk":  { "base": "#b8b3a6", "line": "#a49e8f" },
-    "marking":   "#e9e5da",
-
-    "roof": {
-      "shop":    { "base": "#8c5b48", "dark": "#7a4c3c", "light": "#9e6b56" },
-      "home":    { "base": "#7a6a5a", "dark": "#6a5b4c", "light": "#8b7a68" },
-      "factory": { "base": "#6b7176", "dark": "#5c6166", "light": "#7b8186" },
-      "mine":    { "base": "#8a6a4e", "dark": "#785b42", "light": "#9b7a5c" }
+    "grass": {
+      "base": "#6d8a52",
+      "dark": "#5f7a47",
+      "light": "#7b9660"
     },
-    "wall":      { "base": "#d6c6a5", "dark": "#c2b192" },
-    "door":      { "base": "#5a4a3c", "dark": "#463a2f" },
-    "window":    { "day": "#8fa3ad", "night": "#ecc579" },
-
-    "tree":      { "base": "#4f7a45", "dark": "#3d6236", "light": "#5f8f52", "trunk": "#6b5138" },
-    "car":       ["#8d5a4e", "#5c6b78", "#7d7a6a", "#4f6b58"],
-    "metal":     { "base": "#8a8779", "dark": "#6f6c60" },
-
-    "skin":      ["#e6c9a8", "#d9b48f", "#c9a07a"],
-    "outline":   "#000000",
-
-    "shadow":    "rgba(0,0,0,0.12)",
-    "accent":    "#b4552d",
-    "ok":        "#4a7358"
+    "dirt": {
+      "base": "#a89476",
+      "dark": "#96835f",
+      "light": "#b8a486"
+    },
+    "plaza": {
+      "base": "#c9c2b1",
+      "dark": "#b5ad9a",
+      "light": "#d7d1c2"
+    },
+    "water": {
+      "base": "#5a7f96",
+      "dark": "#4d6f85",
+      "light": "#6d92a8"
+    },
+    "asphalt": {
+      "base": "#4c4a4a",
+      "light": "#565454"
+    },
+    "sidewalk": {
+      "base": "#b8b3a6",
+      "line": "#a49e8f"
+    },
+    "marking": "#e9e5da",
+    "roof": {
+      "shop": {
+        "base": "#8c5b48",
+        "dark": "#7a4c3c",
+        "light": "#9e6b56"
+      },
+      "home": {
+        "base": "#7a6a5a",
+        "dark": "#6a5b4c",
+        "light": "#8b7a68"
+      },
+      "factory": {
+        "base": "#6b7176",
+        "dark": "#5c6166",
+        "light": "#7b8186"
+      },
+      "mine": {
+        "base": "#8a6a4e",
+        "dark": "#785b42",
+        "light": "#9b7a5c"
+      }
+    },
+    "wall": {
+      "base": "#d6c6a5",
+      "dark": "#c2b192"
+    },
+    "door": {
+      "base": "#5a4a3c",
+      "dark": "#463a2f"
+    },
+    "window": {
+      "day": "#8fa3ad",
+      "night": "#ecc579"
+    },
+    "tree": {
+      "base": "#4f7a45",
+      "dark": "#3d6236",
+      "light": "#5f8f52",
+      "trunk": "#6b5138"
+    },
+    "car": [
+      "#8d5a4e",
+      "#5c6b78",
+      "#7d7a6a",
+      "#4f6b58"
+    ],
+    "metal": {
+      "base": "#8a8779",
+      "dark": "#6f6c60"
+    },
+    "skin": [
+      "#e6c9a8",
+      "#d9b48f",
+      "#c9a07a"
+    ],
+    "outline": "#000000",
+    "shadow": "rgba(0,0,0,0.12)",
+    "accent": "#b4552d",
+    "ok": "#4a7358",
+    "item": {
+      "_": "物品（货 / 家具）。世界形态是俯视，图标形态是正视 —— 见 gen.mjs 的 items()",
+      "crate": {
+        "base": "#a08a68",
+        "dark": "#836f52"
+      },
+      "apple": {
+        "base": "#b4472f",
+        "dark": "#8f3724",
+        "light": "#d05c3f",
+        "stem": "#5f4a32",
+        "leaf": "#5f8f52"
+      },
+      "pear": {
+        "base": "#bcb45e",
+        "dark": "#9a9446",
+        "light": "#d6cf80",
+        "stem": "#5f4a32"
+      },
+      "meal": {
+        "box": "#d9c9a8",
+        "lid": "#b9a882",
+        "food": "#cb8f66",
+        "green": "#7f9a5e"
+      },
+      "raw": {
+        "sack": "#c2b192",
+        "dark": "#a3906f",
+        "tie": "#8a7a66",
+        "grain": "#e6dcc0"
+      },
+      "bed": {
+        "frame": "#8a6a4e",
+        "dark": "#6f5540",
+        "sheet": "#e8e0cf",
+        "pillow": "#f4efe4",
+        "blanket": "#7f95a8"
+      },
+      "machine": {
+        "body": "#6b7176",
+        "dark": "#565c61",
+        "light": "#838a90",
+        "vent": "#4a4f53"
+      },
+      "counter": {
+        "body": "#8a6a4e",
+        "dark": "#6f5540",
+        "top": "#c2b192",
+        "reg": "#7a7f84"
+      },
+      "bench": {
+        "top": "#a9a396",
+        "dark": "#8a8578",
+        "body": "#6f6c60",
+        "tool": "#8a8779"
+      },
+      "toilet": {
+        "body": "#eef2f4",
+        "dark": "#c9d1d5",
+        "seat": "#d8dfe2",
+        "water": "#a9c3cf"
+      }
+    }
   },
-
   "building": {
     "facadeReveal": 5,
     "_facadeReveal": "底部立面揭示高度（逻辑 px）= 假厚度",
     "wallThickness": 1,
-    "signInset": { "x": 7, "y": 6, "h": 13 },
+    "signInset": {
+      "x": 7,
+      "y": 6,
+      "h": 13
+    },
     "_signInset": "招牌底的位置；字由代码画（编辑器能改名，不能写进贴图）",
-    "shadow": { "dx": 4, "dy": 5, "alpha": 0.1 }
+    "shadow": {
+      "dx": 4,
+      "dy": 5,
+      "alpha": 0.1
+    }
   },
-
   "person": {
-    "canvas": { "w": 18, "h": 24 },
+    "canvas": {
+      "w": 18,
+      "h": 24
+    },
     "_canvas": "逻辑画布；锚点在【脚底中心】",
     "bodies": {
-      "slim":    { "shoulderRx": 4.6, "shoulderRy": 5.4, "headR": 3.7, "legW": 2.4 },
-      "medium":  { "shoulderRx": 5.4, "shoulderRy": 5.9, "headR": 3.9, "legW": 2.8 },
-      "stocky":  { "shoulderRx": 6.2, "shoulderRy": 6.0, "headR": 4.1, "legW": 3.2 }
+      "slim": {
+        "shoulderRx": 4.6,
+        "shoulderRy": 5.4,
+        "headR": 3.7,
+        "legW": 2.4
+      },
+      "medium": {
+        "shoulderRx": 5.4,
+        "shoulderRy": 5.9,
+        "headR": 3.9,
+        "legW": 2.8
+      },
+      "stocky": {
+        "shoulderRx": 6.2,
+        "shoulderRy": 6.0,
+        "headR": 4.1,
+        "legW": 3.2
+      }
     },
     "walkFrames": 4,
     "_walkFrames": "走 4 帧 + 站 1 帧；腿摆幅 ±1.6px，身体上下浮动 0.8px（2 帧一循环）",
-    "directions": ["down", "up", "side"],
+    "directions": [
+      "down",
+      "up",
+      "side"
+    ],
     "_directions": "side 靠水平镜像出左右 —— 省一半文件",
     "legSwing": 1.6,
     "bob": 0.8
   },
-
   "texture": {
     "hatchAlpha": 0.03,
     "speckleAlpha": 0.04,

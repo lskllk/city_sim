@@ -244,6 +244,249 @@ function props() {
   });
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════════
+   三·五、物品（货 / 家具）★
+   ----------------------------------------------------------------------------
+   物品需要【两套语言】，这是故意的：
+
+     世界形态 = 俯视    地图是俯视的，货摆在地上要贴地
+     图标形态 = 正视    16px 的小图标，正视才认得出来 —— 俯视的苹果就是个圆
+
+   物品清单照 config/items/*.json，不自己编：
+     货·消耗品  苹果 / 梨 / 简餐       → 会卖光，所以额外给一张【空态】
+     原料       简餐原料               → 工厂产、批发市场收
+     家具       床 / 前台 / 工位 / 工业机器 / 马桶   → 恒为 1、永不消耗
+   ══════════════════════════════════════════════════════════════════════════ */
+const I = P.item;
+
+/* 货箱：货都装在箱子里 —— 空箱 = "卖光了"（形状，不是文字） */
+function crate(w, h, fill, dark, inner) {
+  let b = rrect(0, 0, w, h, 2, fill);
+  b += rect(0, 0, w, h, "none", `stroke="${dark}" stroke-width="${u(1)}"`);
+  b += line(1, 2.2, w - 1, 2.2, dark, 1, `opacity="0.4"`);
+  b += line(1, h - 2.2, w - 1, h - 2.2, dark, 1, `opacity="0.4"`);
+  return b + (inner || "");
+}
+/* 3 颗果子（苹果/梨共用骨架，形状不同） */
+function fruits(w, h, c, round) {
+  let b = crate(w, h, I.crate.base, I.crate.dark);
+  const r = round ? 4.1 : 4.0, cy = h / 2 + 1.2;
+  [0.27, 0.5, 0.73].forEach(xr => {
+    const x = w * xr;
+    if (round) {
+      b += circ(x, cy + 0.6, r, c.dark);
+      b += circ(x, cy, r, c.base);
+      b += circ(x - r * 0.32, cy - r * 0.32, r * 0.32, c.light, `opacity="0.8"`);
+      b += line(x, cy - r * 0.88, x + 0.7, cy - r * 1.6, c.stem, 0.9);
+    } else {
+      b += ell(x, cy + 0.6, r * 0.92, r * 1.12, c.dark);
+      b += ell(x, cy, r * 0.92, r * 1.12, c.base);
+      b += ell(x - r * 0.3, cy - r * 0.34, r * 0.3, r * 0.36, c.light, `opacity="0.8"`);
+      b += line(x, cy - r * 1.05, x + 0.6, cy - r * 1.7, c.stem, 0.9);
+    }
+  });
+  return b;
+}
+/* 简餐：便当盒（俯视 = 一个盖着盖子的方盒，露出一点菜色） */
+function bento(w, h, empty) {
+  let b = rrect(0, 0, w, h, 2.5, I.meal.box);
+  b += rect(0, 0, w, h, "none", `stroke="${I.meal.lid}" stroke-width="${u(1)}"`);
+  b += rrect(3, 3, w - 6, h - 6, 1.5, I.meal.lid);
+  if (!empty) {
+    b += rrect(5.5, h * 0.34, w * 0.42, h * 0.42, 1.2, I.meal.food);
+    b += rrect(w * 0.54, h * 0.34, w * 0.4 - 5, h * 0.42, 1.2, I.meal.green);
+  }
+  b += line(w * 0.5, 3, w * 0.5, h - 3, I.meal.lid, 1, `opacity="0.7"`);
+  return b;
+}
+/* 简餐原料：麻袋（俯视 = 一坨鼓起来的袋子 + 扎口 + 撒出来的颗粒） */
+function sack(w, h) {
+  let b = "";
+  b += ell(w / 2, h * 0.58, w * 0.44, h * 0.4, I.raw.dark);
+  b += ell(w / 2, h * 0.55, w * 0.42, h * 0.38, I.raw.sack);
+  b += ell(w / 2, h * 0.3, w * 0.17, h * 0.13, I.raw.tie);       // 扎口
+  b += rrect(w / 2 - 1.2, h * 0.16, 2.4, h * 0.2, 1, I.raw.tie);
+  b += circ(w * 0.3, h * 0.2, 0.9, I.raw.grain, `opacity="0.9"`);
+  b += circ(w * 0.72, h * 0.26, 0.7, I.raw.grain, `opacity="0.8"`);
+  b += ell(w * 0.36, h * 0.46, w * 0.1, h * 0.12, I.raw.grain, `opacity="0.35"`);
+  return b;
+}
+/* 床：俯视 = 床架 + 床单 + 一端枕头 + 毯子盖住大半 */
+function bed(w, h) {
+  const B = I.bed;
+  let b = rrect(0, 0, w, h, 3, B.frame);
+  b += rect(0, 0, w, h, "none", `stroke="${B.dark}" stroke-width="${u(1)}"`);
+  b += rrect(3, 3, w - 6, h - 6, 2, B.sheet);
+  b += rrect(5, 5, w * 0.2, h - 10, 2.5, B.pillow);               // 枕头（头这端）
+  b += rrect(w * 0.28, 3, w - 3 - w * 0.28, h - 6, 2, B.blanket);  // 毯子（右缘对齐床单）
+  b += line(w * 0.28, 3, w * 0.28, h - 3, B.dark, 1, `opacity="0.5"`);
+  b += line(w * 0.32, h * 0.5, w - 5, h * 0.5, B.dark, 1, `opacity="0.22"`);
+  return b;
+}
+/* 前台/柜台：一侧是台面（浅色内嵌），一端有收银机 */
+function counter(w, h) {
+  const C = I.counter;
+  let b = rrect(0, 0, w, h, 2, C.body);
+  b += rect(0, 0, w, h, "none", `stroke="${C.dark}" stroke-width="${u(1)}"`);
+  b += rrect(3, 2.5, w - 6, h - 5, 1.5, C.top);                   // 台面
+  b += rrect(w - 20, h * 0.22, 13, h * 0.56, 1.5, C.reg);         // 收银机
+  b += rect(w - 17, h * 0.34, 7, 3.5, "#a9c3cf", `opacity="0.85"`);
+  return b;
+}
+/* 工位：工作台 + 台钳 + 工具痕 */
+function bench(w, h) {
+  const B = I.bench;
+  let b = rrect(0, 0, w, h, 2, B.body);
+  b += rect(0, 0, w, h, "none", `stroke="${B.dark}" stroke-width="${u(1)}"`);
+  b += rrect(2.5, 2.5, w - 5, h - 5, 1.5, B.top);
+  b += rrect(5, h * 0.28, 10, h * 0.44, 1.2, B.tool);             // 台钳
+  b += line(w * 0.42, h * 0.3, w * 0.42, h * 0.7, B.dark, 1, `opacity="0.5"`);
+  b += rrect(w * 0.55, h * 0.32, 8, 2.6, 0.8, B.tool, `opacity="0.9"`);
+  b += rrect(w * 0.55, h * 0.58, 11, 2.6, 0.8, B.tool, `opacity="0.75"`);
+  return b;
+}
+/* 工业机器：机体 + 通风格栅 + 表盘 + 出料口 */
+function machine(w, h) {
+  const M = I.machine;
+  let b = rrect(0, 0, w, h, 2.5, M.body);
+  b += rect(0, 0, w, h, "none", `stroke="${M.dark}" stroke-width="${u(1)}"`);
+  b += line(2, 2.5, w - 2, 2.5, M.light, 1, `opacity="0.7"`);
+  for (let i = 0; i < 4; i++)                                     // 格栅
+    b += rect(5, 6 + i * 3.2, w * 0.42, 1.6, M.vent, `opacity="0.7"`);
+  b += circ(w * 0.74, h * 0.3, 4.4, M.dark);                      // 表盘
+  b += circ(w * 0.74, h * 0.3, 3.2, "#c9d1d5");
+  b += line(w * 0.74, h * 0.3, w * 0.82, h * 0.24, M.vent, 1);
+  b += rrect(w * 0.6, h * 0.56, w * 0.3, h * 0.3, 1.5, M.vent);   // 出料口
+  b += circ(w * 0.12, h * 0.82, 2.2, P.accent, `opacity="0.85"`);
+  return b;
+}
+/* 马桶：俯视 = 水箱（靠墙那端）+ 座圈 */
+function toilet(w, h) {
+  const T = I.toilet;
+  let b = rrect(w * 0.16, 0, w * 0.68, h * 0.3, 1.5, T.body);     // 水箱
+  b += rect(w * 0.16, 0, w * 0.68, h * 0.3, "none", `stroke="${T.dark}" stroke-width="${u(1)}"`);
+  b += ell(w / 2, h * 0.6, w * 0.42, h * 0.34, T.dark);           // 座圈底
+  b += ell(w / 2, h * 0.6, w * 0.38, h * 0.3, T.body);
+  b += ell(w / 2, h * 0.62, w * 0.24, h * 0.19, T.water);         // 内圈
+  b += ell(w / 2, h * 0.62, w * 0.24, h * 0.19, "none",
+    `stroke="${T.seat}" stroke-width="${u(1)}"`);
+  return b;
+}
+
+/* ── 图标（16×16 正视）：小图标要"一眼认得出是什么" ──────────────────── */
+function iconApple() {
+  return circ(8, 9.6, 5, I.apple.dark) + circ(7.6, 9.2, 4.8, I.apple.base)
+       + circ(6.2, 8, 1.5, I.apple.light, `opacity="0.85"`)
+       + line(8, 5.2, 8, 3.2, I.apple.stem, 1)
+       + `<path d="M 8 4.6 Q 10.4 2.6 11.4 4.4 Q 9.6 6 8 4.6 Z" fill="${I.apple.leaf}"/>`;
+}
+function iconPear() {
+  return `<path d="M 8 3.4 C 9.6 5 12.6 7.4 12.6 10.2 A 4.6 4.6 0 0 1 3.4 10.2 `
+       + `C 3.4 7.4 6.4 5 8 3.4 Z" fill="${I.pear.dark}"/>`
+       + `<path d="M 8 3.9 C 9.4 5.3 12.1 7.6 12.1 10.2 A 4.1 4.1 0 0 1 3.9 10.2 `
+       + `C 3.9 7.6 6.6 5.3 8 3.9 Z" fill="${I.pear.base}"/>`
+       + circ(6.4, 8.6, 1.3, I.pear.light, `opacity="0.8"`)
+       + line(8, 3.6, 8.6, 1.8, I.pear.stem, 1);
+}
+function iconMeal() {
+  return rrect(2, 5, 12, 8, 1.6, I.meal.box)
+       + rect(2, 5, 12, 8, "none", `stroke="${I.meal.lid}" stroke-width="${u(1)}"`)
+       + rrect(3.4, 6.4, 5, 5, 1, I.meal.food)
+       + rrect(9.2, 6.4, 3.4, 5, 1, I.meal.green);
+}
+function iconRaw() {
+  return `<path d="M 8 3 C 11 3 13 5.4 13 8.6 L 13 13 H 3 V 8.6 C 3 5.4 5 3 8 3 Z"`
+       + ` fill="${I.raw.sack}"/>`
+       + rrect(5.6, 1.6, 4.8, 2.4, 1, I.raw.tie)
+       + circ(6.4, 8, 0.8, I.raw.grain, `opacity="0.9"`)
+       + circ(9.6, 9.6, 0.7, I.raw.grain, `opacity="0.8"`);
+}
+function iconBed() {
+  const B = I.bed;
+  return rrect(1.5, 5, 13, 7, 1.5, B.frame)
+       + rrect(3, 6.4, 10, 5.2, 1, B.sheet)
+       + rrect(2.6, 3.6, 10.8, 3.2, 1.2, B.pillow)
+       + rrect(6.6, 6.4, 6.4, 5.2, 1, B.blanket);
+}
+function iconCounter() {
+  const C = I.counter;
+  return rrect(1, 6, 14, 6, 1.4, C.body)
+       + rrect(2.4, 6.8, 11.2, 2.6, 1, C.top)
+       + rrect(9.6, 2.6, 4.4, 4, 1, C.reg)
+       + rect(10.4, 3.6, 2.8, 1.8, "#a9c3cf");
+}
+function iconMachine() {
+  const M = I.machine;
+  return rrect(2, 2.6, 12, 10.8, 1.6, M.body)
+       + line(2.8, 3.6, 13.2, 3.6, M.light, 1, `opacity="0.7"`)
+       + rect(3.6, 5.4, 5, 1.4, M.vent) + rect(3.6, 7.4, 5, 1.4, M.vent)
+       + circ(11, 6.4, 2, M.dark) + circ(11, 6.4, 1.3, "#c9d1d5")
+       + rrect(8, 9.6, 5.6, 2.8, 0.8, M.vent);
+}
+function iconBench() {
+  const B = I.bench;
+  return rrect(1.6, 6.4, 12.8, 5.2, 1.4, B.body)
+       + rrect(2.6, 5.6, 10.8, 2.6, 1, B.top)
+       + rrect(3.4, 8.4, 3.4, 2.6, 0.8, B.tool)          // 台钳
+       + rect(8, 8.6, 4.4, 1.3, B.dark)                  // 工具
+       + rect(8, 10.4, 3, 1.3, B.dark)
+       + line(1.6, 11.6, 14.4, 11.6, B.dark, 1, `opacity="0.6"`);
+}
+function iconToilet() {
+  const T = I.toilet;
+  return rrect(4, 2, 8, 4, 1.2, T.body)
+       + rect(4, 2, 8, 4, "none", `stroke="${T.dark}" stroke-width="${u(1)}"`)
+       + `<path d="M 4.4 6.4 H 11.6 A 3.6 3.6 0 0 1 8 13.6 A 3.6 3.6 0 0 1 4.4 6.4 Z"`
+       + ` fill="${T.body}" stroke="${T.dark}" stroke-width="${u(1)}"/>`
+       + ell(8, 9.6, 1.8, 1.8, T.water);
+}
+
+/* 清单：物品 → 世界形态 / 空态 / 图标。尺寸是按"摆进屋里"定的（逻辑 px）。 */
+const ITEMS = [
+  { id: "food_apple",     name: "苹果",     w: 36, h: 26, empty: true,
+    world: () => fruits(36, 26, I.apple, true),  icon: iconApple,  tags: ["goods", "consumable"] },
+  { id: "food_pear",      name: "梨",       w: 36, h: 26, empty: true,
+    world: () => fruits(36, 26, I.pear, false),  icon: iconPear,   tags: ["goods", "consumable"] },
+  { id: "meal_simple",    name: "简餐",     w: 32, h: 24, empty: true,
+    world: () => bento(32, 24, false),           icon: iconMeal,   tags: ["goods", "consumable"] },
+  { id: "meal_simple_raw",name: "简餐原料", w: 32, h: 28, empty: false,
+    world: () => sack(32, 28),                   icon: iconRaw,    tags: ["goods", "material"] },
+  { id: "bed_basic",      name: "床",       w: 64, h: 40, empty: false,
+    world: () => bed(64, 40),                    icon: iconBed,    tags: ["fixture", "sleepable"] },
+  { id: "station_counter",name: "前台",     w: 76, h: 26, empty: false,
+    world: () => counter(76, 26),                icon: iconCounter,tags: ["fixture", "station", "retail"] },
+  { id: "station_workbench", name: "工位",  w: 60, h: 26, empty: false,
+    world: () => bench(60, 26),                  icon: iconBench,  tags: ["fixture", "station", "manufacture"] },
+  { id: "industry_machine",  name: "工业机器", w: 52, h: 40, empty: false,
+    world: () => machine(52, 40),                icon: iconMachine,tags: ["fixture", "machine"] },
+  { id: "toilet_basic",   name: "马桶",     w: 30, h: 34, empty: false,
+    world: () => toilet(30, 34),                 icon: iconToilet, tags: ["fixture", "toilet"] },
+];
+
+function items() {
+  for (const it of ITEMS) {
+    // 世界形态（俯视）—— 锚点在中心，因为它摆在屋里的某个点上
+    emit(`items/${it.id}.svg`, svg(it.w, it.h, it.world()));
+    add(it.id, `items/${it.id}.svg`, it.w, it.h, "center", "L3",
+        ["item", ...it.tags, it.id]);
+
+    // 空态：只有"会卖光"的货才需要。★ 这是"卖光了"的世界表达（不用写文字）
+    if (it.empty) {
+      const emptySvg = it.id === "meal_simple" ? bento(32, 24, true)
+                     : crate(it.w, it.h, I.crate.base, I.crate.dark);
+      emit(`items/${it.id}_empty.svg`, svg(it.w, it.h, emptySvg));
+      add(`${it.id}_empty`, `items/${it.id}_empty.svg`, it.w, it.h, "center", "L3",
+          ["item", "empty", it.id]);
+    }
+
+    // 图标形态（正视 16×16）—— 给面板用：笔记 / 账本 / 气泡
+    emit(`items/icon_${it.id}.svg`, svg(16, 16, it.icon()));
+    add(`icon_${it.id}`, `items/icon_${it.id}.svg`, 16, 16, "center", "L6",
+        ["icon", "item", it.id]);
+  }
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    四、建筑（屋顶 + 立面揭示 + 门口 + 招牌位）
    规则②：底部留 facadeReveal 的立面 = 假厚度。这是"看着立体"的全部秘密。
@@ -492,6 +735,7 @@ reset();
 groundTiles();
 roadBits();
 props();
+items();
 const bldJson = BUILDINGS.map(building);
 const who = people();
 fx();

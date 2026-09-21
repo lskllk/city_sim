@@ -26,3 +26,7 @@ wiki/out/
 node_modules/
 _uv.log
 config/scenes/*.bak
+
+# 最小实验页（临时）
+src/web/_*.html
+_tmp_exp/

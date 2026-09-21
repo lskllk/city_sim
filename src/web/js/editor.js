@@ -33,7 +33,7 @@ export class Editor {
     this.view = new View(canvasEl, hudEl);
     this.doc = new MapDoc();
     this.map = new MapLayer(assets, (lid, loc, p) =>
-      this.view.paper("sign:" + lid, loc.name, p.x / U, p.y / U + 0.8, "plate"));
+      this.view.paper("sign:" + lid, loc.name, p.x / U, p.y / U, "plate", 5));
     this.handles = new Container();     // 手柄（节点 / 选中框 / 幽灵）
     this.overlay2 = new Container();    // 高亮（在更上面）
     this.tool = "select";

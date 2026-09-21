@@ -81,26 +81,30 @@ export class View {
   setWorld(canvas) { this.world = { w: canvas.w * U, h: canvas.h * U }; }
 
   // ── 相机 ────────────────────────────────────────────────────────────
-  /** ★ 顺序不能反：先 clamp，再写 transform。
+  /** 把 cam 写进 transform。
    *
-   *  反了会怎样：渲染用的是 clamp【前】的相机，而 toWorld / screenOf
-   *  （名牌、气泡的定位）用的是 clamp【后】的 cam —— 两边不是同一个数。
-   *  症状就是"名牌跑偏""不在中间时缩放会漂"。
+   *  ★ 以前这里先写 transform 再 clamp，而 clamp 会改 cam ——
+   *    于是渲染用夹【前】的相机，toWorld / screenOf 用夹【后】的 cam，
+   *    两边不是同一个数。症状是"名牌跑偏""缩放会漂"。
+   *    现在不夹相机了（见下面），这个坑也就不存在了 ——
+   *    但顺序仍然保持：**只有一处写 cam，写完立刻同步 transform**。
    */
   apply() {
-    this.clamp();
     const { x, y, k } = this.cam;
     this.root.scale.set(k);
     this.root.position.set(-x * k, -y * k);
     this.onView?.();
   }
-  /** 限制在世界范围内（原型也是这么干的，± 一点余量）。 */
-  clamp() {
-    const [vw, vh] = this.viewport();
-    const { w, h } = this.world;
-    this.cam.x = Math.min(Math.max(this.cam.x, -60), Math.max(0, w - vw / this.cam.k) + 60);
-    this.cam.y = Math.min(Math.max(this.cam.y, -60), Math.max(0, h - vh / this.cam.k) + 60);
-  }
+  /** ★ 故意【不夹】相机。
+   *
+   *  试过两种夹法，都会和"缩放锚在鼠标上"打架：
+   *    · 夹在世界内        → 世界比视口小时可平移区间是负的，相机被钉死
+   *    · 只在世界比视口大时夹 → k=0.1 时 sx/k = 3000px，照样夹到边界
+   *  而夹到边界的那一刻，锚点必然漂 —— 用户要的是"锚点永远准"。
+   *
+   *  所以不夹，换来的是锚点在任何倍率都精确。代价是能平移出世界之外，
+   *  用 `F`（铺满）或「我的店」一键回来就够。
+   */
   /** ★ 铺满视口（cover），不留边距 —— 这就是"画面铺满整个窗口"。 */
   fill(zoomOut = 1) {
     const [vw, vh] = this.viewport();
@@ -187,7 +191,7 @@ export class View {
       const sx = e.clientX - r.left, sy = e.clientY - r.top;
       // ★ 不直接改 k，只记一个目标：真正的缩放在 step() 里逐帧逼近。
       //   滚轮一格 Δk 很大，直接跳过去是"突变"；而且一帧到位会把
-      //   锚点算错（相机在 clamp 边界上时尤其明显）。
+      //   锚点算错（相机在夹边界上时尤其明显 —— 所以干脆不夹）。
       const want = (this._zT?.k ?? this.cam.k)
         * Math.exp(-e.deltaY * 0.0016);
       this._zT = { k: Math.min(this.maxK, Math.max(this.minK, want)), sx, sy };
@@ -195,7 +199,10 @@ export class View {
   }
 
   // ── 屏幕纸片（DOM）────────────────────────────────────────────────
-  paper(id, text, wx, wy, cls = "bubble") {
+  /** dy 是【屏幕像素】的固定偏移 —— 千万别用世界单位。
+   *  用世界单位的话偏移会跟着缩放放大：0.8 世界单位在 k=6 时是 57px，
+   *  名牌看着就"脱离画布"了。 */
+  paper(id, text, wx, wy, cls = "bubble", dy = 0) {
     this._paper ||= new Map();
     let el = this._paper.get(id);
     if (text == null) { el?.remove(); this._paper.delete(id); return null; }
@@ -206,7 +213,7 @@ export class View {
       this._paper.set(id, el);
     }
     if (el.textContent !== text) el.textContent = text;
-    el.dataset.w = wx; el.dataset.h = wy;
+    el.dataset.w = wx; el.dataset.h = wy; el.dataset.dy = dy;
     return el;
   }
   dropPaper(id) { this._paper?.get(id)?.remove(); this._paper?.delete(id); }
@@ -215,7 +222,8 @@ export class View {
     if (!this._paper) return;
     for (const el of this._paper.values()) {
       const [x, y] = this.screenOf(+el.dataset.w, +el.dataset.h);
-      el.style.transform = `translate(${x}px,${y}px) translate(-50%,-100%)`;
+      const dy = +el.dataset.dy || 0;
+      el.style.transform = `translate(${x}px,${y + dy}px) translate(-50%,-100%)`;
     }
   }
 }

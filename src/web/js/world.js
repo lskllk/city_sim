@@ -14,7 +14,7 @@ export class World {
     this.assets = assets;
     this.view = new View(canvasEl, hudEl);
     this.map = new MapLayer(assets, (lid, loc, p) =>
-      this.view.paper("sign:" + lid, loc.name, p.x / U, p.y / U + 0.8, "plate"));
+      this.view.paper("sign:" + lid, loc.name, p.x / U, p.y / U, "plate", 5));
     this.npc = new Container();
     this.npc.sortableChildren = true;
     this._people = new Map();

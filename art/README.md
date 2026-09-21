@@ -17,6 +17,29 @@ open wiki/out/art.html     # 美术资产 · 按九大类 · 虚线框=缺口
 
 ---
 
+## 〇、什么能删，什么不能删
+
+```
+art/style.json       ★ 不能删  画风真源（色板 / 6 条规则 / 建筑与人物参数）
+art/characters.json  ★ 不能删  角色真源（8 人的可辨识性维度）
+art/gen.mjs          ★ 不能删  生成器 —— 256 个资产全是它算出来的
+art/verify.py        ★ 不能删  校验器（六条闸，见 §六）
+art/bbox.py          ★ 不能删  包围盒计算（verify 的第 ⑥⑦ 条靠它）
+art/build.sh         ★ 不能删  一条命令跑完全套
+art/README.md        ★ 不能删  这份文档
+
+art/out/             ✔ 可以删  构建产物（gitignore）。删了跑 build.sh 就回来。
+art/__pycache__/     ✔ 可以删  Python 缓存
+```
+
+★ **`art/out/` 是「能删」不是「该删」** —— wiki 用 `../../art/out/*.svg` 引用它，
+  删了 wiki 上的图就全空。要删就删完立刻 `bash art/build.sh` 重建。
+
+**为什么没有"直接交出 SVG 文件"这条路**：256 个文件、改一次色板就得手工改 256 处。
+现在改 `style.json` 一行，重跑，全套跟着变。这是这套东西唯一的立足点。
+
+---
+
 ## 一、这个方法擅长什么、不擅长什么
 
 | | |

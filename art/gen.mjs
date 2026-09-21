@@ -1153,28 +1153,35 @@ function person(ch, dir, frame) {
   // 头
   // 头中心：压在肩膀上方一点点（用比例，别用绝对差 —— 三种体型都要放得下）
   const hy = by - B.shoulderRy * 0.55 - B.headR * 0.9;
-  b += circ(headX, hy, B.headR, skin);
-  // 头发：down = 帽子形；up = 整个后脑勺；side = 往后偏
-  // 头发：shape 决定形状、color 决定颜色（"白发"是 shape=short + 白）
+  // ★ 头发/帽子一律【正对头中心】。
+  //   别"侧向后掠一点点" —— down/up 偏移 0、side 偏移 1.2px，
+  //   三张图里就 side 那张看着是歪的（试过，被当场看出来）。
   const hs = hair.shape || "short";
-  // 头发的锚点：侧向只往后偏 0.32（0.55 会让发盖整个滑到脑后、前面露光头）
-  const hairX = dir === "side" ? headX - B.headR * 0.32 : headX;
+  const hx = headX;
+
+  // ★ 长发画在头【之前】—— 在脑后。
+  //   原来画在头之后，一块比头还宽的方块从眼睛以下全盖住，
+  //   整张脸都变成头发色（眼睛是后画的所以还看得见，但脸没了）。
+  if (hs === "long" && dir !== "up")
+    b += rrect(hx - B.headR - 1, hy - 0.5, (B.headR + 1) * 2, B.headR * 1.5, 1.4,
+               hair.color, `opacity="0.95"`);
+
+  b += circ(headX, hy, B.headR, skin);
   if (dir === "up") {
     b += circ(headX, hy, B.headR + 0.35, hair.color);
   } else {
-    const hx = hairX;
     if (hs !== "bald")
       b += `<path d="M ${u(hx - B.headR - 0.35)} ${u(hy + 0.6)} `
          + `A ${u(B.headR + 0.35)} ${u(B.headR + 0.35)} 0 0 1 `
          + `${u(hx + B.headR + 0.35)} ${u(hy + 0.6)} Z" fill="${hair.color}"/>`;
-    if (hs === "long")
-      b += rrect(hx - B.headR - 1, hy - 0.5, (B.headR + 1) * 2, B.headR * 1.5, 1.4,
-                 hair.color, `opacity="0.95"`);
     if (hs === "bun")
       b += circ(hx, hy - B.headR - 1.1, 1.9, hair.color);
-    if (hs === "hat")
-      b += rrect(hx - B.headR - 1.6, hy - B.headR - 0.6, (B.headR + 1.6) * 2, 2.2, 1,
-                 hair.color);
+    if (hs === "hat") {   // 帽檐跨在额头上，不是骑在头顶（对齐头像里的比例 cy-0.44r）
+      b += rrect(hx - B.headR - 1.6, hy - B.headR * 0.73, (B.headR + 1.6) * 2,
+                 B.headR * 0.58, 1, hair.color);
+      b += rrect(hx - B.headR - 1.6, hy - B.headR * 0.73, (B.headR + 1.6) * 2,
+                 B.headR * 0.2, 0.5, "#00000022");
+    }
     if (hs === "bald") {
       b += rrect(hx - B.headR - 0.4, hy + B.headR * 0.2, 1.6, B.headR * 0.7, 0.7,
                  hair.color, `opacity="0.85"`);

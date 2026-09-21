@@ -300,8 +300,23 @@ function pageBuildings() {
     <td class="num">${b.capacity ?? "—"}</td>
     <td>${(b.doors || []).map(d => d.side + (d.offset ? `@${Math.round(d.offset * 100)}%` : ""))
           .join(" · ")}</td></tr>`).join("");
+  const cov = `
+    <h2>美术覆盖 <span class="cnt">${Object.keys(BLD_TYPES).length}/${BUILDINGS.length}</span>
+      <span class="h">config 的类型名和美术资产名【不该指望能对上】—— 所以由资产自己声明覆盖谁</span></h2>
+    <table class="dt"><thead><tr><th>config 类型</th><th>kind</th><th>美术资产</th>
+      <th>尺寸</th><th></th></tr></thead><tbody>
+      ${BUILDINGS.map(b => {
+        const base = BLD_TYPES[b.type];
+        const bj = BLDART.find(x => x.id === base) || {};
+        return `<tr><td><a href="building_${b.type}.html"><code>${b.type}</code></a></td>
+          <td><span class="tag">${b.kind}</span></td>
+          <td>${base ? `<code>${base}</code>` : `<span class="bad">缺</span>`}</td>
+          <td>${bj.g ? `${bj.g[0]}×${bj.g[1]} 格` : "—"}</td>
+          <td>${base ? `<img src="${ART}/bld/${base}.svg" style="height:30px">` : ""}</td>
+        </tr>`; }).join("")}</tbody></table>`;
   return page("建筑", `
     <div class="tip">建筑<b>决定能开什么公司</b>：店铺→零售，工厂→制造。这是死规矩，不是选项。</div>
+    ${cov}
     <table class="sortable"><thead><tr><th>名字</th><th>kind</th><th>能开</th>
       <th class="num">容量</th><th>门</th></tr></thead><tbody>${rows}</tbody></table>`);
 }
@@ -383,14 +398,17 @@ function itemName(id) { return (ITEMS.find(x => x.item_type === id) || {}).name 
 /* ── 美术总览（★ 从这里验收资产，不再另开联络表）────────────────────── */
 function artCell(a, k) {
   k = (k || 1.3) * 1.6;
-  const slice = a.slice ? " ▣九宫格" : "";
-  const over = a.tags.includes("oversize") ? " ⚠画布比建筑大" : "";
-  return `<div class="acell">
+  // 元数据（尺寸 / 锚点 / 九宫格 / 越界标记）不铺在页面上 —— 挂 title 里看得到就行。
+  // 这一页是【看图】的，一行行的数字只会把图淹掉。
+  const meta = `${a.name} · ${a.w}×${a.h} · 锚点 ${a.anchor}`
+    + (a.slice ? ` · 九宫格（拉伸 ${a.slice.l}/${a.slice.r}/${a.slice.t}/${a.slice.b}）` : "")
+    + (a.tags.includes("oversize") ? " · ⚠画布比建筑大（落影的偏移余量）" : "");
+  const flag = a.tags.includes("oversize") ? `<b class=warn>!</b>` : "";
+  return `<div class="acell" title="${meta}">
     <div class="abox" data-w="${a.w}" data-h="${a.h}" data-k="${k}">
       <img src="${ART}/${a.file}" style="width:${Math.round(a.w * k)}px;
         height:${Math.round(a.h * k)}px"></div>
-    <div class="alb">${a.name}</div>
-    <div class="adm">${a.w}×${a.h} ${a.anchor}${slice}${over}</div></div>`;
+    <div class="alb">${a.name}${flag}</div></div>`;
 }
 function pageArt() {
   const scenes = `
@@ -420,8 +438,12 @@ function pageArt() {
         <div class="arow">${items.map(a => artCell(a, k)).join("")}</div>
         ${SB.gap ? `<div class="gapbox"><b>还缺</b> —— ${SB.gap}</div>` : ""}`;
     }).join("");
-    return `<h2>${C.k} ${C.n} <span class="cnt">${list.length}</span>
-      <span class="h">${C.hint}</span></h2>${subs}`;
+    const gaps = C.subs.filter(SB => !artBy(C.k, SB.s).length && SB.gap);
+    return `<details><summary><h2>${C.k} ${C.n}
+      <span class="cnt">${list.length}</span>
+      <span class="h">${C.hint}</span>
+      ${gaps.length ? `<span class="gapn">缺 ${gaps.length} 处</span>` : ""}</h2></summary>
+      ${subs}</details>`;
   }).join("");
   return page("美术", `
     <div class="tip">从 <code>art/</code> 生成。改画风改 <code>art/style.json</code>，
@@ -438,20 +460,15 @@ function pageArt() {
       <span class="dim">时间</span><span id="tones" class="zoom"></span>
       <button id="bGrid">格子</button>
       <button id="bNorm">统一大小</button>
+      <button id="bAll">全部展开</button>
     </div>
-    <h2>建筑类型覆盖 <span class="cnt">${Object.keys(BLD_TYPES).length}/${BUILDINGS.length}</span>
-      <span class="h">config 的类型名和美术资产名【不该指望能对上】—— 所以由资产自己声明覆盖谁</span></h2>
-    <table class="dt"><thead><tr><th>config 类型</th><th>kind</th><th>美术资产</th>
-      <th>尺寸</th><th></th></tr></thead><tbody>
-      ${BUILDINGS.map(b => {
-        const base = BLD_TYPES[b.type];
-        const bj = BLDART.find(x => x.id === base) || {};
-        return `<tr><td><a href="building_${b.type}.html"><code>${b.type}</code></a></td>
-          <td><span class="tag">${b.kind}</span></td>
-          <td>${base ? `<code>${base}</code>` : `<span class="bad">缺</span>`}</td>
-          <td>${bj.g ? `${bj.g[0]}×${bj.g[1]} 格` : "—"}</td>
-          <td>${base ? `<img src="${ART}/bld/${base}.svg" style="height:30px">` : ""}</td>
-        </tr>`; }).join("")}</tbody></table>
+    <h2>九大类总览 <span class="h">这一页就是缺口报告 —— 虚线框 = 还缺什么</span></h2>
+    <div class="catbar">${ARTCATS.map(C => {
+      const n = ARTASSETS.filter(a => a.cat === C.k).length;
+      const gaps = C.subs.filter(SB => !artBy(C.k, SB.s).length && SB.gap).length;
+      return `<span class="cat${n ? "" : " empty"}">
+        <b>${C.k}</b> ${C.n} <em>${n}</em>${gaps ? `<i>缺 ${gaps}</i>` : ""}</span>`;
+    }).join("")}</div>
 
     <h2>组合场景 <span class="h">资产放在一起才知道搭不搭</span></h2>
     ${scenes}
@@ -603,6 +620,26 @@ h4 .cnt{font:11px ui-monospace,Consolas,monospace;color:#a49c8d}
 .gapbox b{color:var(--hi)}
 /* 统一大小：把每个格子拉到一样大，按比例缩放（world 资产本来就是各自的世界尺寸，
    验收图标一致性时才开这个）。 */
+/* 九大类总览条 —— 不展开细节也能一眼看出哪里缺 */
+.catbar{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 14px}
+.cat{display:inline-flex;align-items:baseline;gap:5px;padding:4px 10px;border-radius:999px;
+  border:1px solid var(--line);background:#fff;font-size:12px}
+.cat b{font:11px ui-monospace;color:var(--hi)}
+.cat em{font:11px ui-monospace;font-style:normal;color:var(--dim)}
+.cat i{font:10px ui-monospace;font-style:normal;color:#a8761c;
+  background:#a8761c18;border-radius:999px;padding:1px 6px}
+.cat.empty{opacity:0.55}
+/* 大类可折叠 */
+details{margin:0}
+details>summary{list-style:none;cursor:pointer}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"▸ ";color:#b9b1a2;font-size:12px}
+details[open]>summary::before{content:"▾ "}
+details>summary h2{display:inline-flex}
+.gapn{font:10px ui-monospace;color:#a8761c;background:#a8761c18;
+  border-radius:999px;padding:1px 7px;align-self:center}
+.warn{color:#a8761c;font-style:normal}
+.acell{cursor:help}
 body.norm .abox{width:78px!important;height:78px!important}
 body.norm .abox img{width:auto!important;height:auto!important;
   max-width:100%;max-height:100%;object-fit:contain}
@@ -833,6 +870,15 @@ function ARTJSFn(){ return `
       });
     };
   });
+  /* 全部展开 / 折叠 */
+  var ab = document.getElementById("bAll");
+  if (ab){ ab.onclick = function(){
+    var all = document.querySelectorAll("details");
+    var open = !Array.prototype.every.call(all, function(d){ return d.open; });
+    Array.prototype.forEach.call(all, function(d){ d.open = open; });
+    this.classList.toggle("on", open);
+    this.textContent = open ? "全部折叠" : "全部展开";
+  };}
   /* 统一大小 */
   var nb = document.getElementById("bNorm");
   if (nb) nb.onclick = function(){ this.classList.toggle("on");

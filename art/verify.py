@@ -195,10 +195,14 @@ def main() -> int:
             continue
         off_checked += 1
         delta = abs(big[2] - head[0])
-        if delta > head[2] * 0.5:
-            errors.append(f"{a['file']}: 头发/帽子歪了 —— 发块中心比头中心偏了 "
-                          f"{delta:.1f}px（上限 {head[2] * 0.5:.1f} = 0.5×头半径）")
-    print(f"头发锚点: {off_checked} 张小人图，偏移上限 0.5×头半径")
+        # ★ 阈值是【固定 0.6 逻辑像素】，不是比例。
+        #   头发/帽子一律正对头中心，偏移应该是 0；
+        #   0.6px 只留给浮点误差，任何"挂错锚点"的错都比它大
+        #   （光是把头发挂回 cx 而不是 headX，侧向就偏 0.8）。
+        if delta > 1.2:                      # 1.2 = 0.6 逻辑像素 × authorScale(2)
+            errors.append(f"{a['file']}: 头发/帽子没长在头中心 —— 偏了 "
+                          f"{delta:.2f}px（上限 1.2 = 0.6 逻辑像素）")
+    print(f"头发锚点: {off_checked} 张小人图，偏移上限 0.6 逻辑像素")
 
     print(f"按图层: " + "  ".join(f"{k}:{v}" for k, v in sorted(by_layer.items())))
     print(f"总体积: {total_bytes / 1024:.0f} KB")

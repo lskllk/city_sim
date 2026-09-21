@@ -75,10 +75,27 @@ async def _root() -> dict:
 if (ROOT / "art" / "out").is_dir():
     app.mount("/art", StaticFiles(directory=str(ROOT / "art" / "out")), name="art")
 
+class NoCacheStatic(StaticFiles):
+    """给前端加 no-store。
+
+    ★ 为什么必须这么做：ES module 一旦被浏览器缓存，
+      **改了 js 但页面还是老的** —— 用户会以为"你根本没改"。
+      （我自己测的时候就得在 CDP 里加 ignoreCache 硬重载才看得见改动，
+       这本身就是信号：正常用户没有那个开关。）
+      前端没有构建步骤、文件名也不带 hash，所以只能靠不缓存。
+    """
+
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        resp.headers["Cache-Control"] = "no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        return resp
+
+
 if WEB.is_dir():
     # /game/ → src/web/（html=True 让目录访问回到 index.html）。
     # 挂在最后: 上面两个先匹配。
-    app.mount("/game", StaticFiles(directory=str(WEB), html=True), name="game")
+    app.mount("/game", NoCacheStatic(directory=str(WEB), html=True), name="game")
 
     @app.get("/game")
     async def _game() -> FileResponse:

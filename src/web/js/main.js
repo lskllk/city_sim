@@ -48,11 +48,15 @@ async function ensureAssets() {
 }
 
 // ══ 游戏 ══════════════════════════════════════════════════════════════
-async function play() {
-  setStatus("正在连后端…");
+async function play(sceneName) {
+  setStatus(sceneName ? `正在打开 ${sceneName}…` : "正在连后端…");
   net = new Net(onMessage);
   try {
     const hello = await net.connect();
+    if (sceneName && hello.scenario !== sceneName) {
+      // 换场景 = 重置 runner 到那个场景（reset 会重新 build 并回一份新的 hello）
+      await net.send("reset", { scenario: sceneName });
+    }
     store.applyHello(hello);
     await startGame(hello);
     const when = new Date().toLocaleString("zh-CN",
@@ -213,7 +217,10 @@ async function buildPalette() {
 }
 
 // ══ 接线 ══════════════════════════════════════════════════════════════
-$("mContinue").onclick = play;
+$("mContinue").onclick = () => play();
+$("mNew").onclick = newScene;
+$("mOpen").onclick = toggleScenes;
+$("mListClose").onclick = () => $("mList").classList.add("hide");
 $("mEditor").onclick = openEditor;
 $("gMenu").onclick = () => { net?.send("select", { npc: "" }); selected = ""; show("menu"); };
 $("gHome").onclick = () => {
@@ -260,6 +267,54 @@ window.citysim = {
   pick: onPick, get selected() { return selected; },
 };
 
-// 直达：#editor 进编辑器 · #play 直接开局（截图/演示用，省一次点击）
+// ── 新场景：空白地图，直接进编辑器画 ────────────────────────────────
+async function newScene() {
+  const stamp = new Date().toISOString().slice(5, 10).replace("-", "");
+  const name = (prompt("新场景存到 config/scenes/ —— 起个名字：",
+                       `scene_${stamp}.json`) || "").trim();
+  if (!name) return;
+  await openEditor();
+  // 空白文档：只给画布，路网和建筑都是空的，人的那份也空着
+  const blank = {
+    canvas: { w: 800, h: 600 }, display_name: name.replace(/\.json$/, ""),
+    locations: {},
+    map: { format: "citysim.map", version: 1,
+           world: { unit: "m", bounds: [0, 0, 800, 600], grid: 1.0 },
+           nodes: {}, edges: {}, buildings: {} },
+    npcs: [], entities: [], companies: [], knowledge: [], plans: [], travel: {},
+  };
+  editor.doc.load(blank);
+  editor.name = name;
+  editor.view.setWorld(editor.doc.canvas);
+  editor.view.fill();
+  editor.redraw();
+  editor.ui.setScene(name, editor.doc.stats());
+  toast(`空白地图 —— 先画路，再摆房。Ctrl+S 保存为 ${name}`);
+}
+
+// ── 场景列表 ────────────────────────────────────────────────────────
+async function toggleScenes() {
+  const box = $("mList");
+  if (!box.classList.contains("hide")) return box.classList.add("hide");
+  const list = await (await fetch("/api/scenes")).json();
+  const body = $("mListBody");
+  body.innerHTML = "";
+  if (!list.scenes.length) { body.innerHTML = '<div class="dim" style="font-size:12px">还没有场景</div>'; }
+  for (const s of list.scenes) {
+    const b = document.createElement("button");
+    const when = new Date(s.mtime * 1000).toLocaleString("zh-CN",
+      { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    b.innerHTML = `<span>${s.name}</span><span class="meta">${(s.bytes / 1024).toFixed(1)}KB · ${when}</span>`;
+    if (s.name === list.last) b.classList.add("now");
+    b.onclick = () => { box.classList.add("hide"); play(s.name); };
+    body.appendChild(b);
+  }
+  box.classList.remove("hide");
+}
+
+// ── 真菜单：进来不自动开游戏，等玩家选 ──────────────────────────────
+// ★ 以前是无条件 play() —— 菜单只是一闪而过，等于没有菜单。
+//   （#play / #editor 两个 hash 仍然直达，截图和演示要用。）
 if (location.hash === "#editor") openEditor();
-else play();
+else if (location.hash === "#play") play();
+// 否则就停在菜单上

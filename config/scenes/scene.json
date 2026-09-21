@@ -1,13 +1,9 @@
 {
- "canvas": {
-  "h": 600.0,
-  "w": 800.0
- },
  "companies": [
   {
-   "cash": 1000.0,
+   "cash": 1000,
    "close": "19:00",
-   "hiring_slots": 1.0,
+   "hiring_slots": 1,
    "id": "org_bld_004",
    "kind": "retail",
    "name": "吵吵小店",
@@ -22,12 +18,12 @@
      "wage": 1.1
     }
    ],
-   "wage_per_hour": 8.0
+   "wage_per_hour": 8
   },
   {
-   "cash": 1000.0,
+   "cash": 1000,
    "close": "19:00",
-   "hiring_slots": 3.0,
+   "hiring_slots": 3,
    "id": "org_bld_013",
    "kind": "retail",
    "name": "食品加工",
@@ -37,10 +33,10 @@
     "bld_013"
    ],
    "staff": [],
-   "wage_per_hour": 3.0
+   "wage_per_hour": 3
   },
   {
-   "cash": 1000.0,
+   "cash": 1000,
    "close": "19:00",
    "hiring_slots": 4,
    "id": "org_bld_014",
@@ -52,7 +48,7 @@
     "bld_014"
    ],
    "staff": [],
-   "wage_per_hour": 5.0
+   "wage_per_hour": 5
   }
  ],
  "display_name": "scene",
@@ -124,7 +120,7 @@
    "at": "bld_004",
    "id": "food_apple_048",
    "owner": "org_bld_004",
-   "price": 5.0,
+   "price": 5,
    "stock": 1000,
    "type": "food_apple"
   },
@@ -190,497 +186,6 @@
   }
  ],
  "knowledge": [],
- "locations": {
-  "bld_004": {
-   "h": 21.91,
-   "name": "店铺1号",
-   "type": "shop_small",
-   "w": 21.91,
-   "x": 639.05,
-   "y": 306.09
-  },
-  "bld_008": {
-   "h": 7.75,
-   "name": "小屋1号",
-   "type": "home_small",
-   "w": 7.75,
-   "x": 342.25,
-   "y": 230.25
-  },
-  "bld_009": {
-   "h": 7.75,
-   "name": "小屋2号",
-   "type": "home_small",
-   "w": 7.75,
-   "x": 358.95,
-   "y": 230.25
-  },
-  "bld_010": {
-   "h": 35.78,
-   "name": "批发市场1号",
-   "type": "market_hall",
-   "w": 22.36,
-   "x": 692.0,
-   "y": 352.11
-  },
-  "bld_011": {
-   "h": 28.28,
-   "name": "广场1号",
-   "type": "public_plaza",
-   "w": 42.43,
-   "x": 342.16,
-   "y": 242.0
-  },
-  "bld_014": {
-   "h": 30.59,
-   "name": "加工厂1号",
-   "type": "factory_plant",
-   "w": 23.53,
-   "x": 692.0,
-   "y": 424.7
-  }
- },
- "map": {
-  "buildings": {
-   "bld_004": {
-    "center": [
-     650.0,
-     317.046
-    ],
-    "doors": [
-     [
-      650.0,
-      328.0
-     ]
-    ],
-    "floors": 1,
-    "rot": 0.0,
-    "size": [
-     21.909,
-     21.909
-    ],
-    "type": "shop_small"
-   },
-   "bld_008": {
-    "center": [
-     346.12,
-     234.127
-    ],
-    "doors": [
-     [
-      346.12,
-      238.0
-     ]
-    ],
-    "floors": 1,
-    "rot": 0.0,
-    "size": [
-     7.746,
-     7.746
-    ],
-    "type": "home_small"
-   },
-   "bld_009": {
-    "center": [
-     362.825,
-     234.127
-    ],
-    "doors": [
-     [
-      362.825,
-      238.0
-     ]
-    ],
-    "floors": 1,
-    "rot": 0.0,
-    "size": [
-     7.746,
-     7.746
-    ],
-    "type": "home_small"
-   },
-   "bld_010": {
-    "center": [
-     703.18,
-     370.0
-    ],
-    "doors": [
-     [
-      692.0,
-      370.0
-     ]
-    ],
-    "floors": 1,
-    "rot": -270.0,
-    "size": [
-     35.777,
-     22.361
-    ],
-    "type": "market_hall"
-   },
-   "bld_011": {
-    "center": [
-     363.371,
-     256.142
-    ],
-    "doors": [
-     [
-      363.371,
-      242.0
-     ],
-     [
-      363.371,
-      270.284
-     ],
-     [
-      342.158,
-      256.142
-     ],
-     [
-      384.584,
-      256.142
-     ]
-    ],
-    "floors": 1,
-    "rot": -180.0,
-    "size": [
-     42.426,
-     28.284
-    ],
-    "type": "public_plaza"
-   },
-   "bld_014": {
-    "center": [
-     703.767,
-     440.0
-    ],
-    "doors": [
-     [
-      692.0,
-      440.0
-     ]
-    ],
-    "floors": 1,
-    "rot": -270.0,
-    "size": [
-     30.594,
-     23.534
-    ],
-    "type": "factory_plant"
-   }
-  },
-  "edges": {
-   "e_002": {
-    "a": "n_001",
-    "b": "n_003",
-    "class": "local",
-    "geom": [
-     [
-      690.0,
-      330.0
-     ],
-     [
-      690.0,
-      480.0
-     ]
-    ],
-    "oneway": false,
-    "speed": 1.3,
-    "width": 4.0
-   },
-   "e_004": {
-    "a": "n_002",
-    "b": "n_005",
-    "class": "local",
-    "geom": [
-     [
-      330.0,
-      330.0
-     ],
-     [
-      400.0,
-      330.0
-     ]
-    ],
-    "oneway": false,
-    "speed": 1.3,
-    "width": 4.0
-   },
-   "e_006": {
-    "a": "n_006",
-    "b": "n_005",
-    "class": "local",
-    "geom": [
-     [
-      400.0,
-      240.0
-     ],
-     [
-      400.0,
-      330.0
-     ]
-    ],
-    "oneway": false,
-    "speed": 1.3,
-    "width": 4.0
-   },
-   "e_007": {
-    "a": "n_006",
-    "b": "n_007",
-    "class": "local",
-    "geom": [
-     [
-      400.0,
-      240.0
-     ],
-     [
-      330.0,
-      240.0
-     ]
-    ],
-    "oneway": false,
-    "speed": 1.3,
-    "width": 4.0
-   },
-   "e_008": {
-    "a": "n_007",
-    "b": "n_002",
-    "class": "local",
-    "geom": [
-     [
-      330.0,
-      240.0
-     ],
-     [
-      330.0,
-      330.0
-     ]
-    ],
-    "oneway": false,
-    "speed": 1.3,
-    "width": 4.0
-   },
-   "e_009": {
-    "a": "n_002",
-    "b": "n_008",
-    "class": "local",
-    "geom": [
-     [
-      330.0,
-      330.0
-     ],
-     [
-      330.0,
-      330.0
-     ]
-    ],
-    "oneway": false,
-    "speed": 1.3,
-    "width": 4.0
-   },
-   "e_010": {
-    "a": "n_003",
-    "b": "n_009",
-    "class": "local",
-    "geom": [
-     [
-      690.0,
-      480.0
-     ],
-     [
-      640.0,
-      480.0
-     ]
-    ],
-    "oneway": false,
-    "speed": 1.3,
-    "width": 4.0
-   },
-   "e_011": {
-    "a": "n_009",
-    "b": "n_004",
-    "class": "local",
-    "geom": [
-     [
-      640.0,
-      480.0
-     ],
-     [
-      640.0,
-      480.0
-     ]
-    ],
-    "oneway": false,
-    "speed": 1.3,
-    "width": 4.0
-   },
-   "e_012": {
-    "a": "n_010",
-    "b": "n_009",
-    "class": "local",
-    "geom": [
-     [
-      640.0,
-      380.0
-     ],
-     [
-      640.0,
-      480.0
-     ]
-    ],
-    "oneway": false,
-    "speed": 1.3,
-    "width": 4.0
-   },
-   "e_013": {
-    "a": "n_005",
-    "b": "n_011",
-    "class": "local",
-    "geom": [
-     [
-      400.0,
-      330.0
-     ],
-     [
-      640.0,
-      330.0
-     ]
-    ],
-    "oneway": false,
-    "speed": 1.3,
-    "width": 4.0
-   },
-   "e_014": {
-    "a": "n_011",
-    "b": "n_001",
-    "class": "local",
-    "geom": [
-     [
-      640.0,
-      330.0
-     ],
-     [
-      690.0,
-      330.0
-     ]
-    ],
-    "oneway": false,
-    "speed": 1.3,
-    "width": 4.0
-   },
-   "e_015": {
-    "a": "n_010",
-    "b": "n_011",
-    "class": "local",
-    "geom": [
-     [
-      640.0,
-      380.0
-     ],
-     [
-      640.0,
-      330.0
-     ]
-    ],
-    "oneway": false,
-    "speed": 1.3,
-    "width": 4.0
-   }
-  },
-  "format": "citysim.map",
-  "nodes": {
-   "n_001": {
-    "kind": "junction",
-    "xy": [
-     690.0,
-     330.0
-    ]
-   },
-   "n_002": {
-    "kind": "junction",
-    "xy": [
-     330.0,
-     330.0
-    ]
-   },
-   "n_003": {
-    "kind": "junction",
-    "xy": [
-     690.0,
-     480.0
-    ]
-   },
-   "n_004": {
-    "kind": "junction",
-    "xy": [
-     640.0,
-     480.0
-    ]
-   },
-   "n_005": {
-    "kind": "junction",
-    "xy": [
-     400.0,
-     330.0
-    ]
-   },
-   "n_006": {
-    "kind": "junction",
-    "xy": [
-     400.0,
-     240.0
-    ]
-   },
-   "n_007": {
-    "kind": "junction",
-    "xy": [
-     330.0,
-     240.0
-    ]
-   },
-   "n_008": {
-    "kind": "junction",
-    "xy": [
-     330.0,
-     330.0
-    ]
-   },
-   "n_009": {
-    "kind": "junction",
-    "xy": [
-     640.0,
-     480.0
-    ]
-   },
-   "n_010": {
-    "kind": "junction",
-    "xy": [
-     640.0,
-     380.0
-    ]
-   },
-   "n_011": {
-    "kind": "junction",
-    "xy": [
-     640.0,
-     330.0
-    ]
-   }
-  },
-  "version": 1,
-  "world": {
-   "bounds": [
-    0.0,
-    0.0,
-    800.0,
-    600.0
-   ],
-   "grid": 10.0,
-   "grid_snap": true,
-   "net_snap": true,
-   "unit": "m"
-  }
- },
  "npcs": [
   {
    "birthday": "1972-05-02",
@@ -688,14 +193,14 @@
    "home": "bld_008",
    "id": "npc_sun_yan",
    "init": {},
-   "money": 303.0,
+   "money": 303,
    "name": "孙燕",
    "personality": {
-    "energy": 1.0,
+    "energy": 1,
     "hunger": 1.2
    },
    "role": "",
-   "tell_bias": 1.0,
+   "tell_bias": 1,
    "traits": {}
   },
   {
@@ -704,14 +209,14 @@
    "home": "bld_008",
    "id": "npc_lin_san",
    "init": {},
-   "money": 384.0,
+   "money": 384,
    "name": "林三",
    "personality": {
     "energy": 1.2,
     "hunger": 1.2
    },
    "role": "",
-   "tell_bias": 1.0,
+   "tell_bias": 1,
    "traits": {}
   },
   {
@@ -720,14 +225,14 @@
    "home": "bld_008",
    "id": "npc_zhang_jing",
    "init": {},
-   "money": 235.0,
+   "money": 235,
    "name": "张静",
    "personality": {
     "energy": 1.2,
-    "hunger": 1.0
+    "hunger": 1
    },
    "role": "",
-   "tell_bias": 1.0,
+   "tell_bias": 1,
    "traits": {}
   },
   {
@@ -736,14 +241,14 @@
    "home": "bld_009",
    "id": "npc_he_tao",
    "init": {},
-   "money": 486.0,
+   "money": 486,
    "name": "何涛",
    "personality": {
     "energy": 0.8,
     "hunger": 1.2
    },
    "role": "",
-   "tell_bias": 1.0,
+   "tell_bias": 1,
    "traits": {}
   },
   {
@@ -752,14 +257,14 @@
    "home": "bld_009",
    "id": "npc_li_yang",
    "init": {},
-   "money": 290.0,
+   "money": 290,
    "name": "李洋",
    "personality": {
     "energy": 1.3,
     "hunger": 0.9
    },
    "role": "",
-   "tell_bias": 1.0,
+   "tell_bias": 1,
    "traits": {}
   },
   {
@@ -768,14 +273,14 @@
    "home": "bld_009",
    "id": "npc_he_san",
    "init": {},
-   "money": 82.0,
+   "money": 82,
    "name": "何三",
    "personality": {
-    "energy": 1.0,
+    "energy": 1,
     "hunger": 0.9
    },
    "role": "",
-   "tell_bias": 1.0,
+   "tell_bias": 1,
    "traits": {}
   }
  ],
@@ -799,6 +304,611 @@
    "bld_010|bld_011": 35,
    "bld_010|bld_014": 7,
    "bld_011|bld_014": 38
+  }
+ },
+ "canvas": {
+  "w": 800,
+  "h": 600
+ },
+ "locations": {
+  "bld_004": {
+   "type": "shop_small",
+   "name": "店铺1号",
+   "x": 639.045,
+   "y": 306.091,
+   "w": 21.909,
+   "h": 21.909
+  },
+  "bld_008": {
+   "type": "home_small",
+   "name": "小屋1号",
+   "x": 342.247,
+   "y": 230.254,
+   "w": 7.746,
+   "h": 7.746
+  },
+  "bld_009": {
+   "type": "home_small",
+   "name": "小屋2号",
+   "x": 358.952,
+   "y": 230.254,
+   "w": 7.746,
+   "h": 7.746
+  },
+  "bld_010": {
+   "type": "market_hall",
+   "name": "批发市场1号",
+   "x": 685.291,
+   "y": 358.82,
+   "w": 35.777,
+   "h": 22.361
+  },
+  "bld_011": {
+   "type": "public_plaza",
+   "name": "广场1号",
+   "x": 342.158,
+   "y": 242,
+   "w": 42.426,
+   "h": 28.284
+  },
+  "bld_014": {
+   "type": "factory_plant",
+   "name": "加工厂1号",
+   "x": 688.47,
+   "y": 428.233,
+   "w": 30.594,
+   "h": 23.534
+  },
+  "bld_016": {
+   "type": "home_standard",
+   "name": "住所16",
+   "x": 402.3,
+   "y": 273.303,
+   "w": 10.954,
+   "h": 10.954
+  },
+  "bld_024": {
+   "type": "work_site",
+   "name": "工地24",
+   "x": 299.172,
+   "y": 284.71,
+   "w": 32.249,
+   "h": 24.807
+  }
+ },
+ "map": {
+  "format": "citysim.map",
+  "version": 1,
+  "world": {
+   "unit": "m",
+   "bounds": [
+    0,
+    0,
+    800,
+    600
+   ],
+   "grid": 1
+  },
+  "nodes": {
+   "n_001": {
+    "kind": "junction",
+    "xy": [
+     690,
+     330
+    ]
+   },
+   "n_002": {
+    "kind": "junction",
+    "xy": [
+     330,
+     330
+    ]
+   },
+   "n_003": {
+    "kind": "junction",
+    "xy": [
+     690,
+     480
+    ]
+   },
+   "n_004": {
+    "kind": "junction",
+    "xy": [
+     640,
+     480
+    ]
+   },
+   "n_005": {
+    "kind": "junction",
+    "xy": [
+     400,
+     330
+    ]
+   },
+   "n_006": {
+    "kind": "junction",
+    "xy": [
+     400,
+     240
+    ]
+   },
+   "n_007": {
+    "kind": "junction",
+    "xy": [
+     330,
+     240
+    ]
+   },
+   "n_008": {
+    "kind": "junction",
+    "xy": [
+     330,
+     330
+    ]
+   },
+   "n_009": {
+    "kind": "junction",
+    "xy": [
+     640,
+     480
+    ]
+   },
+   "n_010": {
+    "kind": "junction",
+    "xy": [
+     640,
+     380
+    ]
+   },
+   "n_011": {
+    "kind": "junction",
+    "xy": [
+     640,
+     330
+    ]
+   },
+   "n_017": {
+    "xy": [
+     402.29977442494834,
+     278.78
+    ],
+    "kind": "junction",
+    "door_of": "bld_016",
+    "door_index": 0
+   },
+   "n_025": {
+    "xy": [
+     327.7004734589209,
+     297.113
+    ],
+    "kind": "junction",
+    "door_of": "bld_024",
+    "door_index": 0
+   },
+   "n_026": {
+    "xy": [
+     428,
+     316
+    ],
+    "kind": "junction"
+   },
+   "n_027": {
+    "xy": [
+     428,
+     332
+    ],
+    "kind": "junction"
+   }
+  },
+  "edges": {
+   "e_002": {
+    "a": "n_001",
+    "b": "n_003",
+    "class": "local",
+    "geom": [
+     [
+      690,
+      330
+     ],
+     [
+      690,
+      480
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4
+   },
+   "e_004": {
+    "a": "n_002",
+    "b": "n_005",
+    "class": "local",
+    "geom": [
+     [
+      330,
+      330
+     ],
+     [
+      400,
+      330
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4
+   },
+   "e_006": {
+    "a": "n_006",
+    "b": "n_005",
+    "class": "local",
+    "geom": [
+     [
+      400,
+      240
+     ],
+     [
+      400,
+      330
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4
+   },
+   "e_007": {
+    "a": "n_006",
+    "b": "n_007",
+    "class": "local",
+    "geom": [
+     [
+      400,
+      240
+     ],
+     [
+      330,
+      240
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4
+   },
+   "e_008": {
+    "a": "n_007",
+    "b": "n_002",
+    "class": "local",
+    "geom": [
+     [
+      330,
+      240
+     ],
+     [
+      330,
+      330
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4
+   },
+   "e_009": {
+    "a": "n_002",
+    "b": "n_008",
+    "class": "local",
+    "geom": [
+     [
+      330,
+      330
+     ],
+     [
+      330,
+      330
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4
+   },
+   "e_010": {
+    "a": "n_003",
+    "b": "n_009",
+    "class": "local",
+    "geom": [
+     [
+      690,
+      480
+     ],
+     [
+      640,
+      480
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4
+   },
+   "e_011": {
+    "a": "n_009",
+    "b": "n_004",
+    "class": "local",
+    "geom": [
+     [
+      640,
+      480
+     ],
+     [
+      640,
+      480
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4
+   },
+   "e_012": {
+    "a": "n_010",
+    "b": "n_009",
+    "class": "local",
+    "geom": [
+     [
+      640,
+      380
+     ],
+     [
+      640,
+      480
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4
+   },
+   "e_014": {
+    "a": "n_011",
+    "b": "n_001",
+    "class": "local",
+    "geom": [
+     [
+      640,
+      330
+     ],
+     [
+      690,
+      330
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4
+   },
+   "e_015": {
+    "a": "n_010",
+    "b": "n_011",
+    "class": "local",
+    "geom": [
+     [
+      640,
+      380
+     ],
+     [
+      640,
+      330
+     ]
+    ],
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4
+   },
+   "e_028": {
+    "class": "local",
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4,
+    "a": "n_005",
+    "b": "n_027",
+    "geom": [
+     [
+      400,
+      330
+     ],
+     [
+      428,
+      332
+     ]
+    ]
+   },
+   "e_029": {
+    "class": "local",
+    "oneway": false,
+    "speed": 1.3,
+    "width": 4,
+    "a": "n_027",
+    "b": "n_011",
+    "geom": [
+     [
+      428,
+      332
+     ],
+     [
+      640,
+      330
+     ]
+    ]
+   },
+   "e_030": {
+    "a": "n_026",
+    "b": "n_027",
+    "class": "local",
+    "width": 4,
+    "speed": 1.3,
+    "oneway": false,
+    "geom": [
+     [
+      428,
+      316
+     ],
+     [
+      428,
+      332
+     ]
+    ]
+   }
+  },
+  "buildings": {
+   "bld_004": {
+    "center": [
+     650,
+     317.046
+    ],
+    "doors": [
+     [
+      650,
+      328
+     ]
+    ],
+    "floors": 1,
+    "rot": 0,
+    "size": [
+     21.909,
+     21.909
+    ],
+    "type": "shop_small"
+   },
+   "bld_008": {
+    "center": [
+     346.12,
+     234.127
+    ],
+    "doors": [
+     [
+      346.12,
+      238
+     ]
+    ],
+    "floors": 1,
+    "rot": 0,
+    "size": [
+     7.746,
+     7.746
+    ],
+    "type": "home_small"
+   },
+   "bld_009": {
+    "center": [
+     362.825,
+     234.127
+    ],
+    "doors": [
+     [
+      362.825,
+      238
+     ]
+    ],
+    "floors": 1,
+    "rot": 0,
+    "size": [
+     7.746,
+     7.746
+    ],
+    "type": "home_small"
+   },
+   "bld_010": {
+    "center": [
+     703.18,
+     370
+    ],
+    "doors": [
+     [
+      692,
+      370
+     ]
+    ],
+    "floors": 1,
+    "rot": -270,
+    "size": [
+     35.777,
+     22.361
+    ],
+    "type": "market_hall"
+   },
+   "bld_011": {
+    "center": [
+     363.371,
+     256.142
+    ],
+    "doors": [
+     [
+      363.371,
+      242
+     ],
+     [
+      363.371,
+      270.284
+     ],
+     [
+      342.158,
+      256.142
+     ],
+     [
+      384.584,
+      256.142
+     ]
+    ],
+    "floors": 1,
+    "rot": -180,
+    "size": [
+     42.426,
+     28.284
+    ],
+    "type": "public_plaza"
+   },
+   "bld_014": {
+    "center": [
+     703.767,
+     440
+    ],
+    "doors": [
+     [
+      692,
+      440
+     ]
+    ],
+    "floors": 1,
+    "rot": -270,
+    "size": [
+     30.594,
+     23.534
+    ],
+    "type": "factory_plant"
+   },
+   "bld_016": {
+    "type": "home_standard",
+    "center": [
+     407.777,
+     278.78
+    ],
+    "size": [
+     10.954451150103322,
+     10.954451150103322
+    ],
+    "rot": 90,
+    "doors": [],
+    "floors": 1
+   },
+   "bld_024": {
+    "type": "work_site",
+    "center": [
+     315.297,
+     297.113
+    ],
+    "size": [
+     32.2490309931942,
+     24.80694691784169
+    ],
+    "rot": -90,
+    "doors": [],
+    "floors": 1
+   }
   }
  }
 }

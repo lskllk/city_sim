@@ -102,11 +102,22 @@
     <nav>
       <button class="entry primary" id="mContinue">
         <b>继续</b><span id="mLast">最近一次的场景</span></button>
+      <button class="entry" id="mNew">
+        <b>新场景</b><span>画一张新地图 —— 空白开始，进编辑器</span></button>
+      <button class="entry" id="mOpen">
+        <b>打开场景</b><span>从 config/scenes/ 里挑一个</span></button>
       <button class="entry" id="mEditor">
-        <b>编辑器</b><span>地图 —— 默认打开最近编辑的那张</span></button>
+        <b>编辑器</b><span id="mEditorHint">打开最近编辑的那张</span></button>
     </nav>
   </div>
-  <div class="status" id="mStatus">正在连后端…</div>
+
+  <!-- 场景列表：点「打开场景」才展开 -->
+  <div class="card hide" id="mList">
+    <div class="listhead">config/scenes/ <button class="x" id="mListClose">✕</button></div>
+    <div id="mListBody"></div>
+  </div>
+
+  <div class="status" id="mStatus">没连后端（点「继续」会连）</div>
 </div>
 
 <script type="module" src="js/main.js"></script>

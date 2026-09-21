@@ -155,3 +155,16 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .glab{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#a49c8d;
   font-weight:600;margin-top:10px}
 #eSnapLabel{font-size:11px}
+
+/* 场景列表（点「打开场景」展开） */
+#mList{width:330px;margin-top:12px;padding:14px 16px}
+.listhead{display:flex;align-items:center;justify-content:space-between;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#a49c8d;
+  font-weight:600;margin-bottom:7px}
+.listhead .x{width:20px;height:20px;border-radius:50%;color:var(--ink2);font-size:12px}
+.listhead .x:hover{background:#00000010;color:var(--hi)}
+#mListBody button{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  width:100%;padding:8px 10px;border-radius:7px;font-size:13px;text-align:left}
+#mListBody button:hover{background:var(--paper2)}
+#mListBody .meta{font:10px ui-monospace,Consolas,monospace;color:var(--ink2)}
+#mListBody .now{box-shadow:inset 0 0 0 1px var(--hi);background:#b4552d0f}

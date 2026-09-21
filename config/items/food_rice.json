@@ -1,0 +1,18 @@
+{
+  "item_type": "food_rice",
+  "name": "米",
+  "tags": [
+    "edible",
+    "consumable",
+    "staple"
+  ],
+  "affordances": {
+    "hunger": 0.45
+  },
+  "price": 2.0,
+  "_note": "性价比之王。饱腹 0.45 只要 2 元，但要花 90 tick 煮 —— 省钱换时间。适合囤在家里。",
+  "duration_ticks": 90,
+  "attrs": {},
+  "stock": 1,
+  "shelf_life_ticks": 43200
+}

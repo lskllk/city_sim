@@ -1,0 +1,18 @@
+{
+  "item_type": "food_biscuit",
+  "name": "饼干",
+  "tags": [
+    "edible",
+    "consumable",
+    "snack"
+  ],
+  "affordances": {
+    "fun": 0.28
+  },
+  "price": 4.0,
+  "_note": "给 fun 不给 hunger。毛利型零食：贵一点、更好玩、但只放 20 天。",
+  "duration_ticks": 12,
+  "attrs": {},
+  "stock": 1,
+  "shelf_life_ticks": 28800
+}

@@ -1,0 +1,18 @@
+{
+  "item_type": "drink_coffee",
+  "name": "咖啡",
+  "tags": [
+    "edible",
+    "consumable",
+    "drink"
+  ],
+  "affordances": {
+    "energy": 0.25
+  },
+  "price": 6.0,
+  "_note": "唯一能【当场回精力】的货。家里的床免费，但你不在家的时候它就有价值。",
+  "duration_ticks": 12,
+  "attrs": {},
+  "stock": 1,
+  "shelf_life_ticks": 43200
+}

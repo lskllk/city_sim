@@ -1,0 +1,18 @@
+{
+  "item_type": "food_bread",
+  "name": "面包",
+  "tags": [
+    "edible",
+    "consumable",
+    "staple"
+  ],
+  "affordances": {
+    "hunger": 0.35
+  },
+  "price": 3.0,
+  "_note": "介于主食和即食之间：不用加工，但只放 4 天。",
+  "duration_ticks": 15,
+  "attrs": {},
+  "stock": 1,
+  "shelf_life_ticks": 5760
+}

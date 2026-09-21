@@ -1,0 +1,18 @@
+{
+  "item_type": "food_milk",
+  "name": "牛奶",
+  "tags": [
+    "edible",
+    "consumable",
+    "fresh"
+  ],
+  "affordances": {
+    "hunger": 0.25
+  },
+  "price": 4.0,
+  "_note": "★ 最考验进货节奏的货：只放 2 天。是「冰柜」存在的理由。",
+  "duration_ticks": 10,
+  "attrs": {},
+  "stock": 1,
+  "shelf_life_ticks": 2880
+}

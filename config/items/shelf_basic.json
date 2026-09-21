@@ -1,0 +1,16 @@
+{
+  "item_type": "shelf_basic",
+  "name": "货架",
+  "tags": [
+    "fixture",
+    "container",
+    "retail"
+  ],
+  "affordances": {},
+  "build_cost": 150.0,
+  "_note": "容器：货摆在它上面。卖光了货架还在 —— 所以「卖光了」不需要额外画贴图。",
+  "duration_ticks": 30,
+  "persist_empty": true,
+  "attrs": {},
+  "stock": 1
+}

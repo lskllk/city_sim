@@ -1,0 +1,20 @@
+{
+  "item_type": "stove_basic",
+  "name": "灶台",
+  "tags": [
+    "fixture",
+    "station",
+    "cook"
+  ],
+  "affordances": {},
+  "build_cost": 400.0,
+  "_note": "★ 把便宜的生食做成贵的即食（米 2 元 -> 简餐 5 元），但要占用一个人的时间。\n注意：「in/out/ticks」是【提案字段】，内核还不读它（见 docs/item-catalog.md §六）。",
+  "duration_ticks": 60,
+  "persist_empty": true,
+  "attrs": {
+    "in": "food_rice",
+    "out": "meal_simple",
+    "ticks": 60
+  },
+  "stock": 1
+}

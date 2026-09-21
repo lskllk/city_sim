@@ -1,0 +1,19 @@
+{
+  "item_type": "freezer_basic",
+  "name": "冰柜",
+  "tags": [
+    "fixture",
+    "container",
+    "retail",
+    "cold"
+  ],
+  "affordances": {},
+  "build_cost": 500.0,
+  "_note": "★ 延长易腐货的保质期 x3 -> 敢进牛奶/热菜 -> 打开「高毛利易腐」那条线。\n注意：「shelf_life_mult」是【提案字段】，内核还不读它（见 docs/item-catalog.md §六）。",
+  "duration_ticks": 30,
+  "persist_empty": true,
+  "attrs": {
+    "shelf_life_mult": 3.0
+  },
+  "stock": 1
+}

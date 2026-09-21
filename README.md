@@ -273,6 +273,7 @@ config/scenes/*.json  场景: 地点/建筑/NPC/物件/公司(含预置员工)/�
 | [**物品设计**](docs/item-catalog.md) | **卖什么 / 买什么 / 用什么**（65 件 · 三轴取舍 · 要新增的机制）|
 | [美术方向](docs/art-direction.md) | 画风 · 网格 · 资产交付 |
 | [`proto/ui-prototype.html`](proto/ui-prototype.html) | 参考实现（看得见摸得着的标准答案） |
+| **[游戏 wiki](wiki/gen.mjs)** | **从 `config/` 生成的玩法导航** —— `bash wiki/build.sh` → `wiki/out/index.html` |
 
 一句话：
 

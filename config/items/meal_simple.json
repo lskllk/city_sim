@@ -3,7 +3,8 @@
   "name": "简餐",
   "tags": [
     "edible",
-    "consumable"
+    "consumable",
+    "ready"
   ],
   "affordances": {
     "hunger": 0.5

@@ -1,0 +1,18 @@
+{
+  "item_type": "meal_hot_dish",
+  "name": "热菜",
+  "tags": [
+    "edible",
+    "consumable",
+    "ready"
+  ],
+  "affordances": {
+    "hunger": 0.7
+  },
+  "price": 8.0,
+  "_note": "★ 最好吃也最贵，但当天不卖掉就烂。高毛利的另一面是高风险。",
+  "duration_ticks": 25,
+  "attrs": {},
+  "stock": 1,
+  "shelf_life_ticks": 1440
+}

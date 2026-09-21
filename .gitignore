@@ -13,3 +13,6 @@ venv/
 
 # 美术构建产物（真源是 art/gen.mjs + style.json + characters.json）
 art/out/
+
+# wiki 构建产物（真源是 config/ + wiki/gen.mjs）
+wiki/out/

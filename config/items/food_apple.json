@@ -3,7 +3,8 @@
   "name": "苹果",
   "tags": [
     "edible",
-    "consumable"
+    "consumable",
+    "fresh"
   ],
   "affordances": {
     "hunger": 0.35

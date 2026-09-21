@@ -1,0 +1,18 @@
+{
+  "item_type": "drink_soda",
+  "name": "汽水",
+  "tags": [
+    "edible",
+    "consumable",
+    "drink"
+  ],
+  "affordances": {
+    "fun": 0.18
+  },
+  "price": 3.0,
+  "_note": "走量型零食：便宜、耐放（60 天）、但 fun 低。和饼干是两条路。",
+  "duration_ticks": 8,
+  "attrs": {},
+  "stock": 1,
+  "shelf_life_ticks": 86400
+}

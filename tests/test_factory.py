@@ -254,19 +254,18 @@ def test_reassigning_a_station_keeps_the_persons_own_wage(tmp_path) -> None:
 
 def test_wage_op_updates_only_that_person(tmp_path) -> None:
     """改薪只动一个人 —— 公司的默认时薪不跟着变。"""
-    from citysim.gateway.server import _admin_company
+    from citysim.game.actions import admin_company
     scene = _factory_scene()
     scene["companies"][0]["staff"] = ["a"]
     scene["companies"][0]["wage_per_hour"] = 3.0
-    w, _s, _r = _load(tmp_path, scene)
-    class R: world = w
-    res = _admin_company(R(), "wage", {"company": "org_plant", "npc": "a",
-                                      "wage": 6.5})
+    w, s, _rng = _load(tmp_path, scene)
+    res = admin_company(w, s, CFG, "wage", {"company": "org_plant", "npc": "a",
+                                            "wage": 6.5})
     assert res["ok"] is True
     assert dict(w.companies["org_plant"].staff)["a"] == 6.5
     assert w.npcs["a"].work["wage"] == 6.5
     assert w.companies["org_plant"].wage_per_hour == 3.0    # 公司默认值没动
     # 空/坏输入不该炸
-    bad = _admin_company(R(), "wage", {"company": "org_plant", "npc": "a",
-                                       "wage": ""})
+    bad = admin_company(w, s, CFG, "wage", {"company": "org_plant", "npc": "a",
+                                           "wage": ""})
     assert bad["ok"] is False and "数字" in bad["why"]

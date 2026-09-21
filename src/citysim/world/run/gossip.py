@@ -74,7 +74,9 @@ def _notify_due(world, systems, npc, ev, cfg) -> None:
 
     fact: dict = {}
     if ev is not None:
-        fact = dict(ev.slots or {})
+        # ★ 抄的是【传播真值】(fact), 不是措辞槽(slots) —— 价格是数字,
+        #   所以传到下一个人手里仍然是数字, "精度衰减"才有东西可衰减
+        fact = dict(ev.fact or {})
     item_id = str(fact.get("item_id", ""))
     if not item_id:
         # 刚发生的意外已经冒过泡了 —— 但【新闻要能带走】:
@@ -86,7 +88,6 @@ def _notify_due(world, systems, npc, ev, cfg) -> None:
         fact = dict(picked)
         item_id = str(picked.get("item_id", ""))
         fact["item"] = _item_name(world, item_id)
-        fact["now"] = _price_word(fact)
 
     tell_p = float(getattr(systems, "tell_p", 0.0))
     listen_p = float(getattr(systems, "listen_p", 1.0))
@@ -151,15 +152,14 @@ def _notify_due(world, systems, npc, ev, cfg) -> None:
                believe=float(fact.get("believe", 1.0)) * trust,
                source=npc.person_id)
     item_name = str(fact.get("item", _item_name(world, item_id)))
-    now = str(fact.get("now", _price_word(fact)))
+    now = fact.get("price", 0.0)          # 真值(数字); 说成"8块"是渲染的事
     # 听者头顶: “王伟说：简餐8块”（看得见是谁跟他说的）
     rep = _sem.report(tick, npc.person_id, item_id, item_name, now, who=npc.name)
-    _set_bubble(systems, other,
-                _sem.render(rep, speaker_name=npc.name,
-                            ticks_per_day=cfg.ticks_per_day),
-                "told", tick)
+    _set_bubble(systems, other, rep, "told", tick)
     # 说者头顶: “跟林静说：简餐8块”（另一半桥 —— 谁给谁说一眼看得出）
-    _set_bubble(systems, npc, _sem.say_line(other.name, item_name, now),
+    _set_bubble(systems, npc,
+                _sem.say(tick, npc.person_id, other.name, item_id, item_name,
+                         now),
                 "say", tick)
     world.bus.publish(world.bus.make(
         tick, "told", npc.person_id,
@@ -208,22 +208,21 @@ def _item_name(world, item_id: str) -> str:
 
 
 
-def _price_word(fact: Mapping[str, Any]) -> str:
-    price = float(fact.get("price", 0.0))
-    return _sem.money_word(price) if price > 0 else "有货"
 
-
-
-def _set_bubble(systems, npc, text: str, kind: str, now_tick: int) -> None:
+def _set_bubble(systems, npc, line, kind: str, now_tick: int) -> None:
     """给某人头顶挂一句话(瞬时, 到点自己消失)。
+
+    `line` 是 **SemanticEvent 或 str** —— 这里**不渲染**, 只挂上去。
+    渲染在下发快照时做(game/lines.render): 措辞是游戏层的事, 而且只给
+    "我在看的人" 渲染, 不白烧算力。
 
     【只在我关注的地方冒泡】: bubble_watch = 观察集(选中的那个人 + 选中建筑
     里的人)。满城同时冒泡 = 没有信息。None = 不限(无头工具/测试)。
     """
-    if not text:
+    if line is None or line == "":
         return
     watch = getattr(systems, "bubble_watch", None)
     if watch is not None and npc.person_id not in watch:
         return
     ttl = int(getattr(systems, "bubble_ttl", 40) or 40)
-    npc.set_bubble(text, int(now_tick) + ttl, kind)
+    npc.set_bubble(line, int(now_tick) + ttl, kind)

@@ -128,7 +128,7 @@ func _spawn(port: int) -> void:
 		var exe: String = cand["exe"]
 		var args := PackedStringArray(cand["pre"])
 		args.append_array(PackedStringArray(["-m", "uvicorn",
-			"citysim.gateway.server:app", "--port", str(port)]))
+			"citysim.game.server:app", "--port", str(port)]))
 		tried.append(exe)
 		var pid := OS.create_process(exe, args, open_console)
 		if pid <= 0:
@@ -145,7 +145,7 @@ func _spawn(port: int) -> void:
 	push_warning("[Backend] 自动启动失败(已尝试: %s)。请确认已安装 viz 依赖 "
 		% ", ".join(tried)
 		+ "(python -m pip install -e \".[viz]\"); 也可自己开终端跑 "
-		+ "python -m uvicorn citysim.gateway.server:app")
+		+ "python -m uvicorn citysim.game.server:app")
 
 
 func _port_open(host: String, port: int, timeout_ms: int) -> bool:

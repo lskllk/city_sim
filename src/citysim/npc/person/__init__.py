@@ -127,7 +127,9 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
         # —— “我此刻在干什么”: 纯自身状态推导(world 不再写 set_activity 进来) ——
         self._moving: bool = False    # 上次 try_move 成功了(在途; 到站后 step 里清)
         self._queued: bool = False    # 刚 try_buy 成功 → 在店里等柜台(异步成交)
-        self._bubble: tuple[str, int, str] | None = None   # (文字, 到期的 tick, 类型)
+        self._bubble: tuple[object, int, str] | None = None
+        # (SemanticEvent|str 待渲染的行, 到期的 tick, 类型) —— 存事件不存文本,
+        # 渲染在下发时做(见 gateway/snapshot._bubble_of → game/lines.render)
         # —— 语义层: 值得说的草稿 + 话题冷却 ——
         self._say_queue: list = []          # [SemanticEvent](未措辞的结构化真值)
         self._said_at: dict[str, int] = {}  # topic -> 上次说的 tick(别复读自己)
@@ -308,9 +310,10 @@ class Person(BodyMixin, GoalMixin, SpeechMixin,
         """
         self._failures.append(
             {"tick": now_tick, "target": target_id, "why": why})
-        # 失败也要有语义表达 —— “买不起/没货/被人占着”是玩家最该看见的一刻
+        # 失败也要有语义表达 —— “买不起/没货/被人占着”是玩家最该看见的一刻。
+        # 传【原始原因】而不是润好的词: 说人话是 game/lines.fail_word 的事。
         self._push_speech(semantic.denied(
-            now_tick, self.person_id, semantic.fail_word(why),
+            now_tick, self.person_id, why,
             topic="denied.%s" % target_id))
         row = self._mem.get(target_id)
         if row is not None:

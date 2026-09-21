@@ -17,9 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
-from citysim.core.types import intent_kind, intent_target  # noqa: E402
-from citysim.npc.person import signals_as_percent  # noqa: E402
-from citysim.sim.loop import run_tick  # noqa: E402
+from citysim import api  # noqa: E402
 from demo_scene import build_demo  # noqa: E402
 
 
@@ -31,7 +29,7 @@ def _hms(tick: int) -> tuple[int, int, int]:
 
 def _row(world, systems, pid: str) -> str:
     npc = world.npcs[pid]
-    pct = signals_as_percent(npc.signals)
+    pct = api.signals_as_percent(npc.signals)
     act = npc.current_activity or "idle"
     ai = systems.interaction.active.get(pid)
     if ai is not None:
@@ -39,8 +37,8 @@ def _row(world, systems, pid: str) -> str:
         ent = world.entities.get(ai.entity_id)
         act = f"{act}[{ent.name if ent else ai.entity_id}剩{rem}t]"
     it = npc.last_intent
-    li = intent_kind(it) if it else "?"
-    tgt = intent_target(it) if it else None
+    li = api.intent_kind(it) if it else "?"
+    tgt = api.intent_target(it) if it else None
     if tgt:
         li += f"({tgt})"
     trv = systems.travel.get(pid)
@@ -73,7 +71,7 @@ def main() -> None:
                                                log=True)
     marker = 0
     for t in range(1, a.ticks + 1):
-        run_tick(world, systems, cfg, rng_pool)
+        api.run_tick(world, systems, cfg, rng_pool)
         if getattr(a, "1x", False):
             time.sleep(0.5)
         if t % a.period == 0 or t == a.ticks:

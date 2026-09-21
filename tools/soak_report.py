@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
-from citysim.sim.loop import run_tick  # noqa: E402
+from citysim import api  # noqa: E402
 from demo_scene import build_demo  # noqa: E402
 from soak import SoakTracker, parse_decisions  # noqa: E402
 
@@ -21,7 +21,7 @@ def main(n_npc: int = 3, seed: int = 7, days: int = 7) -> None:
     init_entities = len(world.entities)
     tr = SoakTracker(world, systems)
     for _ in range(ticks):
-        run_tick(world, systems, cfg, rng_pool)
+        api.run_tick(world, systems, cfg, rng_pool)
         tr.observe()
     tr.decisions, tr.claims = parse_decisions(systems.log_lines)
 

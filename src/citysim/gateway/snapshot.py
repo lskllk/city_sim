@@ -139,7 +139,7 @@ def economy_block(world, systems) -> dict:
 
 
 def _npc_core(world, systems, pid: str, p,
-              ticks_per_day: int = 1440) -> dict:
+              ticks_per_day: int = 1440, render_line=None) -> dict:
     """NPC 的【渲染 + 列表】字段。
 
     刻意不含 intent/memory/events —— 它们会随时间越滚越大, 每帧发给每个人
@@ -175,7 +175,8 @@ def _npc_core(world, systems, pid: str, p,
         "plan": p.plan_snapshot(world.clock_tick, ticks_per_day),  # 时间线 viz
         # 气泡: 瞬时事件(~40 tick)。前端自己按 until 决定何时消失,
         # 所以过期不需要再推一帧“空气泡”。
-        "bubble": _bubble_of(p),
+        # 内核【不渲染】—— 措辞是游戏层的事(见 _bubble_of)。
+        "bubble": _bubble_of(p, render_line),
     }
 
 
@@ -185,24 +186,54 @@ def _active_view(p, act) -> dict:
     return {"entity": act.entity_id, "remaining": rem, "total": total}
 
 
-def _bubble_of(p) -> dict | None:
+def _event_dict(ev) -> dict:
+    """把语义事件摊成 JSON(给"自己渲染台词的人"看)。"""
+    return {"act": ev.act, "actor": ev.speaker, "topic": ev.topic,
+            "tick": int(ev.tick), "source": ev.source,
+            "slots": dict(ev.slots), "fact": dict(ev.fact)}
+
+
+def _bubble_of(p, render_line=None) -> dict | None:
+    """头顶的气泡。
+
+    **内核渲染一句话都不会。** Person 存的是【结构化事件】(或玩家动作回显
+    的 str), 这里只负责把它包装好送出去。台词模板是游戏层的资产
+    (`game/lines.py`) —— 内核不知道"苹果"该说成什么话。
+
+    两种送法(客户端看 `text` 优先):
+      · 给了 `render_line` → 服务器渲染好, 送 {text, until, kind}
+      · 没给           → 送 {event, until, kind}, 谁拿到谁自己渲染
+
+    空句子不给气泡(以前是 set_bubble 里提前拦掉的)。
+    """
     b = getattr(p, "bubble", None)
     if b is None:
         return None
-    text, until, kind = b
-    return {"text": text, "until": int(until), "kind": kind}
+    line, until, kind = b
+    out: dict = {"until": int(until), "kind": kind}
+    if isinstance(line, str):              # 玩家动作回显("老板, 来 3 份")
+        out["text"] = line
+        return out
+    if render_line is None:
+        out["event"] = _event_dict(line)
+        return out
+    text = render_line(line)
+    if not text:
+        return None
+    out["text"] = text
+    return out
 
 
 def _npc_base(world, systems, pid: str, p,
-              ticks_per_day: int = 1440) -> dict:
+              ticks_per_day: int = 1440, render_line=None) -> dict:
     """渲染/列表层(不含 memory/events/intent)。"""
-    return _npc_core(world, systems, pid, p, ticks_per_day)
+    return _npc_core(world, systems, pid, p, ticks_per_day, render_line)
 
 
 def _npc_rich(world, systems, pid: str, p,
-              ticks_per_day: int = 1440) -> dict:
+              ticks_per_day: int = 1440, render_line=None) -> dict:
     """【被选中】的那个: 额外带意图 / 记忆 / 事件(仅供 Inspector)。"""
-    d = _npc_core(world, systems, pid, p, ticks_per_day)
+    d = _npc_core(world, systems, pid, p, ticks_per_day, render_line)
     mem = p.memory_dicts()
     d["intent"] = _intent_detail(p.last_intent)
     d["memory"] = mem
@@ -217,7 +248,8 @@ def build_snapshot(world, systems, cfg, speed: str,
                    only: Collection[str] | None = None,
                    gone: dict | None = None,
                    rich: Collection[str] | None = None,
-                   entities_only: Collection[str] | None = None) -> dict:
+                   entities_only: Collection[str] | None = None,
+                   render_line=None) -> dict:
     """世界 → JSON 快照(纯读)。
 
     only: 只下发这些 npc_id(观察驱动)。None = 全量。
@@ -231,6 +263,10 @@ def build_snapshot(world, systems, cfg, speed: str,
 
     entities_only: 只下发这些 entity_id(物品几乎不变 → 变了才推);
     None = 全量。注意 shelf_index 仍按【全量】算, 所以货架位次不因过滤而错位。
+
+    render_line: **外部注入的台词渲染器** `fn(event) -> str`。
+    不传 → 气泡只带结构化事件(谁拿到谁自己渲染)。
+    内核【不内置】台词模板 —— 那是游戏层的资产(见 game/lines.py)。
     """
     tick = world.clock_tick
     rich_ids = rich or ()
@@ -238,10 +274,11 @@ def build_snapshot(world, systems, cfg, speed: str,
     for pid, p in sorted(world.npcs.items()):
         if only is not None and pid not in only:
             continue
-        npcs.append(_npc_rich(world, systems, pid, p, cfg.ticks_per_day)
+        npcs.append(_npc_rich(world, systems, pid, p, cfg.ticks_per_day,
+                              render_line)
                     if pid in rich_ids
                     else _npc_base(world, systems, pid, p,
-                                   cfg.ticks_per_day))
+                                   cfg.ticks_per_day, render_line))
     ents = [{"id": e.entity_id, "name": e.name, "loc": e.location_id,
              "item_type": e.item_type,
              "tags": sorted(e.tags), "stock": e.stock,
@@ -278,24 +315,24 @@ def build_snapshot(world, systems, cfg, speed: str,
     return out
 
 
-def build_npc_state(world, systems, pid: str) -> dict | None:
+def build_npc_state(world, systems, pid: str, render_line=None) -> dict | None:
     npc = world.npcs.get(pid)
     if npc is None:
         return None
     return {
-        **_npc_base(world, systems, pid, npc),
+        **_npc_base(world, systems, pid, npc, render_line=render_line),
         "intent": _intent_detail(npc.last_intent),
         "memory_counts": len(npc.memory_dicts()),
     }
 
 
-def build_npc_detail(world, systems, pid: str) -> dict | None:
+def build_npc_detail(world, systems, pid: str, render_line=None) -> dict | None:
     npc = world.npcs.get(pid)
     if npc is None:
         return None
     mem = npc.memory_dicts()
     return {
-        **_npc_base(world, systems, pid, npc),
+        **_npc_base(world, systems, pid, npc, render_line=render_line),
         "intent": _intent_detail(npc.last_intent),
         "memory": mem,
         "memory_counts": len(mem),
@@ -303,14 +340,14 @@ def build_npc_detail(world, systems, pid: str) -> dict | None:
     }
 
 
-def do_query(runner, args: dict) -> dict | None:
+def do_query(runner, args: dict, render_line=None) -> dict | None:
     what = args.get("what")
     if what == "npc_state":
         return build_npc_state(runner.world, runner.systems,
-                               args.get("npc_id", ""))
+                               args.get("npc_id", ""), render_line)
     if what == "npc_detail":
         return build_npc_detail(runner.world, runner.systems,
-                                args.get("npc_id", ""))
+                                args.get("npc_id", ""), render_line)
     return None
 
 

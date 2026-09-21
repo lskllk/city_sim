@@ -22,10 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
-from citysim.core.config import load_config                      # noqa: E402
-from citysim.gateway.scenarios import load_scene                  # noqa: E402
-from citysim.sim.loop import run_tick                             # noqa: E402
-from citysim.world.run.engine import act_class_of                     # noqa: E402
+from citysim import api                                          # noqa: E402
 
 
 def main(scene: str = "config/scenes/scene.json", days: int = 30) -> int:
@@ -33,8 +30,8 @@ def main(scene: str = "config/scenes/scene.json", days: int = 30) -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
-    cfg = load_config("config/sim.toml")
-    world, systems, rng = load_scene(scene)
+    cfg = api.load_config("config/sim.toml")
+    world, systems, rng = api.load_scene(scene)
     ticks = days * 1440
 
     # --- 期初快照 ---------------------------------------------------------
@@ -69,9 +66,9 @@ def main(scene: str = "config/scenes/scene.json", days: int = 30) -> int:
     world.bus.publish = hook
 
     for t in range(1, ticks + 1):
-        run_tick(world, systems, cfg, rng)
+        api.run_tick(world, systems, cfg, rng)
         for pid in sorted(world.npcs):
-            span[act_class_of(world, systems, pid)] += 1
+            span[api.act_class_of(world, systems, pid)] += 1
         for pid in list(alive):
             if pid in world.npcs:
                 p = world.npcs[pid]

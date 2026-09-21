@@ -125,18 +125,15 @@ def test_scene_per_person_wage(tmp_path) -> None:
 
 def test_admin_wage_changes_payroll_and_work(tmp_path) -> None:
     """运行期改某个人时薪: 公司的 payroll 和本人的 _work 要一起改。"""
-    from types import SimpleNamespace
-
-    from citysim.gateway.server import _admin_company
+    from citysim.game.actions import admin_company
     scene = _scene()
     scene["companies"][0]["staff"] = ["a"]
-    w, _s, _r = _load(tmp_path, scene)
-    r = SimpleNamespace(world=w)
-    res = _admin_company(r, "wage", {"company": "org_shop", "npc": "a",
-                                     "wage": 4.5})
+    w, s, _rng = _load(tmp_path, scene)
+    res = admin_company(w, s, CFG, "wage", {"company": "org_shop", "npc": "a",
+                                            "wage": 4.5})
     assert res["ok"] and dict(w.companies["org_shop"].staff) == {"a": 4.5}
     assert w.npcs["a"].work["wage"] == 4.5
     # 不是本公司员工 → 拒绝
-    bad = _admin_company(r, "wage", {"company": "org_shop", "npc": "nobody",
-                                     "wage": 1})
+    bad = admin_company(w, s, CFG, "wage", {"company": "org_shop", "npc": "nobody",
+                                            "wage": 1})
     assert not bad["ok"]

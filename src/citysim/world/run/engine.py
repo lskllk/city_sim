@@ -10,7 +10,6 @@ tick() 是【主循环】: 11 个步骤的编排(补货/招聘/工资/过期 →
 """
 from __future__ import annotations
 
-from citysim.npc import semantic as _sem
 from citysim.core.config import SimConfig
 from citysim.core.types import Idle, InteractionFailed, ItemGone, Plan, intent_kind, intent_target
 from citysim.world.run.drive import due_npcs
@@ -116,11 +115,8 @@ def tick(world, systems, cfg: SimConfig) -> None:
         # 同一 tick 冒出来才跟得上画面。【谁都可能冒】, 不看闲不闲。
         said = npc.pending_speech(world.clock_tick, SAY_COOLDOWN)
         if said is not None:
-            _set_bubble(systems, npc,
-                        _sem.render(said, speaker_name=npc.name,
-                                    ticks_per_day=cfg.ticks_per_day),
-                        said.act,
-                        world.clock_tick)
+            # 只挂【事件】—— 措辞在下发快照时做(game/lines.render)
+            _set_bubble(systems, npc, said, said.act, world.clock_tick)
         intent = decision.intent
         kind = intent_kind(intent)
         target = intent_target(intent)

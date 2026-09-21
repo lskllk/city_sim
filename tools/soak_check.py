@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
-from citysim.sim.loop import run_tick  # noqa: E402
+from citysim import api  # noqa: E402
 from demo_scene import build_demo  # noqa: E402
 from soak import SoakTracker  # noqa: E402
 
@@ -20,7 +20,7 @@ def check(seed: int) -> dict:
     world, systems, rng_pool, cfg = build_demo(n_npc=3, seed=seed, log=True)
     tr = SoakTracker(world, systems)
     for _ in range(TICKS):
-        run_tick(world, systems, cfg, rng_pool)
+        api.run_tick(world, systems, cfg, rng_pool)
         tr.observe()
     tr.load_decisions(systems.log_lines)
     res = {"eat_ok": True, "sleep_ok": True, "stuck": 0,

@@ -85,7 +85,7 @@ map:       原始路网（供后续观察器画路）
 
 ```bash
 set CITYSIM_SCENE=godot\samples\scene.json
-python -m uvicorn citysim.gateway.server:app --port 8765
+python -m uvicorn citysim.game.server:app --port 8765
 # （或直接开观察器: 它会自己拉起后端并带上该环境变量）
 ```
 

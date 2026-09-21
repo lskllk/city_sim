@@ -1,7 +1,11 @@
 """层隔离 CI 检查(挂进 pytest)。
 
-npc/ 不得 import citysim.world; legacy/(临时)除外。既以函数方式校验,
-也以子进程方式跑脚本验证退出码。
+`tools/check_imports.py` 管三条规矩:
+  ① npc/ 不得反向 import citysim.world
+  ② game/** 只许 import citysim.api(不许绕过门面摸内核深层)
+  ③ citysim.api 不得 import citysim.game
+
+既以函数方式校验, 也以子进程方式跑脚本验证退出码。
 """
 from __future__ import annotations
 
@@ -23,7 +27,7 @@ def _load_tool():
     return mod
 
 
-def test_no_npc_to_world_import() -> None:
+def test_no_layer_violations() -> None:
     assert _load_tool().check() == []
 
 

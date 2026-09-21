@@ -19,7 +19,7 @@
 "D:/Godot_v4.7.2-stable_win64.exe" --path D:/sim_city/godot
 
 # 或先手动起后端(此时 Godot 检测到端口已在, 不会重复启动)
-python -m uvicorn citysim.gateway.server:app --port 8765
+python -m uvicorn citysim.game.server:app --port 8765
 ```
 
 - 自动启动开关/参数(环境变量)：
@@ -29,7 +29,7 @@ python -m uvicorn citysim.gateway.server:app --port 8765
   - `CITYSIM_BACKEND_CONSOLE=1` 弹后端控制台窗口（**默认不弹**，后台隐藏运行，
     日志写仓库根 `.logs/backend.log`）
   - 前提：已装 viz 依赖 `python -m pip install -e ".[viz]"`(否则后端起不来,
-    会打印 warning；也可自己开一个终端 `python -m uvicorn citysim.gateway.server:app`)
+    会打印 warning；也可自己开一个终端 `python -m uvicorn citysim.game.server:app`)
 - WS 端点默认 `ws://127.0.0.1:8765/ws`，可用环境变量 `CITYSIM_WS_URL` 覆盖。
 - 无头集成冒烟：`CITYSIM_SMOKE=1` 时挂载 `scripts/debug/smoke_probe.gd`，
   轮换选中 NPC/实体/地点以走完 Inspector 构建路径。

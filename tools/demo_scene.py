@@ -8,21 +8,18 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-from citysim.core.config import load_config
-from citysim.npc.person import Identity, Person
-from citysim.sim.loop import attach_replay, make_systems
-from citysim.world.world import Entity, World
+from citysim import api
 
 ROOT = Path(__file__).resolve().parents[1]
-CFG = load_config(ROOT / "config" / "sim.toml")
+CFG = api.load_config(ROOT / "config" / "sim.toml")
 DEFAULT_NAMES = ["王二", "李四", "张三", "赵五", "钱六",
                  "孙七", "周八", "吴九", "郑十", "陈一"]
 
 
-def _entity(world: World, eid: str, name: str, tags, affordances,
+def _entity(world: api.World, eid: str, name: str, tags, affordances,
             duration_ticks: int, stock: int = 1,
-            attrs=None) -> Entity:
-    e = Entity(
+            attrs=None) -> api.Entity:
+    e = api.Entity(
         entity_id=eid, name=name, tags=set(tags),
         affordances=dict(affordances), duration_ticks=duration_ticks,
         location_id="home", stock=stock,
@@ -39,10 +36,10 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
 
     NPC 出生空白知识(单层, 靠观察落知识)。noise: 初始信号扰动幅度(破同相位)。
     """
-    world = World()
-    systems = make_systems(log=log)
+    world = api.World()
+    systems = api.make_systems(log=log)
     if log:
-        attach_replay(world, systems)
+        api.attach_replay(world, systems)
     rng_pool: dict[str, random.Random] = {}
 
     # ---- 家具/资源 ------------------------------------------------
@@ -61,7 +58,7 @@ def build_demo(n_npc: int = 6, seed: int = 7, log: bool = False,
     for i in range(n_npc):
         pid = f"npc_{i:02d}"
         r = random.Random(seed * 100 + i)
-        p = Person(identity=Identity(person_id=pid,
+        p = api.Person(identity=api.Identity(person_id=pid,
                                      name=names[i % len(names)]),
                    home="home")
         base = {"energy": r.uniform(0.4, 0.9), "hunger": r.uniform(0.3, 0.9),
@@ -84,10 +81,10 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
     床按人数足额(避免无关卡点), 把竞争集中在 厕所/餐盘 —— 让 claim 冲突与
     失败重选路径被真实压到。NPC 同初始状态 → 需求同步 → 高并发争抢。
     """
-    world = World()
-    systems = make_systems(log=log)
+    world = api.World()
+    systems = api.make_systems(log=log)
     if log:
-        attach_replay(world, systems)
+        api.attach_replay(world, systems)
     rng_pool: dict[str, random.Random] = {}
 
     # 稀缺食物: 散落餐盘(stock=2, 有限) —— 直接吃, 竞争焦点之一
@@ -102,7 +99,7 @@ def build_scarce(n_npc: int = 4, seed: int = 1, log: bool = False,
     names = names or DEFAULT_NAMES
     for i in range(n_npc):
         pid = f"npc_{i:02d}"
-        p = Person(identity=Identity(person_id=pid,
+        p = api.Person(identity=api.Identity(person_id=pid,
                                      name=names[i % len(names)]),
                    home="home")
         p.set_signals(energy=0.6, hunger=0.25, bladder=0.9, hp=1.0)

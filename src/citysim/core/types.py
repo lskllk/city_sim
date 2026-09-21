@@ -216,15 +216,23 @@ class SemanticEvent:
     """NPC 要把内部状态说成的一句话(结构化, 还没措辞)。
 
     铁律: 这里全是【真值】。谁说的 / 什么行为 / 什么强度 / 涉及谁 —— 一个都不许编。
-    随机只发生在【渲染措辞】那一步(见 npc/semantic.render)。
+    随机只发生在【渲染措辞】那一步(见 game/lines.render)。
+
+    两个 dict 分得很清, 不要混:
+      · slots —— 【措辞槽】: 已经变成词的片段(item/was/now/why/goal/who)。
+                  只给渲染器看, 传播时不带走。
+      · fact  —— 【传播真值】: item_id/price/stock/believe/tags/… 渲染不读。
+                  传闻抄的是它(见 world/run/gossip), 所以价格必须是【数字】
+                   —— 一旦早在 slots 里变成 "8块", 精度衰减就只能改字符串了。
     """
     event_id: str                     # sem<N>
     tick: int
     speaker: str                      # npc_id
     act: str                          # STATE/INTENT/SURPRISE/DOUBT/REPORT
     topic: str                        # 冷却 / 去重键 ^[a-z][a-z0-9_.]*$
-    slots: Mapping[str, Any] = field(default_factory=dict)   # 只放真值
+    slots: Mapping[str, Any] = field(default_factory=dict)   # 措辞槽(词)
     source: str = ""                  # "" = 自身; 否则 fact_id / 来源 npc_id
+    fact: Mapping[str, Any] = field(default_factory=dict)    # 传播真值(数字/码)
 
 
 @dataclass(frozen=True, slots=True)

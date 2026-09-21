@@ -1,6 +1,7 @@
 """npc/person/speech —— 说话: 气泡 / 语义草稿 / 惊讶检测
 
-攒「值得说的事」按优先级取; 措辞本身交给 npc/semantic。
+攒「值得说的事」按优先级取。**这里只造事件, 不拼句子** —— 措辞在
+`game/lines.render`(气泡到下发时才渲染)。
 
 我拥有的字段: _bubble, _said_at, _say_queue
 我只读的字段: _mem, _name_of
@@ -27,17 +28,14 @@ class SpeechMixin:
         row = self._mem.get(tid) if tid else None
         if row is None:
             return
-        words = semantic.GOAL_WORDS.get(row.afford)
-        if words is None:
-            return
-        # 措辞必须跟【真实驱动】一致: 不饿却去补货时说“家里快没吃的了”,
-        # 不许说“有点饿”。driver 由 brain 标注(见 _gather_candidates)。
-        goal = words[0]
+        # ★ 只给【真值】: 哪个需求 + 哪种缺(眼前/未来)。
+        #   词由 game/lines.GOAL_WORDS 给 —— 措辞必须跟真实驱动一致:
+        #   不饿却去补货时说“家里快没吃的了”, 不许说“有点饿”。
         trace = getattr(intent, "trace", None)
         feats = getattr(trace, "features", None) or {}
-        why = words[2] if feats.get("driver") == "future" else words[1]
+        driver = "future" if feats.get("driver") == "future" else "now"
         self._push_speech(semantic.intent(
-            tick, self.person_id, goal, why,
+            tick, self.person_id, str(row.afford), driver,
             topic=f"intent.{row.afford}"))
 
 
@@ -74,16 +72,20 @@ class SpeechMixin:
 
 
     # --- 气泡(显示态) --------------------------------------------------
-    def set_bubble(self, text: str, until_tick: int, kind: str) -> None:
+    def set_bubble(self, line, until_tick: int, kind: str) -> None:
         """头顶冒一句话(瞬时事件, 不是“当前在做什么”的状态)。
 
-        渲染层只负责画和到点消失; 台词由后端从真实内部状态长出(铁律)。
+        `line` 是 **SemanticEvent 或 str** —— 存的是【事件】, 不是渲染好的文本。
+        这样措辞就是纯粹的显示层的事(以后接 LLM / 换语言 / 前端自己渲染都不动内核),
+        而且 `fact` 里的价格仍是数字 —— "精度衰减"才有东西可衰减。
+
+        唯一的 str 例外: 玩家动作的回显("老板, 来 3 份"), 那不是语义事件。
         """
-        self._bubble = (str(text), int(until_tick), str(kind))
+        self._bubble = (line, int(until_tick), str(kind))
 
 
     @property
-    def bubble(self) -> tuple[str, int, str] | None:
+    def bubble(self) -> tuple[object, int, str] | None:
         return self._bubble
 
 
@@ -106,8 +108,7 @@ class SpeechMixin:
                     # 这是【刚亲眼看到】的事实 → 我自己信满(不是旧记忆里那个分)
                     "believe": 1.0, "source": ""}
             if abs(float(v.price) - float(row.price)) > 0.005:
-                was = semantic.money_word(row.price)
-                now = semantic.money_word(v.price)
+                # ★ 给【数字】而不是词: 到渲染时才按价格说成 "8块"
                 who = row.source
                 if who and who != self.person_id and not who.startswith("ad:"):
                     name = ""
@@ -116,11 +117,11 @@ class SpeechMixin:
                     if name:
                         out.append(semantic.doubt(
                             tick, self.person_id, v.entity_id, v.name, name,
-                            was, now, fact=fact, source=who))
+                            row.price, v.price, fact=fact, source=who))
                         continue
                 out.append(semantic.surprise(
                     tick, self.person_id, v.entity_id, v.name,
-                    was, now, fact=fact))
+                    row.price, v.price, fact=fact))
             elif int(row.stock) > 0 and int(v.stock) == 0:
                 out.append(semantic.surprise(
                     tick, self.person_id, v.entity_id, v.name,

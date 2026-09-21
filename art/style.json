@@ -163,6 +163,58 @@
         "seat": "#d8dfe2",
         "water": "#a9c3cf"
       }
+    },
+    "portrait": {
+      "bg": "#e8e2d4",
+      "bg2": "#d5cebd"
+    },
+    "attach": {
+      "_": "建筑附件：招牌底（留白给字）· 雨棚 · 烟囱 · 空调外机",
+      "sign_wood": {
+        "base": "#9a7a52",
+        "dark": "#7d6141",
+        "nail": "#6b5138"
+      },
+      "sign_metal": {
+        "base": "#9aa0a6",
+        "dark": "#7d8388",
+        "rivet": "#c2c7cb"
+      },
+      "sign_neon": {
+        "base": "#3a3f4a",
+        "dark": "#2c303a",
+        "glow": "#ecc579"
+      },
+      "sign_cloth": {
+        "base": "#c8b48a",
+        "dark": "#a89670",
+        "rod": "#8a7a66"
+      },
+      "sign_light": {
+        "base": "#f2ece0",
+        "dark": "#cfc7b6",
+        "glow": "#fdf3d8"
+      },
+      "sign_hand": {
+        "base": "#d9c9a8",
+        "dark": "#bcae8c",
+        "ink": "#6b6153"
+      },
+      "awning": [
+        "#b4552d",
+        "#4a7358",
+        "#5d7183"
+      ],
+      "chimney": {
+        "base": "#8a6a4e",
+        "dark": "#6f5540",
+        "flue": "#5a4a3c"
+      },
+      "ac": {
+        "base": "#b8b3a6",
+        "dark": "#9a9488",
+        "fan": "#7a7264"
+      }
     }
   },
   "building": {
@@ -224,5 +276,58 @@
     "roofStripeAlpha": 0.22,
     "roofStripeStep": 8,
     "pavingStep": 16
+  },
+  "atmosphere": {
+    "_": "时间色调 = 参数，不是贴图（改数值不用重画）。blend 用 CSS/Pixi 的混合模式。",
+    "time": [
+      {
+        "name": "dawn",
+        "label": "清晨",
+        "tint": "#f0b27a",
+        "blend": "soft-light",
+        "alpha": 0.3,
+        "window": 0.15
+      },
+      {
+        "name": "day",
+        "label": "白天",
+        "tint": "#ffffff",
+        "blend": "normal",
+        "alpha": 0.0,
+        "window": 0.0
+      },
+      {
+        "name": "dusk",
+        "label": "黄昏",
+        "tint": "#e08a58",
+        "blend": "multiply",
+        "alpha": 0.22,
+        "window": 0.45
+      },
+      {
+        "name": "night",
+        "label": "夜里",
+        "tint": "#1b2f52",
+        "blend": "multiply",
+        "alpha": 0.42,
+        "window": 1.0
+      },
+      {
+        "name": "late",
+        "label": "深夜",
+        "tint": "#0d1c36",
+        "blend": "multiply",
+        "alpha": 0.58,
+        "window": 0.85
+      }
+    ],
+    "weather": {
+      "rain_light": {
+        "alpha": 0.14
+      },
+      "rain_heavy": {
+        "alpha": 0.26
+      }
+    }
   }
 }

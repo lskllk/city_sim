@@ -5,19 +5,33 @@
   "hairStyles": {
     "short": {
       "label": "短发",
+      "shape": "short",
       "color": "#3a3128"
     },
     "long": {
       "label": "长发",
+      "shape": "long",
       "color": "#4a3f36"
     },
     "white": {
       "label": "白发",
+      "shape": "short",
       "color": "#d8d2c6"
     },
     "hat": {
       "label": "帽子",
+      "shape": "hat",
       "color": "#6b7f9a"
+    },
+    "bald": {
+      "label": "秃",
+      "shape": "bald",
+      "color": "#3a3128"
+    },
+    "bun": {
+      "label": "发髻",
+      "shape": "bun",
+      "color": "#3a3128"
     }
   },
   "accessories": {

@@ -487,6 +487,211 @@ function items() {
   }
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════════
+   三·六、头像（正面胸像）★
+   判据：屏幕空间、给面板用（关系页 / 常客墙 / 打听 / 账本）。
+   和世界小人是【同一份角色数据】—— 所以同一个人在两处长得一致。
+   ══════════════════════════════════════════════════════════════════════════ */
+function portrait(ch) {
+  const W = 32, H = 32, cx = 16;
+  const Q = P.portrait, skin = SKINS[ch.skin] || SKINS[0];
+  const hair = C.hairStyles[ch.hair] || C.hairStyles.short;
+  const hs = hair.shape || "short", top = ch.top || "#7a8f6a";
+  const OL = `stroke="#00000028" stroke-width="${u(1)}"`;
+  let b = "";
+  // 底
+  b += rrect(0, 0, W, H, 4, Q.bg);
+  b += rrect(0, 0, W, H, 4, "none", `stroke="${Q.bg2}" stroke-width="${u(1)}"`);
+  // 肩 / 胸（下缘出画）
+  b += `<path d="M 3.5 32 C 3.5 24 9 20.6 16 20.6 C 23 20.6 28.5 24 28.5 32 Z" fill="${top}"/>`;
+  b += `<path d="M 3.5 32 C 3.5 24 9 20.6 16 20.6 C 23 20.6 28.5 24 28.5 32 Z" fill="none" ${OL}/>`;
+  if (ch.acc === "apron")
+    b += rrect(11, 25, 10, 7, 1.4, "#f0ece2", `opacity="0.9"`);
+  // 脖子
+  b += rrect(12.4, 17.4, 7.2, 5.4, 1.6, skin);
+  b += rrect(12.4, 17.4, 7.2, 5.4, 1.6, "none", `stroke="#00000022" stroke-width="${u(1)}"`);
+  // 头 + 耳
+  b += circ(cx - 8.1, 13.6, 1.7, skin) + circ(cx + 8.1, 13.6, 1.7, skin);
+  b += circ(cx, 13, 8.2, skin);
+  // 头发
+  if (hs === "hat") {
+    b += `<path d="M 7.2 8.6 A 8.8 8.8 0 0 1 24.8 8.6 Z" fill="${hair.color}"/>`;
+    b += rrect(5.4, 8.2, 21.2, 2.4, 1.2, hair.color);
+    b += rrect(5.4, 8.2, 21.2, 1, 0.5, "#00000022");
+  } else if (hs === "bald") {
+    b += rrect(6.8, 12.4, 2.2, 5.4, 1.1, hair.color, `opacity="0.9"`);
+    b += rrect(23, 12.4, 2.2, 5.4, 1.1, hair.color, `opacity="0.9"`);
+  } else {
+    b += `<path d="M 7.5 13.4 A 8.5 8.5 0 0 1 24.5 13.4 Z" fill="${hair.color}"/>`;
+    if (hs === "short") b += rrect(7.3, 9, 2.6, 5.2, 1.3, hair.color);
+    if (hs === "bun") b += circ(cx, 3.6, 3.2, hair.color);
+    if (hs === "long") {
+      b += rrect(5.6, 11, 3.4, 11, 1.7, hair.color);
+      b += rrect(23, 11, 3.4, 11, 1.7, hair.color);
+    }
+    b += `<path d="M 7.5 13.4 A 8.5 8.5 0 0 1 24.5 13.4 Z" fill="none" ${OL}/>`;
+  }
+  // 眉 / 眼 / 嘴
+  b += line(11, 12.2, 14, 11.7, "#3a3128", 0.9, `opacity="0.8"`);
+  b += line(21, 12.2, 18, 11.7, "#3a3128", 0.9, `opacity="0.8"`);
+  b += ell(13, 14.6, 1.5, 1.7, "#ffffff");
+  b += ell(19, 14.6, 1.5, 1.7, "#ffffff");
+  b += circ(13.1, 14.7, 0.95, "#2b2620");
+  b += circ(19.1, 14.7, 0.95, "#2b2620");
+  b += `<path d="M 13.6 19 Q 16 20.6 18.4 19" fill="none" stroke="#8a5a4a" `
+     + `stroke-width="${u(1)}" stroke-linecap="round"/>`;
+  if (ch.acc === "glasses") {
+    b += rrect(10.4, 13.2, 5.4, 3, 1, "none", `stroke="#3a3128" stroke-width="${u(1)}"`);
+    b += rrect(16.2, 13.2, 5.4, 3, 1, "none", `stroke="#3a3128" stroke-width="${u(1)}"`);
+    b += line(15.8, 14.2, 16.2, 14.2, "#3a3128", 1);
+  }
+  return b;
+}
+function portraits() {
+  for (const ch of C.characters) {
+    emit(`portraits/${ch.id}.svg`, svg(32, 32, portrait(ch)));
+    add(`pt_${ch.id}`, `portraits/${ch.id}.svg`, 32, 32, "topleft", "UI",
+        ["portrait", ch.id]);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   三·七、建筑附件 ★ 复用到任意建筑上（招牌底 / 雨棚 / 烟囱 / 空调外机）
+   招牌上的【字不进贴图】—— 这里只给底，字由代码画（编辑器能改名）。
+   招牌按【九宫格】交付：middle 可横向拉伸适应任意宽度。
+   ══════════════════════════════════════════════════════════════════════════ */
+const SIGNS = [
+  { id: "wood",  w: 48, h: 16, slice: { l: 7, r: 7, t: 5, b: 5 } },
+  { id: "metal", w: 48, h: 14, slice: { l: 6, r: 6, t: 4, b: 4 } },
+  { id: "neon",  w: 48, h: 16, slice: { l: 9, r: 9, t: 5, b: 5 } },
+  { id: "cloth", w: 48, h: 18, slice: { l: 5, r: 5, t: 6, b: 5 } },
+  { id: "light", w: 48, h: 16, slice: { l: 8, r: 8, t: 5, b: 5 } },
+  { id: "hand",  w: 48, h: 14, slice: { l: 5, r: 5, t: 4, b: 4 } },
+];
+function signBody(s) {
+  const A = P.attach["sign_" + s.id], W = s.w, H = s.h;
+  const inner = { x: 3, y: 3, w: W - 6, h: H - 6 };   // ★ 留白区：字画在这里
+  let b = "";
+  if (s.id === "wood") {
+    b += rrect(0, 0, W, H, 2, A.base);
+    b += line(0, 0, W, 0, A.dark, 1.4);
+    b += line(0, H - 1, W, H - 1, A.dark, 1.4);
+    for (let x = 8; x < W - 6; x += 9) b += line(x, 1.5, x, H - 1.5, A.dark, 1, `opacity="0.35"`);
+    b += circ(3.6, 3.6, 0.9, A.nail) + circ(W - 3.6, H - 3.6, 0.9, A.nail);
+  } else if (s.id === "metal") {
+    b += rrect(0, 0, W, H, 1.5, A.base);
+    b += rrect(0.7, 0.7, W - 1.4, H - 1.4, 1, "none", `stroke="${A.dark}" stroke-width="${u(1)}"`);
+    [3.4, W - 3.4].forEach(x => [3.4, H - 3.4].forEach(y => { b += circ(x, y, 0.8, A.rivet); }));
+  } else if (s.id === "neon") {
+    b += rrect(0, 0, W, H, 2.5, A.base);
+    b += rrect(2.4, 2.4, W - 4.8, H - 4.8, 2, "none",
+               `stroke="${A.glow}" stroke-width="${u(1.6)}" opacity="0.9"`);
+    b += rrect(4.6, 4.2, W - 9.2, H - 8.4, 1.5, "none",
+               `stroke="${A.glow}" stroke-width="${u(0.8)}" opacity="0.35"`);
+  } else if (s.id === "cloth") {
+    b += rrect(0, 3, W, H - 3, 1, A.base);
+    b += rect(0, 3, W, H - 3, "none", `stroke="${A.dark}" stroke-width="${u(1)}"`);
+    b += rrect(0, 0, W, 3.4, 1.4, A.rod);
+    b += `<path d="M 0 ${u(H)} q ${u(3)} ${u(-3)} ${u(6)} 0 q ${u(3)} ${u(-3)} ${u(6)} 0
+         q ${u(3)} ${u(-3)} ${u(6)} 0 q ${u(3)} ${u(-3)} ${u(6)} 0 q ${u(3)} ${u(-3)} ${u(6)} 0
+         q ${u(3)} ${u(-3)} ${u(6)} 0 q ${u(3)} ${u(-3)} ${u(6)} 0 q ${u(3)} ${u(-3)} ${u(6)} 0
+         L ${u(W)} ${u(H - 3)} L 0 ${u(H - 3)} Z" fill="${A.base}"/>`;
+  } else if (s.id === "light") {
+    b += rrect(0, 0, W, H, 2, A.dark);
+    b += rrect(2, 2, W - 4, H - 4, 1.5, A.base);
+    b += rrect(2, 2, W - 4, 2.4, 1, A.glow, `opacity="0.8"`);
+  } else {
+    b += rrect(0.6, 0.6, W - 1.2, H - 1.2, 1.5, A.base);
+    b += rrect(0.6, 0.6, W - 1.2, H - 1.2, 1.5, "none",
+               `stroke="${A.dark}" stroke-width="${u(1.2)}"`);
+    b += line(5, H - 2.6, W - 4, H - 2.2, A.ink, 0.9, `opacity="0.5"`);
+  }
+  return { body: b, inner };
+}
+function attachments() {
+  for (const s of SIGNS) {
+    const { body, inner } = signBody(s);
+    emit(`attach/sign_${s.id}.svg`, svg(s.w, s.h, body));
+    // 九宫格：把 slice 写进清单，前端拉伸 middle 就能适配任意宽度
+    const a = { name: `sign_${s.id}`, file: `attach/sign_${s.id}.svg`,
+                w: s.w, h: s.h, anchor: "center", layer: "L3",
+                tags: ["attach", "sign"], slice: s.slice,
+                text: { x: inner.x, y: inner.y, w: inner.w, h: inner.h } };
+    manifest.push(a);
+  }
+  // 雨棚 ×3（挂在门上沿）
+  P.attach.awning.forEach((col, i) => {
+    const W = 46, H = 16;
+    let b = "";
+    b += rrect(1, 0, W - 2, 9, 1.5, col);
+    for (let x = 5; x < W - 4; x += 7) b += rect(x, 0, 3.4, 9, "#ffffff", `opacity="0.22"`);
+    b += `<path d="M 1 ${u(9)} q ${u(3.8)} ${u(4)} ${u(7.6)} 0 q ${u(3.8)} ${u(4)} ${u(7.6)} 0
+         q ${u(3.8)} ${u(4)} ${u(7.6)} 0 q ${u(3.8)} ${u(4)} ${u(7.6)} 0 q ${u(3.8)} ${u(4)} ${u(7.6)} 0
+         q ${u(3.8)} ${u(4)} ${u(7.6)} 0 L ${u(W - 1)} ${u(9)} Z" fill="${col}"/>`;
+    b += rect(1, 0, W - 2, 9.6, "none", `stroke="#00000030" stroke-width="${u(1)}"`);
+    b += line(5, 12.6, 5, 15.4, "#00000033", 1.2) + line(W - 5, 12.6, W - 5, 15.4, "#00000033", 1.2);
+    emit(`attach/awning_${i + 1}.svg`, svg(W, H, b));
+    add(`awning_${i + 1}`, `attach/awning_${i + 1}.svg`, W, H, "bottomcenter", "L3",
+        ["attach", "awning"]);
+  });
+  // 烟囱 ×2
+  [["1", 15, 15], ["2", 18, 13]].forEach(([k, W, H]) => {
+    const Cc = P.attach.chimney;
+    let b = rrect(0, 0, W, H, 1.5, Cc.base);
+    b += rect(0, 0, W, H, "none", `stroke="${Cc.dark}" stroke-width="${u(1)}"`);
+    b += rrect(W * 0.22, H * 0.22, W * 0.56, H * 0.56, 1, Cc.flue);
+    b += line(0, H - 1.5, W, H - 1.5, Cc.dark, 1.2, `opacity="0.7"`);
+    emit(`attach/chimney_${k}.svg`, svg(W, H, b));
+    add(`chimney_${k}`, `attach/chimney_${k}.svg`, W, H, "center", "L3",
+        ["attach", "chimney"]);
+  });
+  // 空调外机 ×2
+  [["1", 22, 18], ["2", 18, 15]].forEach(([k, W, H]) => {
+    const A = P.attach.ac;
+    let b = rrect(0, 0, W, H, 1.5, A.base);
+    b += rect(0, 0, W, H, "none", `stroke="${A.dark}" stroke-width="${u(1)}"`);
+    b += circ(W * 0.34, H * 0.5, Math.min(W, H) * 0.26, A.dark);
+    b += circ(W * 0.34, H * 0.5, Math.min(W, H) * 0.19, A.fan);
+    for (let i = 0; i < 3; i++)
+      b += line(W * 0.62, H * (0.3 + i * 0.2), W - 2.5, H * (0.3 + i * 0.2), A.dark, 1.2,
+                `opacity="0.7"`);
+    emit(`attach/ac_${k}.svg`, svg(W, H, b));
+    add(`ac_${k}`, `attach/ac_${k}.svg`, W, H, "center", "L3", ["attach", "ac"]);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   三·八、存量刻度条 ★
+   决定 ③：货的存量用【一条刻度】表示，不用数字。
+   和"精度区间条 / 常客热度条"共用同一套视觉语言（轨道是资产，填充是代码）。
+   ══════════════════════════════════════════════════════════════════════════ */
+function bars() {
+  [["lg", 46, 6, 4], ["sm", 28, 4, 3]].forEach(([k, W, H, r]) => {
+    let b = rrect(0, 0, W, H, r, "#00000012");
+    b += rrect(0, 0, W, H, r, "none", `stroke="#00000014" stroke-width="${u(1)}"`);
+    emit(`fx/bar_track_${k}.svg`, svg(W, H, b));
+    add(`bar_track_${k}`, `fx/bar_track_${k}.svg`, W, H, "topleft", "L6",
+        ["bar", "track", k]);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   三·九、雨（时间色调是参数，不是贴图 —— 见 manifest.atmosphere）
+   ══════════════════════════════════════════════════════════════════════════ */
+function rain() {
+  [["light", 5, 0.30], ["heavy", 9, 0.44]].forEach(([k, step, alpha]) => {
+    let d = "";
+    for (let x = -30; x < 64; x += step)
+      d += line(x, 0, x + 22, 64, "#dfeaf5", 1, `opacity="${alpha}"`);
+    let body = rect(0, 0, 64, 64, "#00000000");
+    body += `<defs>${pat("r" + k, 64, 64, d)}</defs>` + rect(0, 0, 64, 64, "url(#r" + k + ")");
+    emit(`atm/rain_${k}.svg`, svg(64, 64, body));
+    add(`rain_${k}`, `atm/rain_${k}.svg`, 64, 64, "topleft", "L5",
+        ["atmosphere", "weather", "rain"]);
+  });
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    四、建筑（屋顶 + 立面揭示 + 门口 + 招牌位）
    规则②：底部留 facadeReveal 的立面 = 假厚度。这是"看着立体"的全部秘密。
@@ -608,19 +813,30 @@ function person(ch, dir, frame) {
   const hy = by - B.shoulderRy * 0.55 - B.headR * 0.9;
   b += circ(cx + headShift, hy, B.headR, skin);
   // 头发：down = 帽子形；up = 整个后脑勺；side = 往后偏
+  // 头发：shape 决定形状、color 决定颜色（"白发"是 shape=short + 白）
+  const hs = hair.shape || "short";
   if (dir === "up") {
     b += circ(cx, hy, B.headR + 0.35, hair.color);
   } else {
     const hx = dir === "side" ? cx - B.headR * 0.55 : cx;
-    b += `<path d="M ${u(hx - B.headR - 0.35)} ${u(hy + 0.6)} `
-       + `A ${u(B.headR + 0.35)} ${u(B.headR + 0.35)} 0 0 1 `
-       + `${u(hx + B.headR + 0.35)} ${u(hy + 0.6)} Z" fill="${hair.color}"/>`;
-    if (ch.hair === "long")
+    if (hs !== "bald")
+      b += `<path d="M ${u(hx - B.headR - 0.35)} ${u(hy + 0.6)} `
+         + `A ${u(B.headR + 0.35)} ${u(B.headR + 0.35)} 0 0 1 `
+         + `${u(hx + B.headR + 0.35)} ${u(hy + 0.6)} Z" fill="${hair.color}"/>`;
+    if (hs === "long")
       b += rrect(cx - B.headR - 1, hy - 0.5, (B.headR + 1) * 2, B.headR * 1.5, 1.4,
                  hair.color, `opacity="0.95"`);
-    if (ch.hair === "hat")
+    if (hs === "bun")
+      b += circ(hx, hy - B.headR - 1.1, 1.9, hair.color);
+    if (hs === "hat")
       b += rrect(cx - B.headR - 1.6, hy - B.headR - 0.6, (B.headR + 1.6) * 2, 2.2, 1,
                  hair.color);
+    if (hs === "bald") {
+      b += rrect(cx - B.headR - 0.4, hy + B.headR * 0.2, 1.6, B.headR * 0.7, 0.7,
+                 hair.color, `opacity="0.85"`);
+      b += rrect(cx + B.headR - 1.2, hy + B.headR * 0.2, 1.6, B.headR * 0.7, 0.7,
+                 hair.color, `opacity="0.85"`);
+    }
   }
   // 眼睛
   if (dirEyes) {
@@ -736,14 +952,19 @@ groundTiles();
 roadBits();
 props();
 items();
+attachments();
+bars();
+rain();
 const bldJson = BUILDINGS.map(building);
 const who = people();
+portraits();
 fx();
 checkCharacters();
 
 fs.writeFileSync(path.join(OUT, "manifest.json"),
   JSON.stringify({ style: "art/style.json", grid: G, authorScale: PX,
-                   logicalSize: true, buildings: bldJson, assets: manifest }, null, 1));
+                   logicalSize: true, buildings: bldJson,
+                   atmosphere: S.atmosphere, assets: manifest }, null, 1));
 
 const byLayer = {};
 for (const a of manifest) byLayer[a.layer] = (byLayer[a.layer] || 0) + 1;

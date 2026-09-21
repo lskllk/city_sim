@@ -19,6 +19,7 @@ const ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)));
 const S = JSON.parse(fs.readFileSync(path.join(ROOT, "style.json"), "utf8"));
 const C = JSON.parse(fs.readFileSync(path.join(ROOT, "characters.json"), "utf8"));
 const M = JSON.parse(fs.readFileSync(path.join(ROOT, "out/manifest.json"), "utf8"));
+const AT = M.atmosphere || { time: [] };
 const G = S.grid, PX = S.authorScale, SH = S.building.shadow;
 const charIds = C.characters.map(c => c.id);
 const charName = Object.fromEntries(C.characters.map(c => [c.id, c.name]));
@@ -75,6 +76,7 @@ body.grid .scene{background-image:
   linear-gradient(#00000026 1px,transparent 1px),
   linear-gradient(90deg,#00000026 1px,transparent 1px),url(ground/grass.svg);
   background-size:${G}px ${G}px,${G}px ${G}px,${G}px ${G}px}
+.tone{position:absolute;inset:0;pointer-events:none;border-radius:inherit}
 body.grid .room{background-image:
   linear-gradient(#00000018 1px,transparent 1px),
   linear-gradient(90deg,#00000018 1px,transparent 1px);background-size:${G}px ${G}px}
@@ -110,7 +112,12 @@ section("s_items",  function(a){ return a.tags.indexOf("item")>=0 && a.tags.inde
                                       && a.tags.indexOf("empty")<0; }, 1.5);
 section("s_empty",  function(a){ return a.tags.indexOf("empty")>=0; }, 1.5);
 section("s_icons",  function(a){ return a.tags.indexOf("icon")>=0; }, 3);
-section("s_fx",     function(a){ return a.layer==="L6" && a.tags.indexOf("icon")<0; });
+section("s_fx",     function(a){ return a.layer==="L6" && a.tags.indexOf("icon")<0
+                                      && a.tags.indexOf("bar")<0; });
+section("s_pt",     function(a){ return a.tags.indexOf("portrait")>=0; }, 1.6);
+section("s_attach", function(a){ return a.tags.indexOf("attach")>=0; }, 1.2);
+section("s_bar",    function(a){ return a.tags.indexOf("bar")>=0; }, 1.6);
+section("s_atm",    function(a){ return a.tags.indexOf("atmosphere")>=0; }, 1.6);
 
 /* 人物：一行一个角色，三向各一个动画 */
 (function(){
@@ -166,6 +173,7 @@ section("s_fx",     function(a){ return a.layer==="L6" && a.tags.indexOf("icon")
   im("people/n_li_down_idle.svg",   228, 236, 18, 24);
   im("people/n_sun_side_idle.svg",  180, 228, 18, 24);
   im("people/me_down_idle.svg",     330, 258, 18, 24);
+  s.appendChild(el("div","tone")).id = "toneScene";
 })();
 
 /* ── 组合场景 ②：室内一角（★ 物品必须和人摆在一起才看得出大小）── */
@@ -180,6 +188,7 @@ section("s_fx",     function(a){ return a.layer==="L6" && a.tags.indexOf("icon")
       r.appendChild(m); return m; }
     function person(cid,dir,x,y){ return im("people/"+cid+"_"+dir+"_idle.svg", x, y, 18, 24); }
     place(im, person);
+    r.appendChild(el("div","tone"));
     wrap.appendChild(r);
     wrap.appendChild(el("div","cap", title));
     host.appendChild(wrap);
@@ -232,6 +241,33 @@ document.querySelectorAll("[data-z]").forEach(function(b){
     });
   };
 });
+${"" /* 占位，保持结构清晰 */}
+var tones = ${JSON.stringify(AT.time || [])};
+function applyTone(i){
+  var tn = tones[i];
+  document.querySelectorAll(".tone").forEach(function(e){
+    e.style.background = tn.tint;
+    e.style.mixBlendMode = tn.blend === "normal" ? "normal" : tn.blend;
+    e.style.opacity = tn.alpha;
+  });
+  document.querySelectorAll(".lit").forEach(function(e){
+    e.style.visibility = tn.window > 0.3 ? "visible" : "hidden";
+    e.style.opacity = tn.window;
+  });
+  document.body.classList.toggle("night", tn.window > 0.6);
+}
+(function(){
+  var host = document.getElementById("tones");
+  tones.forEach(function(tn, i){
+    var b = el("button","", tn.label);
+    b.onclick = function(){
+      host.querySelectorAll("button").forEach(function(x){ x.classList.remove("on"); });
+      b.classList.add("on"); applyTone(i);
+    };
+    host.appendChild(b);
+    if (tn.name === "day") { b.classList.add("on"); applyTone(i); }
+  });
+})();
 document.getElementById("bGrid").onclick = function(){
   this.classList.toggle("on"); document.body.classList.toggle("grid"); };
 document.getElementById("bNight").onclick = function(){
@@ -252,6 +288,8 @@ const HTML = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
       <button data-z="2">2×</button><button data-z="3">3×</button>
  <button id="bGrid">格子</button><button id="bNight">夜色</button>
  <button id="bLb" class="on">标签</button>
+ <span style="flex:1"></span>
+ <span style="color:#7a7264;font-size:12px">时间</span><span id="tones" style="display:flex;gap:4px"></span>
 </header>
 
 <h2>组合场景 <span>· 资产放在一起才知道搭不搭</span></h2>
@@ -270,6 +308,21 @@ const HTML = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 
 <h3>物品图标 <span style="color:#a49c8d">· 正视 16×16，给面板（笔记/账本/气泡）用</span></h3>
 <div class="row" id="s_icons"></div>
+
+<h2>头像 <span>· 正面胸像 32×32 · 给面板用（关系页/常客墙/打听/账本）</span></h2>
+<div class="hint">和世界小人是同一份角色数据 —— 同一个人在两处长得一致</div>
+<div class="row" id="s_pt"></div>
+
+<h2>建筑附件 <span>· 能挂到任意建筑上</span></h2>
+<div class="hint">招牌底 6 种（九宫格，中段可拉伸）· 雨棚 3 · 烟囱 2 · 空调外机 2 ——
+招牌【留白】，字由代码画（编辑器能改名）</div>
+<div class="row" id="s_attach"></div>
+
+<h2>刻度条与氛围 <span>· 存量用条不用数字 · 时间色调是参数不是贴图</span></h2>
+<div class="hint">刻度条：轨道是资产、填充是代码（和精度区间条、常客热度条共用一套语言）</div>
+<div class="row" id="s_bar"></div>
+<div class="hint">雨（可平铺）。时间色调 5 档见顶栏「时间」—— 点一下看整个场景的变化</div>
+<div class="row" id="s_atm"></div>
 
 <h2>地面 <span>· 可平铺</span></h2><div class="row" id="s_ground"></div>
 <h2>道路 <span>· 路面是平涂，这里给的是纹理味</span></h2><div class="row" id="s_road"></div>

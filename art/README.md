@@ -58,12 +58,14 @@ style.json         ★ 画风真源：网格 / 色板 / 6 条规则 / 建筑与�
 characters.json    ★ 角色真源：8 人的"可辨识性维度"（身体/头发/上衣/配饰/肤色）
 gen.mjs              生成器（零依赖 Node）
 verify.py            校验器（生成的东西不能靠肉眼验收，见 §六）
-preview.mjs          联络表生成器
-build.sh             一条命令跑完全套
+build.sh             一条命令跑完：生成 → 校验 → 重建 wiki
 out/                 构建产物（gitignore）
-  preview.html       联络表 ← 先看这个
-  manifest.json      给前端的清单
-  ground/ road/ props/ bld/ people/ fx/
+  manifest.json      给前端的清单（★ 带 cat/sub 分类 + 九宫格 + atmosphere）
+  ground/ road/ props/ bld/ people/ items/ attach/ portraits/ fx/ atm/
+
+验收在 wiki 里（不再有单独的联络表）：
+  wiki/out/art.html   按 A–H 九大类 · 虚线框=缺口 · 带组合场景
+  wiki/out/chars.html 人物：头像 + 三向走路循环 + 可辨识性表
 ```
 
 ---

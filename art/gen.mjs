@@ -424,6 +424,230 @@ function iconMachine() {
        + circ(11, 6.4, 2, M.dark) + circ(11, 6.4, 1.3, "#c9d1d5")
        + rrect(8, 9.6, 5.6, 2.8, 0.8, M.vent);
 }
+/* 米：木桶装白米（不做成布袋 —— 布袋和"简餐原料"的麻袋会撞） */
+function riceTub(w, h) {
+  const C = I.rice, cx = w / 2, cy = h / 2, r = Math.min(w, h) * 0.46;
+  let b = circ(cx, cy, r, C.dark);
+  b += circ(cx, cy, r - 1.8, C.barrel);
+  b += circ(cx, cy, r - 4.6, C.grain2);
+  b += circ(cx, cy, r - 6, C.grain);
+  b += circ(cx - r * 0.3, cy - r * 0.26, r * 0.5, C.grain2, `opacity="0.55"`);
+  [[-0.34, 0.3], [0.1, 0.42], [0.36, 0.14], [-0.05, -0.3], [0.24, -0.36]].forEach(([dx, dy]) => {
+    b += ell(cx + r * dx, cy + r * dy, r * 0.1, r * 0.07, C.grain2, `opacity="0.95"`);
+  });
+  return b;
+}
+/* 面包：俯视 = 一条椭圆面包 + 三道斜切 */
+function breadLoaf(w, h) {
+  const C = I.bread;
+  let b = "";
+  b += ell(w / 2, h / 2 + 1, w * 0.47, h * 0.4, C.dark);
+  b += ell(w / 2, h / 2, w * 0.46, h * 0.38, C.crust);
+  b += ell(w / 2 - w * 0.06, h / 2 - h * 0.04, w * 0.34, h * 0.22, C.top, `opacity="0.7"`);
+  for (let i = 0; i < 3; i++) {
+    const x = w * (0.28 + i * 0.22);
+    b += line(x, h * 0.26, x + w * 0.11, h * 0.6, C.cut, 1.7, `opacity="0.9"`);
+  }
+  return b;
+}
+/* 牛奶：纸盒（俯视 = 矩形 + 一端折角） */
+function milkCarton(w, h) {
+  const C = I.milk;
+  let b = "";
+  b += rrect(0, 5, w, h - 5, 1.5, C.dark);
+  b += rrect(0.9, 5.8, w - 1.8, h - 7, 1.2, C.carton);
+  b += rrect(0.6, 0.6, w - 1.2, 5.6, 1, C.dark);            // 顶折
+  b += rrect(1.4, 1.4, w - 2.8, 4, 0.8, C.band);            // 蓝条
+  b += rect(1.6, h * 0.52, w - 3.2, 2.6, C.band, `opacity="0.8"`);
+  b += circ(w - 4.4, h * 0.26, 1.5, C.cap);                 // 盖
+  return b;
+}
+/* 热菜：俯视 = 盘子 + 菜 + 筷子。热气也画（俯视里是刻意的夸张，为了表达"热"）*/
+function hotDish(w, h) {
+  const C = I.dish, cx = w / 2, cy = h * 0.56, r = Math.min(w * 0.47, h * 0.42);
+  let b = "";
+  b += line(w * 0.08, h * 0.1, w * 0.84, h * 0.22, C.stick, 1.5);
+  b += line(w * 0.1, h * 0.17, w * 0.86, h * 0.29, C.stick, 1.5);
+  b += circ(cx, cy, r, C.rim);
+  b += circ(cx, cy, r - 1.9, C.plate);
+  b += ell(cx - r * 0.1, cy - r * 0.05, r * 0.52, r * 0.44, C.food);
+  b += circ(cx + r * 0.34, cy + r * 0.22, r * 0.2, C.veg, `opacity="0.9"`);
+  b += circ(cx - r * 0.36, cy + r * 0.3, r * 0.16, C.veg, `opacity="0.8"`);
+  [[0.32, 0.26], [0.68, 0.28]].forEach(([xr, yr], i) => {
+    b += `<path d="M ${u(w * xr)} ${u(h * yr)} q ${u(2.2)} ${u(-3)} 0 ${u(-5.4)}"`
+       + ` fill="none" stroke="#ffffff" stroke-width="${u(1.3)}"`
+       + ` stroke-linecap="round" opacity="${i ? 0.65 : 0.9}"/>`;
+  });
+  return b;
+}
+/* 饼干：一包饼干（包装 + 露出两块） */
+function biscuitPack(w, h) {
+  const C = I.biscuit, br = Math.min(w, h) * 0.23;
+  let b = "";
+  b += rrect(0.6, 5, w - 1.2, h - 5.6, 2, C.dark);
+  b += rrect(1.4, 5.6, w - 2.8, h - 6.8, 1.6, C.wrap);
+  b += rrect(0.6, 0.6, w - 1.2, 4.6, 1, C.paper);           // 顶部封口
+  for (let x = 2.4; x < w - 2.4; x += 4)
+    b += line(x, 1, x + 1.8, 4.4, C.dark, 1, `opacity="0.5"`);
+  b += circ(w * 0.37, h * 0.56, br, C.dark);
+  b += circ(w * 0.37, h * 0.55, br - 0.6, C.bake);
+  b += circ(w * 0.37 - 1.3, h * 0.55 - 1.6, 1.1, C.chip, `opacity="0.7"`);
+  b += circ(w * 0.37 + 1.5, h * 0.55 + 1.4, 0.9, C.chip, `opacity="0.7"`);
+  b += circ(w * 0.71, h * 0.56, br - 1.4, C.bake, `opacity="0.92"`);
+  return b;
+}
+/* 汽水：罐（俯视 = 圆罐顶 + 拉环） */
+function sodaCan(w, h) {
+  const C = I.soda, cx = w / 2, cy = h / 2, r = Math.min(w, h) * 0.46;
+  let b = "";
+  b += circ(cx, cy, r, C.dark);
+  b += circ(cx, cy, r - 1.1, C.metal);
+  b += circ(cx, cy, r - 3.6, C.body);
+  b += rrect(cx - r * 0.34, cy - r * 0.12, r * 0.68, r * 0.24, r * 0.12, C.metal);  // 拉环
+  b += circ(cx, cy, r * 0.1, C.dark, `opacity="0.5"`);
+  return b;
+}
+/* 咖啡：杯 + 碟（俯视） */
+function coffeeCup(w, h) {
+  const C = I.coffee, cx = w / 2, cy = h / 2, r = Math.min(w, h) * 0.36;
+  let b = "";
+  b += circ(cx, cy, r + 2.2, C.saucer);                      // 碟
+  b += circ(cx, cy, r + 2.2, "none",
+    `stroke="${C.dark}" stroke-width="${u(1)}" opacity="0.6"`);
+  b += circ(cx, cy, r, C.dark);
+  b += circ(cx, cy, r - 1.3, C.cup);
+  b += circ(cx, cy, r - 3.4, C.liquid);
+  b += circ(cx - r * 0.32, cy - r * 0.3, r * 0.36, C.foam, `opacity="0.7"`);
+  return b;
+}
+/* 货架：容器。刻意画成【浅色层板面】—— 货要摆在上面还得看得见 */
+function shelfUnit(w, h) {
+  const C = I.shelf;
+  let b = "";
+  b += rrect(0, 0, w, h, 2, C.dark);
+  b += rrect(1.8, 1.8, w - 3.6, h - 3.6, 1.4, C.deck);
+  b += rect(1.8, h * 0.42, w - 3.6, 2.2, C.wood);
+  b += rect(1.8, h * 0.72, w - 3.6, 2.2, C.wood);
+  [[0.6, 0.6], [w - 3.4, 0.6], [0.6, h - 3.4], [w - 3.4, h - 3.4]].forEach(([x, y]) => {
+    b += rect(x, y, 2.8, 2.8, C.wood);
+  });
+  b += rect(0, 0, w, h, "none", `stroke="${C.dark}" stroke-width="${u(1)}"`);
+  return b;
+}
+/* 冰柜：容器。玻璃盖【半透明】—— 下面的货要透得出来 */
+function freezerUnit(w, h) {
+  const C = I.freezer;
+  let b = "";
+  b += rrect(0, 0, w, h, 3, C.trim);
+  b += rrect(1.8, 1.8, w - 3.6, h - 3.6, 2.2, C.body);
+  b += rrect(4.2, 4.2, w - 8.4, h - 8.4, 1.8, C.glass, `opacity="0.42"`);
+  b += line(4.2, h * 0.5, w - 4.2, h * 0.5, "#ffffff", 1.2, `opacity="0.35"`);
+  b += line(w * 0.5, 4.2, w * 0.5, h - 4.2, "#ffffff", 1, `opacity="0.22"`);
+  b += rrect(w * 0.6, h - 7.4, w * 0.32, 3, 1.4, C.trim);      // 把手
+  b += rect(0, 0, w, h, "none", `stroke="${C.dark}" stroke-width="${u(1)}"`);
+  return b;
+}
+/* 灶台：俯视 = 台面 + 两个灶眼 */
+function stoveUnit(w, h) {
+  const C = I.stove, r = Math.min(w, h) * 0.19;
+  let b = "";
+  b += rrect(0, 0, w, h, 2, C.dark);
+  b += rrect(1.4, 1.4, w - 2.8, h - 2.8, 1.6, C.body);
+  b += line(1.4, 1.4, w - 1.4, 1.4, "#ffffff", 1, `opacity="0.18"`);
+  [[0.34, 0.44], [0.66, 0.44]].forEach(([xr, yr], i) => {
+    const cx = w * xr, cy = h * yr;
+    b += circ(cx, cy, r, C.burner);
+    b += circ(cx, cy, r * 0.62, C.ring, `opacity="0.55"`);
+    if (i === 0) b += circ(cx, cy, r * 0.34, C.flame, `opacity="0.9"`);
+  });
+  b += circ(w * 0.3, h * 0.83, 2, C.ring);
+  b += circ(w * 0.7, h * 0.83, 2, C.ring);
+  return b;
+}
+
+/* ── 新物品的图标（16×16 正视）───────────────────────────────────────── */
+function iconRice() {
+  const C = I.rice;
+  return `<path d="M 2.4 7.4 h 11.2 v 5 a 1.4 1.4 0 0 1 -1.4 1.4 H 3.8 `
+       + `a 1.4 1.4 0 0 1 -1.4 -1.4 Z" fill="${C.barrel}"/>`
+       + `<ellipse cx="8" cy="7.4" rx="5.6" ry="2.6" fill="${C.grain}"/>`
+       + `<ellipse cx="8" cy="7.2" rx="4.2" ry="1.9" fill="${C.grain2}"/>`
+       + `<ellipse cx="6.4" cy="7" rx="1.2" ry="0.6" fill="${C.grain}"/>`
+       + `<ellipse cx="9.6" cy="7.6" rx="1" ry="0.5" fill="${C.grain}"/>`;
+}
+function iconBread() {
+  const C = I.bread;
+  return `<path d="M 2 10.6 C 2 5.6 4.8 3 8 3 C 11.2 3 14 5.6 14 10.6 Z"`
+       + ` fill="${C.crust}"/>`
+       + `<path d="M 3.4 10.2 C 3.4 6.6 5.4 4.4 8 4.4 C 10.6 4.4 12.6 6.6 12.6 10.2 Z"`
+       + ` fill="${C.top}" opacity="0.55"/>`
+       + line(5.4, 5.4, 6.4, 9.4, C.cut, 1.2) + line(8, 5, 9, 9.4, C.cut, 1.2)
+       + line(10.4, 5.6, 11.2, 9.4, C.cut, 1.2);
+}
+function iconMilk() {
+  const C = I.milk;
+  return `<path d="M 4 4.6 L 8 1.6 L 12 4.6 V 13.4 H 4 Z" fill="${C.carton}"
+       stroke="${C.dark}" stroke-width="${u(0.9)}"/>`
+       + `<path d="M 4 4.6 L 8 1.6 L 12 4.6 Z" fill="${C.dark}"/>`
+       + rect(4.6, 5.4, 6.8, 2.2, C.band) + rect(4.6, 9.4, 6.8, 1.4, C.band, `opacity="0.7"`);
+}
+function iconHotDish() {
+  const C = I.dish;
+  return `<path d="M 2.4 8 h 11.2 a 5.6 5.6 0 0 1 -11.2 0 Z" fill="${C.rim}"/>`
+       + `<path d="M 3.6 8 h 8.8 a 4.4 4.4 0 0 1 -8.8 0 Z" fill="${C.plate}"/>`
+       + `<ellipse cx="8" cy="8" rx="3.2" ry="1" fill="${C.food}"/>`
+       + line(5, 3, 5, 5, "#ffffff", 1.2, `opacity="0.9"`)
+       + line(8, 2, 8, 4.6, "#ffffff", 1.2, `opacity="0.75"`)
+       + line(11, 3.2, 11, 5, "#ffffff", 1.2, `opacity="0.6"`);
+}
+function iconBiscuit() {
+  const C = I.biscuit;
+  return circ(8, 8, 5.2, C.dark) + circ(8, 8, 4.6, C.bake)
+       + circ(6, 6, 0.8, C.chip, `opacity="0.7"`) + circ(9.6, 6.8, 0.8, C.chip, `opacity="0.7"`)
+       + circ(7.2, 10, 0.8, C.chip, `opacity="0.7"`) + circ(10.2, 10.2, 0.6, C.chip, `opacity="0.6"`);
+}
+function iconSoda() {
+  const C = I.soda;
+  return rrect(4.4, 1.6, 7.2, 12.8, 1.4, C.dark)
+       + rrect(5, 2.4, 6, 11.2, 1.2, C.body)
+       + rrect(5, 2.4, 6, 2.2, 1, C.metal)
+       + rect(5.6, 6.4, 4.8, 2.2, C.band, `opacity="0.9"`);
+}
+function iconCoffee() {
+  const C = I.coffee;
+  return `<path d="M 10.6 5.6 h 1.8 a 2 2 0 0 1 0 4 h -1.8" fill="none"
+       stroke="${C.dark}" stroke-width="${u(1.1)}"/>`
+       + `<path d="M 3.4 4.6 h 7.2 v 5.2 a 3.6 3.6 0 0 1 -7.2 0 Z" fill="${C.cup}"
+          stroke="${C.dark}" stroke-width="${u(0.9)}"/>`
+       + `<ellipse cx="7" cy="5" rx="3.4" ry="1.3" fill="${C.liquid}"/>`
+       + line(5.4, 1.2, 5.4, 3, "#ffffff", 1.1, `opacity="0.85"`)
+       + line(8, 1.4, 8, 3.2, "#ffffff", 1.1, `opacity="0.65"`);
+}
+function iconShelf() {
+  const C = I.shelf;
+  return rrect(1.6, 2.4, 12.8, 11.2, 1.2, C.dark)
+       + rect(2.8, 3.6, 10.4, 8.8, C.deck)
+       + rect(2.8, 6.4, 10.4, 1.6, C.wood)
+       + rect(2.8, 9.4, 10.4, 1.6, C.wood)
+       + rect(2.8, 3.6, 1.6, 8.8, C.wood) + rect(11.6, 3.6, 1.6, 8.8, C.wood);
+}
+function iconFreezer() {
+  const C = I.freezer;
+  return rrect(1.6, 3.6, 12.8, 9.6, 1.4, C.trim)
+       + rrect(2.8, 4.6, 10.4, 6.4, 1, C.body)
+       + rrect(2.8, 4.6, 10.4, 3.4, 1, C.glass, `opacity="0.5"`)
+       + rrect(9.6, 10.4, 3.6, 1.4, 0.6, C.trim);
+}
+function iconStove() {
+  const C = I.stove;
+  return rrect(1.6, 3.6, 12.8, 9.6, 1.4, C.dark)
+       + rrect(2.6, 4.4, 10.8, 8, 1, C.body)
+       + circ(6, 7.4, 2.2, C.burner) + circ(10.4, 7.4, 2.2, C.burner)
+       + circ(6, 7.4, 1.2, C.ring, `opacity="0.6"`)
+       + circ(10.4, 7.4, 1.2, C.ring, `opacity="0.6"`)
+       + circ(5.4, 11.4, 0.9, C.ring) + circ(10.6, 11.4, 0.9, C.ring);
+}
+
 function iconBench() {
   const B = I.bench;
   return rrect(1.6, 6.4, 12.8, 5.2, 1.4, B.body)
@@ -443,26 +667,62 @@ function iconToilet() {
 }
 
 /* 清单：物品 → 世界形态 / 空态 / 图标。尺寸是按"摆进屋里"定的（逻辑 px）。 */
+/* empty: 只有【盒子会留下】的货才有空态。
+   苹果筐 / 梨筐 / 米缸 / 简餐盒 —— 卖光了盒子还在。
+   面包 / 牛奶 / 热菜 / 汽水 / 咖啡 卖光了就是没有了 → 不画空态。 */
 const ITEMS = [
-  { id: "food_apple",     name: "苹果",     w: 36, h: 26, empty: true,
-    world: () => fruits(36, 26, I.apple, true),  icon: iconApple,  tags: ["goods", "consumable"] },
-  { id: "food_pear",      name: "梨",       w: 36, h: 26, empty: true,
-    world: () => fruits(36, 26, I.pear, false),  icon: iconPear,   tags: ["goods", "consumable"] },
-  { id: "meal_simple",    name: "简餐",     w: 32, h: 24, empty: true,
-    world: () => bento(32, 24, false),           icon: iconMeal,   tags: ["goods", "consumable"] },
-  { id: "meal_simple_raw",name: "简餐原料", w: 32, h: 28, empty: false,
+  { id: "food_apple",     name: "苹果",     w: 36, h: 26,
+    empty: () => crate(36, 26, I.crate.base, I.crate.dark),
+    world: () => fruits(36, 26, I.apple, true),  icon: iconApple,  tags: ["goods", "consumable", "fresh"] },
+  { id: "food_pear",      name: "梨子",     w: 36, h: 26,
+    empty: () => crate(36, 26, I.crate.base, I.crate.dark),
+    world: () => fruits(36, 26, I.pear, false),  icon: iconPear,   tags: ["goods", "consumable", "fresh"] },
+  { id: "food_rice",      name: "米",       w: 32, h: 28,
+    empty: () => riceTubEmpty(32, 28),
+    world: () => riceTub(32, 28),                icon: iconRice,   tags: ["goods", "consumable", "staple"] },
+  { id: "food_bread",     name: "面包",     w: 30, h: 22,
+    world: () => breadLoaf(30, 22),              icon: iconBread,  tags: ["goods", "consumable", "staple"] },
+  { id: "food_milk",      name: "牛奶",     w: 22, h: 28,
+    world: () => milkCarton(22, 28),             icon: iconMilk,   tags: ["goods", "consumable", "fresh"] },
+  { id: "meal_simple",    name: "简餐",     w: 32, h: 24,
+    empty: () => bento(32, 24, true),
+    world: () => bento(32, 24, false),           icon: iconMeal,   tags: ["goods", "consumable", "ready"] },
+  { id: "meal_hot_dish",  name: "热菜",     w: 34, h: 30,
+    world: () => hotDish(34, 30),                icon: iconHotDish,tags: ["goods", "consumable", "ready"] },
+  { id: "food_biscuit",   name: "饼干",     w: 26, h: 24,
+    world: () => biscuitPack(26, 24),            icon: iconBiscuit,tags: ["goods", "consumable", "snack"] },
+  { id: "drink_soda",     name: "汽水",     w: 20, h: 20,
+    world: () => sodaCan(20, 20),                icon: iconSoda,   tags: ["goods", "consumable", "drink"] },
+  { id: "drink_coffee",   name: "咖啡",     w: 26, h: 26,
+    world: () => coffeeCup(26, 26),              icon: iconCoffee, tags: ["goods", "consumable", "drink"] },
+  { id: "meal_simple_raw",name: "简餐原料", w: 32, h: 28,
     world: () => sack(32, 28),                   icon: iconRaw,    tags: ["goods", "material"] },
-  { id: "bed_basic",      name: "床",       w: 64, h: 40, empty: false,
+  { id: "bed_basic",      name: "床",       w: 64, h: 40,
     world: () => bed(64, 40),                    icon: iconBed,    tags: ["fixture", "sleepable"] },
-  { id: "station_counter",name: "前台",     w: 76, h: 26, empty: false,
+  { id: "station_counter",name: "前台",     w: 76, h: 26,
     world: () => counter(76, 26),                icon: iconCounter,tags: ["fixture", "station", "retail"] },
-  { id: "station_workbench", name: "工位",  w: 60, h: 26, empty: false,
+  { id: "station_workbench", name: "工位",  w: 60, h: 26,
     world: () => bench(60, 26),                  icon: iconBench,  tags: ["fixture", "station", "manufacture"] },
-  { id: "industry_machine",  name: "工业机器", w: 52, h: 40, empty: false,
+  { id: "industry_machine",  name: "工业机器", w: 52, h: 40,
     world: () => machine(52, 40),                icon: iconMachine,tags: ["fixture", "machine"] },
-  { id: "toilet_basic",   name: "马桶",     w: 30, h: 34, empty: false,
+  { id: "toilet_basic",   name: "马桶",     w: 30, h: 34,
     world: () => toilet(30, 34),                 icon: iconToilet, tags: ["fixture", "toilet"] },
+  { id: "shelf_basic",    name: "货架",     w: 48, h: 26,
+    world: () => shelfUnit(48, 26),              icon: iconShelf,  tags: ["fixture", "container", "retail"] },
+  { id: "freezer_basic",  name: "冰柜",     w: 48, h: 32,
+    world: () => freezerUnit(48, 32),            icon: iconFreezer,tags: ["fixture", "container", "retail", "cold"] },
+  { id: "stove_basic",    name: "灶台",     w: 36, h: 26,
+    world: () => stoveUnit(36, 26),               icon: iconStove,  tags: ["fixture", "station", "cook"] },
 ];
+
+/* 米缸的空态：桶还在，米没了 */
+function riceTubEmpty(w, h) {
+  const C = I.rice, cx = w / 2, cy = h / 2, r = Math.min(w, h) * 0.46;
+  let b = circ(cx, cy, r, C.dark);
+  b += circ(cx, cy, r - 1.8, C.barrel);
+  b += circ(cx, cy, r - 4.6, C.dark, `opacity="0.55"`);
+  return b;
+}
 
 function items() {
   for (const it of ITEMS) {
@@ -473,9 +733,7 @@ function items() {
 
     // 空态：只有"会卖光"的货才需要。★ 这是"卖光了"的世界表达（不用写文字）
     if (it.empty) {
-      const emptySvg = it.id === "meal_simple" ? bento(32, 24, true)
-                     : crate(it.w, it.h, I.crate.base, I.crate.dark);
-      emit(`items/${it.id}_empty.svg`, svg(it.w, it.h, emptySvg));
+      emit(`items/${it.id}_empty.svg`, svg(it.w, it.h, it.empty()));
       add(`${it.id}_empty`, `items/${it.id}_empty.svg`, it.w, it.h, "center", "L3",
           ["item", "empty", it.id]);
     }

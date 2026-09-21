@@ -162,6 +162,69 @@
         "dark": "#c9d1d5",
         "seat": "#d8dfe2",
         "water": "#a9c3cf"
+      },
+      "rice": {
+        "barrel": "#a08a68",
+        "dark": "#836f52",
+        "grain": "#f2ece0",
+        "grain2": "#d8d0be"
+      },
+      "bread": {
+        "crust": "#b07a44",
+        "dark": "#8f6134",
+        "cut": "#e0b878",
+        "top": "#c98f55"
+      },
+      "milk": {
+        "carton": "#f2ece0",
+        "dark": "#d5cebd",
+        "band": "#5d7183",
+        "cap": "#b4472f"
+      },
+      "dish": {
+        "plate": "#e8e2d4",
+        "rim": "#cfc7b6",
+        "food": "#a85a3c",
+        "veg": "#7f9a5e",
+        "stick": "#c9a97a"
+      },
+      "biscuit": {
+        "wrap": "#c9a24a",
+        "dark": "#a8853a",
+        "bake": "#d9b87a",
+        "chip": "#6b4a2a",
+        "paper": "#f2ece0"
+      },
+      "soda": {
+        "body": "#b4472f",
+        "dark": "#8f3724",
+        "metal": "#c2c7cb",
+        "band": "#f2ece0"
+      },
+      "coffee": {
+        "cup": "#f2ece0",
+        "dark": "#cfc7b6",
+        "liquid": "#5a4030",
+        "foam": "#c9a97a",
+        "saucer": "#e8e2d4"
+      },
+      "shelf": {
+        "wood": "#a08a68",
+        "dark": "#836f52",
+        "deck": "#c9b795"
+      },
+      "freezer": {
+        "body": "#eef2f4",
+        "dark": "#cfd6da",
+        "glass": "#a9c3cf",
+        "trim": "#8a8779"
+      },
+      "stove": {
+        "body": "#6b7176",
+        "dark": "#565c61",
+        "burner": "#3a3f44",
+        "ring": "#8a8779",
+        "flame": "#e08a58"
       }
     },
     "portrait": {

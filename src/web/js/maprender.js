@@ -142,13 +142,15 @@ export class MapLayer {
 
   /** ★ 道路：每个宽度一组 = 一条路径 + 顶点圆盘 + 路口倒角。
    *
-   *  三层各司其职（照 Godot 版的分工）：
-   *    一条路径 + 圆帽/圆接头   外角（凸角）自然就是圆的
-   *    顶点圆盘（半径 = 半宽）  补 T/十字的破边
-   *    路口倒角多边形           填相邻两条路之间的【缺口】—— 这是"倒圆角"的本体
+   *  两层各司其职：
+   *    一条路径 + 圆帽/圆接头   外角（凸角）自然就是圆的，接缝也不会发白
+   *    路口【倒角】多边形        填相邻两条路之间的缺口 —— 这才是"倒圆角"的本体
    *
-   *  一条路径而不是一段一张图的理由：逐段各画会在接缝上叠两层抗锯齿，
-   *  出现一道发白的细线。
+   *  ★ 没有顶点圆盘。
+   *    Godot 版有（draw_road 在每个顶点补一个半径=半宽的实心圆），那是为了
+   *    补 draw_line 逐段画留下的接缝。Pixi 这边一条路径 + join:"round" 本来
+   *    就接得上，再补圆盘就是【多余的一个圆】—— 用户一眼就看出来了：
+   *    "还是圆盘"。
    */
   _roads_(scene) {
     const segs = this._segs(scene);
@@ -174,14 +176,10 @@ export class MapLayer {
       for (const [w, list] of byW) {
         const width = w + grow;
         const halfW = width / U / 2;                    // 世界单位
-        const ids = new Set();
-        for (const s of list) { if (s.na) ids.add(s.na); if (s.nb) ids.add(s.nb); }
-        const discs = [...ids].map(id => nodes[id]?.xy).filter(Boolean);
         const tex = layer === "walk" ? sidewalk : asphalt;
         const g = new Graphics();
         for (const s of list)
           g.moveTo(s.a[0] * U, s.a[1] * U).lineTo(s.b[0] * U, s.b[1] * U);
-        for (const xy of discs) g.circle(xy[0] * U, xy[1] * U, width / 2);
         g.stroke({ width, cap: "round", join: "round",
                    color: layer === "walk" ? 0xb8b3a6 : 0x4c4a4a,
                    ...(tex ? { texture: tex, matrix: M } : {}) });

@@ -30,3 +30,5 @@ config/scenes/*.bak
 # 最小实验页（临时）
 src/web/_*.html
 _tmp_exp/
+_*.mjs
+src/web/_*.html

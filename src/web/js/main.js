@@ -1,10 +1,9 @@
 /** main.js —— 壳。
  *
  *   主菜单 ─┬─ 继续（最近一次的场景）
- *           ├─ 选择场景
  *           └─ 编辑器 ── 默认打开【最近编辑的那张】地图
  *
- * 游戏和编辑器共用 View（相机/输入/纸片）和 MapLayer（地图渲染）——
+ * 游戏和编辑器共用 View（相机/输入/纸片）和 MapLayer（地图渲染），
  * 所以两边看到的是同一份画面，编辑器只是多画了几个手柄。
  */
 import { Net } from "./net.js";
@@ -19,26 +18,30 @@ const SPEEDS = [["pause", "停"], ["1x", "1×"], ["10x", "10×"],
                 ["100x", "100×"], ["1000x", "1000×"]];
 const $ = (id) => document.getElementById(id);
 
-let assets = null, net = null, world = null, editor = null, store = new Store();
+let assets = null, net = null, world = null, editor = null;
+const store = new Store();
 let selected = "";
 
 function toast(text) {
   const el = $("hint");
   el.textContent = text; el.classList.add("show");
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => el.classList.remove("show"), 1600);
+  toast._t = setTimeout(() => el.classList.remove("show"), 1800);
 }
-function setStatus(text, cls = "") {
-  const el = $("mStatus"); el.textContent = text; el.className = "status " + cls;
-}
+function setStatus(t, cls = "") { const el = $("mStatus"); el.textContent = t; el.className = "status " + cls; }
 function show(which) {
-  for (const s of ["menu", "game", "editor"]) $(s).classList.toggle("hide", s !== which);
+  $("menu").classList.toggle("hide", which !== "menu");
+  $("hud").classList.toggle("hide", which !== "game");
+  $("viewport").classList.toggle("hide", which !== "game");
+  $("labels").classList.toggle("hide", which !== "game");
+  $("panel").classList.toggle("hide", which !== "game" || !selected);
+  $("editor").classList.toggle("hide", which !== "editor");
+  setTimeout(() => { world?.view.resize(); editor?.view.resize(); }, 0);
 }
 
 const lastGame = (() => { try { return JSON.parse(localStorage.getItem(LS_LAST) || "null"); } catch { return null; } })();
 $("mLast").textContent = lastGame ? `${lastGame.scenario} · ${lastGame.when}` : "还没有跑过";
 
-// ── 贴图仓库（游戏和编辑器共用一份）──────────────────────────────────
 async function ensureAssets() {
   if (!assets) assets = new Assets2(await fetchManifest());
   return assets;
@@ -66,44 +69,77 @@ async function startGame() {
   if (!world) {
     const a = await ensureAssets();
     await a.preloadMap();
-    world = await new World($("stage"), store, $("ghud"), a).init();
+    world = await new World($("stage"), store, $("labels"), a).init();
     world.onSelect = onPick;
+    world.view.setWorld(store.canvas);
+    startLoop();
   }
-  world.view.fit(store.canvas);
-  const shop = store.myShop();
-  if (shop) world.view.centerOn(shop.x + shop.w / 2, shop.y + shop.h / 2, 1.6);
   show("game");
+  world.view.fill();                       // ★ 铺满窗口，不留边距
   syncSpeed();
-  if (!startGame._loop) { startGame._loop = true; tickLoop(); }
 }
 
-function tickLoop() {
-  if (!world) return;
-  if (!$("game").classList.contains("hide")) world.frame();
-  requestAnimationFrame(tickLoop);
+let _looping = false;
+function startLoop() {
+  if (_looping) return;
+  _looping = true;
+  const step = () => {
+    if (!$("hud").classList.contains("hide")) world?.frame();
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 let _panelAt = 0;
 function onMessage(msg) {
   if (msg.type === "snapshot") {
     store.applySnapshot(msg);
-    // 面板 60Hz 重建会把滚动位置撞掉，限到 8Hz（记忆本来也只 10Hz 带一次）
+    $("gDay").textContent = `第 ${msg.day} 天`;
+    $("gClock").textContent = msg.clock || "--:--";
+    // 面板 8Hz 重建 —— 60Hz 会把滚动位置撞掉（记忆本来也只 10Hz 带一次）
     if (selected && performance.now() - _panelAt > 120) {
       _panelAt = performance.now();
       renderPanel($("panel"), store.npcs.get(selected) || null, store, clearSel);
     }
-    $("gClock").textContent = msg.clock || "--:--";
-    $("gDay").textContent = `第 ${msg.day} 天`;
+    paintMe();
     if (msg.speed && msg.speed !== store.speed) syncSpeed();
   } else if (msg.type === "__closed") {
     setStatus("后端断开了", "bad"); show("menu");
   }
 }
 
+/** 左上角那张纸：看着谁就显示谁，没看就显示我的店。 */
+function paintMe() {
+  const npc = store.focused();
+  if (npc) {
+    $("meName").textContent = `${npc.name} · ${npc.role || "—"}`;
+    $("meMoney").innerHTML = `${npc.money ?? "—"}<span class="d">元</span>`;
+    $("meAct").textContent = npc.active
+      ? `正在 ${npc.active.verb || "?"} ${npc.active.item || ""}`
+      : `在 ${store.locations[npc.loc]?.name || npc.loc || "路上"}`;
+    $("meBars").innerHTML = bars(npc.signals);
+  } else {
+    $("meName").textContent = "镇上的小店";
+    $("meMoney").innerHTML = `—<span class="d">元</span>`;
+    $("meAct").textContent = "点一个人看看";
+    $("meBars").innerHTML = "";
+  }
+}
+const SIGNALS = [["energy", "精力"], ["hunger", "饿"], ["bladder", "憋"], ["fun", "想玩"]];
+function bars(sig = {}) {
+  return SIGNALS.map(([k, label]) => {
+    const v = Math.max(0, Math.min(1, Number(sig[k] ?? 0)));
+    return `<div class="bar${v < 0.3 ? " low" : ""}"><span>${label}</span>
+      <span class="t"><i style="width:${(v * 100).toFixed(0)}%"></i></span>
+      <span class="v">${(v * 100).toFixed(0)}</span></div>`;
+  }).join("");
+}
+
 function clearSel() {
   selected = ""; store.focus = "";
   net?.send("select", { npc: "" });
-  renderPanel($("panel"), null, store, clearSel);
+  $("panel").classList.add("hide");
+  paintMe();
 }
 function onPick(hit) {
   if (!hit) return clearSel();
@@ -111,6 +147,7 @@ function onPick(hit) {
   selected = hit; store.focus = hit;
   net?.send("select", { npc: hit });
   renderPanel($("panel"), store.npcs.get(hit) || null, store, clearSel);
+  paintMe();
 }
 function syncSpeed() {
   const host = $("gSpeed"); host.innerHTML = "";
@@ -128,38 +165,36 @@ async function openEditor() {
   if (!editor) {
     const a = await ensureAssets();
     await a.preloadMap();
-    editor = await new Editor($("ecanvas"), $("ehud"), a, {
+    const ui = {
       toast,
       setScene: (name, stats, saved) => {
         $("eName").textContent = name;
-        $("eDirty").textContent = saved ? "" : "•";
+        $("eDirty").textContent = saved ? "" : " •";
         $("eStats").textContent = `${stats.nodes} 节点 · ${stats.edges} 路段 · ${stats.buildings} 建筑`;
       },
       setStats: (stats) => {
         $("eStats").textContent = `${stats.nodes} 节点 · ${stats.edges} 路段 · ${stats.buildings} 建筑`;
       },
-      setDirty: (d) => { $("eDirty").textContent = d ? "•" : ""; },
+      setDirty: (d) => { $("eDirty").textContent = d ? " •" : ""; },
       setTool: (t, type) => {
         for (const b of $("eTool").children) b.classList.toggle("on", b.dataset.tool === t);
-        $("ePaletteGrp").style.opacity = t === "build" ? "1" : "0.55";
-        $("ePickHint").textContent = t === "build" ? "挑一个，然后在地图上点" : "切到「摆房」才能选";
+        $("ePickHint").textContent = t === "build" ? "挑一个" : "切到「摆房」才能选";
         for (const b of $("ePalette").children) b.classList.toggle("on", b.dataset.type === type);
       },
-    }).init();
+    };
+    editor = await new Editor($("ecanvas"), $("elabels"), a, ui).init();
     buildPalette();
-    // 坐标读数的唯一刷新点（每帧刷 DOM 没必要，跟着鼠标走就够）
+    ui.setTool("select", "");
     editor.view.el.addEventListener("pointermove", (e) => {
       const r = editor.view.el.getBoundingClientRect();
       const [x, y] = editor.view.toWorld(e.clientX - r.left, e.clientY - r.top);
       $("eXY").textContent = `${x.toFixed(0)}, ${y.toFixed(0)} m`;
-      const s = editor.snapHint;
-      $("eSnap").textContent = s ? { node: "吸到节点", door: "吸到门", road: "吸到路中线", free: "自由" }[s.kind] : "";
-      $("eSnap").className = "snap " + (s?.kind || "");
+      $("eSnapLabel").textContent = editor.snapText() || "—";
     });
   }
   show("editor");
   const name = await editor.openLatest();
-  toast(`打开 ${name}（最近编辑的一张）`);
+  toast(`打开 ${name}（最近编辑的那张）`);
 }
 
 async function buildPalette() {
@@ -174,50 +209,46 @@ async function buildPalette() {
     el.onclick = () => editor.setTool("build", b.type);
     host.appendChild(el);
   }
-  editor.ui.setTool("select", "");
 }
 
-// ══ 顶上那排 ══════════════════════════════════════════════════════════
+// ══ 接线 ══════════════════════════════════════════════════════════════
 $("mContinue").onclick = play;
-$("mPick").onclick = () => { toast("场景列表还没做 —— 现在只有 config/scenes/scene.json"); play(); };
 $("mEditor").onclick = openEditor;
-
-$("gMenu").onclick = () => { show("menu"); net?.send("select", { npc: "" }); selected = ""; };
+$("gMenu").onclick = () => { net?.send("select", { npc: "" }); selected = ""; show("menu"); };
 $("gHome").onclick = () => {
   const shop = store.myShop();
   if (shop) world.view.centerOn(shop.x + shop.w / 2, shop.y + shop.h / 2, 1.6);
-  else world.view.fit(store.canvas);
+  else world.view.fill();
 };
-
 $("eMenu").onclick = () => show("menu");
 $("eSave").onclick = () => editor?.save();
 $("eSaveAs").onclick = () => {
-  const name = prompt("另存为（只写到 config/scenes/）：", editor.name);
+  const name = prompt("另存为（写到 config/scenes/）：", editor?.name || "scene.json");
   if (name) editor.save(name.trim().replace(/[^\w.-]/g, "") || "scene.json");
 };
 for (const b of $("eTool").children)
   b.onclick = () => editor.setTool(b.dataset.tool, editor.buildType);
 
 window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { clearSel(); editor && (editor.selected = "", editor.redraw()); }
-  if (e.key === "f" && world) world.view.fit(store.canvas);
-  if (e.ctrlKey && e.key === "s" && editor && !$("editor").classList.contains("hide")) {
-    e.preventDefault(); editor.save();
+  const inEditor = !$("editor").classList.contains("hide");
+  if (e.key === "Escape") {
+    if (inEditor) { editor.selected = ""; editor.redraw(); } else clearSel();
   }
-  if (!$("editor").classList.contains("hide") && editor) {
+  if (e.key === "f" && world) world.view.fill();
+  if (e.ctrlKey && e.key === "s" && inEditor) { e.preventDefault(); editor.save(); }
+  if (inEditor) {
     const map = { "1": "select", "2": "road", "3": "build", "4": "erase" };
     if (map[e.key]) editor.setTool(map[e.key], editor.buildType);
   }
 });
-window.addEventListener("resize", () => { world?.view.apply(); editor?.view.apply(); });
 
-// 调试句柄：控制台里能直接捅
+// 调试句柄
 window.citysim = {
   store, get net() { return net; }, get world() { return world; },
   get editor() { return editor; }, get assets() { return assets; },
   pick: onPick, get selected() { return selected; },
 };
 
-// 直达：#editor 直接进编辑器（测起来方便，平时也好用）
+// 直达：#editor 进编辑器 · #play 直接开局（截图/演示用，省一次点击）
 if (location.hash === "#editor") openEditor();
 else play();

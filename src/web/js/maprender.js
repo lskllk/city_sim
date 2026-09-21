@@ -1,21 +1,26 @@
-/** maprender.js —— 把一份场景画成地图。
+/** maprender.js —— 把一份场景画成地图。**游戏和编辑器共用这一个。**
  *
- * ★ 游戏和编辑器【共用这一个】。编辑器和游戏看到的必须一模一样 ——
- *   否则"编辑器里看着对，进游戏不对"，而那种问题只有玩到才发现。
- *   编辑器只是在这之上多画了几个编辑手柄。
+ * 全部用 art/ 里的资产，不画色块：
+ *   地面  ground/{grass,dirt,plaza,water}.svg        32×32 可平铺
+ *   道路  road/{asphalt,sidewalk,marking_dash_h/v,crosswalk}.svg
+ *   建筑  bld/{name}.svg + _shadow + _lit            ★ 按世界占地缩放
+ *   杂物  props/{tree_*,bush_*,bench,lamp,bin,flowerbed,car_*}
  *
- * 输入是一份【场景】({canvas, locations, map})，两边形状相同：
- *   游戏   ← 后端 hello 下发的 locations + map
- *   编辑器 ← MapDoc.toScene()（实时重算，所以所见即所存）
+ * ★ 道路为什么用「旋转容器 + 铺图块」：
+ *   路是任意角度的线段。先在【局部坐标】(长 × 宽) 里把沥青铺满、人行道贴两边、
+ *   中线打虚线，然后整个容器转一个角度 —— 任何方向都是同一段代码。
+ *   （没有 autotile 集，所以是"硬边"的，这一条记在 asset-list A3 缺口里。）
+ *
+ * ★ 增量重画：拖一栋房子不该重建整个世界。地面/路只在数据变了才重建，
+ *   建筑按 loc_id 复用精灵，拖动时只改 transform。
  */
 import { Container, Graphics, Sprite, TilingSprite } from '../vendor/pixi.min.mjs';
 
 export const U = 12;                       // 1 世界单位 = 12 px
-const ROAD = 0x4c4a4a, ROAD_EDGE = 0x3a3838;
-const NO_ART = 0x8c5b48, NO_ART_EDGE = 0x5a3a2e;
+const TILE = 32;                           // 资产网格
+const SIDEWALK = 6;                        // 人行道宽（asset: 32×6）
 
 export class MapLayer {
-  /** @param assets Assets2 实例 · @param onSign (loc, {x,y}) => void 给 DOM 标签用 */
   constructor(assets, onSign) {
     this.assets = assets;
     this.onSign = onSign;
@@ -23,96 +28,163 @@ export class MapLayer {
     this.root.sortableChildren = true;
     this.ground = new Container();
     this.road = new Container();
+    this.deco = new Container();
     this.bld = new Container();
     this.bld.sortableChildren = true;
-    for (const [i, c] of [this.ground, this.road, this.bld].entries()) {
+    for (const [i, c] of [this.ground, this.road, this.deco, this.bld].entries()) {
       c.zIndex = i; this.root.addChild(c);
     }
-    this._key = "";
-    this.buildings = new Map();            // loc_id -> Sprite（编辑器要拿它做命中/选中）
+    this.buildings = new Map();            // loc_id -> {body, lit, shadow}
+    this._groundKey = ""; this._roadKey = "";
   }
 
-  /** 变了才重画。每帧重画 = 60Hz 建几千个对象。 */
+  // ── 一次画全（编辑器/游戏都用这个）────────────────────────────────
   draw(scene) {
-    const key = JSON.stringify([
-      scene.canvas,
-      Object.entries(scene.locations || {}).map(([k, v]) =>
-        [k, v.x, v.y, v.w, v.h]).sort(),
-      Object.keys(scene.map?.buildings || {}).sort(),
-    ]);
-    if (key === this._key) return false;
-    this._key = key;
-    this._ground(scene); this._roads(scene); this._buildings(scene);
-    return true;
+    this._ground_(scene);
+    this._roads_(scene);
+    this._props_(scene);
+    this._buildings_(scene);
   }
 
-  _tile(layer, file, x, y, w, h, color) {
-    const t = this.assets.get(file);
-    layer.addChild(t ? new TilingSprite({ texture: t, x, y, width: w, height: h })
-                     : new Graphics().rect(x, y, w, h).fill(color));
-  }
-
-  _ground(scene) {
+  // 地面：整块画布铺一张草地；地点是 public 的铺广场砖
+  _ground_(scene) {
+    const c = scene.canvas || { w: 1280, h: 800 };
+    const key = `${c.w}x${c.h}`;
+    if (key === this._groundKey) return;
+    this._groundKey = key;
     this.ground.removeChildren();
-    const { w, h } = scene.canvas || { w: 1280, h: 800 };
-    this._tile(this.ground, "ground/grass.svg", 0, 0, w * U, h * U, 0x6d8a52);
+    this._tile(this.ground, "ground/grass.svg", 0, 0, c.w * U, c.h * U, 0x6d8a52);
   }
 
-  /** 路是【图】：nodes/edges 是数据，路面是画出来的。 */
-  _roads(scene) {
-    this.road.removeChildren();
+  /** 一段路 = 旋转容器里铺图块。返回容器。 */
+  _segment(a, b, width) {
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) * U;
+    const w = width * U;
+    const box = new Container();
+    box.position.set(a[0] * U, a[1] * U);
+    box.rotation = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    // 沥青
+    this._tile(box, "road/asphalt.svg", 0, -w / 2, len, w, 0x4c4a4a);
+    // 人行道贴两条长边（图块是 32×6 的横条，竖边用同一张即可 —— 它是可平铺的）
+    this._tile(box, "road/sidewalk.svg", 0, -w / 2 - SIDEWALK, len, SIDEWALK, 0xb8b3a6);
+    this._tile(box, "road/sidewalk.svg", 0, w / 2, len, SIDEWALK, 0xb8b3a6);
+    // 中线虚线：asset 有横向/纵向两种，按角度取
+    const horiz = Math.abs(Math.cos(box.rotation)) > 0.7;
+    const dash = horiz ? "road/marking_dash_h.svg" : "road/marking_dash_v.svg";
+    if (horiz) this._tile(box, dash, 0, -1, len, 2, 0xe9e5da);
+    else this._tile(box, dash, -1, -len / 2, 2, len, 0xe9e5da);
+    return box;
+  }
+
+  _roads_(scene) {
     const { nodes = {}, edges = {} } = scene.map || {};
+    // 只在地图数据变了才重建；拖房子不动路
+    const key = Object.entries(edges)
+      .map(([id, e]) => `${id}:${e.a}-${e.b}:${e.width}`).join("|")
+      + "#" + Object.entries(nodes).map(([id, n]) => `${id}:${n.xy}`).join("|");
+    if (key === this._roadKey) return;
+    this._roadKey = key;
+    this.road.removeChildren();
     for (const e of Object.values(edges)) {
       const a = nodes[e.a]?.xy, b = nodes[e.b]?.xy;
       if (!a || !b) continue;
       const pts = (e.geom && e.geom.length >= 2) ? e.geom : [a, b];
-      const w = (e.width || 4) * U;
-      const g = new Graphics();
-      g.moveTo(pts[0][0] * U, pts[0][1] * U);
-      for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0] * U, pts[i][1] * U);
-      g.stroke({ color: ROAD_EDGE, width: w + 3, cap: "round", join: "round" });
-      g.stroke({ color: ROAD, width: w, cap: "round", join: "round" });
-      this.road.addChild(g);
+      for (let i = 1; i < pts.length; i++)
+        this.road.addChild(this._segment(pts[i - 1], pts[i], e.width || 4));
     }
   }
 
-  /** 建筑：美术按【世界占地】缩放。占地是真值，美术是贴上去的。 */
-  _buildings(scene) {
-    this.bld.removeChildren();
-    this.buildings.clear();
+  /** 杂物。场景里现在没有 props 段 —— 有就画（编辑器以后能摆）。 */
+  _props_(scene) {
+    const list = scene.map?.props || [];
+    const key = JSON.stringify(list);
+    if (key === this._propsKey) return;
+    this._propsKey = key;
+    this.deco.removeChildren();
+    const SIZE = { tree_s: [20, 24], tree_m: [27, 31], tree_l: [34, 38],
+                   bush_1: [15, 16], bush_2: [18, 19], bench: [26, 12],
+                   lamp: [10, 30], bin: [11, 13], flowerbed: [24, 14] };
+    for (const p of list) {
+      const nm = p.name || p.type;
+      const [w, h] = SIZE[nm] || p.size || [20, 20];
+      const t = this.assets.get(`props/${nm}.svg`);
+      const s = new Sprite(t || undefined);
+      s.anchor.set(0.5, 1);                       // 锚点在脚底：立在地上
+      s.position.set(p.xy[0] * U, p.xy[1] * U);
+      s.width = w; s.height = h;
+      s.zIndex = Math.round(p.xy[1]);
+      this.deco.addChild(s);
+    }
+  }
+
+  /** 建筑：按 loc_id 复用精灵，拖动时只改 transform。 */
+  _buildings_(scene) {
     const types = scene.map?.buildings || {};
     const map = this.assets.buildingTypes();
+    const seen = new Set();
     for (const [lid, loc] of Object.entries(scene.locations || {})) {
+      seen.add(lid);
       const x = loc.x * U, y = loc.y * U, w = loc.w * U, h = loc.h * U;
-      if (loc.kind === "public" && !types[lid]) {        // 广场不是房子
-        this._tile(this.bld, "ground/plaza.svg", x, y, w, h, 0xc9c2b1);
-        this._sign(loc, x, y, h);
-        continue;
+      const isPlaza = loc.kind === "public" && !types[lid];
+      const name = isPlaza ? null : (map[types[lid]?.type] || KIND_ART[loc.kind] || "home_a");
+      let e = this.buildings.get(lid);
+      if (!e) {
+        e = { box: new Container(), body: null, lit: null, shadow: null, key: "" };
+        this.bld.addChild(e.box);
+        this.buildings.set(lid, e);
       }
-      const name = map[types[lid]?.type] || KIND_ART[loc.kind] || "home_a";
-      const sh = this.assets.get(`bld/${name}_shadow.svg`);
-      if (sh) {
-        const s = new Sprite(sh);
-        s.x = x - 3; s.y = y + 3; s.width = w + 6; s.height = h + 7;
-        s.zIndex = 1; this.bld.addChild(s);
+      // 外观变了才重建精灵（换类型 / 广场 ↔ 房子）
+      const key = (isPlaza ? "plaza" : name) + `:${Math.round(w)}x${Math.round(h)}`;
+      if (e.key !== key) {
+        e.key = key;
+        e.box.removeChildren();
+        if (isPlaza) {
+          const g = new Container();
+          this._tile(g, "ground/plaza.svg", 0, 0, w, h, 0xc9c2b1);
+          e.box.addChild(g);
+          e.body = e.lit = e.shadow = null;
+        } else {
+          const st = this.assets.get(`bld/${name}_shadow.svg`);
+          if (st) {
+            e.shadow = new Sprite(st); e.shadow.position.set(-3, 3);
+            e.shadow.width = w + 6; e.shadow.height = h + 7;
+            e.shadow.zIndex = 0; e.box.addChild(e.shadow);
+          }
+          const bt = this.assets.get(`bld/${name}.svg`);
+          if (bt) {
+            e.body = new Sprite(bt); e.body.width = w; e.body.height = h;
+            e.body.zIndex = 1; e.box.addChild(e.body);
+          } else {
+            e.body = new Graphics().rect(0, 0, w, h)
+              .fill(0x8c5b48).stroke({ color: 0x5a3a2e, width: 2 });
+            e.body.zIndex = 1; e.box.addChild(e.body);
+          }
+          const lt = this.assets.get(`bld/${name}_lit.svg`);
+          e.lit = lt ? new Sprite(lt) : null;
+          if (e.lit) {
+            e.lit.width = w; e.lit.height = h; e.lit.zIndex = 2;
+            e.lit.alpha = 0; e.box.addChild(e.lit);
+          }
+        }
       }
-      const t = this.assets.get(`bld/${name}.svg`);
-      if (t) {
-        const s = new Sprite(t);
-        s.x = x; s.y = y; s.width = w; s.height = h; s.zIndex = 2;
-        this.bld.addChild(s);
-        this.buildings.set(lid, s);
-      } else {
-        this.bld.addChild(new Graphics().rect(x, y, w, h)
-          .fill(NO_ART).stroke({ color: NO_ART_EDGE, width: 2 }));
-      }
-      this._sign(loc, x, y, h);
+      e.box.position.set(x, y);
+      e.box.zIndex = Math.round(loc.y + loc.h);
+      this.onSign?.(lid, loc, { x, y: y + h });
     }
+    for (const [lid, e] of [...this.buildings])
+      if (!seen.has(lid)) { e.box.destroy({ children: true }); this.buildings.delete(lid); }
   }
 
-  _sign(loc, x, y, h) {
-    if (!loc.name || !this.onSign) return;
-    this.onSign(loc, { x: x / U, y: (y + h) / U + 0.8 });
+  /** 夜里点亮窗户（时间色调由调用方给，见 atmosphere） */
+  setNight(windowAlpha) {
+    for (const e of this.buildings.values())
+      if (e.lit) e.lit.alpha = windowAlpha;
+  }
+
+  _tile(parent, file, x, y, w, h, color) {
+    const t = this.assets.get(file);
+    if (t) { parent.addChild(new TilingSprite({ texture: t, x, y, width: w, height: h })); return; }
+    parent.addChild(new Graphics().rect(x, y, w, h).fill(color));
   }
 }
 

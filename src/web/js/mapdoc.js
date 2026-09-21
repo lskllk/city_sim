@@ -43,6 +43,10 @@ export class MapDoc {
     this.nodes = structuredClone(m.nodes || {});
     this.edges = structuredClone(m.edges || {});
     this.buildings = structuredClone(m.buildings || {});
+    // ★ 地名要单独记下来：地图编辑【不】改名字，但 toScene() 重算 locations 时
+    //   如果不带 name，就会退回自动生成的"店铺4" —— 一次保存把所有人起的名洗掉。
+    this.names = Object.fromEntries(
+      Object.entries(scene.locations || {}).map(([k, v]) => [k, v.name]).filter(([, v]) => v));
     // 场景里【不是地图】的部分原样留着 —— 保存时透传，不碰。
     // （地图编辑器和人物设计器是两个独立部分，各改各的字段。）
     const { map, canvas, locations, ...rest } = scene;
@@ -80,7 +84,7 @@ export class MapDoc {
     };
   }
 
-  nameOf(bid) { return this.meta.locations?.[bid]?.name || this._plate(bid); }
+  nameOf(bid) { return this.names[bid] || this._plate(bid); }
 
   _plate(bid) {
     const n = parseInt((bid.match(/(\d+)$/) || [])[1] || "0", 10);
@@ -122,7 +126,9 @@ export class MapDoc {
     });
   }
 
-  /** 最近的道路段 {point, dir, edge, dist}；没路返回 {dist: Infinity}。 */
+  /** 最近的道路段 {point, dir, normal, edge, width, dist}；没路返回 {dist: Infinity}。
+   *  ★ 一定要带【方向】和【法线】：光有"最近点"没法决定房子往哪边推 ——
+   *    当点正好落在路上时，最近点 = 它自己，往哪推都是猜的（踩过：推到了路的延长线上）。 */
   nearestRoad(p) {
     let best = { dist: Infinity };
     for (const [eid, e] of Object.entries(this.edges)) {
@@ -130,7 +136,13 @@ export class MapDoc {
       for (let i = 1; i < pts.length; i++) {
         const q = this._closest(p, pts[i - 1], pts[i]);
         const d = Math.hypot(q[0] - p[0], q[1] - p[1]);
-        if (d < best.dist) best = { dist: d, point: q, edge: eid, width: e.width || 4 };
+        if (d < best.dist) {
+          const vx = pts[i][0] - pts[i - 1][0], vy = pts[i][1] - pts[i - 1][1];
+          const L = Math.hypot(vx, vy) || 1;
+          best = { dist: d, point: q, edge: eid, width: e.width || 4,
+                   dir: [vx / L, vy / L],
+                   normal: [-vy / L, vx / L] };     // 屏幕坐标 y 向下，+90° = (-dy, dx)
+        }
       }
     }
     return best;
@@ -163,7 +175,7 @@ export class MapDoc {
   }
 
   grid(p) {
-    const g = this.gridSnap ? 4 : 0;      // 4 米栅格；关掉就贴着鼠标走
+    const g = this.gridSnap === false ? 0 : 4;   // 4 米栅格；显式关掉才贴着鼠标走
     return g ? [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g] : [...p];
   }
 
@@ -234,18 +246,20 @@ export class MapDoc {
     const rd = this.nearestRoad(b.center);
     if (!isFinite(rd.dist)) return false;
     const [cx, cy] = b.center, [qx, qy] = rd.point;
-    let dx = qx - cx, dy = qy - cy;
-    if (Math.hypot(dx, dy) < 0.01) { dx = 0; dy = 1; }
+    // 从"路 → 房子"的方向：优先用实际的偏离方向；偏离太小（正好压在路上）
+    // 就用路的【法线】—— 这才保证是"推到路边"而不是"推到路的延长线上"。
+    let dx = cx - qx, dy = cy - qy;
+    if (Math.hypot(dx, dy) < 0.01) { dx = rd.normal[0]; dy = rd.normal[1]; }
+    const d = Math.hypot(dx, dy) || 1;
     // 门朝路：门的朝外法线 = 指向路的方向 → 反推 rot
     const t = this.types[b.type];
     const side = (t?.doors?.[0]?.side) || "south";
     const base = { south: 90, north: -90, east: 0, west: 180 }[side] ?? 90;
-    const want = Math.atan2(dy, dx) * 180 / Math.PI;
+    const want = Math.atan2(-dy / d, -dx / d) * 180 / Math.PI;   // 门朝【路】，所以反向
     b.rot = +(((want - base + 540) % 360) - 180).toFixed(1);
-    // 墙贴路沿：把门推到路中心线再退回半个路宽
-    const d = Math.hypot(dx, dy) || 1;
+    // 墙贴路沿：从路中心线沿法线退开半个路宽 + 一点余量
     const back = (rd.width || 4) / 2 + 0.6;
-    b.center = [+(qx - dx / d * back).toFixed(3), +(qy - dy / d * back).toFixed(3)];
+    b.center = [+(qx + dx / d * back).toFixed(3), +(qy + dy / d * back).toFixed(3)];
     this._syncDoorNodes(id);
     this._changed();
     return true;

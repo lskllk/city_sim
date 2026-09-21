@@ -13,7 +13,8 @@ export class World {
     this.store = store;
     this.assets = assets;
     this.view = new View(canvasEl, hudEl);
-    this.map = new MapLayer(assets, (loc, p) => this.view.paper("sign:" + loc.name, loc.name, p.x, p.y, "bubble sign"));
+    this.map = new MapLayer(assets, (lid, loc, p) =>
+      this.view.paper("sign:" + lid, loc.name, p.x / U, p.y / U + 0.8, "plate"));
     this.npc = new Container();
     this.npc.sortableChildren = true;
     this._people = new Map();
@@ -23,7 +24,9 @@ export class World {
   async init() {
     await this.view.init();
     this.map.root.zIndex = 0; this.npc.zIndex = 1;
-    this.view.world.addChild(this.map.root, this.npc);
+    this.view.worldLayer.addChild(this.map.root, this.npc);
+    this.view.onView = () => this.view.syncPaper();
+    // 点人；拖是平移（onDown 不接 → 相机默认接管）
     this.view.onPick = (x, y) => this.onSelect?.(this.pick(x, y), [x, y]);
     return this;
   }
@@ -35,7 +38,7 @@ export class World {
 
   /** 点到谁了。人优先 —— 他们很小，但最该点得中。 */
   pick(wx, wy) {
-    let best = "", bestD = 26 / this.view.cam.zoom;
+    let best = "", bestD = 26 / this.view.cam.k;
     for (const [id, p] of this._people) {
       const d = Math.hypot(p.spr.x / U - wx, p.spr.y / U - wy);
       if (d < bestD) { bestD = d; best = id; }

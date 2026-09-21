@@ -8,80 +8,99 @@
 </head>
 <body>
 
-<!-- ══ 主菜单 ══════════════════════════════════════════════════════════ -->
-<div id="menu" class="screen">
-  <h1>citysim</h1>
-  <p class="sub">一个小镇 · 一家店 · 一群记得你的人</p>
-  <nav>
-    <button id="mContinue" class="primary">
-      <b>继续</b><span id="mLast">最近一次的场景</span></button>
-    <button id="mPick"><b>选择场景</b><span>从 config/scenes/ 里挑一个</span></button>
-    <button id="mEditor"><b>编辑器</b><span id="mEditorHint">地图 —— 默认打开最近编辑的那张</span></button>
-  </nav>
-  <div id="mStatus" class="status">没连上后端</div>
-</div>
+<!-- ══ 地图视口（铺满整个窗口）══════════════════════════════════════════ -->
+<div id="viewport"><canvas id="stage"></canvas></div>
+<div id="labels"></div>
 
-<!-- ══ 游戏 ════════════════════════════════════════════════════════════ -->
-<div id="game" class="screen hide">
-  <canvas id="stage"></canvas>
-  <div id="ghud" class="hud"></div>
-
-  <div id="topbar">
-    <button id="gMenu" class="ghost">← 菜单</button>
-    <span id="gClock" class="mono">--:--</span>
-    <span id="gDay" class="dim"></span>
-    <span class="spacer"></span>
-    <span id="gSpeed" class="speeds"></span>
-    <button id="gHome" class="ghost">我的店</button>
+<!-- ══ 游戏：四角 HUD ══════════════════════════════════════════════════ -->
+<div id="hud">
+  <div class="pane tl" id="paneMe">
+    <div class="me-name" id="meName">镇上的小店</div>
+    <div class="me-money" id="meMoney">—<span class="d">元</span></div>
+    <div class="bars" id="meBars"></div>
+    <div class="hr"></div>
+    <div id="meAct" class="dim" style="font-size:11px">点一个人看看</div>
   </div>
 
-  <aside id="panel" class="hide"></aside>
-  <div id="hint" class="hint"></div>
-</div>
-
-<!-- ══ 编辑器 ══════════════════════════════════════════════════════════ -->
-<div id="editor" class="screen hide">
-  <canvas id="ecanvas"></canvas>
-  <div id="ehud" class="hud"></div>
-
-  <div id="ebar">
-    <button id="eMenu" class="ghost">← 菜单</button>
-    <span class="scene"><b id="eName">scene.json</b><i id="eDirty"></i></span>
-    <span class="spacer"></span>
-    <span id="eStats" class="mono dim"></span>
-    <button id="eSave" class="ghost">保存</button>
-    <button id="eSaveAs" class="ghost">另存为…</button>
+  <div class="pane tc">
+    <span class="day" id="gDay">第 1 天</span>
+    <span class="sep"></span>
+    <span class="clock mono" id="gClock">--:--</span>
+    <span class="sep"></span>
+    <span class="wx" id="gWx">☀ 晴</span>
   </div>
 
-  <aside id="etools">
-    <div class="grp">
-      <div class="glab">工具</div>
-      <div class="seg" id="eTool">
+  <div class="tr">
+    <button class="entry" id="gHome"><span class="ic">⌂</span>我的店</button>
+    <button class="entry" id="gMenu"><span class="ic">←</span>菜单</button>
+  </div>
+
+  <div class="bc" id="gSpeed"></div>
+</div>
+
+<aside id="panel" class="hide"></aside>
+<div id="hint"></div>
+
+<!-- ══ 编辑器：同一套四角 ══════════════════════════════════════════════ -->
+<div id="editor" class="hide">
+  <div id="ecanvaswrap"><canvas id="ecanvas"></canvas></div>
+  <div id="elabels"></div>
+
+  <div id="ehud">
+    <div class="pane tl">
+      <div class="me-name">场景 <b id="eName" class="mono">—</b><span id="eDirty" class="bad"></span></div>
+      <div class="me-money" id="eStats" style="font-size:13px;font-weight:600">—</div>
+
+      <div class="glab">工具 <span class="dim">1–4</span></div>
+      <div id="eTool">
         <button data-tool="select">选择</button>
         <button data-tool="road">画路</button>
         <button data-tool="build">摆房</button>
         <button data-tool="erase">删除</button>
       </div>
-    </div>
-    <div class="grp" id="ePaletteGrp">
+
       <div class="glab">建筑类型 <span class="dim" id="ePickHint"></span></div>
       <div class="palette" id="ePalette"></div>
-    </div>
-    <div class="grp">
+
       <div class="glab">规则</div>
       <ul class="rules">
-        <li>吸附：<b>节点 &gt; 门 &gt; 路中线 &gt; 栅格</b></li>
-        <li>门即节点 —— 挪房子，路口跟着走</li>
-        <li>没有边的节点会自动清掉</li>
-        <li><b>先有路，才能摆房</b>；松手自动贴边</li>
+        <li>吸附 <b>节点 &gt; 门 &gt; 路中线 &gt; 栅格</b></li>
+        <li>门即节点，挪房路口跟着走</li>
+        <li>没有边的节点自动清掉</li>
+        <li><b>先有路才能摆房</b>，松手自动贴边</li>
       </ul>
     </div>
-  </aside>
 
-  <div id="efoot">
-    <span id="eXY" class="mono"></span>
-    <span id="eSnap" class="snap"></span>
+    <div class="pane tc">
+      <span id="eXY" class="mono">—</span>
+      <span class="sep"></span>
+      <span id="eSnapLabel" class="dim">—</span>
+    </div>
+
+    <div class="tr">
+      <button class="entry" id="eSave"><span class="ic">⌘</span>保存</button>
+      <button class="entry" id="eSaveAs">另存为…</button>
+      <button class="entry" id="eMenu"><span class="ic">←</span>菜单</button>
+    </div>
+
+    <div class="bc"><span class="dim" style="padding:0 10px;font-size:11px">
+      拖 = 平移 · 滚轮 = 缩放 · Esc = 取消选中</span></div>
   </div>
+</div>
+
+<!-- ══ 主菜单 ══════════════════════════════════════════════════════════ -->
+<div id="menu">
+  <div class="card">
+    <h1>citysim</h1>
+    <p class="sub">一个小镇 · 一家店 · 一群记得你的人</p>
+    <nav>
+      <button class="entry primary" id="mContinue">
+        <b>继续</b><span id="mLast">最近一次的场景</span></button>
+      <button class="entry" id="mEditor">
+        <b>编辑器</b><span>地图 —— 默认打开最近编辑的那张</span></button>
+    </nav>
+  </div>
+  <div class="status" id="mStatus">正在连后端…</div>
 </div>
 
 <script type="module" src="js/main.js"></script>

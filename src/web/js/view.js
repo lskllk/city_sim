@@ -1,125 +1,177 @@
-/** view.js —— 相机 + 输入 + 屏幕空间的纸片。游戏和编辑器共用。
+/** view.js —— 相机 + 输入 + 屏幕纸片。游戏和编辑器共用。
  *
- * 抽出这一个是因为两边要"看起来是同一个东西"：
- *   拖动平移 · 滚轮缩放（★ 锚在鼠标）· 点选 · 纸片贴在世界坐标上
- * 各写一份的话，迟早会一边能拖一边不能，一边锚鼠标一边锚中心。
+ * ══ 输入模型（踩过坑，别改回去）══
  *
- * 分层：
- *   app.stage
- *     └ root（相机作用在这一层）
- *         ├ world   ← 地图画这里（MapLayer.root）
- *         └ overlay ← 编辑手柄画这里（游戏里空着）
- *   纸片（名字/气泡/提示）是 **DOM**，不进 canvas —— 它们在表达"信息有多旧"，
- *   那是规则，不是美术（见 art-direction §三 L6/L7）。
+ * 按下的那一刻就问上层："这个点你要不要接？"
+ *
+ *     onDown(世界点) → true   上层接了（拖房子 / 画路）→ 之后所有 move 都给它
+ *                    → false  没接 → **默认就是平移相机**
+ *
+ * 之前的写法是"移动超过 4px 就转交上层"，结果是：相机一旦动了 4px
+ * 就再也不动了（拖动 = 一卡一卡），而画路又永远等不到 pointerdown。
+ * 两个 bug 同一个根因：**把"拖"和"点"当成了互斥的两种模式**。
+ * 它们不是 —— 拖是默认，上层可以抢。
+ *
+ * ══ 相机 ══
+ *   cam = {x, y, k}：x,y 是【视口左上角对应的世界坐标】。
+ *   #world 的 transform = translate(-x·k, -y·k) scale(k)
+ *   默认铺满视口（cover），四周不露底 —— 原型就是这个行为。
+ *
+ * ══ 纸片 ══
+ * 名字/气泡是 **DOM**，不进 canvas。它们在表达"这条信息有多旧"，那是规则不是
+ * 美术（art-direction §三 L6/L7）。位置每帧用世界→屏幕投影算，所以缩放仍跟着目标。
  */
 import { Application, Container } from '../vendor/pixi.min.mjs';
 
-export const U = 12;                        // 1 世界单位 = 12 px
+export const U = 12;                       // 1 世界单位 = 12 px
 
 export class View {
   constructor(canvasEl, hudEl) {
     this.el = canvasEl;
     this.hud = hudEl;
+    this.cam = { x: 0, y: 0, k: 1 };
+    this.minK = 0.1; this.maxK = 6;
+    this.world = { w: 1280 * U, h: 800 * U };   // 像素
+    this.onDown = null;    // (wx, wy) => bool   上层要不要接这次按下
+    this.onDrag = null;    // (wx, wy) => void
+    this.onUp = null;      // (wx, wy) => void
+    this.onPick = null;    // (wx, wy) => void   纯点击（没被 onDown 接走、也没平移）
+    this.onHover = null;   // (wx, wy) => void
+    this.onView = null;    // () => void          相机变了（重画屏幕纸片）
     this.app = new Application();
-    this.cam = { x: 0, y: 0, zoom: 1 };
-    this.onPick = null;                     // (worldX, worldY) => void（已排除拖动）
-    this.onHover = null;                    // (worldX, worldY) => void
-    this.onDrag = null;                     // (worldX, worldY) => void —— 拖动中
-    this.onDrop = null;                     // () => void —— 松手（拖动结束）
-    this.minZoom = 0.1; this.maxZoom = 8;
   }
 
   async init(bg = 0x6d8a52) {
     await this.app.init({
       canvas: this.el, background: bg, antialias: true,
       resolution: Math.min(devicePixelRatio || 1, 2), autoDensity: true,
-      resizeTo: this.el.parentElement,
     });
     this.root = new Container();
-    this.world = new Container();
+    this.worldLayer = new Container();
     this.overlay = new Container();
-    this.root.addChild(this.world, this.overlay);
+    this.root.addChild(this.worldLayer, this.overlay);
     this.app.stage.addChild(this.root);
+    this.resize();
+    // ★ 用 ResizeObserver 而不是 window.resize：
+    //   编辑器那块 canvas 在 Pixi init 时还是 display:none（初始 hidden），
+    //   clientWidth = 0 → Pixi 退回默认 800×600 → 相机算出来的 k 一路被夹到最小，
+    //   整个画面尺寸全错。ResizeObserver 在元素"变成可见且有尺寸"时会再响一次。
+    this._ro = new ResizeObserver(() => this.resize());
+    this._ro.observe(this.el.parentElement || document.body);
     this._input();
     return this;
   }
 
-  // ── 相机 ────────────────────────────────────────────────────────────
-  apply() {
-    this.root.scale.set(this.cam.zoom);
-    this.root.position.set(this.cam.x, this.cam.y);
-  }
-  viewport() {
-    const r = this.app.renderer;
-    return [r.width / r.resolution, r.height / r.resolution];
-  }
-  centerOn(wx, wy, zoom) {
-    if (zoom) this.cam.zoom = zoom;
-    const [vw, vh] = this.viewport();
-    this.cam.x = vw / 2 - wx * U * this.cam.zoom;
-    this.cam.y = vh / 2 - wy * U * this.cam.zoom;
+  /** 显式量父元素并设 canvas 尺寸。父元素没有尺寸时什么都不做（等 ResizeObserver）。 */
+  resize() {
+    const p = this.el.parentElement || document.body;
+    const w = Math.max(1, Math.round(p.clientWidth));
+    const h = Math.max(1, Math.round(p.clientHeight));
+    if (p.clientWidth === 0 || p.clientHeight === 0) return;   // 还藏着的，别把尺寸写成 1×1
+    if (this.app.renderer.width !== w * this.app.renderer.resolution
+        || this.app.renderer.height !== h * this.app.renderer.resolution) {
+      this.app.renderer.resize(w, h);
+    }
+    this.el.style.width = w + "px";
+    this.el.style.height = h + "px";
     this.apply();
   }
-  fit(canvas, pad = 70) {
+  viewport() { return [this.app.renderer.width / this.app.renderer.resolution,
+                       this.app.renderer.height / this.app.renderer.resolution]; }
+  setWorld(canvas) { this.world = { w: canvas.w * U, h: canvas.h * U }; }
+
+  // ── 相机 ────────────────────────────────────────────────────────────
+  apply() {
+    const { x, y, k } = this.cam;
+    this.root.scale.set(k);
+    this.root.position.set(-x * k, -y * k);
+    this.clamp();
+    this.onView?.();
+  }
+  /** 限制在世界范围内（原型也是这么干的，± 一点余量）。 */
+  clamp() {
     const [vw, vh] = this.viewport();
-    const z = Math.min((vw - pad) / (canvas.w * U), (vh - pad) / (canvas.h * U));
-    this.centerOn(canvas.w / 2, canvas.h / 2, Math.max(this.minZoom, z));
+    const { w, h } = this.world;
+    this.cam.x = Math.min(Math.max(this.cam.x, -60), Math.max(0, w - vw / this.cam.k) + 60);
+    this.cam.y = Math.min(Math.max(this.cam.y, -60), Math.max(0, h - vh / this.cam.k) + 60);
+  }
+  /** ★ 铺满视口（cover），不留边距 —— 这就是"画面铺满整个窗口"。 */
+  fill(zoomOut = 1) {
+    const [vw, vh] = this.viewport();
+    const { w, h } = this.world;
+    const k = Math.max(vw / w, vh / h) * zoomOut;
+    this.centerOn(w / U / 2, h / U / 2, k);
+  }
+  centerOn(wx, wy, k) {
+    if (k) this.cam.k = Math.min(this.maxK, Math.max(this.minK, k));
+    const [vw, vh] = this.viewport();
+    this.cam.x = wx * U - vw / this.cam.k / 2;
+    this.cam.y = wy * U - vh / this.cam.k / 2;
+    this.apply();
   }
   toWorld(sx, sy) {
-    const s = this.root.scale.x, p = this.root.position;
-    return [(sx - p.x) / s / U, (sy - p.y) / s / U];
+    const { x, y, k } = this.cam;
+    return [(x + sx / k) / U, (y + sy / k) / U];
   }
-  /** 世界坐标 → 屏幕（CSS 像素）。纸片定位用。 */
   screenOf(wx, wy) {
-    const s = this.root.scale.x, p = this.root.position;
-    return [wx * U * s + p.x, wy * U * s + p.y];
+    const { x, y, k } = this.cam;
+    return [(wx * U - x) * k, (wy * U - y) * k];
   }
 
+  // ── 输入 ────────────────────────────────────────────────────────────
   _input() {
     const el = this.el;
-    let drag = null, moved = 0;
+    let down = null;
     el.addEventListener("pointerdown", e => {
-      drag = { x: e.clientX, y: e.clientY, cx: this.cam.x, cy: this.cam.y };
-      moved = 0;
-      try { el.setPointerCapture(e.pointerId); } catch { /* 已经丢了就算了 */ }
+      const r = el.getBoundingClientRect();
+      const w = this.toWorld(e.clientX - r.left, e.clientY - r.top);
+      const grabbed = !!this.onDown?.(w[0], w[1]);
+      down = { sx: e.clientX, sy: e.clientY, cx: this.cam.x, cy: this.cam.y,
+               moved: 0, grabbed, w0: w };
+      try { el.setPointerCapture(e.pointerId); } catch { /* 丢了就算了 */ }
+      el.style.cursor = grabbed ? "grabbing" : "move";
     });
     el.addEventListener("pointermove", e => {
       const r = el.getBoundingClientRect();
       const w = this.toWorld(e.clientX - r.left, e.clientY - r.top);
-      if (!drag) { this.onHover?.(w, e); return; }
-      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-      moved = Math.max(moved, Math.hypot(dx, dy));
-      if (moved > 4) { this.onDrag?.(w); return; }   // ★ 拖动交给上层（编辑器要挪房子）
-      this.cam.x = drag.cx + dx; this.cam.y = drag.cy + dy; this.apply();
+      if (!down) { this.onHover?.(w[0], w[1]); return; }
+      down.moved = Math.max(down.moved, Math.hypot(e.clientX - down.sx, e.clientY - down.sy));
+      if (down.grabbed) { this.onDrag?.(w[0], w[1]); return; }   // 上层接了 → 一直给它
+      if (down.moved > 3) {                                      // 没接 → 平移
+        this.cam.x = down.cx - (e.clientX - down.sx) / this.cam.k;
+        this.cam.y = down.cy - (e.clientY - down.sy) / this.cam.k;
+        this.apply();
+      }
     });
-    el.addEventListener("pointerup", e => {
-      try { el.releasePointerCapture(e.pointerId); } catch { /* 同上 */ }
-      const dragged = moved > 4;
-      drag = null;
-      if (dragged) { this.onDrop?.(); return; }
+    const end = (e) => {
+      if (!down) return;
       const r = el.getBoundingClientRect();
-      this.onPick?.(...this.toWorld(e.clientX - r.left, e.clientY - r.top));
-    });
+      const w = this.toWorld(e.clientX - r.left, e.clientY - r.top);
+      const d = down; down = null;
+      el.style.cursor = "crosshair";
+      try { el.releasePointerCapture(e.pointerId); } catch { /* 同上 */ }
+      if (d.grabbed) this.onUp?.(w[0], w[1]);          // 上层接了自己收尾
+      else if (d.moved <= 3) this.onPick?.(w[0], w[1]); // 没动过 = 一次点击
+    };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
     el.addEventListener("wheel", e => {
       e.preventDefault();
       const r = el.getBoundingClientRect();
       const sx = e.clientX - r.left, sy = e.clientY - r.top;
-      const before = this.toWorld(sx, sy);
-      const k = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-      this.cam.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.cam.zoom * k));
-      this.apply();
-      const after = this.toWorld(sx, sy);        // ★ 缩放锚在鼠标：把鼠标下的世界点钉住
-      this.cam.x += (after[0] - before[0]) * U * this.cam.zoom;
-      this.cam.y += (after[1] - before[1]) * U * this.cam.zoom;
+      const [wx, wy] = this.toWorld(sx, sy);
+      const k = Math.min(this.maxK, Math.max(this.minK, this.cam.k * Math.exp(-e.deltaY * 0.0016)));
+      this.cam.k = k;
+      this.cam.x = wx * U - sx / k;                    // ★ 缩放锚在鼠标：鼠标下那个点钉住
+      this.cam.y = wy * U - sy / k;
       this.apply();
     }, { passive: false });
   }
 
-  // ── 屏幕空间的纸片（DOM）────────────────────────────────────────────
-  /** 一个贴在世界坐标上的小纸片。id 相同就复用，不会每帧新建节点。 */
+  // ── 屏幕纸片（DOM）────────────────────────────────────────────────
   paper(id, text, wx, wy, cls = "bubble") {
-    let el = this._paper?.get(id);
-    if (!this._paper) this._paper = new Map();
+    this._paper ||= new Map();
+    let el = this._paper.get(id);
     if (text == null) { el?.remove(); this._paper.delete(id); return null; }
     if (!el) {
       el = document.createElement("div");
@@ -132,12 +184,12 @@ export class View {
     return el;
   }
   dropPaper(id) { this._paper?.get(id)?.remove(); this._paper?.delete(id); }
+  clearPaper() { for (const id of [...(this._paper?.keys() || [])]) this.dropPaper(id); }
   syncPaper() {
     if (!this._paper) return;
     for (const el of this._paper.values()) {
       const [x, y] = this.screenOf(+el.dataset.w, +el.dataset.h);
-      el.style.left = x + "px"; el.style.top = y + "px";
+      el.style.transform = `translate(${x}px,${y}px) translate(-50%,-100%)`;
     }
   }
-  clearPaper() { for (const id of [...(this._paper?.keys() || [])]) this.dropPaper(id); }
 }

@@ -270,6 +270,7 @@ config/scenes/*.json  场景: 地点/建筑/NPC/物件/公司(含预置员工)/�
 | **[UI 实现规格](docs/ui-spec.md)** ❄ | **实现依据**：布局 · 组件 · 交互 · 动效 · 占位清单 |
 | [UI 与信息设计](docs/ui-design.md) | 什么该给玩家看 / 藏（设计理由） |
 | [**资产定义**](docs/asset-list.md) | **这个游戏有哪些资产**（按玩法属性分类 · 命名 · 交付 · 优先级）|
+| [**物品设计**](docs/item-catalog.md) | **卖什么 / 买什么 / 用什么**（65 件 · 三轴取舍 · 要新增的机制）|
 | [美术方向](docs/art-direction.md) | 画风 · 网格 · 资产交付 |
 | [`proto/ui-prototype.html`](proto/ui-prototype.html) | 参考实现（看得见摸得着的标准答案） |
 

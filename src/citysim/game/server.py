@@ -160,6 +160,19 @@ async def put_scene(body: dict, name: str = "scene.json") -> dict:
     return {"ok": True, "name": p.name, "bytes": p.stat().st_size}
 
 
+@app.delete("/api/scene")
+async def delete_scene(name: str) -> dict:
+    """删场景 —— 给回归脚本收尾用（它存到 _regress_tmp.json）。
+    只允许删 config/scenes/ 下的，且**不允许**删最后一个场景。"""
+    p = _scene_path(name)
+    if not p.is_file():
+        raise HTTPException(404, f"场景不存在: {name}")
+    if len(list(SCENES_DIR.glob("*.json"))) <= 1:
+        raise HTTPException(400, "这是最后一个场景，不能删")
+    p.unlink()
+    return {"ok": True, "name": name}
+
+
 @app.get("/api/catalog")
 async def catalog() -> dict:
     """编辑器左侧的调色盘：建筑类型 + 它们的默认占地。

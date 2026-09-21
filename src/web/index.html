@@ -48,33 +48,27 @@
 
   <div id="ehud">
     <div class="pane tl">
-      <div class="me-name">场景 <b id="eName" class="mono">—</b><span id="eDirty" class="bad"></span></div>
-      <div class="me-money" id="eStats" style="font-size:13px;font-weight:600">—</div>
+      <div class="ttl">场景 <b id="eName" class="mono">—</b><span id="eDirty" class="bad"></span></div>
+      <div class="stat" id="eStats">—</div>
 
-      <div class="glab">工具 <span class="dim">1–4</span></div>
-      <div id="eTool">
-        <button data-tool="select">选择</button>
-        <button data-tool="road">画路</button>
-        <button data-tool="build">摆房</button>
-        <button data-tool="erase">删除</button>
+      <div class="seg" id="eTool">
+        <button data-tool="select">选择 1</button>
+        <button data-tool="road">画路 2</button>
+        <button data-tool="place">摆放 3</button>
+        <button data-tool="erase">删除 4</button>
       </div>
 
-      <div class="glab">建筑类型 <span class="dim" id="ePickHint"></span></div>
-      <div class="palette" id="ePalette"></div>
-
-      <div class="glab">吸附</div>
-      <div class="seg" id="eSnapToggles">
-        <button data-snap="net" class="on">节点/门/路</button>
-        <button data-snap="grid" class="on">栅格 4m</button>
+      <div class="tabs" id="eTabs">
+        <button data-cat="bld" class="on">建筑</button>
+        <button data-cat="road">道路</button>
+        <button data-cat="env">环境</button>
       </div>
 
-      <div class="glab">规则</div>
-      <ul class="rules">
-        <li>吸附 <b>节点 &gt; 门 &gt; 路中线 &gt; 栅格</b></li>
-        <li>门即节点，挪房路口跟着走</li>
-        <li>没有边的节点自动清掉</li>
-        <li><b>先有路才能摆房</b>，松手自动贴边</li>
-      </ul>
+      <div class="snaprow">
+        <label class="on" id="eSnapNet"><input type="checkbox" checked>吸附</label>
+        <label class="on" id="eSnapGrid"><input type="checkbox" checked>栅格</label>
+        <span class="sz"><input id="eGridSize" type="number" min="1" step="1" value="4">m</span>
+      </div>
     </div>
 
     <div class="pane tc">
@@ -91,6 +85,12 @@
 
     <div class="bc"><span class="dim" style="padding:0 10px;font-size:11px">
       拖 = 平移 · 滚轮 = 缩放 · Esc = 取消选中</span></div>
+  </div>
+
+  <!-- ★ 摆放栏【整体下移平铺】：横条 + 一行铺开，左边就腾出地方给类别了 -->
+  <div id="epalette">
+    <div class="ph" id="ePaletteTitle">建筑</div>
+    <div class="row" id="ePalette"></div>
   </div>
 </div>
 

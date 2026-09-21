@@ -58,7 +58,7 @@
   } else ok("拖节点", false, "没有三岔节点");
 
   // 6 摆房 + 自动贴边
-  e.setTool("build", "home_small");
+  e.setTool("place", "home_small");
   const s5 = st(); await click([120, 300]); const s6 = st();
   ok("摆房 +1", s6.b === s5.b + 1);
   const nb = Object.keys(e.doc.buildings).pop(), B = e.doc.buildings[nb];
@@ -117,9 +117,11 @@
   el.dispatchEvent(mk("pointerup", pb)); await wait(30);
   ok("拖房子时名牌跟着走", t0 !== t1, t0 === t1 ? "没动 ✗" : "");
 
-  // 12 保存
-  await e.save();
+  // 12 保存 ★ 存到临时文件 —— 回归脚本绝不能动 config/scenes/scene.json
+  //   （以前它会 save() 真场景，我忘还原，结果被 git add -A 扫进提交里）
+  await e.save("_regress_tmp.json");
   ok("保存成功（dirty 清零）", e.doc.dirty === false);
+  try { await fetch("/api/scene?name=_regress_tmp.json", { method: "DELETE" }); } catch {}
 
   return { log, 最终: st() };
 })()

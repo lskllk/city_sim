@@ -26,6 +26,9 @@ export class MapDoc {
   constructor(scene = null) {
     this.canvas = { w: 1280, h: 800 };
     this.nodes = {}; this.edges = {}; this.buildings = {};
+    this.props = [];                   // 环境物件（树/长椅/路灯/车…）：{name, xy}
+    this.gridM = 4;                    // 栅格边长（米）—— 界面上可改
+    this.netSnap = true; this.gridSnap = true;
     this.meta = {};                    // 场景里跟几何无关的部分（人/货/公司/认知）
     this.types = {};                   // type_id -> 类型库条目
     this.dirty = false;
@@ -43,6 +46,7 @@ export class MapDoc {
     this.nodes = structuredClone(m.nodes || {});
     this.edges = structuredClone(m.edges || {});
     this.buildings = structuredClone(m.buildings || {});
+    this.props = structuredClone(m.props || []);
     // ★ 地名要单独记下来：地图编辑【不】改名字，但 toScene() 重算 locations 时
     //   如果不带 name，就会退回自动生成的"店铺4" —— 一次保存把所有人起的名洗掉。
     this.names = Object.fromEntries(
@@ -80,6 +84,7 @@ export class MapDoc {
         format: "citysim.map", version: 1,
         world: { unit: "m", bounds: [0, 0, this.canvas.w, this.canvas.h], grid: 1.0 },
         nodes: this.nodes, edges: this.edges, buildings: this.buildings,
+        ...(this.props.length ? { props: this.props } : {}),
       },
     };
   }
@@ -188,9 +193,26 @@ export class MapDoc {
     return free;
   }
 
+  /** 栅格吸附。边长按【米】设（gridM，默认 4），关掉就贴着鼠标走。 */
   grid(p) {
-    const g = this.gridSnap === false ? 0 : 4;   // 4 米栅格；显式关掉才贴着鼠标走
+    const g = this.gridSnap === false ? 0 : Math.max(1, Math.round(this.gridM || 4));
     return g ? [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g] : [...p];
+  }
+
+  // ── 环境物件 ────────────────────────────────────────────────────────
+  addProp(name, xy) {
+    this.props.push({ name, xy: [+xy[0].toFixed(2), +xy[1].toFixed(2)] });
+    this._changed();
+  }
+  propNear(p, tol = 2.5) {
+    return this.props.findIndex(q => Math.hypot(q.xy[0] - p[0], q.xy[1] - p[1]) < tol);
+  }
+  removePropNear(p, tol = 2.5) {
+    const i = this.propNear(p, tol);
+    if (i < 0) return "";
+    const [g] = this.props.splice(i, 1);
+    this._changed();
+    return g.name;
   }
 
   // ── 改（只改数据，渲染是结果）──────────────────────────────────────
@@ -241,7 +263,7 @@ export class MapDoc {
 
   /** 连一条路：两端各自 resolve（可能建节点 / 拆边），然后连边。
    *  任何一端无效 → 什么都不做，返回 ""。 */
-  connect(sa, sb) {
+  connect(sa, sb, opts = {}) {
     if (!sa || !sb) return "";
     // ★ 先比点，再动数据。否则 resolve(sa) 已经建了节点，才发现两端是同一个点 ——
     //   地图上就留下一个孤儿节点（而且可能顺手把一条路拆了）。用户规则 1。
@@ -249,7 +271,7 @@ export class MapDoc {
     if (Math.hypot(ax - bx, ay - by) < 0.5) return "";
     const a = this.resolve(sa), b = this.resolve(sb);
     if (!a || !b || a === b) return "";
-    return this.addEdge(a, b);
+    return this.addEdge(a, b, opts);
   }
 
   /** 离 p 最近、且在 tol 之内的节点 id（没有返回 ""）。 */

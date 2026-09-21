@@ -181,15 +181,32 @@ async function openEditor() {
       },
       setDirty: (d) => { $("eDirty").textContent = d ? " •" : ""; },
       setCursor: (snap) => { $("eSnapLabel").textContent = editor.snapText() || "—"; },
-      setTool: (t, type) => {
+      setTool: (t) => {
         for (const b of $("eTool").children) b.classList.toggle("on", b.dataset.tool === t);
-        $("ePickHint").textContent = t === "build" ? "挑一个" : "切到「摆房」才能选";
-        for (const b of $("ePalette").children) b.classList.toggle("on", b.dataset.type === type);
       },
     };
     editor = await new Editor($("ecanvas"), $("elabels"), a, ui).init();
-    buildPalette();
-    ui.setTool("select", "");
+    await buildPalettes();
+    ui.setTool("select");
+    // 类别 tab
+    for (const b of $("eTabs").children)
+      b.onclick = () => {
+        curCat = b.dataset.cat;
+        for (const x of $("eTabs").children) x.classList.toggle("on", x === b);
+        renderPalette();
+      };
+    // 吸附 / 栅格 复选框 + 栅格尺寸（整米）
+    const wire = (id, fn) => {
+      const lab = $(id), cb = lab.querySelector("input");
+      cb.onchange = () => { lab.classList.toggle("on", cb.checked); fn(cb.checked); editor.redraw(); };
+    };
+    wire("eSnapNet", v => { editor.doc.netSnap = v; });
+    wire("eSnapGrid", v => { editor.doc.gridSnap = v; });
+    $("eGridSize").onchange = (e) => {
+      editor.doc.gridM = Math.max(1, Math.round(+e.target.value || 1));
+      e.target.value = editor.doc.gridM;
+      editor.redraw();
+    };
     editor.view.el.addEventListener("pointermove", (e) => {
       const r = editor.view.el.getBoundingClientRect();
       const [x, y] = editor.view.toWorld(e.clientX - r.left, e.clientY - r.top);
@@ -202,19 +219,66 @@ async function openEditor() {
   toast(`打开 ${name}（最近编辑的那张）`);
 }
 
-async function buildPalette() {
+/** 三个类别的调色盘。切 tab 就换一屏，都平铺，不滚动。
+ *
+ *  每一格带一个 act：
+ *    width  道路宽度（点一下改画笔，接着画）
+ *    bld    建筑类型（切到「摆放」）
+ *    prop   环境物件（切到「摆放」）
+ *  ★ 车【不算场景资产】，两边都不给 —— 它是模拟里跑出来的，不是摆上去的。
+ */
+let PALETTE = { bld: [], road: [], env: [] };
+let curCat = "bld";
+
+const PROP_ZH = { tree_s: "小树", tree_m: "中树", tree_l: "大树",
+                  bush_1: "灌木", bush_2: "矮丛", bench: "长椅", lamp: "路灯",
+                  bin: "垃圾桶", flowerbed: "花坛" };
+
+async function buildPalettes() {
   const cat = await (await fetch("/api/catalog")).json();
+  const m = await fetchManifest();
+  const prop = (a) => ({ act: "prop", key: a.name,
+                         label: PROP_ZH[a.name] || a.name, sub: `${a.w}×${a.h}`,
+                         hint: `props/${a.name}.svg` });
+  // 车不进调色盘：车是模拟里跑的，不是摆上去的场景资产
+  const props = m.assets.filter(a => a.sub === "props" && !/^car_/.test(a.name));
+
+  PALETTE.bld = cat.buildings.map(b => ({
+    act: "bld", key: b.type, label: b.name, sub: b.kind,
+    hint: `${b.type} · 容量 ${b.capacity} · 默认 ${b.size[0].toFixed(1)}×${b.size[1].toFixed(1)} m`,
+  }));
+  PALETTE.road = [3, 4, 6, 8].map(w => ({
+    act: "width", key: String(w), label: `${w} 米`,
+    sub: w <= 3 ? "小巷" : w <= 4 ? "标准" : w <= 6 ? "大路" : "主干道",
+    hint: "画路用的宽度；改完接着画",
+  }));
+  PALETTE.env = props.map(prop);
+  renderPalette();
+}
+
+function renderPalette() {
   const host = $("ePalette");
   host.innerHTML = "";
-  for (const b of cat.buildings) {
-    const el = document.createElement("button");
-    el.dataset.type = b.type;
-    el.innerHTML = `${b.name}<span class="k">${b.kind}</span>`;
-    el.title = `${b.type} · 容量 ${b.capacity} · 默认 ${b.size[0].toFixed(1)}×${b.size[1].toFixed(1)} m`;
-    el.onclick = () => editor.setTool("build", b.type);
-    host.appendChild(el);
+  $("ePaletteTitle").textContent = { bld: "建筑", road: "道路", env: "环境" }[curCat] || "";
+  for (const it of (PALETTE[curCat] || [])) {
+    const b = document.createElement("button");
+    b.dataset.key = it.key;
+    b.title = it.hint || "";
+    b.innerHTML = `${it.label}<span class="k">${it.sub || ""}</span>`;
+    const on = (it.act === "bld" && editor.buildType === it.key)
+            || (it.act === "width" && String(editor.roadWidth) === it.key)
+            || (it.act === "prop" && editor.propName === it.key);
+    if (on) b.classList.add("on");
+    b.onclick = () => {
+      if (it.act === "bld") { editor.propName = ""; editor.buildType = it.key; editor.setTool("place", it.key); }
+      else if (it.act === "prop") { editor.buildType = ""; editor.propName = it.key; editor.setTool("place"); }
+      else { editor.roadWidth = +it.key; editor.setTool("road"); }
+      renderPalette();
+    };
+    host.appendChild(b);
   }
 }
+
 
 // ══ 接线 ══════════════════════════════════════════════════════════════
 $("mContinue").onclick = () => play();
@@ -237,16 +301,6 @@ $("eSaveAs").onclick = () => {
 for (const b of $("eTool").children)
   b.onclick = () => editor.setTool(b.dataset.tool, editor.buildType);
 
-/** 吸附开关：网络（节点/门/路中线）和栅格，各自独立。 */
-for (const b of $("eSnapToggles").children)
-  b.onclick = () => {
-    const on = !b.classList.contains("on");
-    b.classList.toggle("on", on);
-    if (b.dataset.snap === "net") editor.doc.netSnap = on;
-    else editor.doc.gridSnap = on;
-    editor.redraw();
-  };
-
 window.addEventListener("keydown", (e) => {
   const inEditor = !$("editor").classList.contains("hide");
   if (e.key === "Escape") {
@@ -255,7 +309,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "f" && world) world.view.fill();
   if (e.ctrlKey && e.key === "s" && inEditor) { e.preventDefault(); editor.save(); }
   if (inEditor) {
-    const map = { "1": "select", "2": "road", "3": "build", "4": "erase" };
+    const map = { "1": "select", "2": "road", "3": "place", "4": "erase" };
     if (map[e.key]) editor.setTool(map[e.key], editor.buildType);
   }
 });
@@ -315,6 +369,9 @@ async function toggleScenes() {
 // ── 真菜单：进来不自动开游戏，等玩家选 ──────────────────────────────
 // ★ 以前是无条件 play() —— 菜单只是一闪而过，等于没有菜单。
 //   （#play / #editor 两个 hash 仍然直达，截图和演示要用。）
+//
+// ★ 一定要 show("menu")：HUD 在 HTML 里默认是显示的，
+//   不主动收起来，主菜单右上角就会露出游戏那排按钮（"返回菜单""我的店"）。
+show("menu");
 if (location.hash === "#editor") openEditor();
 else if (location.hash === "#play") play();
-// 否则就停在菜单上

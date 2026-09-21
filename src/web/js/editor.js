@@ -24,7 +24,6 @@ import { MapDoc } from './mapdoc.js';
 
 const SNAP_COLOR = { node: 0x4a7358, door: 0xb4552d, road: 0x9b6f16, free: 0x7a7264 };
 const SNAP_TEXT = { node: "节点", door: "门", road: "路中线（会拆成两条）", free: "自由" };
-const GRID_M = 4;                      // 栅格 4 米
 
 export class Editor {
   constructor(canvasEl, hudEl, assets, ui) {
@@ -38,7 +37,9 @@ export class Editor {
     this.handles = new Container();     // 手柄（节点 / 选中框 / 幽灵）
     this.overlay2 = new Container();    // 高亮（在更上面）
     this.tool = "select";
-    this.buildType = "";
+    this.buildType = "";               // 摆放：建筑类型
+    this.propName = "";                // 摆放：环境物件名
+    this.roadWidth = 4;                // 画路：宽度（米）
     this.selected = "";
     this.snapHint = null;
     this._pending = null;               // 画路中的起点（未提交）
@@ -101,7 +102,7 @@ export class Editor {
 
   setTool(t, buildType) {
     this.tool = t;
-    if (buildType) this.buildType = buildType;
+    if (buildType) { this.buildType = buildType; this.propName = ""; }
     this._drag = null; this._pending = null;
     this.ui.setTool?.(this.tool, this.buildType);
     this.redraw();
@@ -166,6 +167,12 @@ export class Editor {
       this._drag = { kind: "node", id: nid };
       return true;
     }
+    const pi = this.doc.propNear(p);
+    if (pi >= 0) {                               // 拖环境物件
+      this.selected = "prop:" + pi;
+      this._drag = { kind: "prop", idx: pi };
+      return true;
+    }
     return false;                                // 没点中东西 → 让相机平移
   }
 
@@ -178,6 +185,10 @@ export class Editor {
     } else if (d?.kind === "node") {
       // ★ 拖节点也走栅格捕获（和画路同一套 grid()，关掉栅格时它就原样返回）
       this.doc.moveNode(d.id, this.doc.grid(p));
+    } else if (d?.kind === "prop") {
+      const g = this.doc.grid(p);
+      this.doc.props[d.idx].xy = [g[0], g[1]];
+      this.doc._changed();
     } else {
       this.snapHint = this._snapAt(p);
     }
@@ -193,7 +204,7 @@ export class Editor {
       // ★ 提交：两端各自 resolve（复用节点 / 拆边 / 建门节点），再连边。
       //   任何一端不合法 → connect 什么都不做 → 一个节点都不会留下。
       const to = this._snapAt([x, y]);
-      const id = this.doc.connect(pend, to);
+      const id = this.doc.connect(pend, to, { width: this.roadWidth });
       if (!id) this.ui.toast("没连成 —— 两端要么重合，要么落点无效");
       this.doc.pruneOrphans();
     }
@@ -203,7 +214,7 @@ export class Editor {
   /** 纯点击（没被 _down 接走、也没平移）。 */
   _click(x, y) {
     const p = [x, y];
-    if (this.tool === "build") return this._place(p);
+    if (this.tool === "place") return this._place(p);
     if (this.tool === "erase") return this._erase(p);
     if (this.tool === "select") { this.selected = ""; this.redraw(); }
   }
@@ -216,7 +227,12 @@ export class Editor {
   }
 
   _place(p) {
-    if (!this.buildType) return this.ui.toast("左边先挑一个建筑类型");
+    if (this.propName) {                         // 环境：随便摆，不用挨着路
+      this.doc.addProp(this.propName,
+        this.doc.gridSnap === false ? p : this.doc.grid(p));
+      return this.redraw();
+    }
+    if (!this.buildType) return this.ui.toast("左边先挑一个");
     if (!Object.keys(this.doc.edges).length)
       return this.ui.toast("先画一条路 —— 房子必须挨着路（规则强制）");
     const id = this.doc.addBuilding(this.buildType, p);
@@ -228,6 +244,7 @@ export class Editor {
   _erase(p) {
     const bid = this.hitBuilding(p);
     if (bid) { this.doc.removeBuilding(bid); this.selected = ""; }
+    else if (this.doc.removePropNear(p)) { this.selected = ""; }
     else {
       const nid = this.hitNode(p);
       if (nid) this.doc.removeNode(nid);
@@ -250,7 +267,8 @@ export class Editor {
     // ① 栅格：只在【看得清】的时候画。
     //    4 米栅格在整图视角下只有 7 屏幕像素 —— 画出来是一片噪声，
     //    用户看到的就是"一堆不知道干嘛的虚线"。
-    if (this.doc.gridSnap !== false && GRID_M * U * this.view.cam.k >= 14) this._paintGrid();
+    const gm = Math.max(1, Math.round(this.doc.gridM || 4));
+    if (this.doc.gridSnap !== false && gm * U * this.view.cam.k >= 14) this._paintGrid(gm);
 
     // ② 节点
     for (const [id, n] of Object.entries(this.doc.nodes)) {
@@ -292,7 +310,14 @@ export class Editor {
     }
 
     // ⑤ 摆房：幽灵框画在【贴边之后】的位置 —— 否则看着落这儿、放下落那儿 ★ 规则 6
-    if (this.tool === "build" && this.buildType && this._last) {
+    if (this.tool === "place" && this.propName && this._last) {
+      const g = this.doc.gridSnap === false ? this._last : this.doc.grid(this._last);
+      this.overlay2.addChild(new Graphics().circle(g[0] * U, g[1] * U, 9)
+        .fill({ color: 0xf7f4ee, alpha: 0.25 }).stroke({ color: 0xf7f4ee, width: 2 }));
+      this.overlay2.addChild(new Graphics().circle(this._last[0] * U, this._last[1] * U, 3)
+        .fill({ color: 0xf7f4ee }));
+    }
+    if (this.tool === "place" && this.buildType && !this.propName && this._last) {
       const [px, py] = this._last;
       const tmp = { type: this.buildType, center: [px, py],
                     size: this.doc.sizeFor(this.buildType), rot: 0, doors: [], floors: 1 };
@@ -315,8 +340,8 @@ export class Editor {
     this.ui.setDirty?.(this.doc.dirty);
   }
 
-  _paintGrid() {
-    const c = this.doc.canvas, step = GRID_M * U;
+  _paintGrid(gm) {
+    const c = this.doc.canvas, step = gm * U;
     const g = new Graphics();
     for (let x = 0; x <= c.w * U; x += step) g.moveTo(x, 0).lineTo(x, c.h * U);
     for (let y = 0; y <= c.h * U; y += step) g.moveTo(0, y).lineTo(c.w * U, y);

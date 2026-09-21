@@ -31,20 +31,26 @@
         └───────────────┬────────────────────┘
                         │  sim/loop.py → run_tick
                         ▼
-              gateway/  场景→世界 · 世界→JSON(WebSocket)
+     gateway/  场景→世界(scenarios) · 世界→JSON(snapshot)  ← 纯数据桥(不渲染)
+                        ▼
+         api.py  门面: 内核唯一的公开面 (game/ 只能看见它)
+                        ▼
+     game/  经营动词 · 快进编排 · 台词模板 · WS 服务   ← 知道玩家/老板/文风
                         ▼
                    Godot 观察器 / 编辑器
                      (只渲染与发命令, 不算模拟)
 ```
 
-### 三条红线（`tools/check_imports.py` 强制，违规即测试失败）
+### 六条红线（`tools/check_imports.py` 强制前三条，违规即测试失败）
 
 | # | 规则 | 为什么 |
 |---|---|---|
 | **1** | **`npc/` 严禁 `import citysim.world`** | 认知与世界各自能独立推理与测试；NPC 只知道"我能请求什么" |
-| **2** | **world → NPC 只有两个口**：`notify(ev)` + `assign(cmd)` | 世界只说"发生了什么"；怎么改自己是 NPC 的事 |
-| **3** | **决策只读记忆**，不查世界 | 记忆里没有的 = 他不知道 —— 整个认知系统的基础 |
-| **4** | **Godot 只渲染、只发命令，不算任何模拟** | 画面与逻辑不打架；换前端不用改内核 |
+| **2** | **`game/` 只许 `import citysim.api`** | 门面是"读到哪儿为止"的答案；绕过它，答案就没了 |
+| **3** | **`api` 严禁 `import citysim.game`** | 门面只覆盖内核；反向依赖会让包变成一团，还会把 fastapi 拖进内核 |
+| **4** | **world → NPC 只有两个口**：`notify(ev)` + `assign(cmd)` | 世界只说"发生了什么"；怎么改自己是 NPC 的事 |
+| **5** | **决策只读记忆**，不查世界 | 记忆里没有的 = 他不知道 —— 整个认知系统的基础 |
+| **6** | **Godot 只渲染、只发命令，不算任何模拟** | 画面与逻辑不打架；换前端不用改内核 |
 
 ### 那两个口分别是什么
 
@@ -98,7 +104,15 @@ src/citysim/
                econ/       钱与货(shop · economy · company · market · factory)
                mechanism/  通用机制(interaction · events)
   sim/      loop.py(推进入口 run_tick + Systems 容器)
-  gateway/  scenarios(场景→世界) · server(WS) · snapshot(世界→JSON)
+  gateway/  纯数据桥: scenarios(场景→世界) · snapshot(世界→JSON)
+  api.py    门面: 内核唯一的公开面 —— 门外(含 game/)只许 import 这个
+  game/     游戏服务端层:
+               actions.py   经营动词(定价/进货/雇人/排班/装修 …) 只改世界真值
+               clock.py     快进编排(档位 → ticks/秒)
+               lines.py     台词模板池 + 词表(语义事件 → 人话)
+               runner.py    SimRunner: 拥有世界 · 推进 · 60Hz 推送(观察驱动)
+               commands.py  WS 指令表: 名字 → 动作 → reply
+               server.py    FastAPI app + WS 端点(接线与启动)
 config/     sim.toml + items/ · buildings/ · scenes/   ← 数值与内容都在这
 godot/      观察器 + 编辑器(只渲染/发命令, 不算模拟)
 tools/      观测脚本: sim_report · watch · narrate · soak_report …
@@ -115,7 +129,7 @@ python -m pip install -e ".[viz]"     # 额外: 观察器后端 (fastapi + uvico
 
 python tools/sim_report.py config/scenes/scene.json 30   # 无头跑 30 天, 出健康度报告
 python tools/watch.py --npc 6 --ticks 2400               # 终端观察器(无依赖, 最快看行为)
-python -m uvicorn citysim.gateway.server:app --port 8765 # 只跑后端
+python -m uvicorn citysim.game.server:app --port 8765 # 只跑后端
 
 "D:/Godot_v4.7.2-stable_win64.exe" --path godot                              # 观察器
 "D:/Godot_v4.7.2-stable_win64.exe" --path godot res://scenes/editor/editor.tscn  # 编辑器
@@ -240,14 +254,23 @@ config/scenes/*.json  场景: 地点/建筑/NPC/物件/公司(含预置员工)/�
 | `python tools/watch.py --npc N --ticks T` | 终端观察器（无依赖，最快看行为）|
 | `python tools/soak.py` / `soak_report.py` | 长局压力测试 |
 | `python tools/check_imports.py` | 层隔离（已挂进 pytest）|
-| `python -m uvicorn citysim.gateway.server:app` | 只跑后端（给别的前端用）|
+| `python -m uvicorn citysim.game.server:app` | 只跑后端（给别的前端用）|
 | Godot 编辑器 | 场景创作 + 导出 JSON |
 
 ---
 
 ## 九、正在基于它做的游戏
 
-见 **[游戏构思](docs/game-concept.md)**（我们要做什么）与 **[Demo 计划](docs/demo-plan.md)**（怎么做 · 五条线 · 分工 · 契约）。
+见 **[游戏构思](docs/game-concept.md)**（我们要做什么）· **[Demo 计划](docs/demo-plan.md)**（怎么做 · 五条线 · 分工 · 契约）。
+
+前端设计已冻结：
+
+| 文档 | 管什么 |
+|---|---|
+| **[UI 实现规格](docs/ui-spec.md)** ❄ | **实现依据**：布局 · 组件 · 交互 · 动效 · 占位清单 |
+| [UI 与信息设计](docs/ui-design.md) | 什么该给玩家看 / 藏（设计理由） |
+| [美术方向](docs/art-direction.md) | 画风 · 网格 · 资产交付 |
+| [`proto/ui-prototype.html`](proto/ui-prototype.html) | 参考实现（看得见摸得着的标准答案） |
 
 一句话：
 

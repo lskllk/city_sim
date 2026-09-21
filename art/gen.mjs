@@ -955,23 +955,64 @@ function rain() {
    规则②：底部留 facadeReveal 的立面 = 假厚度。这是"看着立体"的全部秘密。
    规则③：落影单独一层。
    ══════════════════════════════════════════════════════════════════════════ */
+/* types[] = 这栋美术【覆盖 config 的哪种建筑类型】。
+   ★ 名字不该指望能对上（美术叫 shop_a，config 叫 shop_small），
+     所以由资产【自己声明】—— 清单里会汇成 buildingTypes 映射给前端和 wiki。 */
 const BUILDINGS = [
-  { id: "shop_a",  kind: "shop",    g: [8, 5], v: 0 },
-  { id: "shop_b",  kind: "shop",    g: [6, 4], v: 1 },
-  { id: "home_a",  kind: "home",    g: [5, 4], v: 0 },
-  { id: "home_b",  kind: "home",    g: [6, 4], v: 1 },
-  { id: "home_c",  kind: "home",    g: [4, 3], v: 2 },
-  { id: "factory", kind: "factory", g: [10, 6], v: 0 },
-  { id: "market",  kind: "shop",    g: [9, 5], v: 2 },
+  { id: "shop_a",  kind: "shop",    g: [8, 5],  v: 0, types: ["shop_small"] },
+  { id: "shop_b",  kind: "shop",    g: [6, 4],  v: 1, types: ["shop_supermarket"] },
+  { id: "home_a",  kind: "home",    g: [5, 4],  v: 0, types: ["home_small"] },
+  { id: "home_b",  kind: "home",    g: [6, 4],  v: 1, types: ["home_standard"] },
+  { id: "home_c",  kind: "home",    g: [4, 3],  v: 2, types: ["home_large"] },
+  { id: "factory", kind: "factory", g: [10, 6], v: 0, types: ["factory_plant"] },
+  { id: "market",  kind: "shop",    g: [9, 5],  v: 2, types: ["market_hall"] },
+  // ↓ 这五种原来没有美术
+  { id: "clinic",  kind: "clinic",  g: [6, 5],  v: 0, types: ["clinic_basic"],
+    deco: "cross", _note: "屋顶画个十字 —— 不用看名字就知道是诊所" },
+  { id: "school",  kind: "school",  g: [9, 6],  v: 0, types: ["school_basic"],
+    deco: "flag",  _note: "屋顶一根旗杆" },
+  { id: "office",  kind: "work",    g: [7, 5],  v: 0, types: ["work_office"] },
+  { id: "site",    kind: "work",    g: [7, 5],  v: 1, types: ["work_site"],
+    roof: "site",  _note: "同 kind，靠屋顶色和门位区分（工地土一点）" },
+  { id: "plaza",   kind: "public",  g: [8, 6],  v: 0, types: ["public_plaza"],
+    open: true,    _note: "广场不是房子：不画屋顶/立面/门，画成铺装 + 花坛" },
 ];
 function building(b) {
   const W = b.g[0] * G, H = b.g[1] * G;
-  const r = P.roof[b.kind], wall = P.wall, B = S.building;
+  const r = P.roof[b.roof || b.kind] || P.roof.home, wall = P.wall, B = S.building;
   const rev = B.facadeReveal;
   const doorW = b.kind === "factory" ? 20 : 13, doorH = 8;
   const doorX = W * (b.v === 1 ? 0.3 : 0.46);
 
   let body = "";
+  // ★ 广场：不是房子。不画屋顶/立面/门口，画成铺装 + 花坛
+  if (b.open) {
+    body += rect(0, 0, W, H, P.plaza.base);
+    body += rect(0, 0, W, H, "none", `stroke="${P.plaza.dark}" stroke-width="${u(1)}"`);
+    const st = T.pavingStep;
+    for (let x = st; x < W; x += st)
+      body += line(x, 0, x, H, P.plaza.dark, 1, `opacity="0.4"`);
+    for (let y = st; y < H; y += st)
+      body += line(0, y, W, y, P.plaza.dark, 1, `opacity="0.4"`);
+    [[0.16, 0.2], [0.84, 0.2], [0.16, 0.8], [0.84, 0.8], [0.5, 0.5]].forEach(([rx, ry]) => {
+      const bx = W * rx, by = H * ry, br = Math.min(W, H) * 0.07;
+      body += circ(bx, by, br, P.tree.dark);
+      body += circ(bx - br * 0.2, by - br * 0.2, br * 0.72, P.tree.base);
+      body += circ(bx - br * 0.35, by - br * 0.35, br * 0.3, P.tree.light, `opacity="0.85"`);
+    });
+    emit(`bld/${b.id}.svg`, svg(W, H, body));
+    add(b.id, `bld/${b.id}.svg`, W, H, "topleft", "L3",
+        ["building", b.kind, `variant${b.v}`, "open"]);
+    const so2 = svg(W + 4, H + 5, rect(0, 0, W, H, "#000", `opacity="0"`));
+    emit(`bld/${b.id}_shadow.svg`, so2);
+    add(`${b.id}_shadow`, `bld/${b.id}_shadow.svg`, W + 4, H + 5, "topleft", "L3",
+        ["building", "shadow", "oversize"]);
+    emit(`bld/${b.id}_lit.svg`, svg(W, H, ""));
+    add(`${b.id}_lit`, `bld/${b.id}_lit.svg`, W, H, "topleft", "L5",
+        ["building", "night"]);
+    return { id: b.id, doors: [], sign: { x: 0, y: 0, w: 0, h: 0 },
+             types: b.types || [] };
+  }
   // 屋顶主体
   body += rect(0, 0, W, H, r.base);
   // 屋顶纹理：1px 平行线 ≤22%（v 决定竖纹还是横纹）
@@ -995,6 +1036,22 @@ function building(b) {
   body += rrect(doorX, H - rev - 1, doorW, rev + 1, 1, P.door.base);
   body += rect(doorX, H - rev - 1, doorW, rev + 1, "none",
     `stroke="${P.door.dark}" stroke-width="${u(1)}"`);
+  // ★ 屋顶记号：不用看名字就知道这是什么楼
+  if (b.deco === "cross") {
+    const cx2 = W * 0.72, cy2 = H * 0.34, L = Math.min(W, H) * 0.16, T = L * 0.38;
+    body += rect(cx2 - L / 2, cy2 - T / 2, L, T, "#e8e2d4", `opacity="0.92"`);
+    body += rect(cx2 - T / 2, cy2 - L / 2, T, L, "#e8e2d4", `opacity="0.92"`);
+    body += rect(cx2 - L / 2, cy2 - T / 2, L, T, "none",
+                 `stroke="#a85a3c" stroke-width="${u(0.8)}" opacity="0.7"`);
+    body += rect(cx2 - T / 2, cy2 - L / 2, T, L, "none",
+                 `stroke="#a85a3c" stroke-width="${u(0.8)}" opacity="0.7"`);
+  }
+  if (b.deco === "flag") {
+    const fx = W * 0.16, fy = H * 0.16;
+    body += rect(fx, fy, 1.6, Math.min(W, H) * 0.22, P.metal.dark);
+    body += `<path d="M ${u(fx + 1.6)} ${u(fy)} L ${u(fx + 13)} ${u(fy + 4)} L `
+          + `${u(fx + 1.6)} ${u(fy + 8)} Z" fill="${P.accent}"/>`;
+  }
   // 招牌底（**留白** —— 字由代码画，因为编辑器能改名）
   const sg = B.signInset;
   body += rrect(sg.x, sg.y, W - sg.x * 2, sg.h, 1.5, wall.base, `opacity="0.92"`);
@@ -1030,7 +1087,8 @@ function building(b) {
         ["building", "night"]);
   }
   return { id: b.id, doors: [{ side: "south", offset: +(doorX / W).toFixed(3) }],
-           sign: { x: sg.x, y: sg.y, w: W - sg.x * 2, h: sg.h } };
+           sign: { x: sg.x, y: sg.y, w: W - sg.x * 2, h: sg.h },
+           types: b.types || [] };
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1256,7 +1314,11 @@ for (const a of manifest) byCat[a.cat] = (byCat[a.cat] || 0) + 1;
 fs.writeFileSync(path.join(OUT, "manifest.json"),
   JSON.stringify({ style: "art/style.json", grid: G, authorScale: PX,
                    logicalSize: true, buildings: bldJson,
-                   atmosphere: S.atmosphere, assets: manifest }, null, 1));
+                   atmosphere: S.atmosphere,
+                   buildingTypes: bldJson.reduce((o, b) => {
+                     for (const t2 of (b.types || [])) o[t2] = b.id;
+                     return o; }, {}),
+                   assets: manifest }, null, 1));
 
 console.log(`\n生成 ${manifest.length} 个资产 → art/out/`);
 console.log("  按类别:", ["A", "B", "C", "D", "E", "F", "G", "H"]

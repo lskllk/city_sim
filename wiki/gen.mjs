@@ -45,6 +45,8 @@ try { ARTMAN = readJSON(path.join(ROOT, "art/out/manifest.json")); } catch { /* 
 const artNames = new Set((ARTMAN?.assets || []).map(a => a.name));
 const ARTASSETS = ARTMAN?.assets || [];
 const AT = ARTMAN?.atmosphere || { time: [] };
+const BLD_TYPES = ARTMAN?.buildingTypes || {};
+const BLDART = ARTMAN?.buildings || [];
 const ARTGRID = ARTMAN?.grid || 32;
 
 /* 美术资产的九大类（判据是玩法属性 —— 见 docs/asset-list.md §二）。
@@ -321,20 +323,26 @@ function pageBuilding(b) {
       </div>
       <div class="prose">
         ${(() => {
-          const n = "bld_" + b.kind;
-          const has = artNames.has(n) || artNames.has("home_a");
-          return `<h2>美术</h2>` + (has ? `<div class="arow">
-            ${["", "_shadow", "_lit"].map(sfx => {
-              const cand = ["shop_a", "home_a", "factory", "market"]
-                .find(x => artNames.has(x));
-              const nm = cand + sfx;
-              return artNames.has(nm)
-                ? `<div class="acell"><div class="abox"><img src="${ART}/bld/${nm}.svg"
-                     style="width:180px"></div>
-                   <div class="alb">${nm}</div></div>` : "";
-            }).join("")}</div>
-            <div class="hint">每栋三张：本体 / 落影 / 夜间窗光。这里用同类建筑的资产示意。</div>`
-            : `<div class="gapbox"><b>缺</b> —— 这个 kind 还没有美术（见 <a href="art.html">美术</a>）</div>`);
+          // ★ 精确取图：靠资产自己声明的 types[]（清单汇成 buildingTypes）。
+          //   原来是"找一个同 kind 的来示意"——那会把未覆盖的类型也画成有图。
+          const base = BLD_TYPES[b.type];
+          if (!base) return `<h2>美术</h2>
+            <div class="gapbox"><b>缺</b> —— <code>${b.type}</code> 还没有美术。
+            在 <code>art/gen.mjs</code> 的 <code>BUILDINGS</code> 里加一行并写上
+            <code>types: ["${b.type}"]</code>（见 <a href="art.html">美术</a>）</div>`;
+          const bj = BLDART.find(x => x.id === base) || {};
+          const own = (bj.types || []).filter(x => x !== b.type);
+          return `<h2>美术 <span class="id">art/bld/${base}*</span></h2>
+            <div class="arow">${[["", "本体"], ["_shadow", "落影"], ["_lit", "夜间窗光"]]
+              .filter(([sfx]) => artNames.has(base + sfx)).map(([sfx, lb]) =>
+              `<div class="acell"><div class="abox"><img src="${ART}/bld/${base}${sfx}.svg"
+                 style="width:${base === "plaza" ? 200 : 190}px"></div>
+               <div class="alb">${lb}<br><span class="id">${base}${sfx}.svg</span></div></div>`
+              ).join("")}</div>
+            <div class="hint">每栋三张：本体 / 落影 / 夜间窗光。
+              这栋美术叫 <code>${base}</code>，覆盖 <code>${b.type}</code>${own.length
+                ? `（还覆盖 ${own.map(x => `<code>${x}</code>`).join(" · ")}）` : ""}。
+              ${bj._note ? `<br>★ ${bj._note}` : ""}</div>`;
         })()}
         ${used.length ? `<h2>这一局里用到的</h2><ul>${
           used.map(u => `<li><code>${u}</code></li>`).join("")}</ul>` : ""}
@@ -430,6 +438,20 @@ function pageArt() {
       <span class="dim">时间</span><span id="tones" class="zoom"></span>
       <button id="bGrid">格子</button>
     </div>
+    <h2>建筑类型覆盖 <span class="cnt">${Object.keys(BLD_TYPES).length}/${BUILDINGS.length}</span>
+      <span class="h">config 的类型名和美术资产名【不该指望能对上】—— 所以由资产自己声明覆盖谁</span></h2>
+    <table class="dt"><thead><tr><th>config 类型</th><th>kind</th><th>美术资产</th>
+      <th>尺寸</th><th></th></tr></thead><tbody>
+      ${BUILDINGS.map(b => {
+        const base = BLD_TYPES[b.type];
+        const bj = BLDART.find(x => x.id === base) || {};
+        return `<tr><td><a href="building_${b.type}.html"><code>${b.type}</code></a></td>
+          <td><span class="tag">${b.kind}</span></td>
+          <td>${base ? `<code>${base}</code>` : `<span class="bad">缺</span>`}</td>
+          <td>${bj.g ? `${bj.g[0]}×${bj.g[1]} 格` : "—"}</td>
+          <td>${base ? `<img src="${ART}/bld/${base}.svg" style="height:30px">` : ""}</td>
+        </tr>`; }).join("")}</tbody></table>
+
     <h2>组合场景 <span class="h">资产放在一起才知道搭不搭</span></h2>
     ${scenes}
     ${secs}`);

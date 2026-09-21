@@ -62,6 +62,31 @@
         "base": "#8a6a4e",
         "dark": "#785b42",
         "light": "#9b7a5c"
+      },
+      "clinic": {
+        "base": "#c2c8c4",
+        "dark": "#a6aca8",
+        "light": "#d4d9d6"
+      },
+      "school": {
+        "base": "#8a7a5a",
+        "dark": "#746548",
+        "light": "#9c8b68"
+      },
+      "work": {
+        "base": "#6b7176",
+        "dark": "#5c6166",
+        "light": "#7b8186"
+      },
+      "site": {
+        "base": "#8a7f6a",
+        "dark": "#756a57",
+        "light": "#9c9078"
+      },
+      "public": {
+        "base": "#8d9a86",
+        "dark": "#7a8674",
+        "light": "#9ea896"
       }
     },
     "wall": {

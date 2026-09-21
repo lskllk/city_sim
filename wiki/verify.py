@@ -84,7 +84,35 @@ def main() -> int:
         if f'item_{it["item_type"]}.html' not in items_html:
             errors.append(f"物品总表没链到 {it['item_type']}（{it.get('name')}）")
 
-    print(f"页面 {len(pages)} 个 · 物品 {len(items)} · 建筑 {len(blds)}")
+    # ⑥ ★ 每种 config 建筑类型都必须有美术，而且建筑页必须精确指向它
+    #    （防的是"建筑页拿一个同 kind 的资产来示意"—— 那会让没图的类型看起来有图）
+    man_path = ROOT / "art/out/manifest.json"
+    if not man_path.exists():
+        errors.append("art/out/manifest.json 不存在 —— 先跑 bash art/build.sh")
+    else:
+        man = json.loads(man_path.read_text(encoding="utf-8"))
+        btypes = man.get("buildingTypes", {})
+        have = {a["name"] for a in man.get("assets", [])}
+        for b in blds:
+            base = btypes.get(b["type"])
+            if not base:
+                errors.append(f"建筑类型没美术: {b['type']}（{b.get('name')}）")
+                continue
+            if base not in have:
+                errors.append(f"buildingTypes 指向不存在的资产: {b['type']} → {base}")
+                continue
+            page_path = OUT / f"building_{b['type']}.html"
+            if page_path.exists():
+                h = page_path.read_text(encoding="utf-8")
+                if f"bld/{base}.svg" not in h:
+                    errors.append(f"building_{b['type']}.html 没贴自己的美术（应贴 {base}）")
+
+    bld_cov = ""
+    man_path = ROOT / "art/out/manifest.json"
+    if man_path.exists():
+        bld_cov = f" · 建筑美术覆盖 {len(json.loads(man_path.read_text(encoding='utf-8')).get('buildingTypes', {}))}/{len(blds)}"
+
+    print(f"页面 {len(pages)} 个 · 物品 {len(items)} · 建筑 {len(blds)}{bld_cov}")
     if errors:
         print(f"\n✗ {len(errors)} 个问题:")
         for e in errors[:30]:
@@ -92,7 +120,7 @@ def main() -> int:
         if len(errors) > 30:
             print(f"   … 还有 {len(errors) - 30} 条")
         return 1
-    print("\n✓ 全部通过（页面完整 / 无脏值 / 链接可落地 / 单页齐 / 导航齐 / 交叉链接齐）")
+    print("\n✓ 全部通过（页面完整 / 无脏值 / 链接可落地 / 单页齐 / 导航齐 / 交叉链接齐 / 建筑美术覆盖齐）")
     return 0
 
 

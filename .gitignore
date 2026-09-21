@@ -21,3 +21,7 @@ art/out/
 
 # wiki 构建产物（真源是 config/ + wiki/gen.mjs）
 wiki/out/
+
+# 前端构建产物
+node_modules/
+_uv.log

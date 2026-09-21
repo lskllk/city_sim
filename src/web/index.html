@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>citysim</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- ══ 主菜单 ══════════════════════════════════════════════════════════ -->
+<div id="menu" class="screen">
+  <h1>citysim</h1>
+  <p class="sub">一个小镇 · 一家店 · 一群记得你的人</p>
+  <nav>
+    <button id="mContinue" class="primary">
+      <b>继续</b><span id="mLast">最近一次的场景</span></button>
+    <button id="mPick"><b>选择场景</b><span>从 config/scenes/ 里挑一个</span></button>
+    <button id="mEditor" disabled><b>编辑器</b><span>还没做 —— 等 demo 跑起来</span></button>
+  </nav>
+  <div id="mStatus" class="status">没连上后端</div>
+</div>
+
+<!-- ══ 游戏 ════════════════════════════════════════════════════════════ -->
+<div id="game" class="screen hide">
+  <canvas id="stage"></canvas>
+
+  <div id="topbar">
+    <button id="gMenu" class="ghost">← 菜单</button>
+    <span id="gClock" class="mono">--:--</span>
+    <span id="gDay" class="dim"></span>
+    <span class="spacer"></span>
+    <span id="gSpeed" class="speeds"></span>
+    <button id="gHome" class="ghost">我的店</button>
+  </div>
+
+  <aside id="panel" class="hide"></aside>
+
+  <div id="hint" class="hint"></div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -20,8 +20,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from citysim import api
 from citysim.game.commands import handle_cmd, send
@@ -30,6 +33,11 @@ from citysim.game.runner import SimRunner
 
 # 【import 期副作用】: 必须在 uvicorn 绑定日志 handler 之前接管输出。
 tee_to_log_file()
+
+# 前端在 src/web/（vanilla ES module + PixiJS）。
+# 从后端发出去而不是另开一个 dev server: 这样 WS 是同源的, 一条命令就能开。
+ROOT = Path(__file__).resolve().parents[3]
+WEB = ROOT / "src" / "web"
 
 app = FastAPI()
 runner = SimRunner()
@@ -56,6 +64,22 @@ async def ws_endpoint(ws: WebSocket) -> None:
 
 @app.get("/")
 async def _root() -> dict:
-    """健康探针; 前端连 /ws 拿快照。原先的 Godot 观察器已归档(标签 archive/godot-observer)。"""
+    """健康探针; 前端在 /game/（src/web/）。"""
     return {"service": "citysim", "status": "ok",
-            "ws": "/ws", "observer": "(归档) archive/godot-observer"}
+            "ws": "/ws", "game": "/game/",
+            "observer": "(归档) archive/godot-observer"}
+
+
+# 美术产物: 前端按 art/xxx.svg 取（manifest.json 里的 file 字段就是这个前缀）。
+# 只在目录存在时挂 —— 没见过 art/out 的人（比如只装内核）不会因为缺目录起不来。
+if (ROOT / "art" / "out").is_dir():
+    app.mount("/art", StaticFiles(directory=str(ROOT / "art" / "out")), name="art")
+
+if WEB.is_dir():
+    # /game/ → src/web/（html=True 让目录访问回到 index.html）。
+    # 挂在最后: 上面两个先匹配。
+    app.mount("/game", StaticFiles(directory=str(WEB), html=True), name="game")
+
+    @app.get("/game")
+    async def _game() -> FileResponse:
+        return FileResponse(str(WEB / "index.html"))

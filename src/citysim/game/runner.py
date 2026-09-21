@@ -303,18 +303,22 @@ class SimRunner:
         evs = self.drain_log()
         tick = self.world.clock_tick
         dirty = self._dirty_npcs()
-        # 状态未变(暂停/无人移动且无事件) → 不重复推: 省掉暂停时的全量空转。
-        # 新客户端接入/重置/步进 会把 _pushed_tick 置 None 或推进 tick。
-        if self._pushed_tick == tick and not evs and not dirty:
-            return
-        self._pushed_tick = tick
-        self._push_seq += 1
-        # 被选中的那个: 每帧在观察集里(信号实时), 但详情每 rich_every 帧才带一次
+        # 被选中的那个: 每帧在观察集里(信号实时), 但详情每 rich_every 帧才带一次。
+        # ★ 必须在下面那个早退检查【之前】算 —— 否则暂停时点了人,
+        #   焦点还没进 dirty 就先 return 了, 前端永远等不到那份记忆。
+        #   (点人看穿他是这个 demo 的核心动作, 而默认就是暂停开局。)
         rich: set[str] = set()
-        if self.focus_npc in self.world.npcs:
+        watching = self.focus_npc in self.world.npcs
+        if watching:
             dirty.add(self.focus_npc)
             if self._push_seq % max(1, self.rich_every) == 0:
                 rich.add(self.focus_npc)
+        # 状态未变(暂停/无人移动且无事件) → 不重复推: 省掉暂停时的全量空转。
+        # 新客户端接入/重置/步进 会把 _pushed_tick 置 None 或推进 tick。
+        if self._pushed_tick == tick and not evs and not dirty and not watching:
+            return
+        self._pushed_tick = tick
+        self._push_seq += 1
         dirty_ents = self._dirty_entities()
         # 消失的 id(死亡/消耗): 客户端是合并式更新, 必须显式告诉它删
         cur_npcs = set(self.world.npcs)

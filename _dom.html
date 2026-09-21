@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>citysim</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- ══ 主菜单 ══════════════════════════════════════════════════════════ -->
+<div id="menu" class="screen hide">
+  <h1>citysim</h1>
+  <p class="sub">一个小镇 · 一家店 · 一群记得你的人</p>
+  <nav>
+    <button id="mContinue" class="primary">
+      <b>继续</b><span id="mLast"> · 09/21 15:36</span></button>
+    <button id="mPick"><b>选择场景</b><span>从 config/scenes/ 里挑一个</span></button>
+    <button id="mEditor" disabled=""><b>编辑器</b><span>还没做 —— 等 demo 跑起来</span></button>
+  </nav>
+  <div id="mStatus" class="status ok">后端已连上 · 场景  · 6 人</div>
+</div>
+
+<!-- ══ 游戏 ════════════════════════════════════════════════════════════ -->
+<div id="game" class="screen">
+  <canvas id="stage" width="800" height="600" style="width: 800px; height: 600px; touch-action: none;"></canvas>
+
+  <div id="topbar">
+    <button id="gMenu" class="ghost">← 菜单</button>
+    <span id="gClock" class="mono">00:00</span>
+    <span id="gDay" class="dim">第 1 天</span>
+    <span class="spacer"></span>
+    <span id="gSpeed" class="speeds"><button class="on">停</button><button>1×</button><button>10×</button><button>100×</button><button>1000×</button></span>
+    <button id="gHome" class="ghost">我的店</button>
+  </div>
+
+  <aside id="panel" class="hide"></aside>
+
+  <div id="hint" class="hint"></div>
+<div style="position: absolute; inset: 0px; pointer-events: none;"><div class="bubble" data-world="639.05 328.8" style="background: transparent; border: 0px; color: rgb(255, 255, 255); text-shadow: rgb(0, 0, 0) 0px 1px 3px; left: 189.664px; top: 525.696px;">店铺1号</div><div class="bubble" data-world="342.25 238.8" style="background: transparent; border: 0px; color: rgb(255, 255, 255); text-shadow: rgb(0, 0, 0) 0px 1px 3px; left: -5508.9px; top: -1202.3px;">小屋1号</div><div class="bubble" data-world="358.95 238.8" style="background: transparent; border: 0px; color: rgb(255, 255, 255); text-shadow: rgb(0, 0, 0) 0px 1px 3px; left: -5188.26px; top: -1202.3px;">小屋2号</div><div class="bubble" data-world="692 388.68999999999994" style="background: transparent; border: 0px; color: rgb(255, 255, 255); text-shadow: rgb(0, 0, 0) 0px 1px 3px; left: 1206.3px; top: 1675.58px;">批发市场1号</div><div class="bubble" data-world="342.16 271.08000000000004" style="background: transparent; border: 0px; color: rgb(255, 255, 255); text-shadow: rgb(0, 0, 0) 0px 1px 3px; left: -5510.62px; top: -582.528px;">广场1号</div><div class="bubble" data-world="692 456.09" style="background: transparent; border: 0px; color: rgb(255, 255, 255); text-shadow: rgb(0, 0, 0) 0px 1px 3px; left: 1206.3px; top: 2969.66px;">加工厂1号</div></div></div>
+
+<script type="module" src="js/main.js"></script>
+
+
+</body></html>

@@ -196,3 +196,101 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .snaprow .sz{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--ink2)}
 .snaprow .sz input{width:40px;padding:3px 5px;border:1px solid var(--line);border-radius:5px;
   font:11px ui-monospace,Consolas,monospace;text-align:right;background:#fff;color:var(--ink)}
+
+/* ══════════════════════ 人物设计 ══════════════════════
+   左边固定高度的名单（头像 + 姓名），右边编辑框。
+   人物数据就在场景里（scene.npcs），所以它属于场景编辑器。 */
+/* ★ 编辑器顶栏固定宽度：切模式 / 数字位数变化时不许跳。
+   只给编辑器那份定宽 —— 游戏那边的 .tc 是另一个（显示日期时间），内容天然定长。 */
+#eTop{width:640px;justify-content:flex-start;gap:10px;padding:6px 14px}
+#eTop .sep{height:12px}
+#eTop .day{font-size:12px}
+#eTop #eStats,#eTop #eXY{font-size:11px}
+#eTop #eSnapLabel{font-size:11px;flex:1 1 auto;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+#eTop #eUndo{font-size:11px}
+#eModes{display:inline-flex;gap:2px}
+#eModes button{padding:3px 11px;border-radius:999px;font-size:12px;color:var(--ink2)}
+#eModes button:hover{background:var(--paper2);color:var(--ink)}
+#eModes button.on{background:var(--ink);color:var(--paper)}
+
+/* ★ 左右两栏各自固定宽度，【中间空出来】让地图可见、可点。
+   原来是一个铺满的框，把地图全盖住了 —— 而"在地图上选住所"正需要看得见地图。 */
+/* ★ z-index 要高过 #elabels（那层是地图上的建筑名牌，z=5）——
+   不然名牌会画在编辑栏上面（用户：地图的名称会覆盖到编辑）。 */
+/* ★ z-index 必须写在【position:fixed 的子元素】上。
+   写在 #ePeople 上没用 —— 它是 static，z-index 对 static 元素不生效
+   （踩过：编辑栏"依然不在第一图层"，被地图的建筑名牌盖住）。 */
+#ePeople{position:static}
+.plist,.pform{z-index:20}
+.plist{position:fixed;left:16px;top:70px;bottom:16px;width:214px;z-index:20;
+  display:flex;flex-direction:column;padding:0;overflow:hidden}
+.pform{position:fixed;right:16px;top:70px;bottom:16px;width:296px;z-index:20;
+  overflow-y:auto;padding:14px 16px}
+
+.plist .phead{display:flex;align-items:center;gap:7px;padding:10px 12px;
+  border-bottom:1px solid var(--line);font-size:12px}
+.plist .phead b{font-size:13px}
+.plist .phead .dim{font-size:11px}
+.plist .phead button{margin-left:auto;padding:4px 10px;border-radius:999px;
+  font-size:12px;background:var(--ink);color:var(--paper)}
+.plist .phead button:hover{opacity:.86}
+/* ★ 固定高度列表：只滚这一块，外框不动 */
+.plist-body{flex:1 1 auto;overflow-y:auto;padding:6px}
+.plist-body button{display:flex;align-items:center;gap:9px;width:100%;padding:6px 8px;
+  border-radius:8px;text-align:left;font-size:13px}
+.plist-body button:hover{background:var(--paper2)}
+.plist-body button.on{background:#b4552d14;box-shadow:inset 0 0 0 1px var(--hi)}
+.plist-body img{width:30px;height:30px;border-radius:7px;background:#e9e6da;flex:0 0 auto}
+.plist-body .nm{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plist-body .tag2{font-size:10px;color:var(--ink2)}
+.plist-body .none{color:var(--ink2);font-size:12px;padding:12px 8px;text-align:center}
+
+.pform h2{margin:0 0 12px;font-size:16px}
+.pform .hn{flex:1 1 auto;font-size:12px;color:var(--ink2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pform .sub2{font-size:11px;color:var(--ink2);margin-bottom:14px}
+.pform .row{display:grid;grid-template-columns:44px 1fr;gap:8px 10px;align-items:center;
+  margin-bottom:9px}
+.pform .row>label{font-size:12px;color:var(--ink2);text-align:right}
+.pform input[type=text],.pform input[type=date],.pform input[type=number],.pform select{
+  padding:6px 9px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:13px;
+  background:#fff;color:var(--ink);width:100%}
+.pform input:disabled,.pform select:disabled{background:var(--paper2);color:var(--ink2)}
+.pform .inline{display:flex;gap:8px;align-items:center}
+.pform .inline input{flex:1 1 auto}
+.pform .lock{font-size:11px;color:var(--ink2);white-space:nowrap}
+.pform .ghost{padding:6px 12px;border-radius:7px;border:1px solid var(--line);
+  font-size:12px;background:#fff;white-space:nowrap}
+.pform .ghost:hover{background:var(--paper2)}
+.pform .primary{padding:6px 16px;border-radius:7px;background:var(--ink);color:var(--paper);
+  font-size:12px;font-weight:600}
+.pform .danger{padding:6px 12px;border-radius:7px;border:1px solid var(--line);
+  font-size:12px;color:var(--hi)}
+.pform .danger:hover{background:#b4552d10}
+.pform .sec{margin:16px 0 8px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:#a49c8d;font-weight:600;border-top:1px solid var(--line);padding-top:12px}
+
+/* 头像：当前 + 「编辑头像」→ 弹出一个选择框（不是把 8 个全铺在页面上） */
+.faceNow{width:40px;height:40px;border-radius:9px;background:#e9e6da;flex:0 0 auto}
+.facepop{position:absolute;right:16px;z-index:5;margin-top:4px;padding:8px;
+  border-radius:10px;background:var(--paper);border:1px solid var(--line);
+  box-shadow:0 10px 30px #0000002e;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.facepop button{padding:3px;border-radius:9px;border:1px solid transparent}
+.facepop button:hover{background:var(--paper2)}
+.facepop button.on{border-color:var(--hi);background:#b4552d14}
+.facepop img{width:40px;height:40px;border-radius:8px;background:#e9e6da;display:block}
+
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chips button{padding:4px 11px;border-radius:999px;border:1px solid var(--line);
+  font-size:12px;color:var(--ink2)}
+.chips button:hover{background:var(--paper2)}
+.chips button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.pform .bar2{display:flex;gap:8px;align-items:center;margin-top:16px;
+  border-top:1px solid var(--line);padding-top:14px}
+.pform .bar2 .sp{flex:1}
+/* 在地图上点选时的横幅 */
+#pickHint{position:fixed;left:50%;top:78px;transform:translateX(-50%);z-index:12;
+  padding:8px 16px;border-radius:999px;background:var(--ink);color:var(--paper);
+  font-size:12px;box-shadow:0 6px 20px #00000033}
+

@@ -188,36 +188,38 @@
  "knowledge": [],
  "npcs": [
   {
-   "birthday": "1972-05-02",
-   "gender": "female",
-   "home": "bld_008",
-   "id": "npc_sun_yan",
-   "init": {},
-   "money": 303,
    "name": "孙燕",
+   "gender": "female",
+   "birthday": "1972-05-02",
+   "home": "bld_008",
+   "role": "",
+   "money": 303,
    "personality": {
-    "energy": 1,
+    "energy": 2,
     "hunger": 1.2
    },
-   "role": "",
+   "traits": {},
+   "look": "n_sun",
    "tell_bias": 1,
-   "traits": {}
+   "init": {},
+   "id": "npc_sun_yan"
   },
   {
-   "birthday": "2007-05-21",
-   "gender": "male",
-   "home": "bld_008",
-   "id": "npc_lin_san",
-   "init": {},
-   "money": 384,
    "name": "林三",
+   "gender": "male",
+   "birthday": "2007-05-21",
+   "home": "bld_008",
+   "role": "",
+   "money": 384,
    "personality": {
     "energy": 1.2,
     "hunger": 1.2
    },
-   "role": "",
+   "traits": {},
+   "look": "n_lin",
    "tell_bias": 1,
-   "traits": {}
+   "init": {},
+   "id": "npc_lin_san"
   },
   {
    "birthday": "1986-04-05",
@@ -313,7 +315,7 @@
  "locations": {
   "bld_004": {
    "type": "shop_small",
-   "name": "店铺1号",
+   "name": "改名测试252",
    "x": 639.045,
    "y": 306.091,
    "w": 21.909,
@@ -346,8 +348,8 @@
   "bld_011": {
    "type": "public_plaza",
    "name": "广场1号",
-   "x": 338.961,
-   "y": 242.3,
+   "x": 342.158,
+   "y": 242,
    "w": 42.426,
    "h": 28.284
   },
@@ -450,70 +452,6 @@
      640,
      330
     ]
-   },
-   "n_026": {
-    "xy": [
-     400,
-     317.733
-    ],
-    "kind": "junction"
-   },
-   "n_027": {
-    "xy": [
-     397.5,
-     272.063
-    ],
-    "kind": "junction"
-   },
-   "n_028": {
-    "xy": [
-     332.5,
-     273.105
-    ],
-    "kind": "junction"
-   },
-   "n_029": {
-    "xy": [
-     332.5,
-     320.189
-    ],
-    "kind": "junction"
-   },
-   "n_031": {
-    "xy": [
-     360.174,
-     242.3
-    ],
-    "kind": "junction",
-    "door_of": "bld_011",
-    "door_index": 0
-   },
-   "n_032": {
-    "xy": [
-     360.174,
-     270.584
-    ],
-    "kind": "junction",
-    "door_of": "bld_011",
-    "door_index": 1
-   },
-   "n_033": {
-    "xy": [
-     338.96099999999996,
-     256.442
-    ],
-    "kind": "junction",
-    "door_of": "bld_011",
-    "door_index": 2
-   },
-   "n_034": {
-    "xy": [
-     381.387,
-     256.442
-    ],
-    "kind": "junction",
-    "door_of": "bld_011",
-    "door_index": 3
    }
   },
   "edges": {
@@ -813,8 +751,8 @@
    },
    "bld_011": {
     "center": [
-     360.174,
-     256.442
+     363.371,
+     256.142
     ],
     "doors": [
      [

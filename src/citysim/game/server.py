@@ -43,6 +43,20 @@ app = FastAPI()
 runner = SimRunner()
 
 
+@app.middleware("http")
+async def no_store(request, call_next):
+    """★ 一律 no-store。
+
+    踩过：/game/ 的静态文件早加了 no-store，但【API 没有】——
+    于是编辑器 GET /api/scene 拿到的是浏览器缓存里的旧场景：
+    你刚保存、再打开编辑器，看到的还是改之前那张图。
+    开发期这些响应都很小，别缓存最省心。
+    """
+    resp = await call_next(request)
+    resp.headers["Cache-Control"] = "no-store, must-revalidate"
+    return resp
+
+
 @app.on_event("startup")
 async def _start() -> None:
     app.state.task = asyncio.create_task(runner.loop())
@@ -150,10 +164,12 @@ async def get_scene(name: str = "scene.json") -> dict:
 
 @app.put("/api/scene")
 async def put_scene(body: dict, name: str = "scene.json") -> dict:
-    """保存。**先备份再写** —— 编辑器一个误操作能洗掉一天的地图。"""
+    """保存。
+
+    ★ 不再写 .bak：撤销栈（Ctrl+Z，60 步）已经覆盖了"误操作"这件事，
+      而 .bak 会混进 config/scenes/ 被当成一个"场景"列出来。
+    """
     p = _scene_path(name)
-    if p.is_file():
-        (p.parent / (p.name + ".bak")).write_bytes(p.read_bytes())
     p.write_text(json.dumps(body, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     LAST_SCENE.parent.mkdir(exist_ok=True)
     LAST_SCENE.write_text(p.name, encoding="utf-8")
@@ -171,6 +187,76 @@ async def delete_scene(name: str) -> dict:
         raise HTTPException(400, "这是最后一个场景，不能删")
     p.unlink()
     return {"ok": True, "name": name}
+
+
+@app.get("/api/npc-parts")
+async def npc_parts(name: str = "scene.json") -> dict:
+    """人物设计器要的一切「可选项」——全部从内核侧的配置和美术里算出来，
+    前端不硬编码任何一份。改 config/ 或 art/ 这里就跟着变。
+
+    含：外观（8 套美术）、住宅（带容量和已住人数）、名字池、特性池、
+        信号名（性格倍率）、性别的合法取值。
+    """
+    import json as _json
+
+    BODY_ZH = {"slim": "瘦", "medium": "中等", "stocky": "壮"}
+    scene = _json.loads(_scene_path(name).read_text(encoding="utf-8"))
+
+    # 外观：直接用美术里那 8 个人（每人 3 向 × 5 帧 + 头像都已生成）。
+    # ★ 任意捏脸（自由组合体型/发型/上衣）要现生成 SVG，那是另一件事 ——
+    #   现在先让人挑"长得像谁"，列表里的头像和世界里的精灵都跟着变。
+    looks = []
+    chars_path = ROOT / "art" / "characters.json"
+    if chars_path.is_file():
+        ch = _json.loads(chars_path.read_text(encoding="utf-8"))
+        for c in ch.get("characters", []):
+            hair = ch.get("hairStyles", {}).get(c.get("hair"), {})
+            looks.append({"id": c["id"], "name": c.get("name", c["id"]),
+                          "body": c.get("body"), "hair": hair.get("label", c.get("hair")),
+                          "skin": c.get("skin"), "top": c.get("top"),
+                          "acc": c.get("acc")})
+    body_labels = {}
+    style_path = ROOT / "art" / "style.json"
+    if style_path.is_file():
+        st = _json.loads(style_path.read_text(encoding="utf-8"))
+        body_labels = {k: v.get("label", BODY_ZH.get(k, k))
+                       for k, v in ((st.get("person") or {}).get("bodies") or {}).items()}
+
+    # 住宅：容量来自 config/buildings 的 capacity；已住人数从场景的 npcs 数出来
+    btypes = {}
+    bdir = ROOT / "config" / "buildings"
+    if bdir.is_dir():
+        for f in bdir.glob("*.json"):
+            b = _json.loads(f.read_text(encoding="utf-8"))
+            btypes[b.get("type")] = b
+    used: dict[str, int] = {}
+    for n in scene.get("npcs", []):
+        h = str(n.get("home", ""))
+        if h:
+            used[h] = used.get(h, 0) + 1
+    homes = []
+    for lid, spec in (scene.get("locations") or {}).items():
+        bt = btypes.get(spec.get("type"))
+        if not bt or bt.get("kind") != "home":
+            continue
+        cap = int(bt.get("capacity", 1))
+        homes.append({"id": lid, "name": spec.get("name") or lid,
+                      "capacity": cap, "used": used.get(lid, 0),
+                      "full": used.get(lid, 0) >= cap})
+
+    names = {}
+    npath = ROOT / "config" / "names.json"
+    if npath.is_file():
+        names = _json.loads(npath.read_text(encoding="utf-8"))
+
+    # ★ 走门面，不直接 import 内核 —— game/ 只许 import citysim.api（红线 #2）
+    return {"looks": looks, "bodyLabels": body_labels,
+            "homes": sorted(homes, key=lambda h: h["id"]),
+            "surnames": names.get("surnames", []),
+            "given": names.get("given", {"female": [], "male": []}),
+            "traits": names.get("traits", []),
+            "genders": ["female", "male"],
+            "signals": list(api.SIGNALS)}
 
 
 @app.get("/api/catalog")

@@ -219,6 +219,37 @@ export class MapDoc {
     this._changed();
   }
 
+  // ── 人物（scenario 里的 npcs 段，本来就在场景里，原样透传）──────────
+  get npcs() { return (this.meta.npcs ||= []); }
+  /** 新增或覆盖。replaceId 有值就是编辑，否则发一个新 id。返回 id。 */
+  upsertNpc(spec, replaceId = "") {
+    const list = this.npcs;
+    if (replaceId) {
+      const i = list.findIndex(n => n.id === replaceId);
+      if (i >= 0) { list[i] = { ...spec, id: replaceId }; this._changed(); return replaceId; }
+    }
+    const id = spec.id || uid("npc");
+    list.push({ ...spec, id });
+    this._changed();
+    return id;
+  }
+  removeNpc(id) {
+    this.meta.npcs = this.npcs.filter(n => n.id !== id);
+    this._changed();
+  }
+  /** 某个住址住了几个人 —— 判断"住满了"用。 */
+  residents(locId) { return this.npcs.filter(n => n.home === locId).length; }
+  isHome(bid) { return this.types[this.buildings[bid]?.type]?.kind === "home"; }
+  homeCapacity(bid) { return Number(this.types[this.buildings[bid]?.type]?.capacity || 0); }
+  /** 这个建筑还住得下吗（把 exclude 这个人自己排除掉再算）。 */
+  canMoveIn(bid, exclude = "") {
+    if (!this.isHome(bid)) return { ok: false, why: "这不是住宅" };
+    const cap = this.homeCapacity(bid);
+    const used = this.npcs.filter(n => n.home === bid && n.id !== exclude).length;
+    if (used >= cap) return { ok: false, why: `${this.nameOf(bid)} 住满了（${used}/${cap}）` };
+    return { ok: true, used, cap };
+  }
+
   // ── 地面区域：由【若干个节点】围成的闭合多边形 ──────────────────────
   /** nodeIds 至少要 3 个，且都是已存在的节点。返回区域 id 或 ""。 */
   addArea(nodeIds, kind) {

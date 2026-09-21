@@ -34,6 +34,12 @@
   const log = []; const ok = (n, c, d) => log.push(`${c ? "✓" : "✗"} ${n}${d ? "  " + d : ""}`);
   const deg = id => Object.values(e.doc.edges).filter(x => x.a === id || x.b === id).length;
 
+  // ★★ 这道闸是【防自己】的：回归绝不能动真场景。
+  //   之前踩过两次 —— 脚本 save() 了 scene.json，我又用"污染后的备份"去还原，
+  //   于是污染被固定下来、还提交进了版本库（多出 8 个围区域留下的悬空顶点）。
+  const sceneReal = async () => JSON.stringify(await (await fetch("/api/scene?name=scene.json")).json());
+  const REAL_BEFORE = await sceneReal();
+
   const s0 = st();
   // 1 平移默认行为
   const c0 = [e.view.cam.x, e.view.cam.y];
@@ -131,6 +137,10 @@
   await e.save("_regress_tmp.json");
   ok("保存成功（dirty 清零）", e.doc.dirty === false);
   try { await fetch("/api/scene?name=_regress_tmp.json", { method: "DELETE" }); } catch {}
+
+  const realAfter = await sceneReal();
+  ok("真场景 scene.json 一个字节都没变", realAfter === REAL_BEFORE,
+     realAfter === REAL_BEFORE ? "" : "★ 回归动了真场景！查 save() 的目标名");
 
   return { log, 最终: st() };
 })()

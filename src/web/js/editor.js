@@ -95,13 +95,15 @@ export class Editor {
   }
 
   async openLatest() {
-    const list = await (await fetch("/api/scenes")).json();
-    const cat = await (await fetch("/api/catalog")).json();
+    const list = await (await fetch("/api/scenes", { cache: "no-store" })).json();
+    const cat = await (await fetch("/api/catalog", { cache: "no-store" })).json();
     this.doc.setTypes(cat);
-    // ★ 默认打开【最近编辑的那张】；没有记录就取 mtime 最新的一张
+    // ★ 默认打开【最近编辑的那张】；没有记录就取 mtime 最新的一张。
+    //   fetch 一律带 no-store —— 不然浏览器缓存住 /api/scene，
+    //   你刚保存、再进编辑器看到的还是改之前那张（踩过）。
     const name = (list.last && list.scenes.some(s => s.name === list.last))
       ? list.last : (list.scenes[0]?.name || "scene.json");
-    this.doc.load(await (await fetch("/api/scene?name=" + encodeURIComponent(name))).json());
+    this.doc.load(await (await fetch("/api/scene?name=" + encodeURIComponent(name), { cache: "no-store" })).json());
     this.name = name;
     this.view.setWorld(this.doc.canvas);
     this.view.fill();
@@ -211,6 +213,10 @@ export class Editor {
   _down(x, y) {
     const p = [x, y];
     this._last = p;
+    // ★ 有人在等一个建筑（人物设计器"在地图上选住所"）→ 这次点击【别被拖动接走】。
+    //   不拦的话：点建筑 = 开始拖房子，onDown 返回 true，_click 根本不会触发，
+    //   回调永远收不到（踩过：pickBuilding 看着装了却没反应）。
+    if (this._pick) return false;
     // ★ 只有"拖"在这里接：房子 / 节点 / 环境物件。
     //   画路和围区域都是【点一下再点一下】，走 _click ——
     //   这样拖 = 平移、点 = 操作，两个工具同一套手感。
@@ -379,9 +385,24 @@ export class Editor {
     this.redraw();
   }
 
+  /** ★ 等用户在【地图上点一个建筑】。设了它，下一次点击就走这里。
+   *  人物设计器"在地图上选住所"用 —— 比下拉框直观得多。 */
+  pickBuilding(cb) {
+    this._pick = cb;
+    this.setTool("select");   // 别让别的工具抢走这次点击
+    this.redraw();
+  }
+
   /** 纯点击（没被 _down 接走、也没平移）。 */
   _click(x, y) {
     const p = [x, y];
+    if (this._pick) {                        // 有人在地图上等一个建筑
+      const cb = this._pick;
+      this._pick = null;
+      cb(this.hitBuilding(p));
+      this.redraw();
+      return;
+    }
     if (this.tool === "road") return this._roadClick(p);
     if (this.tool === "area") return this._areaClick(p);
     if (this.tool === "place") return this._place(p);

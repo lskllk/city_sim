@@ -29,11 +29,12 @@ export class MapLayer {
     this.root = new Container();
     this.root.sortableChildren = true;
     this.ground = new Container();
+    this.area = new Container();
     this.road = new Container();
     this.deco = new Container();
     this.bld = new Container();
     this.bld.sortableChildren = true;
-    for (const [i, c] of [this.ground, this.road, this.deco, this.bld].entries()) {
+    for (const [i, c] of [this.ground, this.area, this.road, this.deco, this.bld].entries()) {
       c.zIndex = i; this.root.addChild(c);
     }
     this.buildings = new Map();            // loc_id -> {body, lit, shadow}
@@ -43,6 +44,7 @@ export class MapLayer {
   // ── 一次画全（编辑器/游戏都用这个）────────────────────────────────
   draw(scene) {
     this._ground_(scene);
+    this._areas_(scene);
     this._roads_(scene);
     this._props_(scene);
     this._buildings_(scene);
@@ -90,43 +92,71 @@ export class MapLayer {
    *
    *  近直行（φ≈π）和近同向（φ≈0）跳过 —— 那两种情况本来就没有缺口。
    */
-  _fillets(nodes, segs, half) {
+  /** 路口倒角块 —— 相邻两条入射路之间填一段【与两条边都相切】的圆弧。
+   *
+   *  ★ 大路接小路：每条边用【自己的半宽】，不能统一取最宽的。
+   *    统一取最宽的话，小路那侧的切点对不上，接缝就是个台阶
+   *    （用户："大路和小路的融合问题"）。
+   *
+   *  切线圆与两条偏移线都相切 →
+   *      C·u0 = P·u0 + h0 + r
+   *      C·u1 = P·u1 + h1 + r        u = 指向缺口那一侧的法线
+   *  解两元一次方程组得圆心 C，切点 T = C − r·u。
+   *  h0 = h1 时它自动退化成"半宽 + 半径"那个简单式。
+   *
+   *  r = FILLET × max(h0, h1)：倒角的"分量"跟着那条大路走。
+   */
+  _fillets(nodes, segs, grow) {
     const inc = new Map();
-    const add = (nid, d) => {
+    const add = (nid, d, half) => {
       const L = Math.hypot(d[0], d[1]);
       if (L < 1e-6 || !nodes[nid]) return;
       if (!inc.has(nid)) inc.set(nid, []);
-      inc.get(nid).push([d[0] / L, d[1] / L]);
+      inc.get(nid).push({ dir: [d[0] / L, d[1] / L], half });
     };
     for (const s of segs) {
       const d = [s.b[0] - s.a[0], s.b[1] - s.a[1]];
-      if (s.na) add(s.na, d);
-      if (s.nb) add(s.nb, [-d[0], -d[1]]);
+      const half = (s.w + grow) / U / 2;      // ★ 单位统一：都先化成米
+      if (s.na) add(s.na, d, half);
+      if (s.nb) add(s.nb, [-d[0], -d[1]], half);
     }
-    const r = half * FILLET;
-    const reach = half + r;
+    const rot90 = (v, sign) => [sign * -v[1], sign * v[0]];   // 屏幕 y 向下
     const out = [];
     for (const [nid, list] of inc) {
-      if (list.length < 2) continue;                 // 尽头：没有缺口
+      if (list.length < 2) continue;                            // 尽头没有缺口
       const pos = nodes[nid].xy;
-      const sorted = [...list].sort((a, b) => Math.atan2(a[1], a[0]) - Math.atan2(b[1], b[0]));
-      for (let i = 0; i < sorted.length; i++) {
-        const d0 = sorted[i], d1 = sorted[(i + 1) % sorted.length];
+      // 按角度排序：只有相邻两个方向之间才构成缺口
+      const dirs = list.slice().sort((a, b) =>
+        Math.atan2(a.dir[1], a.dir[0]) - Math.atan2(b.dir[1], b.dir[0]));
+      for (let i = 0; i < dirs.length; i++) {
+        const A = dirs[i], B = dirs[(i + 1) % dirs.length];
+        const d0 = A.dir, d1 = B.dir, h0 = A.half, h1 = B.half;
         let phi = Math.atan2(d1[1], d1[0]) - Math.atan2(d0[1], d0[0]);
         while (phi <= 0) phi += Math.PI * 2;
-        if (phi < 0.15 || phi > Math.PI - 0.05) continue;   // 近平行 / 直行
-        const hp = phi / 2;
-        const cot = 1 / Math.tan(hp);
-        const tang = reach * cot;
-        const ca = Math.cos(hp), sa = Math.sin(hp);
-        const cc = [pos[0] + (d0[0] * ca - d0[1] * sa) * reach / Math.sin(hp),
-                    pos[1] + (d0[0] * sa + d0[1] * ca) * reach / Math.sin(hp)];
-        const t1 = [pos[0] + d0[0] * tang - d0[1] * half,
-                    pos[1] + d0[1] * tang + d0[0] * half];
-        const t2 = [pos[0] + d1[0] * tang + d1[1] * half,
-                    pos[1] + d1[1] * tang - d1[0] * half];
-        const a0 = Math.atan2(t1[1] - cc[1], t1[0] - cc[0]);
-        const sweep = -(Math.PI - phi);
+        if (phi < 0.15 || phi > Math.PI - 0.05) continue;        // 近平行 / 直行
+        // 指向缺口那一侧的法线：d0 的法线里，和 d1 同向的那条
+        const n0a = rot90(d0, +1), n0b = rot90(d0, -1);
+        const u0 = (n0a[0] * d1[0] + n0a[1] * d1[1]) > 0 ? n0a : n0b;
+        const n1a = rot90(d1, +1), n1b = rot90(d1, -1);
+        const u1 = (n1a[0] * d0[0] + n1a[1] * d0[1]) > 0 ? n1a : n1b;
+
+        const r = FILLET * Math.max(h0, h1);
+        // 解 C：u0·C = u0·P + h0 + r 且 u1·C = u1·P + h1 + r
+        const b0 = u0[0] * pos[0] + u0[1] * pos[1] + h0 + r;
+        const b1 = u1[0] * pos[0] + u1[1] * pos[1] + h1 + r;
+        const det = u0[0] * u1[1] - u0[1] * u1[0];
+        if (Math.abs(det) < 1e-6) continue;                      // 两法线平行，没缺口
+        const cc = [(b0 * u1[1] - u0[1] * b1) / det,
+                    (u0[0] * b1 - b0 * u1[0]) / det];
+        const t1 = [cc[0] - r * u0[0], cc[1] - r * u0[1]];
+        const t2 = [cc[0] - r * u1[0], cc[1] - r * u1[1]];
+
+        // 弧从 t1 到 t2，走短的那边
+        let a0 = Math.atan2(t1[1] - cc[1], t1[0] - cc[0]);
+        let a1 = Math.atan2(t2[1] - cc[1], t2[0] - cc[0]);
+        let sweep = a1 - a0;
+        while (sweep > Math.PI) sweep -= Math.PI * 2;
+        while (sweep < -Math.PI) sweep += Math.PI * 2;
         const steps = Math.max(2, Math.ceil(Math.abs(sweep) / 0.18));
         const poly = [pos[0] * U, pos[1] * U, t1[0] * U, t1[1] * U];
         for (let k = 1; k < steps; k++) {
@@ -140,23 +170,56 @@ export class MapLayer {
     return out;
   }
 
-  /** ★ 道路：每个宽度一组 = 一条路径 + 顶点圆盘 + 路口倒角。
+  /** ★ 道路分三层画：路段 / 节点圆盘 / 路口倒角。
    *
-   *  两层各司其职：
-   *    一条路径 + 圆帽/圆接头   外角（凸角）自然就是圆的，接缝也不会发白
-   *    路口【倒角】多边形        填相邻两条路之间的缺口 —— 这才是"倒圆角"的本体
+   *  ⚠ 端头【不能】用 cap:"round"：大路接小路时，大路的端帽半径是它自己的
+   *    半宽（4 米），而小路半宽只有 1.5 米 —— 那个半圆直接拱到小路外面，
+   *    路口多出一个"圆圆的屁股"（用户报的）。
    *
-   *  ★ 没有顶点圆盘。
-   *    Godot 版有（draw_road 在每个顶点补一个半径=半宽的实心圆），那是为了
-   *    补 draw_line 逐段画留下的接缝。Pixi 这边一条路径 + join:"round" 本来
-   *    就接得上，再补圆盘就是【多余的一个圆】—— 用户一眼就看出来了：
-   *    "还是圆盘"。
+   *  改成：路段 butt 头（不拱），另在【每个节点】补一个圆盘，
+   *  半径取该节点上【最窄】那条路的半宽：
+   *    · L 形同宽      盘半径 = h        → 外角仍然是圆的
+   *    · 大路接小路    盘半径 = 小路半宽  → 大路那侧不拱出去
+   *    · 尽头（度数 1）盘半径 = 自己半宽  → 圆头照旧
+   *
+   *  一条路径而不是一段一张图：逐段各画会在接缝上叠两层抗锯齿，出现白线。
+   *  贴图要走 texture + matrix，注意 Pixi 会【把贴图乘上 color】——
+   *  用贴图时 color 给白，否则颜色被平方（0x4c×0x4c = #171515，路变近黑）。
    */
+  /** 地面区域：nodes 围成的闭合多边形，铺对应的地面贴图。
+   *  ★ 美术里现在只有 grass/dirt/plaza/water 四种地面 ——
+   *    农田/水泥/地砖是【缺口】，这里先用最接近的贴图 + 色调区分。 */
+  _areas_(scene) {
+    const list = scene.map?.areas || [];
+    const key = JSON.stringify(list.map(a => [a.kind, a.nodes]))
+      + "|" + list.map(a => a.nodes.map(id => scene.map.nodes[id]?.xy || 0).join()).join()
+      + "|v" + (this.assets.version || 0);
+    if (key === this._areaKey) return;
+    this._areaKey = key;
+    this.area.removeChildren();
+    const M = new Matrix().scale(1 / SCALE);
+    for (const a of list) {
+      const poly = (a.nodes || []).map(id => scene.map.nodes[id]?.xy).filter(Boolean);
+      if (poly.length < 3) continue;
+      const spec = AREA_KIND[a.kind] || AREA_KIND.concrete;
+      // ★ 半透明【磨砂覆盖】，不是把地面换掉 —— 底下的草地要透得出来。
+      //   纹理打底（弱） + 一层提亮（磨砂感），最后描边分界。
+      const tex = this.assets.get(spec.file);
+      const pts = poly.flatMap(([x, y]) => [x * U, y * U]);
+      const g = new Graphics();
+      g.poly(pts);
+      g.fill({ color: spec.tint, alpha: 0.5, ...(tex ? { texture: tex, matrix: M } : {}) });
+      g.poly(pts);
+      g.fill({ color: 0xffffff, alpha: 0.10 });          // 磨砂的"雾面"
+      g.poly(pts);
+      g.stroke({ color: 0xffffff, width: 2, alpha: 0.5 });// 内描边
+      g.poly(pts);
+      g.stroke({ color: 0x000000, width: 1, alpha: 0.2 }); // 外描边（分界清楚）
+      this.area.addChild(g);
+    }
+  }
+
   _roads_(scene) {
-    // ★ Pixi 的 texture stroke / fill 会【把贴图乘上 color】。
-    //   既传贴图又传本身颜色的 color → 颜色被平方，0x4c × 0x4c = #171515，
-    //   路变成一片近黑纯色 —— 看起来就是"没用美术资产"。
-    //   所以用贴图时 color 一律给白（白 × 贴图 = 贴图本身）。
     const segs = this._segs(scene);
     const key = JSON.stringify(segs) + "|v" + (this.assets.version || 0);
     if (key === this._roadKey) return;
@@ -175,26 +238,44 @@ export class MapLayer {
     const sidewalk = this.assets.get("road/sidewalk.svg");
     const WALK = SIDEWALK * 2;
 
-    // 每层画一遍：人行道（宽一圈）→ 路面
-    for (const [layer, grow] of [["walk", WALK], ["road", 0]]) {
+    for (const layer of ["walk", "road"]) {
+      const grow = layer === "walk" ? WALK : 0;
+      const tex = layer === "walk" ? sidewalk : asphalt;
+      const paint = { color: tex ? 0xffffff : (layer === "walk" ? 0xb8b3a6 : 0x4c4a4a),
+                      ...(tex ? { texture: tex, matrix: M } : {}) };
+
+      // ① 路段：butt 头（不拱），折线内部节点仍是圆接头
       for (const [w, list] of byW) {
-        const width = w + grow;
-        const halfW = width / U / 2;                    // 世界单位
-        const tex = layer === "walk" ? sidewalk : asphalt;
         const g = new Graphics();
         for (const s of list)
           g.moveTo(s.a[0] * U, s.a[1] * U).lineTo(s.b[0] * U, s.b[1] * U);
-        g.stroke({ width, cap: "round", join: "round",
-                   color: tex ? 0xffffff : (layer === "walk" ? 0xb8b3a6 : 0x4c4a4a),
-                   ...(tex ? { texture: tex, matrix: M } : {}) });
+        g.stroke({ width: w + grow, cap: "butt", join: "round", ...paint });
         this.road.addChild(g);
-        // 倒角：填在路段之后，同色叠加
-        const fil = new Graphics();
-        for (const poly of this._fillets(nodes, list, halfW)) fil.poly(poly);
-        fil.fill({ color: tex ? 0xffffff : (layer === "walk" ? 0xb8b3a6 : 0x4c4a4a),
-                   ...(tex ? { texture: tex, matrix: M } : {}) });
-        this.road.addChild(fil);
       }
+
+      // ② 节点圆盘：半径 = 该节点上【最窄】那条路的半宽
+      const narrow = new Map();
+      for (const s of segs) {
+        const half = (s.w + grow) / U / 2;
+        for (const nid of [s.na, s.nb]) {
+          if (!nid || !nodes[nid]) continue;
+          const cur = narrow.get(nid);
+          if (cur === undefined || half < cur) narrow.set(nid, half);
+        }
+      }
+      const disc = new Graphics();
+      for (const [nid, half] of narrow) {
+        const xy = nodes[nid].xy;
+        disc.circle(xy[0] * U, xy[1] * U, half * U);
+      }
+      disc.fill(paint);
+      this.road.addChild(disc);
+
+      // ③ 路口倒角：填相邻两条路之间的缺口（每条边用【自己的半宽】）
+      const fil = new Graphics();
+      for (const poly of this._fillets(nodes, segs, grow)) fil.poly(poly);
+      fil.fill(paint);
+      this.road.addChild(fil);
     }
     this._dashes(segs);
   }
@@ -327,6 +408,14 @@ export class MapLayer {
     parent.addChild(new Graphics().rect(x, y, w, h).fill(color));
   }
 }
+
+// 地面区域的用途 → 贴图 + 色调。★ 农田/水泥/地砖的专用贴图是美术缺口，
+//   现在借用 dirt / plaza，用色调拉开（见 docs/asset-list.md 的 A 类）。
+const AREA_KIND = {
+  farm:     { file: "ground/dirt.svg",  tint: 0xffffff, label: "农田" },
+  concrete: { file: "ground/plaza.svg", tint: 0xd8d8d2, label: "水泥地" },
+  tile:     { file: "ground/plaza.svg", tint: 0xffffff, label: "地砖" },
+};
 
 const KIND_ART = {
   home: "home_a", shop: "shop_a", market: "market", factory: "factory",

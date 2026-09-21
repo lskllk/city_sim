@@ -138,53 +138,61 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 #menu .status.bad{color:#7a2f18}
 
 /* ══════════════════════ 编辑器 ══════════════════════
-   左栏是【工具栏】不是说明书：工具 + 三个类别 tab + 平铺调色盘。
-   （规则那几条删了 —— 该看的人早看过，不该看的人每次都被挡着。） */
+   ★ 整个摆放栏在【下面】，一条横栏铺开：
+       工具 | 类别 | 调色盘 | 吸附
+   地图因此拿到整屏，类别也横向铺得开。
+   （原来全挤在左上角 198px 宽的竖栏里，类别根本没地方展开。） */
 #ecanvaswrap{position:fixed;inset:0;overflow:hidden;background:#6d8a52}
 
-#eTool{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px}
-#eTool button{padding:7px 9px;border-radius:6px;font-size:12px;color:var(--ink2);
-  text-align:left;border:1px solid transparent}
+/* ★ 宽度恒定：左右各留 16px，撑满。
+   以前是 max-width + translateX(-50%) 的居中 —— 切类别时格数一变，
+   整条横栏就跟着缩/胀，看着很跳。现在两边的段固定、中间那段伸缩，
+   所以无论选哪个类别，横栏的边框纹丝不动。 */
+#eplace{
+  position:absolute;left:16px;right:16px;bottom:14px;
+  border-radius:13px;background:var(--paper);border:1px solid var(--line);
+  box-shadow:0 8px 30px #00000026;overflow:hidden;
+}
+/* 上排：操作 + 资产类型 + 栅格。左右两段固定，中间的类型段拉伸。 */
+#eplace .r1{display:flex;align-items:center;padding:7px 12px;
+  border-bottom:1px solid var(--line)}
+#eplace .r1 .sect{display:flex;align-items:center;padding:0 11px;flex:0 0 auto}
+#eplace .r1 .sect + .sect{border-left:1px solid var(--line)}
+#eplace .r1 #eTabs{flex:1 1 auto;justify-content:center}
+#eplace .r1 .snaprow{padding-right:0}
+
+/* 下排：当前 tab 的资产，横着铺开 */
+#eplace .r2{padding:7px 12px}
+#eplace .row{display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;height:40px;
+  align-items:stretch}
+#eplace .row::-webkit-scrollbar{height:5px}
+#eplace .row::-webkit-scrollbar-thumb{background:#00000018;border-radius:3px}
+
+#eTool{gap:4px}
+#eTool button{padding:7px 11px;border-radius:7px;font-size:12px;color:var(--ink2);
+  white-space:nowrap;border:1px solid transparent}
 #eTool button:hover{background:var(--paper2)}
 #eTool button.on{background:var(--ink);color:var(--paper)}
 
-.tl .ttl{font-size:11px;color:var(--ink2);margin-bottom:2px}
-.tl .stat{font-size:12px;font-weight:600}
+#eTabs{gap:2px}
+#eTabs button{padding:7px 15px;border-radius:7px;font-size:12px;color:var(--ink2);
+  white-space:nowrap}
+#eTabs button:hover{background:var(--paper2)}
+#eTabs button.on{background:#b4552d14;color:var(--ink);font-weight:700;
+  box-shadow:inset 0 0 0 1px var(--hi)}
 
-/* 类别 tab */
-.tabs{display:flex;margin:11px 0 0;border-bottom:1px solid var(--line)}
-.tabs button{flex:1;padding:7px 4px 6px;font-size:12px;color:var(--ink2);
-  border-bottom:2px solid transparent}
-.tabs button:hover{color:var(--ink)}
-.tabs button.on{color:var(--ink);font-weight:700;border-bottom-color:var(--ink)}
-
-/* ★ 摆放栏：整体下移、横着平铺。
-   以前挤在左栏里是个竖列表，把类别挡得没地方展开。 */
-#epalette{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);
-  display:flex;align-items:center;gap:10px;padding:7px 12px;border-radius:11px;
-  background:var(--paper);border:1px solid var(--line);box-shadow:0 6px 22px #00000024;
-  max-width:calc(100% - 40px)}
-#epalette .ph{font-size:10px;letter-spacing:.1em;text-transform:uppercase;
-  color:#a49c8d;font-weight:600;flex:0 0 auto}
-#epalette .row{display:flex;gap:4px;overflow-x:auto;padding-bottom:1px}
-#epalette .row::-webkit-scrollbar{height:5px}
-#epalette .row::-webkit-scrollbar-thumb{background:#00000018;border-radius:3px}
 #ePalette button{display:flex;flex-direction:column;align-items:flex-start;gap:0;
-  padding:5px 10px;border-radius:7px;font-size:12px;line-height:1.25;white-space:nowrap;
+  padding:5px 11px;border-radius:7px;font-size:12px;line-height:1.25;white-space:nowrap;
   border:1px solid transparent;flex:0 0 auto}
 #ePalette button:hover{background:var(--paper2)}
 #ePalette button.on{background:#b4552d14;box-shadow:inset 0 0 0 1px var(--hi)}
 #ePalette .k{color:var(--ink2);font:10px ui-monospace,Consolas,monospace}
 
-/* 吸附 / 栅格 */
-.snaprow{display:flex;align-items:center;gap:5px;margin-top:11px;
-  padding-top:9px;border-top:1px solid var(--line)}
+.snaprow{gap:9px}
 .snaprow label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink2);
-  cursor:pointer;user-select:none}
+  cursor:pointer;user-select:none;white-space:nowrap}
 .snaprow label.on{color:var(--ink)}
 .snaprow input[type=checkbox]{width:13px;height:13px;accent-color:var(--hi);cursor:pointer}
-.snaprow .sz{margin-left:auto;display:flex;align-items:center;gap:3px;font-size:11px;
-  color:var(--ink2)}
-.snaprow .sz input{width:42px;padding:3px 5px;border:1px solid var(--line);border-radius:5px;
+.snaprow .sz{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--ink2)}
+.snaprow .sz input{width:40px;padding:3px 5px;border:1px solid var(--line);border-radius:5px;
   font:11px ui-monospace,Consolas,monospace;text-align:right;background:#fff;color:var(--ink)}
-.snaprow .sz input:disabled{opacity:.4}

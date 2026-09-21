@@ -27,6 +27,7 @@ export class MapDoc {
     this.canvas = { w: 1280, h: 800 };
     this.nodes = {}; this.edges = {}; this.buildings = {};
     this.props = [];                   // 环境物件（树/长椅/路灯/车…）：{name, xy}
+    this.areas = [];                   // 地面区域：{nodes:[节点 id...], kind} 闭合多边形
     this.gridM = 4;                    // 栅格边长（米）—— 界面上可改
     this.netSnap = true; this.gridSnap = true;
     this.meta = {};                    // 场景里跟几何无关的部分（人/货/公司/认知）
@@ -47,6 +48,7 @@ export class MapDoc {
     this.edges = structuredClone(m.edges || {});
     this.buildings = structuredClone(m.buildings || {});
     this.props = structuredClone(m.props || []);
+    this.areas = structuredClone(m.areas || []);
     // ★ 地名要单独记下来：地图编辑【不】改名字，但 toScene() 重算 locations 时
     //   如果不带 name，就会退回自动生成的"店铺4" —— 一次保存把所有人起的名洗掉。
     this.names = Object.fromEntries(
@@ -85,6 +87,7 @@ export class MapDoc {
         world: { unit: "m", bounds: [0, 0, this.canvas.w, this.canvas.h], grid: 1.0 },
         nodes: this.nodes, edges: this.edges, buildings: this.buildings,
         ...(this.props.length ? { props: this.props } : {}),
+        ...(this.areas.length ? { areas: this.areas } : {}),
       },
     };
   }
@@ -197,6 +200,60 @@ export class MapDoc {
   grid(p) {
     const g = this.gridSnap === false ? 0 : Math.max(1, Math.round(this.gridM || 4));
     return g ? [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g] : [...p];
+  }
+
+  // ── 撤销：整份地图拍个快照 ──────────────────────────────────────────
+  /** 地图只有四个字段，直接整份快照最省事也最不会错
+   *  （逐操作记 delta 要维护逆操作，一多就会漏，漏了就是静默丢数据）。 */
+  snapshot() {
+    return JSON.stringify({ nodes: this.nodes, edges: this.edges,
+                            buildings: this.buildings, props: this.props,
+                            areas: this.areas, names: this.names });
+  }
+  restore(snap) {
+    const d = JSON.parse(snap);
+    this.nodes = d.nodes; this.edges = d.edges;
+    this.buildings = d.buildings; this.props = d.props || [];
+    this.areas = d.areas || [];
+    this.names = d.names || {};
+    this._changed();
+  }
+
+  // ── 地面区域：由【若干个节点】围成的闭合多边形 ──────────────────────
+  /** nodeIds 至少要 3 个，且都是已存在的节点。返回区域 id 或 ""。 */
+  addArea(nodeIds, kind) {
+    const ids = [...new Set(nodeIds)].filter(id => this.nodes[id]);
+    if (ids.length < 3) return "";
+    this.areas.push({ id: uid("ar"), nodes: ids, kind });
+    this._changed();
+    return this.areas[this.areas.length - 1].id;
+  }
+  /** 区域所有顶点（世界坐标）—— 渲染和命中都用它。 */
+  areaPath(a) {
+    return (a.nodes || []).map(id => this.nodes[id]?.xy).filter(Boolean);
+  }
+  /** 点是否落在某个区域里（射线法）。返回最后压住它的那个区域。 */
+  areaAt(p) {
+    let hit = null;
+    for (const a of this.areas) {
+      const poly = this.areaPath(a);
+      if (poly.length < 3) continue;
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i], [xj, yj] = poly[j];
+        if ((yi > p[1]) !== (yj > p[1]) &&
+            p[0] < (xj - xi) * (p[1] - yi) / (yj - yi) + xi) inside = !inside;
+      }
+      if (inside) hit = a;
+    }
+    return hit;
+  }
+  removeAreaAt(p) {
+    const a = this.areaAt(p);
+    if (!a) return false;
+    this.areas = this.areas.filter(x => x !== a);
+    this._changed();
+    return true;
   }
 
   // ── 环境物件 ────────────────────────────────────────────────────────
@@ -446,7 +503,109 @@ export class MapDoc {
     this._changed();
   }
 
+  /** ★ 把 b 并入 a：b 上所有边改接到 a，b 删掉。
+   *  拖节点拖到另一个节点上 → 松手合并（用户："也不会继续捕获或者合并"）。
+   *  合并后可能出现自己连自己的边（两侧本来就是同一条路的折返），要清掉。 */
+  mergeNodes(a, b) {
+    if (!a || !b || a === b || !this.nodes[a] || !this.nodes[b]) return false;
+    for (const [eid, e] of Object.entries(this.edges)) {
+      if (e.a === b) e.a = a;
+      if (e.b === b) e.b = a;
+      if (e.a === e.b) { delete this.edges[eid]; continue; }      // 自环：丢掉
+      const A = this.nodes[e.a], B = this.nodes[e.b];
+      if (A && B) e.geom = [A.xy.map(Number), B.xy.map(Number)];
+    }
+    // 合并后可能剩两条端点相同的边，去重（保留先出现的）
+    const seen = new Set();
+    for (const [eid, e] of Object.entries(this.edges)) {
+      const k = [e.a, e.b].sort().join("|") + "|" + e.width;
+      if (seen.has(k)) delete this.edges[eid]; else seen.add(k);
+    }
+    for (const n of Object.values(this.nodes))
+      if (n.door_of === b) n.door_of = "";
+    delete this.nodes[b];
+    this.pruneOrphans();
+    return true;
+  }
+
+  /** 去掉多余的中间点：三点近乎共线就把中间那个丢掉。
+   *
+   *  ★ 合并两条边时必须做这一步。否则数据上是"一条边"，但它的 geom 还带
+   *    那个中间点 —— 渲染按 geom 拆段，画出来/虚线/高亮全都还是【两段】，
+   *    看着跟没合并一样（用户："高亮出来还是两条"）。
+   *  有真实拐点的（垂距 > tol）当然留着。
+   */
+  _simplify(pts, tol = 0.25) {
+    if (!pts || pts.length <= 2) return pts || [];
+    const out = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++) {
+      const a = out[out.length - 1], b = pts[i], c = pts[i + 1];
+      const vx = c[0] - a[0], vy = c[1] - a[1];
+      const L = Math.hypot(vx, vy) || 1;
+      const d = Math.abs((b[0] - a[0]) * vy - (b[1] - a[1]) * vx) / L;  // b 到 a-c 的垂距
+      if (d > tol) out.push(b);
+    }
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+
+  /** 删节点。
+   *  ★ 优先【融合】而不是删光：
+   *    度数为 2          → 两条边合成一条（a—n—b → a—b）
+   *    度数 ≥ 3（路口）  → 挑最"直"的那一对融合（一条直路穿过路口），
+   *                        其余的边才真删
+   *  理由：删掉路中间的一个点，人期望的是"路还在，只是少个点"；
+   *  把连着的边全删会把一条好路拆成碎段，甚至整条消失。
+   */
   removeNode(nid) {
+    const inc = Object.entries(this.edges)
+      .filter(([, e]) => e.a === nid || e.b === nid);
+    const other = (e) => (e.a === nid ? e.b : e.a);
+    const dirTo = (id) => {
+      const a = this.nodes[nid]?.xy, b = this.nodes[id]?.xy;
+      if (!a || !b) return null;
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      return [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+    };
+    // 挑最"直"的一对：方向最接近反向（点积最接近 −1）
+    let pair = null, bestDot = Infinity;
+    for (let m = 0; m < inc.length; m++) {
+      for (let n2 = m + 1; n2 < inc.length; n2++) {
+        const d1 = dirTo(other(inc[m][1])), d2 = dirTo(other(inc[n2][1]));
+        if (!d1 || !d2) continue;
+        const dot = d1[0] * d2[0] + d1[1] * d2[1];
+        if (dot < bestDot) { bestDot = dot; pair = [inc[m], inc[n2]]; }
+      }
+    }
+    if (pair) {
+      const [[id1, e1], [id2, e2]] = pair;
+      const a = other(e1), b = other(e2);
+      if (a !== b && this.nodes[a] && this.nodes[b]) {
+        // 几何从指定那一端开始（折线可能带拐点，别丢）
+        const from = (e, fromId) => {
+          const g = (e.geom || []).map(pp => pp.map(Number));
+          if (g.length < 2) return [];
+          const end = this.nodes[e.a]?.xy;
+          const nearA = end && Math.hypot(g[0][0] - end[0], g[0][1] - end[1]) < 2;
+          return (nearA === (e.a === fromId)) ? g : [...g].reverse();
+        };
+        const merged = this._simplify([...from(e1, a), ...from(e2, nid).slice(1)]);
+        const rest = { ...e1 };
+        delete rest.geom;
+        delete this.edges[id1]; delete this.edges[id2];
+        this.edges[id1] = { ...rest, a, b,
+          geom: merged.length >= 2 ? merged
+                : [this.nodes[a].xy.map(Number), this.nodes[b].xy.map(Number)] };
+        // 融合之外的那些边，连点一起删
+        for (const [eid, e] of inc)
+          if (eid !== id1 && eid !== id2) delete this.edges[eid];
+        delete this.nodes[nid];
+        this.pruneOrphans();
+        this._changed();
+        return;
+      }
+    }
+    // 实在没法融（度数 1 / 两点重合）：连边一起删
     delete this.nodes[nid];
     for (const [eid, e] of Object.entries(this.edges))
       if (e.a === nid || e.b === nid) delete this.edges[eid];
@@ -469,6 +628,10 @@ export class MapDoc {
   pruneOrphans() {
     const used = new Set();
     for (const e of Object.values(this.edges)) { used.add(e.a); used.add(e.b); }
+    // ★ 被【区域】引用的节点也要留着。
+    //   区域的顶点允许落在空地上（"过程可以选择其他地方的空间"），
+    //   那种点没有边 —— 不保的话刚围好的区域会被清掉一半。
+    for (const a of this.areas) for (const id of a.nodes || []) used.add(id);
     let n = 0;
     for (const nid of Object.keys(this.nodes))
       // 挂着建筑门的节点先留着 —— 房子还在，门就不该消失

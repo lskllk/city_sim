@@ -180,9 +180,11 @@ async function openEditor() {
         $("eStats").textContent = `${stats.nodes} 节点 · ${stats.edges} 路段 · ${stats.buildings} 建筑`;
       },
       setDirty: (d) => { $("eDirty").textContent = d ? " •" : ""; },
+      setUndo: (n) => { $("eUndo").textContent = n ? `↶${n}` : ""; },
       setCursor: (snap) => { $("eSnapLabel").textContent = editor.snapText() || "—"; },
       setTool: (t) => {
         for (const b of $("eTool").children) b.classList.toggle("on", b.dataset.tool === t);
+        renderPalette();          // 调色盘那格的高亮跟着走
       },
     };
     editor = await new Editor($("ecanvas"), $("elabels"), a, ui).init();
@@ -227,7 +229,7 @@ async function openEditor() {
  *    prop   环境物件（切到「摆放」）
  *  ★ 车【不算场景资产】，两边都不给 —— 它是模拟里跑出来的，不是摆上去的。
  */
-let PALETTE = { bld: [], road: [], env: [] };
+let PALETTE = { bld: [], road: [], env: [], area: [] };
 let curCat = "bld";
 
 const PROP_ZH = { tree_s: "小树", tree_m: "中树", tree_l: "大树",
@@ -253,13 +255,22 @@ async function buildPalettes() {
     hint: "画路用的宽度；改完接着画",
   }));
   PALETTE.env = props.map(prop);
+  // 地面区域：玩法后面再说，先把这几个用途预留出来
+  PALETTE.area = [
+    { act: "area", key: "farm", label: "农田", sub: "借 dirt",
+      hint: "点节点围出闭合多边形；点回第一个节点闭合" },
+    { act: "area", key: "concrete", label: "水泥地", sub: "借 plaza",
+      hint: "同上" },
+    { act: "area", key: "tile", label: "地砖", sub: "借 plaza",
+      hint: "同上" },
+  ];
   renderPalette();
 }
 
 function renderPalette() {
   const host = $("ePalette");
   host.innerHTML = "";
-  $("ePaletteTitle").textContent = { bld: "建筑", road: "道路", env: "环境" }[curCat] || "";
+
   for (const it of (PALETTE[curCat] || [])) {
     const b = document.createElement("button");
     b.dataset.key = it.key;
@@ -267,11 +278,19 @@ function renderPalette() {
     b.innerHTML = `${it.label}<span class="k">${it.sub || ""}</span>`;
     const on = (it.act === "bld" && editor.buildType === it.key)
             || (it.act === "width" && String(editor.roadWidth) === it.key)
-            || (it.act === "prop" && editor.propName === it.key);
+            || (it.act === "prop" && editor.propName === it.key)
+            || (it.act === "area" && editor.areaKind === it.key && editor.tool === "area");
     if (on) b.classList.add("on");
     b.onclick = () => {
-      if (it.act === "bld") { editor.propName = ""; editor.buildType = it.key; editor.setTool("place", it.key); }
+      // 点调色盘 = 进那个状态。再点一次同一格 = 退回「选择」。
+      const same = (it.act === "bld" && editor.buildType === it.key)
+                || (it.act === "prop" && editor.propName === it.key)
+                || (it.act === "area" && editor.areaKind === it.key && editor.tool === "area")
+                || (it.act === "width" && String(editor.roadWidth) === it.key && editor.tool === "road");
+      if (same) { editor.buildType = ""; editor.propName = ""; editor.setTool("select"); }
+      else if (it.act === "bld") { editor.propName = ""; editor.buildType = it.key; editor.setTool("place", it.key); }
       else if (it.act === "prop") { editor.buildType = ""; editor.propName = it.key; editor.setTool("place"); }
+      else if (it.act === "area") { editor.areaKind = it.key; editor.setTool("area"); }
       else { editor.roadWidth = +it.key; editor.setTool("road"); }
       renderPalette();
     };
@@ -298,18 +317,27 @@ $("eSaveAs").onclick = () => {
   const name = prompt("另存为（写到 config/scenes/）：", editor?.name || "scene.json");
   if (name) editor.save(name.trim().replace(/[^\w.-]/g, "") || "scene.json");
 };
+// ★ 不传第二个参数！传 editor.buildType 的话：setTool("select") 先清空，
+//   紧接着 `if (buildType)` 又把它塞回来 —— 点「选择」调色盘不取消高亮。
 for (const b of $("eTool").children)
-  b.onclick = () => editor.setTool(b.dataset.tool, editor.buildType);
+  b.onclick = () => editor.setTool(b.dataset.tool);
 
 window.addEventListener("keydown", (e) => {
   const inEditor = !$("editor").classList.contains("hide");
   if (e.key === "Escape") {
-    if (inEditor) { editor.selected = ""; editor.redraw(); } else clearSel();
+    // Esc = 同一个 cancelGesture（和右键一样），不只是清选中
+    if (inEditor) editor.deselect(); else clearSel();
   }
   if (e.key === "f" && world) world.view.fill();
   if (e.ctrlKey && e.key === "s" && inEditor) { e.preventDefault(); editor.save(); }
+  if ((e.key === "Delete" || e.key === "Backspace") && inEditor) {
+    if (editor.deleteSelected()) e.preventDefault();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && inEditor) {
+    e.preventDefault(); editor.undo();
+  }
   if (inEditor) {
-    const map = { "1": "select", "2": "road", "3": "place", "4": "erase" };
+    const map = { "1": "select", "2": "erase" };
     if (map[e.key]) editor.setTool(map[e.key], editor.buildType);
   }
 });

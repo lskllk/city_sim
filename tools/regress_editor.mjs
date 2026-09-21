@@ -7,6 +7,13 @@
   const mk = (t, p, id = 21) => new PointerEvent(t, { bubbles: true, cancelable: true,
     pointerId: id, isPrimary: true, clientX: p.clientX, clientY: p.clientY, button: 0,
     buttons: t === "pointerup" ? 0 : 1 });
+  /** 画路现在是【点两下】：点起点 → 点终点（不用按住拖）。 */
+  async function tap(x, y) {
+    const p = S(x, y);
+    el.dispatchEvent(mk("pointerdown", p)); el.dispatchEvent(mk("pointerup", p));
+    await wait(50);
+  }
+  async function twoTaps(from, to) { await tap(...from); await tap(...to); }
   async function drag(from, to, steps = 6) {
     const a = S(...from), b = S(...to);
     el.dispatchEvent(mk("pointerdown", a));
@@ -35,16 +42,16 @@
   e.view.cam.x = c0[0]; e.view.cam.y = c0[1]; e.view.apply();
 
   // 2 两点法
-  e.setTool("road"); await drag([70, 60], [70, 200]);
+  e.setTool("road"); await twoTaps([70, 60], [70, 200]);
   const s1 = st();
   ok("两点法画路（+2 节点 +1 边）", s1.n === s0.n + 2 && s1.ed === s0.ed + 1);
 
   // 3 未成路不留东西
-  const s2 = st(); await drag([70, 120], [70, 120]); const s3 = st();
+  const s2 = st(); await tap(70, 120); await tap(70, 120); const s3 = st();
   ok("未成路不留孤儿节点", s3.n === s2.n && s3.ed === s2.ed);
 
   // 4 拆边
-  e.setTool("road"); const a4 = st(); await drag([70, 140], [200, 140]); const b4 = st();
+  e.setTool("road"); const a4 = st(); await twoTaps([70, 140], [200, 140]); const b4 = st();
   ok("起点落在路中段 → 拆边（+2 节点 +2 边）",
      b4.n === a4.n + 2 && b4.ed === a4.ed + 2, `${a4.n}/${a4.ed}→${b4.n}/${b4.ed}`);
 
@@ -72,7 +79,7 @@
   // 7 门即节点
   const door = e.doc.doorWorlds(B)[0].pos;
   const before7 = new Set(Object.keys(e.doc.nodes));
-  e.setTool("road"); await drag([door[0], door[1] + 22], [door[0] + 1.2, door[1] + 0.8]);
+  e.setTool("road"); await twoTaps([door[0], door[1] + 22], [door[0] + 1.2, door[1] + 0.8]);
   // 门要接进路网：要么认领了门上那颗既有节点，要么新画时生成一颗
   const dn = Object.keys(e.doc.nodes).find(n => e.doc.nodes[n].door_of === nb);
   const linked = dn ? Object.values(e.doc.edges)
@@ -94,10 +101,12 @@
 
   // 10 高亮
   e.setTool("road");
-  el.dispatchEvent(mk("pointerdown", S(80, 340)));
-  el.dispatchEvent(mk("pointermove", S(170, 340))); await wait(30);
+  await tap(80, 340);                           // 点起点
+  const p9 = S(170, 340);
+  el.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 9,
+    isPrimary: true, clientX: p9.clientX, clientY: p9.clientY }));
+  await wait(40);
   const hi = e.overlay2.children.length;
-  el.dispatchEvent(mk("pointerup", S(170, 340))); await wait(30);
   ok("画路时有落点/捕获高亮", hi >= 2, `${hi} 个图形`);
 
   // 11 名牌跟着建筑（拖动过程中）

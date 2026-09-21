@@ -29,6 +29,7 @@ export class World {
     this.view.onView = () => this.view.syncPaper();
     // 点人；拖是平移（onDown 不接 → 相机默认接管）
     this.view.onPick = (x, y) => this.onSelect?.(this.pick(x, y), [x, y]);
+    this.view.onContext = () => this.onSelect?.("", [0, 0]);   // 右键 = 取消选中
     return this;
   }
 

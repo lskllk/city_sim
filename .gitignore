@@ -36,3 +36,4 @@ src/web/_*.html
 # 临时场景（回归/实验用，绝不进版本库）
 config/scenes/_*.json
 config/scenes/*.bak
+_*.png

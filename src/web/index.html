@@ -47,34 +47,16 @@
   <div id="elabels"></div>
 
   <div id="ehud">
-    <div class="pane tl">
-      <div class="ttl">场景 <b id="eName" class="mono">—</b><span id="eDirty" class="bad"></span></div>
-      <div class="stat" id="eStats">—</div>
-
-      <div class="seg" id="eTool">
-        <button data-tool="select">选择 1</button>
-        <button data-tool="road">画路 2</button>
-        <button data-tool="place">摆放 3</button>
-        <button data-tool="erase">删除 4</button>
-      </div>
-
-      <div class="tabs" id="eTabs">
-        <button data-cat="bld" class="on">建筑</button>
-        <button data-cat="road">道路</button>
-        <button data-cat="env">环境</button>
-      </div>
-
-      <div class="snaprow">
-        <label class="on" id="eSnapNet"><input type="checkbox" checked>吸附</label>
-        <label class="on" id="eSnapGrid"><input type="checkbox" checked>栅格</label>
-        <span class="sz"><input id="eGridSize" type="number" min="1" step="1" value="4">m</span>
-      </div>
-    </div>
-
-    <div class="pane tc">
-      <span id="eXY" class="mono">—</span>
+    <!-- 顶上只留场景信息 —— 别的一律下移 -->
+    <div class="pane tc" id="eTop">
+      <span class="day"><b id="eName" class="mono">—</b><span id="eDirty" class="bad"></span></span>
       <span class="sep"></span>
+      <span class="dim" id="eStats">—</span>
+      <span class="sep"></span>
+      <span id="eXY" class="mono">—</span>
       <span id="eSnapLabel" class="dim">—</span>
+      <span class="sep"></span>
+      <span id="eUndo" class="mono dim"></span>
     </div>
 
     <div class="tr">
@@ -82,15 +64,29 @@
       <button class="entry" id="eSaveAs">另存为…</button>
       <button class="entry" id="eMenu"><span class="ic">←</span>菜单</button>
     </div>
-
-    <div class="bc"><span class="dim" style="padding:0 10px;font-size:11px">
-      拖 = 平移 · 滚轮 = 缩放 · Esc = 取消选中</span></div>
   </div>
 
-  <!-- ★ 摆放栏【整体下移平铺】：横条 + 一行铺开，左边就腾出地方给类别了 -->
-  <div id="epalette">
-    <div class="ph" id="ePaletteTitle">建筑</div>
-    <div class="row" id="ePalette"></div>
+  <!-- ★ 摆放栏：上下两排。
+       上排 = 操作 + 资产类型 + 栅格；下排 = 当前 tab 的资产，横着铺开。 -->
+  <div id="eplace">
+    <div class="r1">
+      <div class="sect seg" id="eTool">
+        <button data-tool="select">选择 1</button>
+        <button data-tool="erase">删除 2</button>
+      </div>
+      <div class="sect tabs" id="eTabs">
+        <button data-cat="bld" class="on">建筑</button>
+        <button data-cat="road">道路</button>
+        <button data-cat="env">环境</button>
+        <button data-cat="area">地面区域</button>
+      </div>
+      <div class="sect snaprow">
+        <label class="on" id="eSnapNet"><input type="checkbox" checked>吸附</label>
+        <label class="on" id="eSnapGrid"><input type="checkbox" checked>栅格</label>
+        <span class="sz"><input id="eGridSize" type="number" min="1" step="1" value="4">m</span>
+      </div>
+    </div>
+    <div class="r2"><div class="sect row" id="ePalette"></div></div>
   </div>
 </div>
 

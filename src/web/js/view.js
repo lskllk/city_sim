@@ -37,6 +37,7 @@ export class View {
     this.onUp = null;      // (wx, wy) => void
     this.onPick = null;    // (wx, wy) => void   纯点击（没被 onDown 接走、也没平移）
     this.onHover = null;   // (wx, wy) => void
+    this.onContext = null; // (wx, wy) => void  右键（右键不当拖动的起点）
     this.onView = null;    // () => void          相机变了（重画屏幕纸片）
     this.app = new Application();
   }
@@ -153,6 +154,7 @@ export class View {
     const el = this.el;
     let down = null;
     el.addEventListener("pointerdown", e => {
+      if (e.button === 2) return;            // 右键交给 onContext
       const r = el.getBoundingClientRect();
       const w = this.toWorld(e.clientX - r.left, e.clientY - r.top);
       const grabbed = !!this.onDown?.(w[0], w[1]);
@@ -185,6 +187,11 @@ export class View {
     };
     el.addEventListener("pointerup", end);
     el.addEventListener("pointercancel", end);
+    el.addEventListener("contextmenu", e => {
+      e.preventDefault();                    // 别弹系统菜单
+      const r = el.getBoundingClientRect();
+      this.onContext?.(...this.toWorld(e.clientX - r.left, e.clientY - r.top));
+    });
     el.addEventListener("wheel", e => {
       e.preventDefault();
       const r = el.getBoundingClientRect();

@@ -33,12 +33,15 @@ export class Assets2 {
     this.version++;
   }
 
-  /** 预先加载地图要用的那几类。
-   *  ★ road 一定要在里面：中线虚线和斑马线是 road 类，
-   *    漏了它们就要等懒加载 —— 而地图只画一次，等到的就是"永远不出现"。 */
+  /** 预先加载地图 + 编辑器要用的那几类。
+   *  ★ 这里漏一个类，症状都是"永远不出现"而不是"报错"：
+   *    · 漏 road  → 道路的中线虚线不画（地图只画一次，等不到懒加载）
+   *    · 漏 props → 摆放预览变成兜底方框（长得像"预览太大了"）
+   *    所以宁可多加载：反正就 26 张。 */
   async preloadMap() {
     const files = this.manifest.assets
-      .filter(a => ["ground", "road", "body", "shadow", "lit"].includes(a.sub))
+      .filter(a => ["ground", "road", "body", "shadow", "lit", "props", "world",
+                    "portrait", "iworld", "iempty", "attach", "fx"].includes(a.sub))
       .map(a => a.file);
     await this.loadAll(files);
   }

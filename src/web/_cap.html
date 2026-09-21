@@ -1,0 +1,19 @@
+<!doctype html><meta charset=utf-8><style>html,body{margin:0;background:#fff}canvas{display:block}</style>
+<canvas id="c"></canvas>
+<script type="module">
+import { Application, Graphics } from './vendor/pixi.min.mjs';
+const app = new Application();
+await app.init({ canvas: document.getElementById('c'), width: 460, height: 300,
+                 background: 0xffffff, antialias: true });
+// ★ 关键：一条 Graphics 里装【多条子路径】，一次 stroke —— 圆帽还在不在？
+const g = new Graphics();
+g.moveTo(100, 70).lineTo(300, 70);        // 子路径 1：横
+g.moveTo(100, 200).lineTo(100, 280);      // 子路径 2：竖（不连着的另一条）
+g.stroke({ width: 60, cap: 'round', join: 'round', color: 0x000000 });
+// 对照：一条真折线（同一子路径，有 join）
+const h = new Graphics();
+h.moveTo(360, 70).lineTo(420, 70).lineTo(420, 130);
+h.stroke({ width: 40, cap: 'round', join: 'round', color: 0x2266cc });
+app.stage.addChild(g, h);
+app.render();
+</script>

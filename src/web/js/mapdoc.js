@@ -162,16 +162,30 @@ export class MapDoc {
 
   /** ★ ① 统一吸附。画路和预览共用一套，否则"看到的位置"和"落下的位置"会不一样。 */
   snap(p, nodeHit = "") {
-    if (nodeHit && this.nodes[nodeHit])
+    const free = { kind: "free", point: this.grid(p), id: "",
+                   building: "", doorIndex: -1 };
+    if (this.netSnap === false) return free;      // 网络吸附关掉 → 只吸栅格
+
+    // ★ 节点和门之间【比距离】，不无条件让节点赢。
+    //   踩过：门就在鼠标下 1.2m，却被 11m 外的一个既有节点抢走 ——
+    //   而节点命中的容差是按【屏幕像素】算的，缩放越小它覆盖的世界范围越大。
+    const nodeDist = nodeHit && this.nodes[nodeHit]
+      ? Math.hypot(this.nodes[nodeHit].xy[0] - p[0], this.nodes[nodeHit].xy[1] - p[1])
+      : Infinity;
+    const dw = this.nearestDoor(p);
+    const doorOk = dw.dist <= DOOR_SNAP;
+    if (nodeDist <= Math.min(doorOk ? dw.dist : Infinity, Infinity) && nodeHit
+        && this.nodes[nodeHit]) {
       return { kind: "node", point: this.nodes[nodeHit].xy, id: nodeHit,
                building: this.nodes[nodeHit].door_of || "", doorIndex: -1 };
-    const dw = this.nearestDoor(p);
-    if (dw.dist <= DOOR_SNAP)
+    }
+    if (doorOk)
       return { kind: "door", point: dw.pos, id: "", building: dw.building, doorIndex: dw.index };
     const rd = this.nearestRoad(p);
     if (rd.dist <= ROAD_SNAP)
-      return { kind: "road", point: rd.point, id: "", building: "", doorIndex: -1, edge: rd.edge };
-    return { kind: "free", point: this.grid(p), id: "", building: "", doorIndex: -1 };
+      return { kind: "road", point: rd.point, id: "", building: "",
+               doorIndex: -1, edge: rd.edge };
+    return free;
   }
 
   grid(p) {
@@ -187,6 +201,82 @@ export class MapDoc {
     const id = uid("n");
     this.nodes[id] = { xy: [+p[0].toFixed(3), +p[1].toFixed(3)], kind: "junction", ...extra };
     return id;
+  }
+
+  /** 把一条边从中间拆开：a—b → a—n + n—b。新节点成为那个路口。
+   *  ★ 用户规则 3：起点落在既有路的中段时，那条路要变成【三条路四个节点】——
+   *    拆出来的两条 + 新画的这条 = 三条边，a / n / b / 另一端 = 四个节点。 */
+  splitEdgeAt(eid, nid) {
+    const e = this.edges[eid];
+    if (!e || nid === e.a || nid === e.b) return false;
+    const { a, b } = e;
+    const rest = { ...e };
+    delete rest.a; delete rest.b; delete rest.geom;
+    delete this.edges[eid];
+    for (const [x, y] of [[a, nid], [nid, b]]) {
+      this.edges[uid("e")] = { ...rest, a: x, b: y,
+        geom: [this.nodes[x].xy.map(Number), this.nodes[y].xy.map(Number)] };
+    }
+    this._changed();
+    return true;
+  }
+
+  /** ★ 吸附结果 → 节点 id。按需要【新建节点】或【拆边】。
+   *  ★ 只在【提交时】调用 —— 手势过程中一律不碰数据，
+   *    所以"没画成"就真的什么都没留下（用户规则 1：不该有孤儿节点）。 */
+  resolve(s) {
+    if (!s) return "";
+    if (s.kind === "node") return s.id;
+    const nid = this.addNode(s.point);
+    if (s.kind === "road" && s.edge && nid !== s.edge) {
+      const e = this.edges[s.edge];
+      if (e && nid !== e.a && nid !== e.b) this.splitEdgeAt(s.edge, nid);
+    }
+    if (s.kind === "door" && s.building) {
+      const n = this.nodes[nid];
+      if (n) { n.door_of = s.building; n.door_index = s.doorIndex; }
+    }
+    return nid;
+  }
+
+  /** 连一条路：两端各自 resolve（可能建节点 / 拆边），然后连边。
+   *  任何一端无效 → 什么都不做，返回 ""。 */
+  connect(sa, sb) {
+    if (!sa || !sb) return "";
+    // ★ 先比点，再动数据。否则 resolve(sa) 已经建了节点，才发现两端是同一个点 ——
+    //   地图上就留下一个孤儿节点（而且可能顺手把一条路拆了）。用户规则 1。
+    const [ax, ay] = sa.point, [bx, by] = sb.point;
+    if (Math.hypot(ax - bx, ay - by) < 0.5) return "";
+    const a = this.resolve(sa), b = this.resolve(sb);
+    if (!a || !b || a === b) return "";
+    return this.addEdge(a, b);
+  }
+
+  /** 离 p 最近、且在 tol 之内的节点 id（没有返回 ""）。 */
+  nearestNodeWithin(p, tol) {
+    let best = "", bd = tol;
+    for (const [id, n] of Object.entries(this.nodes)) {
+      const d = Math.hypot(n.xy[0] - p[0], n.xy[1] - p[1]);
+      if (d < bd) { bd = d; best = id; }
+    }
+    return best;
+  }
+
+  /** ★ 房子贴好之后，把它的门【接进路网】：
+   *  门上已经站着一颗节点 → 认领它（门即节点）；没有 → 新建一颗。
+   *  不做这一步的话，"房子压在路边"只是画面上挨着，图上根本没连起来。 */
+  attachDoorNodes(id) {
+    const b = this.buildings[id];
+    if (!b) return;
+    for (const [i, w] of this.doorWorlds(b).entries()) {
+      const owns = Object.entries(this.nodes)
+        .find(([, n]) => n.door_of === id && n.door_index === i);
+      if (owns) continue;
+      const near = this.nearestNodeWithin(w.pos, 1.6);
+      const nid = near || this.nodeAtDoor(id, i);
+      const n = this.nodes[nid];
+      if (n && !n.door_of) { n.door_of = id; n.door_index = i; }
+    }
   }
 
   /** ★ ② 把建筑的第 i 个门变成路网节点（已有就复用）。节点带 door_of，跟着房子走。 */
@@ -239,8 +329,44 @@ export class MapDoc {
     this._changed();
   }
 
+  /** 纯计算版：给一栋建筑算出"贴到路边"后的中心和朝向。不改数据。
+   *  预览要用它 —— 否则幽灵框画在鼠标处，实际落点在别处，看着对、放下就错。 */
+  computeAlign(b) {
+    const rd = this.nearestRoad(b.center);
+    if (!isFinite(rd.dist)) return null;
+    const [cx, cy] = b.center, [qx, qy] = rd.point;
+    // 从"路 → 房子"的方向：优先用实际偏离方向；偏离太小（正好压在路上）
+    // 就用路的【法线】—— 这才保证是"推到路边"而不是"推到路的延长线上"。
+    let dx = cx - qx, dy = cy - qy;
+    if (Math.hypot(dx, dy) < 0.01) { dx = rd.normal[0]; dy = rd.normal[1]; }
+    const d = Math.hypot(dx, dy) || 1;
+    const t = this.types[b.type];
+    const side = (t?.doors?.[0]?.side) || "south";
+    const base = { south: 90, north: -90, east: 0, west: 180 }[side] ?? 90;
+    const want = Math.atan2(-dy / d, -dx / d) * 180 / Math.PI;   // 门朝【路】，所以反向
+    const back = (rd.width || 4) / 2 + 0.6;
+    return {
+      center: [+(qx + dx / d * back).toFixed(3), +(qy + dy / d * back).toFixed(3)],
+      rot: +(((want - base + 540) % 360) - 180).toFixed(1),
+      road: rd,
+    };
+  }
+
   /** ★ ⑤ 贴边：主门朝最近的路 + 墙贴路沿。无路返回 false。 */
   alignBuilding(id) {
+    const b = this.buildings[id];
+    if (!b) return false;
+    const a = this.computeAlign(b);
+    if (!a) return false;
+    b.center = a.center;
+    b.rot = a.rot;
+    this._syncDoorNodes(id);
+    this.attachDoorNodes(id);       // 门接进路网
+    this._changed();
+    return true;
+  }
+
+  _alignBuildingOld(id) {
     const b = this.buildings[id];
     if (!b) return false;
     const rd = this.nearestRoad(b.center);

@@ -176,6 +176,7 @@ async function openEditor() {
         $("eStats").textContent = `${stats.nodes} 节点 · ${stats.edges} 路段 · ${stats.buildings} 建筑`;
       },
       setDirty: (d) => { $("eDirty").textContent = d ? " •" : ""; },
+      setCursor: (snap) => { $("eSnapLabel").textContent = editor.snapText() || "—"; },
       setTool: (t, type) => {
         for (const b of $("eTool").children) b.classList.toggle("on", b.dataset.tool === t);
         $("ePickHint").textContent = t === "build" ? "挑一个" : "切到「摆房」才能选";
@@ -228,6 +229,16 @@ $("eSaveAs").onclick = () => {
 };
 for (const b of $("eTool").children)
   b.onclick = () => editor.setTool(b.dataset.tool, editor.buildType);
+
+/** 吸附开关：网络（节点/门/路中线）和栅格，各自独立。 */
+for (const b of $("eSnapToggles").children)
+  b.onclick = () => {
+    const on = !b.classList.contains("on");
+    b.classList.toggle("on", on);
+    if (b.dataset.snap === "net") editor.doc.netSnap = on;
+    else editor.doc.gridSnap = on;
+    editor.redraw();
+  };
 
 window.addEventListener("keydown", (e) => {
   const inEditor = !$("editor").classList.contains("hide");

@@ -3,12 +3,19 @@
  * 渲染完全复用游戏的 View + MapLayer（同一份 maprender.js），
  * 这里只多做两件事：**编辑手柄** 和 **工具**。
  *
- * ══ 交互：按下的那一刻就决定谁来管 ══
- *   onDown(点) → true   这个点我接了（拖房子 / 拖节点 / 画路）
- *              → false  没接 → 相机平移（默认行为，永远不会"拖不动"）
+ * ══ 道路：两点法，提交才动数据 ══
+ *   按下（起点） → 拖 → 松开（终点）。**整个过程一个节点都不建** ——
+ *   预览是画出来的，数据等松手才提交。所以"没画成"就真的什么都没留下。
+ *   （旧做法是按下就建节点，取消后满地孤儿节点。用户规则 1。）
  *
- * 之前把"拖"和"点"当成互斥的两种模式 —— 结果是相机一动就卡住、
- * 画路永远等不到 pointerdown。现在按下即分派。
+ *   起点/终点落点分三种，松手时由 MapDoc.resolve() 处理：
+ *     落在【既有节点】→ 复用
+ *     落在【既有路的中段】→ 把那一条拆成两条（于是变成三条路 + 四个节点）★ 规则 3
+ *     落在【门】→ 复用/生成门节点，房子和路从此绑一起
+ *
+ * ══ 交互：按下的那一刻决定谁管 ══
+ *   onDown → true   工具接了（画路 / 拖房子 / 拖节点）
+ *          → false  没接 → 相机平移（默认行为，永远不会"拖不动"）
  */
 import { Container, Graphics } from '../vendor/pixi.min.mjs';
 import { View, U } from './view.js';
@@ -16,7 +23,8 @@ import { MapLayer } from './maprender.js';
 import { MapDoc } from './mapdoc.js';
 
 const SNAP_COLOR = { node: 0x4a7358, door: 0xb4552d, road: 0x9b6f16, free: 0x7a7264 };
-const SNAP_TEXT = { node: "吸到节点", door: "吸到门", road: "吸到路中线", free: "自由" };
+const SNAP_TEXT = { node: "节点", door: "门", road: "路中线（会拆成两条）", free: "自由" };
+const GRID_M = 4;                      // 栅格 4 米
 
 export class Editor {
   constructor(canvasEl, hudEl, assets, ui) {
@@ -26,22 +34,25 @@ export class Editor {
     this.doc = new MapDoc();
     this.map = new MapLayer(assets, (lid, loc, p) =>
       this.view.paper("sign:" + lid, loc.name, p.x / U, p.y / U + 0.8, "plate"));
-    this.handles = new Container();
+    this.handles = new Container();     // 手柄（节点 / 选中框 / 幽灵）
+    this.overlay2 = new Container();    // 高亮（在更上面）
     this.tool = "select";
     this.buildType = "";
     this.selected = "";
     this.snapHint = null;
+    this._pending = null;               // 画路中的起点（未提交）
     this._drag = null;
-    this._last = [0, 0];
-    this.doc.on(() => { this._dirty = true; });
+    this._last = null;
+    this.doc.on(() => this.map.draw(this.doc.toScene()));
   }
 
   async init() {
     await this.view.init(0x6d8a52);
     this.map.root.zIndex = 0;
     this.handles.zIndex = 20;
+    this.overlay2.zIndex = 21;
     this.view.worldLayer.addChild(this.map.root);
-    this.view.overlay.addChild(this.handles);
+    this.view.overlay.addChild(this.handles, this.overlay2);
     this.view.onDown = (x, y) => this._down(x, y);
     this.view.onDrag = (x, y) => this._move(x, y);
     this.view.onUp = (x, y) => this._up(x, y);
@@ -82,7 +93,7 @@ export class Editor {
   setTool(t, buildType) {
     this.tool = t;
     if (buildType) this.buildType = buildType;
-    this._drag = null;
+    this._drag = null; this._pending = null;
     this.ui.setTool?.(this.tool, this.buildType);
     this.redraw();
   }
@@ -122,54 +133,59 @@ export class Editor {
     return "";
   }
 
-  // ── 按下：决定这次手势归谁 ──────────────────────────────────────────
+  _snapAt(p) { return this.doc.snap(p, this.hitNode(p)); }
+
+  // ── 按下 ────────────────────────────────────────────────────────────
   _down(x, y) {
     const p = [x, y];
     this._last = p;
-    if (this.tool === "road") {                       // 画路：按下起点，拖出来
-      this._drag = { kind: "road", from: this.doc.snap(p, this.hitNode(p)) };
+    if (this.tool === "road") {                  // ★ 两点法：只记起点，不建任何东西
+      this._pending = this._snapAt(p);
       return true;
     }
-    if (this.tool !== "select") return false;         // 摆房/删除都靠单击
+    if (this.tool !== "select") return false;
     const bid = this.hitBuilding(p);
     if (bid) {
       const b = this.doc.buildings[bid];
       this.selected = bid;
       this._drag = { kind: "bld", id: bid, off: [p[0] - b.center[0], p[1] - b.center[1]] };
-      this._draw();
       return true;
     }
     const nid = this.hitNode(p);
     if (nid) {
       this.selected = nid;
       this._drag = { kind: "node", id: nid };
-      this._draw();
       return true;
     }
-    return false;                                     // 没点中东西 → 让相机平移
+    return false;                                // 没点中东西 → 让相机平移
   }
 
   _move(x, y) {
     const p = [x, y];
     this._last = p;
     const d = this._drag;
-    if (d?.kind === "bld") this.doc.moveBuilding(d.id, [p[0] - d.off[0], p[1] - d.off[1]]);
-    else if (d?.kind === "node") this.doc.moveNode(d.id, p);
-    else { this.snapHint = this.doc.snap(p, this.hitNode(p)); }
+    if (d?.kind === "bld") {
+      this.doc.moveBuilding(d.id, [p[0] - d.off[0], p[1] - d.off[1]]);
+    } else if (d?.kind === "node") {
+      this.doc.moveNode(d.id, p);                // 拖节点，连着它的路一起动 ★ 规则 3 后半句
+    } else {
+      this.snapHint = this._snapAt(p);
+    }
     this.redraw();
   }
 
   _up(x, y) {
-    const d = this._drag;
-    this._drag = null;
-    this._last = [x, y];
-    if (!d) return;
-    if (d.kind === "bld") this.doc.alignBuilding(d.id);        // ★ 松手贴边
-    else if (d.kind === "road") {
-      const from = this._nodeFor(d.from);
-      const to = this._nodeFor(this.doc.snap([x, y], this.hitNode([x, y])));
-      if (from && to && from !== to) this.doc.addEdge(from, to);
-      else this.ui.toast("路要有两个不同的端点");
+    const d = this._drag, pend = this._pending;
+    this._drag = null; this._pending = null;
+    if (d?.kind === "bld") {
+      this.doc.alignBuilding(d.id);              // ★ 松手贴边
+    } else if (pend) {
+      // ★ 提交：两端各自 resolve（复用节点 / 拆边 / 建门节点），再连边。
+      //   任何一端不合法 → connect 什么都不做 → 一个节点都不会留下。
+      const to = this._snapAt([x, y]);
+      const id = this.doc.connect(pend, to);
+      if (!id) this.ui.toast("没连成 —— 两端要么重合，要么落点无效");
+      this.doc.pruneOrphans();
     }
     this.redraw();
   }
@@ -179,16 +195,14 @@ export class Editor {
     const p = [x, y];
     if (this.tool === "build") return this._place(p);
     if (this.tool === "erase") return this._erase(p);
-    if (this.tool === "select") {                     // 点空白 = 取消选中
-      this.selected = ""; this.redraw();
-    }
+    if (this.tool === "select") { this.selected = ""; this.redraw(); }
   }
 
   _hover(x, y) {
-    this.snapHint = this.doc.snap([x, y], this.hitNode([x, y]));
     this._last = [x, y];
-    this.ui.setCursor?.(this.view.toWorld(x, y), this.snapHint);
-    this._draw();
+    this.snapHint = this._snapAt([x, y]);
+    this.ui.setCursor?.(this.snapHint);
+    this._paint();
   }
 
   _place(p) {
@@ -209,40 +223,35 @@ export class Editor {
       if (nid) this.doc.removeNode(nid);
       else { const eid = this.hitEdge(p); if (eid) this.doc.removeEdge(eid); }
     }
+    this.doc.pruneOrphans();
     this.redraw();
-  }
-
-  /** 吸附结果 → 节点 id。落到门上就复用那颗门节点（房子和路从此绑一起）。 */
-  _nodeFor(s) {
-    if (!s) return "";
-    if (s.kind === "node") return s.id;
-    const id = this.doc.addNode(s.point);
-    if (s.kind === "door" && s.building && this.doc.nodes[id]) {
-      this.doc.nodes[id].door_of = s.building;
-      this.doc.nodes[id].door_index = s.doorIndex;
-      this.doc._changed();
-    }
-    return id;
   }
 
   // ── 重画 ────────────────────────────────────────────────────────────
   redraw() {
     this.map.draw(this.doc.toScene());
-    this._draw();
+    this._paint();
   }
 
-  _draw() {
-    const g = this.handles;
-    g.removeChildren();
-    // 节点
+  _paint() {
+    this.handles.removeChildren();
+    this.overlay2.removeChildren();
+
+    // ① 栅格：只在【看得清】的时候画。
+    //    4 米栅格在整图视角下只有 7 屏幕像素 —— 画出来是一片噪声，
+    //    用户看到的就是"一堆不知道干嘛的虚线"。
+    if (this.doc.gridSnap !== false && GRID_M * U * this.view.cam.k >= 14) this._paintGrid();
+
+    // ② 节点
     for (const [id, n] of Object.entries(this.doc.nodes)) {
       const x = n.xy[0] * U, y = n.xy[1] * U;
-      const c = new Graphics().circle(x, y, n.door_of ? 5 : 4.5)
+      const sel = id === this.selected;
+      this.handles.addChild(new Graphics().circle(x, y, n.door_of ? 5 : 4.5)
         .fill(n.door_of ? 0xb4552d : 0xf7f4ee)
-        .stroke({ color: id === this.selected ? 0xb4552d : 0x26221c, width: id === this.selected ? 3 : 1.5 });
-      g.addChild(c);
+        .stroke({ color: sel ? 0xb4552d : 0x26221c, width: sel ? 3 : 1.5 }));
     }
-    // 选中的建筑：外框
+
+    // ③ 选中的建筑外框
     const b = this.doc.buildings[this.selected];
     if (b) {
       const [cx, cy] = b.center, [w, h] = b.size;
@@ -251,33 +260,79 @@ export class Editor {
         .fill({ color: 0xb4552d, alpha: 0.12 }).stroke({ color: 0xb4552d, width: 2 });
       o.position.set(cx * U, cy * U);
       o.rotation = (b.rot || 0) * Math.PI / 180;
-      g.addChild(o);
+      this.handles.addChild(o);
     }
-    // 吸附预览 + 画路橡皮筋
-    const s = this.snapHint;
-    if (s && (this.tool === "road" || this._drag?.kind === "road")) {
-      const col = SNAP_COLOR[s.kind] ?? 0xffffff;
-      g.addChild(new Graphics().circle(s.point[0] * U, s.point[1] * U, 7)
-        .stroke({ color: col, width: 2.5 }));
-      if (this._drag?.kind === "road") {
-        const f = this._drag.from.point;
-        g.addChild(new Graphics().moveTo(f[0] * U, f[1] * U)
-          .lineTo(s.point[0] * U, s.point[1] * U)
-          .stroke({ color: col, width: 3, alpha: 0.8, cap: "round" }));
+
+    // ④ 画路：高亮"这次会拆哪条路" + 起点 → 落点的橡皮筋 ★ 规则 6
+    const road = this.tool === "road" || this._pending;
+    const s = road ? (this._pending || this.snapHint) : null;
+    if (s) {
+      if (s.edge) this._highlightEdge(s.edge);          // 拆哪条
+      if (this.snapHint) this._paintSnap(this.snapHint);
+      if (this._pending && this.snapHint
+          && this._pending.point !== this.snapHint.point) {
+        const f = this._pending.point, t2 = this.snapHint.point;
+        this.overlay2.addChild(new Graphics()
+          .moveTo(f[0] * U, f[1] * U).lineTo(t2[0] * U, t2[1] * U)
+          .stroke({ color: SNAP_COLOR[this.snapHint.kind] ?? 0xffffff,
+                    width: Math.max(4, 4 * U), alpha: 0.35, cap: "round" }));
+        this.overlay2.addChild(new Graphics().circle(f[0] * U, f[1] * U, 7)
+          .stroke({ color: 0x26221c, width: 2 }));
       }
     }
-    // 摆房预览
+
+    // ⑤ 摆房：幽灵框画在【贴边之后】的位置 —— 否则看着落这儿、放下落那儿 ★ 规则 6
     if (this.tool === "build" && this.buildType && this._last) {
-      const [w, h] = this.doc.sizeFor(this.buildType);
+      const [px, py] = this._last;
+      const tmp = { type: this.buildType, center: [px, py],
+                    size: this.doc.sizeFor(this.buildType), rot: 0, doors: [], floors: 1 };
+      const a = this.doc.computeAlign(tmp);
+      const c = a ? a.center : tmp.center, rot = a ? a.rot : 0;
+      const hasRoad = Object.keys(this.doc.edges).length > 0;
+      const [w, h] = tmp.size;
       const gh = new Graphics()
         .poly([-w / 2 * U, -h / 2 * U, w / 2 * U, -h / 2 * U, w / 2 * U, h / 2 * U, -w / 2 * U, h / 2 * U])
-        .fill({ color: 0xf7f4ee, alpha: 0.25 }).stroke({ color: 0xf7f4ee, width: 1.5 });
-      gh.position.set(this._last[0] * U, this._last[1] * U);
-      g.addChild(gh);
+        .fill({ color: hasRoad ? 0xf7f4ee : 0xb4552d, alpha: hasRoad ? 0.3 : 0.18 })
+        .stroke({ color: hasRoad ? 0xf7f4ee : 0xb4552d, width: 2, alpha: 0.9 });
+      gh.position.set(c[0] * U, c[1] * U);
+      gh.rotation = rot * Math.PI / 180;
+      this.overlay2.addChild(gh);
+      this.overlay2.addChild(new Graphics().circle(px * U, py * U, 3)
+        .fill({ color: 0xf7f4ee }));                     // 鼠标落点
     }
     this.view.syncPaper();
     this.ui.setStats?.(this.doc.stats());
     this.ui.setDirty?.(this.doc.dirty);
+  }
+
+  _paintGrid() {
+    const c = this.doc.canvas, step = GRID_M * U;
+    const g = new Graphics();
+    for (let x = 0; x <= c.w * U; x += step) g.moveTo(x, 0).lineTo(x, c.h * U);
+    for (let y = 0; y <= c.h * U; y += step) g.moveTo(0, y).lineTo(c.w * U, y);
+    g.stroke({ color: 0x000000, width: 0.6, alpha: 0.13 });
+    this.handles.addChild(g);
+  }
+
+  _highlightEdge(eid) {
+    const e = this.doc.edges[eid];
+    if (!e) return;
+    const pts = e.geom || [];
+    const g = new Graphics();
+    for (let i = 1; i < pts.length; i++)
+      g.moveTo(pts[i - 1][0] * U, pts[i - 1][1] * U).lineTo(pts[i][0] * U, pts[i][1] * U);
+    g.stroke({ color: 0x9b6f16, width: (e.width || 4) * U + 8, cap: "round", alpha: 0.3 });
+    this.overlay2.addChild(g);
+  }
+
+  /** 吸附点的环 —— 颜色说明吸到了什么。 */
+  _paintSnap(s) {
+    const c = SNAP_COLOR[s.kind] ?? 0xffffff;
+    const r = (s.kind === "free" ? 5 : 9);
+    this.overlay2.addChild(new Graphics()
+      .circle(s.point[0] * U, s.point[1] * U, r)
+      .fill({ color: c, alpha: 0.18 })
+      .stroke({ color: c, width: 2.5 }));
   }
 
   snapText() { return this.snapHint ? SNAP_TEXT[this.snapHint.kind] : ""; }

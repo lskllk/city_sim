@@ -14,10 +14,12 @@
  * ★ 增量重画：拖一栋房子不该重建整个世界。地面/路只在数据变了才重建，
  *   建筑按 loc_id 复用精灵，拖动时只改 transform。
  */
-import { Container, Graphics, Sprite, TilingSprite } from '../vendor/pixi.min.mjs';
+import { Container, Graphics, Matrix, Sprite, TilingSprite } from '../vendor/pixi.min.mjs';
 
 export const U = 12;                       // 1 世界单位 = 12 px
 const TILE = 32;                           // 资产网格
+const SCALE = 2;                           // 资产是 2× 画的（authorScale）
+const FILLET = 0.5;                        // 倒角半径 = 半路宽 × 这个系数（同 Godot 版）
 const SIDEWALK = 6;                        // 人行道宽（asset: 32×6）
 
 export class MapLayer {
@@ -56,41 +58,163 @@ export class MapLayer {
     this._tile(this.ground, "ground/grass.svg", 0, 0, c.w * U, c.h * U, 0x6d8a52);
   }
 
-  /** 一段路 = 旋转容器里铺图块。返回容器。 */
-  _segment(a, b, width) {
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) * U;
-    const w = width * U;
-    const box = new Container();
-    box.position.set(a[0] * U, a[1] * U);
-    box.rotation = Math.atan2(b[1] - a[1], b[0] - a[0]);
-    // 沥青
-    this._tile(box, "road/asphalt.svg", 0, -w / 2, len, w, 0x4c4a4a);
-    // 人行道贴两条长边（图块是 32×6 的横条，竖边用同一张即可 —— 它是可平铺的）
-    this._tile(box, "road/sidewalk.svg", 0, -w / 2 - SIDEWALK, len, SIDEWALK, 0xb8b3a6);
-    this._tile(box, "road/sidewalk.svg", 0, w / 2, len, SIDEWALK, 0xb8b3a6);
-    // 中线虚线：asset 有横向/纵向两种，按角度取
-    const horiz = Math.abs(Math.cos(box.rotation)) > 0.7;
-    const dash = horiz ? "road/marking_dash_h.svg" : "road/marking_dash_v.svg";
-    if (horiz) this._tile(box, dash, 0, -1, len, 2, 0xe9e5da);
-    else this._tile(box, dash, -1, -len / 2, 2, len, 0xe9e5da);
-    return box;
+  /** 把场景里的 edges 拆成"线段"列表（支持 geom 折线）。
+   *  带上两端的【节点 id】—— 路口要在节点位置画圆盘。 */
+  _segs(scene) {
+    const { nodes = {}, edges = {} } = scene.map || {};
+    const out = [];
+    for (const e of Object.values(edges)) {
+      const pts = (e.geom && e.geom.length >= 2) ? e.geom
+                : [nodes[e.a]?.xy, nodes[e.b]?.xy];
+      if (!pts?.[0] || !pts[1]) continue;
+      const w = Math.round((e.width || 4) * U);
+      for (let i = 1; i < pts.length; i++)
+        out.push({ a: pts[i - 1], b: pts[i], w,
+                   na: i === 1 ? e.a : "", nb: i === pts.length - 1 ? e.b : "" });
+    }
+    return out;
   }
 
+  /** ★ 路口【倒圆角】—— 每个节点，相邻两条入射路之间的缺口填一段切线圆弧。
+   *
+   *  算法照归档的 Godot 版（shared/building_style.gd: build_junctions）：
+   *    r    = half × FILLET
+   *    cc   = pos + rot(d0, φ/2) × (half+r)/sin(φ/2)      ← 圆心
+   *    t1   = pos + d0×tang + rot(d0, +90°)×half           ← 切点
+   *    t2   = pos + d1×tang + rot(d1, −90°)×half
+   *    多边形 = [节点, t1, …弧…, t2]
+   *
+   *  ★ 这不是"在节点上放个圆盘"。圆盘补不了缺口 —— 缺口要的是【与两条边都相切】的弧。
+   *    90° 时：t1=(1.5h, h) · t2=(h, 1.5h) · 圆心=(1.5h, 1.5h)，
+   *    |cc−t1| = 0.5h = r ✓ 相切。圆盘做不到这一点。
+   *
+   *  近直行（φ≈π）和近同向（φ≈0）跳过 —— 那两种情况本来就没有缺口。
+   */
+  _fillets(nodes, segs, half) {
+    const inc = new Map();
+    const add = (nid, d) => {
+      const L = Math.hypot(d[0], d[1]);
+      if (L < 1e-6 || !nodes[nid]) return;
+      if (!inc.has(nid)) inc.set(nid, []);
+      inc.get(nid).push([d[0] / L, d[1] / L]);
+    };
+    for (const s of segs) {
+      const d = [s.b[0] - s.a[0], s.b[1] - s.a[1]];
+      if (s.na) add(s.na, d);
+      if (s.nb) add(s.nb, [-d[0], -d[1]]);
+    }
+    const r = half * FILLET;
+    const reach = half + r;
+    const out = [];
+    for (const [nid, list] of inc) {
+      if (list.length < 2) continue;                 // 尽头：没有缺口
+      const pos = nodes[nid].xy;
+      const sorted = [...list].sort((a, b) => Math.atan2(a[1], a[0]) - Math.atan2(b[1], b[0]));
+      for (let i = 0; i < sorted.length; i++) {
+        const d0 = sorted[i], d1 = sorted[(i + 1) % sorted.length];
+        let phi = Math.atan2(d1[1], d1[0]) - Math.atan2(d0[1], d0[0]);
+        while (phi <= 0) phi += Math.PI * 2;
+        if (phi < 0.15 || phi > Math.PI - 0.05) continue;   // 近平行 / 直行
+        const hp = phi / 2;
+        const cot = 1 / Math.tan(hp);
+        const tang = reach * cot;
+        const ca = Math.cos(hp), sa = Math.sin(hp);
+        const cc = [pos[0] + (d0[0] * ca - d0[1] * sa) * reach / Math.sin(hp),
+                    pos[1] + (d0[0] * sa + d0[1] * ca) * reach / Math.sin(hp)];
+        const t1 = [pos[0] + d0[0] * tang - d0[1] * half,
+                    pos[1] + d0[1] * tang + d0[0] * half];
+        const t2 = [pos[0] + d1[0] * tang + d1[1] * half,
+                    pos[1] + d1[1] * tang - d1[0] * half];
+        const a0 = Math.atan2(t1[1] - cc[1], t1[0] - cc[0]);
+        const sweep = -(Math.PI - phi);
+        const steps = Math.max(2, Math.ceil(Math.abs(sweep) / 0.18));
+        const poly = [pos[0] * U, pos[1] * U, t1[0] * U, t1[1] * U];
+        for (let k = 1; k < steps; k++) {
+          const th = a0 + sweep * k / steps;
+          poly.push((cc[0] + Math.cos(th) * r) * U, (cc[1] + Math.sin(th) * r) * U);
+        }
+        poly.push(t2[0] * U, t2[1] * U);
+        out.push(poly);
+      }
+    }
+    return out;
+  }
+
+  /** ★ 道路：每个宽度一组 = 一条路径 + 顶点圆盘 + 路口倒角。
+   *
+   *  三层各司其职（照 Godot 版的分工）：
+   *    一条路径 + 圆帽/圆接头   外角（凸角）自然就是圆的
+   *    顶点圆盘（半径 = 半宽）  补 T/十字的破边
+   *    路口倒角多边形           填相邻两条路之间的【缺口】—— 这是"倒圆角"的本体
+   *
+   *  一条路径而不是一段一张图的理由：逐段各画会在接缝上叠两层抗锯齿，
+   *  出现一道发白的细线。
+   */
   _roads_(scene) {
-    const { nodes = {}, edges = {} } = scene.map || {};
-    // 只在地图数据变了才重建；拖房子不动路
-    const key = Object.entries(edges)
-      .map(([id, e]) => `${id}:${e.a}-${e.b}:${e.width}`).join("|")
-      + "#" + Object.entries(nodes).map(([id, n]) => `${id}:${n.xy}`).join("|");
+    const segs = this._segs(scene);
+    const key = JSON.stringify(segs);
     if (key === this._roadKey) return;
     this._roadKey = key;
     this.road.removeChildren();
-    for (const e of Object.values(edges)) {
-      const a = nodes[e.a]?.xy, b = nodes[e.b]?.xy;
-      if (!a || !b) continue;
-      const pts = (e.geom && e.geom.length >= 2) ? e.geom : [a, b];
-      for (let i = 1; i < pts.length; i++)
-        this.road.addChild(this._segment(pts[i - 1], pts[i], e.width || 4));
+    if (!segs.length) return;
+
+    const { nodes = {} } = scene.map || {};
+    const byW = new Map();
+    for (const s of segs) {
+      if (!byW.has(s.w)) byW.set(s.w, []);
+      byW.get(s.w).push(s);
+    }
+    const M = new Matrix().scale(1 / SCALE);
+    const asphalt = this.assets.get("ground/asphalt.svg");
+    const sidewalk = this.assets.get("ground/sidewalk.svg");
+    const WALK = SIDEWALK * 2;
+
+    // 每层画一遍：人行道（宽一圈）→ 路面
+    for (const [layer, grow] of [["walk", WALK], ["road", 0]]) {
+      for (const [w, list] of byW) {
+        const width = w + grow;
+        const halfW = width / U / 2;                    // 世界单位
+        const ids = new Set();
+        for (const s of list) { if (s.na) ids.add(s.na); if (s.nb) ids.add(s.nb); }
+        const discs = [...ids].map(id => nodes[id]?.xy).filter(Boolean);
+        const tex = layer === "walk" ? sidewalk : asphalt;
+        const g = new Graphics();
+        for (const s of list)
+          g.moveTo(s.a[0] * U, s.a[1] * U).lineTo(s.b[0] * U, s.b[1] * U);
+        for (const xy of discs) g.circle(xy[0] * U, xy[1] * U, width / 2);
+        g.stroke({ width, cap: "round", join: "round",
+                   color: layer === "walk" ? 0xb8b3a6 : 0x4c4a4a,
+                   ...(tex ? { texture: tex, matrix: M } : {}) });
+        this.road.addChild(g);
+        // 倒角：填在路段之后，同色叠加
+        const fil = new Graphics();
+        for (const poly of this._fillets(nodes, list, halfW)) fil.poly(poly);
+        fil.fill({ color: layer === "walk" ? 0xb8b3a6 : 0x4c4a4a,
+                   ...(tex ? { texture: tex, matrix: M } : {}) });
+        this.road.addChild(fil);
+      }
+    }
+    this._dashes(segs);
+  }
+
+  /** 中线虚线：只给够宽的路画（窄弄堂摆一条只是噪声），两头留出路口。 */
+  _dashes(segs) {
+    const tex = this.assets.get("road/marking_dash_h.svg");
+    if (!tex) return;
+    for (const s of segs) {
+      if (s.w < 6 * U) continue;
+      const dx = (s.b[0] - s.a[0]) * U, dy = (s.b[1] - s.a[1]) * U;
+      const len = Math.hypot(dx, dy), ang = Math.atan2(dy, dx);
+      const x0 = s.a[0] * U, y0 = s.a[1] * U;
+      const skip = s.w / 2 + 6;
+      if (len - skip * 2 < 18) continue;
+      for (let d = skip; d + 30 <= len - skip; d += 44) {
+        const sp = new Sprite(tex);
+        sp.anchor.set(0.5); sp.width = 30; sp.height = 2; sp.rotation = ang;
+        sp.position.set(x0 + Math.cos(ang) * (d + 15), y0 + Math.sin(ang) * (d + 15));
+        sp.alpha = 0.55;
+        this.road.addChild(sp);
+      }
     }
   }
 

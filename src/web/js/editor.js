@@ -167,7 +167,8 @@ export class Editor {
     if (d?.kind === "bld") {
       this.doc.moveBuilding(d.id, [p[0] - d.off[0], p[1] - d.off[1]]);
     } else if (d?.kind === "node") {
-      this.doc.moveNode(d.id, p);                // 拖节点，连着它的路一起动 ★ 规则 3 后半句
+      // ★ 拖节点也走栅格捕获（和画路同一套 grid()，关掉栅格时它就原样返回）
+      this.doc.moveNode(d.id, this.doc.grid(p));
     } else {
       this.snapHint = this._snapAt(p);
     }

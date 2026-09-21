@@ -153,6 +153,10 @@ export class MapLayer {
    *    "还是圆盘"。
    */
   _roads_(scene) {
+    // ★ Pixi 的 texture stroke / fill 会【把贴图乘上 color】。
+    //   既传贴图又传本身颜色的 color → 颜色被平方，0x4c × 0x4c = #171515，
+    //   路变成一片近黑纯色 —— 看起来就是"没用美术资产"。
+    //   所以用贴图时 color 一律给白（白 × 贴图 = 贴图本身）。
     const segs = this._segs(scene);
     const key = JSON.stringify(segs);
     if (key === this._roadKey) return;
@@ -167,8 +171,8 @@ export class MapLayer {
       byW.get(s.w).push(s);
     }
     const M = new Matrix().scale(1 / SCALE);
-    const asphalt = this.assets.get("ground/asphalt.svg");
-    const sidewalk = this.assets.get("ground/sidewalk.svg");
+    const asphalt = this.assets.get("road/asphalt.svg");
+    const sidewalk = this.assets.get("road/sidewalk.svg");
     const WALK = SIDEWALK * 2;
 
     // 每层画一遍：人行道（宽一圈）→ 路面
@@ -181,13 +185,13 @@ export class MapLayer {
         for (const s of list)
           g.moveTo(s.a[0] * U, s.a[1] * U).lineTo(s.b[0] * U, s.b[1] * U);
         g.stroke({ width, cap: "round", join: "round",
-                   color: layer === "walk" ? 0xb8b3a6 : 0x4c4a4a,
+                   color: tex ? 0xffffff : (layer === "walk" ? 0xb8b3a6 : 0x4c4a4a),
                    ...(tex ? { texture: tex, matrix: M } : {}) });
         this.road.addChild(g);
         // 倒角：填在路段之后，同色叠加
         const fil = new Graphics();
         for (const poly of this._fillets(nodes, list, halfW)) fil.poly(poly);
-        fil.fill({ color: layer === "walk" ? 0xb8b3a6 : 0x4c4a4a,
+        fil.fill({ color: tex ? 0xffffff : (layer === "walk" ? 0xb8b3a6 : 0x4c4a4a),
                    ...(tex ? { texture: tex, matrix: M } : {}) });
         this.road.addChild(fil);
       }
@@ -195,12 +199,14 @@ export class MapLayer {
     this._dashes(segs);
   }
 
-  /** 中线虚线：只给够宽的路画（窄弄堂摆一条只是噪声），两头留出路口。 */
+  /** 中线虚线 —— 这是美术"道路风格"的一部分（road/marking_dash_h），
+   *  不是噪声。两头留出路口，免得糊成一团。
+   *  （我一度以为用户说的"不知道干嘛的虚线"是它，把它删了 —— 错。
+   *   那句话说的是 4 米栅格：整图视角下只有 7 屏幕像素，一片噪声。） */
   _dashes(segs) {
     const tex = this.assets.get("road/marking_dash_h.svg");
     if (!tex) return;
     for (const s of segs) {
-      if (s.w < 6 * U) continue;
       const dx = (s.b[0] - s.a[0]) * U, dy = (s.b[1] - s.a[1]) * U;
       const len = Math.hypot(dx, dy), ang = Math.atan2(dy, dx);
       const x0 = s.a[0] * U, y0 = s.a[1] * U;

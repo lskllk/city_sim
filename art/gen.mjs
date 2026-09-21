@@ -139,8 +139,8 @@ function groundTiles() {
                 rnd() < 0.6 ? P.asphalt.light : "#3f3d3d", `opacity="${T.speckleAlpha}"`);
     let body = rect(0, 0, G, G, P.asphalt.base);
     body += `<defs>${pat("a", G, G, d)}</defs>` + rect(0, 0, G, G, "url(#a)");
-    emit("ground/asphalt.svg", svg(G, G, body));
-    add("asphalt", "ground/asphalt.svg", G, G, "topleft", "L1", ["tileable"]);
+    emit("road/asphalt.svg", svg(G, G, body));
+    add("asphalt", "road/asphalt.svg", G, G, "topleft", "L1", ["tileable"]);
   }
   // 人行道（路面边框用，可平铺；缝在 16 格）
   {
@@ -149,8 +149,8 @@ function groundTiles() {
     let body = rect(0, 0, G, h, P.sidewalk.base);
     body += `<defs>${pat("s", G, h, b)}</defs>` + rect(0, 0, G, h, "url(#s)");
     body += line(0, h - 0.5, G, h - 0.5, P.sidewalk.line, 1, `opacity="0.5"`);
-    emit("ground/sidewalk.svg", svg(G, h, body));
-    add("sidewalk", "ground/sidewalk.svg", G, h, "topleft", "L1", ["tileable"]);
+    emit("road/sidewalk.svg", svg(G, h, body));
+    add("sidewalk", "road/sidewalk.svg", G, h, "topleft", "L1", ["tileable"]);
   }
 }
 

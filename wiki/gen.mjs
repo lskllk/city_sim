@@ -676,9 +676,9 @@ function ARTJSFn(){ return `
         bld(h, "home_c", 500, 76, 128,  96);
         put(h, "attach/awning_1.svg",  84, 158, 112, 16, "attach");
         put(h, "attach/chimney_1.svg", 560, 70, 15, 15, "attach");
-        fill(h, "ground/sidewalk.svg", 0, 172, 640, 6, 32, 6, "road");
-        fill(h, "ground/asphalt.svg",  0, 178, 640, 64, 32, 32, "road");
-        fill(h, "ground/sidewalk.svg", 0, 242, 640, 6, 32, 6, "road");
+        fill(h, "road/sidewalk.svg", 0, 172, 640, 6, 32, 6, "road");
+        fill(h, "road/asphalt.svg",  0, 178, 640, 64, 32, 32, "road");
+        fill(h, "road/sidewalk.svg", 0, 242, 640, 6, 32, 6, "road");
         fill(h, "road/marking_dash_h.svg", 14, 208, 612, 2, 30, 2, "road");
         put(h, "road/crosswalk.svg", 280, 178, 32, 6, "road");
         put(h, "road/crosswalk.svg", 280, 236, 32, 6, "road");

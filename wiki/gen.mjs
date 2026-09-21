@@ -35,9 +35,71 @@ const ITEMS = listDir(path.join(CFG, "items"), [".json"]).map(readJSON);
 const BUILDINGS = listDir(path.join(CFG, "buildings"), [".json"]).map(readJSON);
 const SCENES = listDir(path.join(CFG, "scenes"), [".json"]).map(f => ({ __file: path.basename(f), ...readJSON(f) }));
 
+let CHARS = [];
+try {
+  CHARS = JSON.parse(fs.readFileSync(path.join(ROOT, "art/characters.json"), "utf8")).characters || [];
+} catch { /* 还没有角色数据 */ }
+
 let ARTMAN = null;
 try { ARTMAN = readJSON(path.join(ROOT, "art/out/manifest.json")); } catch { /* 还没生成美术 */ }
 const artNames = new Set((ARTMAN?.assets || []).map(a => a.name));
+const ARTASSETS = ARTMAN?.assets || [];
+const AT = ARTMAN?.atmosphere || { time: [] };
+const ARTGRID = ARTMAN?.grid || 32;
+
+/* 美术资产的九大类（判据是玩法属性 —— 见 docs/asset-list.md §二）。
+   gap = 该子类还没有资产：wiki 上会显示成虚线框，**所以这一页同时是缺口报告**。 */
+const ARTCATS = [
+  { k: "A", n: "环境", hint: "铺在地上 / 立在地上但不交互", subs: [
+    { k: "A1", n: "地面", s: "ground", hint: "可平铺 32px" },
+    { k: "A2", n: "道路", s: "road", hint: "路面形状是平涂，这里给纹理味" },
+    { k: "A3", n: "过渡与拼接", s: "autotile",
+      gap: "autotile 集（草↔泥 / 草↔水 / 铺装↔草 / 路肩）。只有地面没有过渡 → 地图到处是硬边，这是「业余 vs 专业」最大的分水岭" },
+    { k: "A4", n: "地块装饰", s: "props", hint: "锚点在底部中心，所以「立」在地上" },
+    { k: "A5", n: "围栏与院子", s: "fence", gap: "木栅栏 / 矮砖墙 / 树篱（各 4 段：直/角/端/门）" },
+  ]},
+  { k: "B", n: "建筑", hint: "有门口、能走进去、有名字", subs: [
+    { k: "B1", n: "本体", s: "body", hint: "屋顶 + 立面揭示 + 门口" },
+    { k: "B2", n: "落影", s: "shadow", hint: "单独一层：夜/雨可复用，也能整个关掉" },
+    { k: "B3", n: "夜间窗光", s: "lit", hint: "和屋顶同一套坐标，所以一定对得上" },
+    { k: "B4", n: "附件", s: "attach", hint: "招牌底 6 种是【九宫格】，中段可拉伸；招牌留白，字由代码画" },
+    { k: "B5", n: "状态", s: "bstate", gap: "关门挂牌（休息中/打烊）· 装修中 · 出售/出租牌" },
+    { k: "B6", n: "室内结构", s: "binter", gap: "室内墙 / 室内门 / 室内窗 / 楼梯 / 地板贴图" },
+  ]},
+  { k: "C", n: "角色", hint: "会走动、有需求、有记忆", subs: [
+    { k: "C1", n: "世界小人", s: "world", anim: true,
+      hint: "走 4 帧 + 站 1 帧，循环播放；锚点在脚底；左右靠水平镜像" },
+    { k: "C2", n: "头像", s: "portrait", hint: "32×32 正面胸像，给面板用；和世界小人同一份角色数据" },
+    { k: "C3", n: "动作", s: "cemote", gap: "待机小动作（换重心/看表）· 坐 · 用东西（吃/睡/如厕）" },
+  ]},
+  { k: "D", n: "物件", hint: "玩家能点 / 能买卖 / 能用 —— 判据是玩法属性，不是外观", subs: [
+    { k: "D1", n: "世界形态", s: "iworld", hint: "俯视，摆在屋里要贴地" },
+    { k: "D2", n: "空态", s: "iempty", hint: "「卖光了」用形状说，不写字" },
+    { k: "D3", n: "图标", s: "iicon", hint: "正视 16×16 —— 俯视的苹果就是个圆" },
+    { k: "D4", n: "容器", s: "icont", gap: "货架 / 冰柜 / 展示柜 —— 容器与内容必须是两个资产" },
+  ]},
+  { k: "E", n: "界面", hint: "屏幕空间，不随地图缩放", subs: [
+    { k: "E1", n: "需求徽章", s: "badge", hint: "饿 / 困 / 憋 / 犹豫 / 睡" },
+    { k: "E2", n: "标记", s: "marker", hint: "队列编号点" },
+    { k: "E3", n: "刻度条", s: "bar", hint: "轨道是资产、填充是代码" },
+    { k: "E4", n: "图标系统", s: "uicon", gap: "一套统一线性图标（时间/经济/需求/社交/功能/地图）。现在混了 emoji + 手写 SVG + 纯字符" },
+  ]},
+  { k: "F", n: "特效", hint: "一次性、短命、不占位置", subs: [
+    { k: "F1", n: "落影与环", s: "fx", hint: "人物落影小/中/大 + 选中环" },
+    { k: "F2", n: "点击与反馈", s: "fback", gap: "点击涟漪 · 完成打勾 · 气泡底/尾 · 交易成功" },
+  ]},
+  { k: "G", n: "氛围", hint: "覆盖全屏、影响观感、不改任何逻辑", subs: [
+    { k: "G1", n: "天气", s: "rain", hint: "可平铺。时间色调是【参数】不是贴图，见本页顶部的「时间」" },
+    { k: "G2", n: "光与色", s: "glight", gap: "窗光遮罩 · 灯光光斑 · 雪/雾/落叶" },
+  ]},
+  { k: "H", n: "认知", hint: "表达「我记的多旧 / 多准 / 从哪来」—— 这个游戏特有", subs: [
+    { k: "H1", n: "来源记号", s: "csrc", gap: "亲眼 / 打听 / 传闻 / 雇员 / 经手 —— 现在是字符，要重做成一套" },
+    { k: "H2", n: "精度档", s: "cprec", gap: "5 档的区间条元件 —— 现在还是代码画的 div" },
+    { k: "H3", n: "知识等级", s: "cknow", gap: "3 档（没进去过 / 旧了 / 新鲜）—— 现在是 filter: saturate()" },
+    { k: "H4", n: "事件反馈", s: "cev", gap: "惊讶 / 刚确认 / 已过时 / 待确认" },
+  ]},
+];
+const artBy = (cat, sub2) => ARTASSETS.filter(a => a.cat === cat && a.sub === sub2);
 
 /* ── 分类：tag → 人话。顺序就是这个 wiki 的目录顺序 ── */
 const CATS = [
@@ -64,6 +126,8 @@ const NAV = [
   ["items.html", "物品"],
   ["buildings.html", "建筑"],
   ["scene.html", "场景"],
+  ["art.html", "美术"],
+  ["chars.html", "人物"],
   ["systems.html", "机制"],
 ];
 function page(title, body, { sub = "" } = {}) {
@@ -256,6 +320,22 @@ function pageBuilding(b) {
         </table>
       </div>
       <div class="prose">
+        ${(() => {
+          const n = "bld_" + b.kind;
+          const has = artNames.has(n) || artNames.has("home_a");
+          return `<h2>美术</h2>` + (has ? `<div class="arow">
+            ${["", "_shadow", "_lit"].map(sfx => {
+              const cand = ["shop_a", "home_a", "factory", "market"]
+                .find(x => artNames.has(x));
+              const nm = cand + sfx;
+              return artNames.has(nm)
+                ? `<div class="acell"><div class="abox"><img src="${ART}/bld/${nm}.svg"
+                     style="width:180px"></div>
+                   <div class="alb">${nm}</div></div>` : "";
+            }).join("")}</div>
+            <div class="hint">每栋三张：本体 / 落影 / 夜间窗光。这里用同类建筑的资产示意。</div>`
+            : `<div class="gapbox"><b>缺</b> —— 这个 kind 还没有美术（见 <a href="art.html">美术</a>）</div>`);
+        })()}
         ${used.length ? `<h2>这一局里用到的</h2><ul>${
           used.map(u => `<li><code>${u}</code></li>`).join("")}</ul>` : ""}
         <h2>相关</h2>
@@ -291,6 +371,89 @@ function pageScene() {
       由编辑器导出。</div>${secs}`);
 }
 function itemName(id) { return (ITEMS.find(x => x.item_type === id) || {}).name || id; }
+
+/* ── 美术总览（★ 从这里验收资产，不再另开联络表）────────────────────── */
+function artCell(a, k) {
+  k = (k || 1.3) * 1.6;
+  const slice = a.slice ? " ▣九宫格" : "";
+  const over = a.tags.includes("oversize") ? " ⚠画布比建筑大" : "";
+  return `<div class="acell">
+    <div class="abox" data-w="${a.w}" data-h="${a.h}" data-k="${k}">
+      <img src="${ART}/${a.file}" style="width:${Math.round(a.w * k)}px;
+        height:${Math.round(a.h * k)}px"></div>
+    <div class="alb">${a.name}</div>
+    <div class="adm">${a.w}×${a.h} ${a.anchor}${slice}${over}</div></div>`;
+}
+function pageArt() {
+  const scenes = `
+    <div class="scenes">
+      <div><div class="scene" id="scene"></div>
+        <div class="hint">地图一角（含招牌与雨棚）</div></div>
+    </div>
+    <div class="scenes" id="scenes2"></div>
+    <div class="hint">★ 物品必须和人摆在一起才看得出大小 —— 床边那个人是 18×24</div>`;
+  const secs = ARTCATS.map(C => {
+    const list = ARTASSETS.filter(a => a.cat === C.k);
+    const subs = C.subs.map(SB => {
+      const items = artBy(C.k, SB.s);
+      if (!items.length) {
+        return SB.gap
+          ? `<h4>${SB.k} ${SB.n} <span class="cnt">0</span></h4>
+             <div class="gapbox"><b>缺</b> —— ${SB.gap}</div>` : "";
+      }
+      if (SB.anim) {
+        return `<h4>${SB.k} ${SB.n} <span class="cnt">${items.length}</span></h4>
+          <div class="hint">${SB.hint}</div><div class="arow" id="people"></div>
+          ${SB.gap ? `<div class="gapbox"><b>还缺</b> —— ${SB.gap}</div>` : ""}`;
+      }
+      const k = (SB.s === "iicon" || SB.s === "badge" || SB.s === "marker") ? 2.2 : 1.3;
+      return `<h4>${SB.k} ${SB.n} <span class="cnt">${items.length}</span></h4>
+        ${SB.hint ? `<div class="hint">${SB.hint}</div>` : ""}
+        <div class="arow">${items.map(a => artCell(a, k)).join("")}</div>
+        ${SB.gap ? `<div class="gapbox"><b>还缺</b> —— ${SB.gap}</div>` : ""}`;
+    }).join("");
+    return `<h2>${C.k} ${C.n} <span class="cnt">${list.length}</span>
+      <span class="h">${C.hint}</span></h2>${subs}`;
+  }).join("");
+  return page("美术", `
+    <div class="tip">从 <code>art/</code> 生成。改画风改 <code>art/style.json</code>，
+      加人改 <code>art/characters.json</code>，然后 <code>bash art/build.sh</code>。
+      <b>虚线框是「还缺什么」</b> —— 这一页同时是缺口报告。</div>
+    <div class="stats">
+      <span><b>${ARTASSETS.length}</b> 资产</span>
+      <span><b>${ARTGRID}</b> px 网格</span>
+      <span><b>2×</b> 绘制</span>
+      <span class="dim">缩放</span>
+      <span class="zoom">
+        <button data-z="0.6">0.6×</button><button data-z="1" class="on">1×</button>
+        <button data-z="2">2×</button><button data-z="3">3×</button></span>
+      <span class="dim">时间</span><span id="tones" class="zoom"></span>
+      <button id="bGrid">格子</button>
+    </div>
+    <h2>组合场景 <span class="h">资产放在一起才知道搭不搭</span></h2>
+    ${scenes}
+    ${secs}`);
+}
+function pageChars() {
+  const rows = CHARS.map(c => `<div class="chcard">
+    <div class="chhead"><img src="${ART}/portraits/${c.id}.svg" alt="">
+      <div><b>${c.name}</b><div class="id">${c.id}</div></div></div>
+    <div class="chbody">${["down", "up", "side"].map(d =>
+      `<div class="cbox"><img data-cid="${c.id}" data-dir="${d}"></div>`).join("")}</div>
+    <div class="chmeta">${(c.note || "")}</div></div>`).join("");
+  return page("人物", `
+    <div class="tip">左：头像（面板用）· 右：三个方向的走路循环。
+      <b>同一份角色数据</b> —— 同一个人在世界里和面板里长得一致。</div>
+    <div class="chgrid">${rows}</div>
+    <h2>可辨识性 <span class="h">契约要求：任意两人至少 3 维不同</span></h2>
+    <table><thead><tr><th>名字</th><th>体型</th><th>头发</th><th>上衣</th><th>配饰</th></tr></thead>
+      <tbody>${CHARS.map(c => `<tr><td><a href="chars.html">${c.name}</a></td>
+        <td>${c.body}</td><td>${c.hair}</td>
+        <td><span class="swatch" style="background:${c.top}"></span> ${c.top}</td>
+        <td>${c.acc}</td></tr>`).join("")}</tbody></table>
+    <div class="tip">跑 <code>node art/gen.mjs --check</code> 会校验任意两人至少 3 维不同 ——
+      这正是 Demo 验收第①条「我认得他们」。</div>`);
+}
 
 /* ── 机制（指向设计文档，不复制内容）──────────────────────────────────── */
 function pageSystems() {
@@ -400,6 +563,61 @@ table.kv td{padding:4px 0;border:none;vertical-align:top}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{padding:3px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;
   font-size:12px}
+
+/* 美术页 */
+.arow{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}
+.acell{display:flex;flex-direction:column;align-items:center;gap:4px;
+  border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px}
+.abox{display:flex;align-items:center;justify-content:center;background:#e9e6da;
+  border-radius:5px;overflow:hidden}
+.alb{font:10px ui-monospace,Consolas,monospace;color:var(--dim)}
+.adm{font:9px ui-monospace,Consolas,monospace;color:#a49c8d}
+h4{margin:14px 0 4px;font-size:13px;color:var(--dim);
+  display:flex;align-items:baseline;gap:8px}
+h4 .cnt{font:11px ui-monospace,Consolas,monospace;color:#a49c8d}
+.gapbox{margin:4px 0 12px;padding:8px 12px;border:1px dashed #cfc7b6;border-radius:7px;
+  color:#9a8f7c;font-size:12px;background:#00000004}
+.gapbox b{color:var(--hi)}
+.zoom{display:inline-flex;gap:3px}
+.zoom button{font:inherit;font-size:11px;padding:2px 9px;border:1px solid var(--line);
+  border-radius:999px;background:#fff;cursor:pointer}
+.zoom button.on{background:#26221c;color:#f7f5f0;border-color:#26221c}
+body.grid .abox{background-image:
+  linear-gradient(#00000012 1px,transparent 1px),
+  linear-gradient(90deg,#00000012 1px,transparent 1px);background-size:32px 32px}
+/* 组合场景 */
+.scenes{display:flex;gap:16px;padding:2px 0 8px;flex-wrap:wrap}
+.scene{position:relative;width:640px;height:352px;border:1px solid var(--line);
+  border-radius:8px;overflow:hidden;background-color:#6d8a52;
+  background-image:url(../../art/out/ground/grass.svg);background-size:32px 32px}
+.scene .g{position:absolute;background-image:url(../../art/out/ground/asphalt.svg);
+  background-size:32px 32px}
+.scene .sw{position:absolute;background-image:url(../../art/out/ground/sidewalk.svg);
+  background-size:32px 6px}
+.scene img,.room img{position:absolute}
+.roomwrap{border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px}
+.roomwrap .cap{font-size:11px;color:var(--dim);padding-top:5px}
+.room{position:relative;background:#e8dfc9;border-radius:5px;overflow:hidden;
+  box-shadow:inset 0 0 0 1px #00000018}
+.tone{position:absolute;inset:0;pointer-events:none}
+body.grid .scene{background-image:
+  linear-gradient(#00000026 1px,transparent 1px),
+  linear-gradient(90deg,#00000026 1px,transparent 1px),
+  url(../../art/out/ground/grass.svg);
+  background-size:32px 32px,32px 32px,32px 32px}
+/* 人物页 */
+.chgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.chcard{border:1px solid var(--line);border-radius:9px;background:#fff;padding:10px}
+.chhead{display:flex;gap:9px;align-items:center;margin-bottom:8px}
+.chhead img{width:40px;height:40px;border-radius:7px;background:#e9e6da}
+.chhead b{font-size:14px}
+.chbody{display:flex;gap:8px;justify-content:center}
+.cbox{background:#e9e6da;border-radius:6px;width:42px;height:52px;
+  display:flex;align-items:center;justify-content:center}
+.cbox img{width:34px;height:45px}
+.chmeta{font-size:11px;color:var(--dim);margin-top:8px}
+.swatch{display:inline-block;width:11px;height:11px;border-radius:3px;
+  vertical-align:-1px;box-shadow:inset 0 0 0 1px #00000022}
 footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);
   color:var(--dim);font-size:12px}
 @media(max-width:760px){.itempage{grid-template-columns:1fr}.infobox{position:static}}
@@ -462,10 +680,12 @@ fs.mkdirSync(OUT, { recursive: true });
 const write = (name, html) => fs.writeFileSync(path.join(OUT, name), html, "utf8");
 
 fs.writeFileSync(path.join(OUT, "wiki.css"), CSS, "utf8");
-fs.writeFileSync(path.join(OUT, "wiki.js"), JS, "utf8");
+fs.writeFileSync(path.join(OUT, "wiki.js"), JS + ARTJSFn(), "utf8");
 write("index.html", pageIndex());
 write("items.html", pageItems());
 write("buildings.html", pageBuildings());
+write("art.html", pageArt());
+write("chars.html", pageChars());
 write("scene.html", pageScene());
 write("systems.html", pageSystems());
 for (const it of ITEMS) write(`item_${it.item_type}.html`, pageItem(it));
@@ -475,3 +695,145 @@ const noArt = ITEMS.filter(it => !artNames.has(it.item_type)).map(it => it.name)
 console.log(`wiki → wiki/out/（${ITEMS.length} 物品 · ${BUILDINGS.length} 建筑 · ${SCENES.length} 场景）`);
 console.log(`  打开 wiki/out/index.html`);
 if (noArt.length) console.log(`  ⚠ 还没有美术的：${noArt.join("、")}`);
+
+/* ── 美术页：组合场景 + 时间色调 + 缩放 + 人物动画（从 art/preview.mjs 搬来）── */
+function ARTJSFn(){ return `
+(function(){
+  var ART = "${ART}";
+  var tones = ${JSON.stringify(AT.time || [])};
+  var man = ${JSON.stringify(ARTASSETS.map(a => [a.file, a.w, a.h]))};
+  var chars = ${JSON.stringify(CHARS.map(c => c.id))};
+  function el(t, c, h){ var e = document.createElement(t); if (c) e.className = c;
+    if (h) e.innerHTML = h; return e; }
+  function im(host, src, x, y, w, h, cls){ var m = el("img"); m.src = ART + "/" + src;
+    m.style.cssText = "left:" + x + "px;top:" + y + "px;width:" + w + "px;height:" + h + "px";
+    if (cls) m.className = cls; host.appendChild(m); return m; }
+  /* 组合场景：地图一角 */
+  var sc = document.getElementById("scene");
+  if (sc){
+    function box(cls, x, y, w, h){ var d = el("div", cls);
+      d.style.cssText = "left:" + x + "px;top:" + y + "px;width:" + w + "px;height:" + h + "px";
+      sc.appendChild(d); return d; }
+    box("g", 0, 150, 640, 64); box("sw", 0, 144, 640, 6); box("sw", 0, 214, 640, 6);
+    function bld(name, x, y, w, h){
+      im(sc, "bld/" + name + "_shadow.svg", x, y, w + 6, h + 7);
+      im(sc, "bld/" + name + ".svg", x, y, w, h);
+      im(sc, "bld/" + name + "_lit.svg", x, y, w, h, "lit");
+      im(sc, "attach/awning_1.svg", x + 96, y + 134, 46, 16);
+      im(sc, "attach/sign_wood.svg", x + 72, y + 18, 112, 16);
+    }
+    bld("shop_a", 40, 30, 256, 160); bld("home_b", 330, 40, 192, 128);
+    [[150,118,27],[470,108,20],[556,238,34],[92,248,20],[300,258,27]].forEach(function(t){
+      im(sc, "props/tree_" + (t[2]>=30?"l":t[2]>=24?"m":"s") + ".svg", t[0], t[1], t[2], t[2]+4); });
+    im(sc, "props/car_1.svg", 250, 152, 18, 32); im(sc, "props/car_3.svg", 420, 168, 18, 32);
+    im(sc, "props/lamp.svg", 500, 118, 10, 30); im(sc, "props/bench.svg", 200, 226, 26, 12);
+    im(sc, "people/n_wang_down_idle.svg", 140, 232, 18, 24);
+    im(sc, "people/n_li_down_idle.svg", 228, 236, 18, 24);
+    im(sc, "people/n_sun_side_idle.svg", 180, 228, 18, 24);
+    im(sc, "people/me_down_idle.svg", 330, 258, 18, 24);
+    sc.appendChild(el("div", "tone"));
+  }
+  /* 三间室内 */
+  var s2 = document.getElementById("scenes2");
+  if (s2){
+    function room(title, W, H, place){
+      var wrap = el("div", "roomwrap"); var r = el("div", "room");
+      r.style.cssText += "width:" + W + "px;height:" + H + "px";
+      function rIM(src, x, y, w, h){ return im(r, src, x, y, w, h); }
+      var P = function(cid, dir, x, y){ return rIM("people/" + cid + "_" + dir + "_idle.svg", x, y, 18, 24); };
+      place(rIM, P); r.appendChild(el("div", "tone"));
+      wrap.appendChild(r); wrap.appendChild(el("div", "cap", title)); s2.appendChild(wrap);
+    }
+    var IT = ${JSON.stringify(
+      ARTASSETS.filter(a => a.cat === "D" && a.sub === "iworld")
+        .reduce((o, a) => { o[a.name] = [a.w, a.h]; return o; }, {}))};
+    room("店里（前台 + 货 + 店员）", 340, 190, function(im2, P){
+      im2("items/station_counter.svg", 244, 40, IT["station_counter"][0], IT["station_counter"][1]);
+      im2("items/food_apple.svg", 30, 34, IT["food_apple"][0], IT["food_apple"][1]);
+      im2("items/food_pear.svg", 30, 68, IT["food_pear"][0], IT["food_pear"][1]);
+      im2("items/meal_simple.svg", 30, 102, IT["meal_simple"][0], IT["meal_simple"][1]);
+      im2("items/food_apple_empty.svg", 96, 34, IT["food_apple"][0], IT["food_apple"][1]);
+      P("n_sun","down",226,118); P("n_wang","down",150,122); });
+    room("加工厂（工位 + 机器 + 工人）", 340, 190, function(im2, P){
+      im2("items/station_workbench.svg", 30, 40, IT["station_workbench"][0], IT["station_workbench"][1]);
+      im2("items/industry_machine.svg", 26, 90, IT["industry_machine"][0], IT["industry_machine"][1]);
+      im2("items/meal_simple_raw.svg", 110, 96, IT["meal_simple_raw"][0], IT["meal_simple_raw"][1]);
+      P("n_zhou","down",130,130); P("n_li","side",200,134); });
+    room("家里（床 + 马桶）", 340, 190, function(im2, P){
+      im2("items/bed_basic.svg", 40, 34, IT["bed_basic"][0], IT["bed_basic"][1]);
+      im2("items/toilet_basic.svg", 250, 30, IT["toilet_basic"][0], IT["toilet_basic"][1]);
+      P("me","up",160,100); P("n_zhang","side",190,104); });
+  }
+  /* 时间色调 */
+  var host = document.getElementById("tones");
+  function apply(i){
+    var tn = tones[i];
+    document.querySelectorAll(".tone").forEach(function(e){
+      e.style.background = tn.tint;
+      e.style.mixBlendMode = tn.blend === "normal" ? "normal" : tn.blend;
+      e.style.opacity = tn.alpha;
+    });
+    document.querySelectorAll(".lit").forEach(function(e){
+      e.style.visibility = tn.window > 0.3 ? "visible" : "hidden";
+      e.style.opacity = tn.window;
+    });
+  }
+  if (host) tones.forEach(function(tn, i){
+    var b = el("button", "", tn.label);
+    b.onclick = function(){
+      host.querySelectorAll("button").forEach(function(x){ x.classList.remove("on"); });
+      b.classList.add("on"); apply(i);
+    };
+    host.appendChild(b);
+    if (tn.name === "day"){ b.classList.add("on"); apply(i); }
+  });
+  /* 缩放 */
+  document.querySelectorAll("[data-z]").forEach(function(b){
+    b.onclick = function(){
+      var Z = parseFloat(b.dataset.z);
+      document.querySelectorAll("[data-z]").forEach(function(x){ x.classList.remove("on"); });
+      b.classList.add("on");
+      document.querySelectorAll(".abox").forEach(function(bx){
+        var W = parseFloat(bx.dataset.w), H = parseFloat(bx.dataset.h),
+            k = parseFloat(bx.dataset.k);
+        bx.style.width = Math.round(W*Z*k) + "px"; bx.style.height = Math.round(H*Z*k) + "px";
+        var img = bx.querySelector("img");
+        if (img){ img.style.width = Math.round(W*Z*k) + "px";
+                  img.style.height = Math.round(H*Z*k) + "px"; }
+      });
+    };
+  });
+  /* 格子 */
+  var g = document.getElementById("bGrid");
+  if (g) g.onclick = function(){ this.classList.toggle("on");
+    document.body.classList.toggle("grid"); };
+  /* 人物动画 */
+  var peopleHost = document.getElementById("people");
+  if (peopleHost) chars.forEach(function(cid){
+    var wrap = el("div", "chcard");
+    wrap.appendChild(el("div", "chhead", "<b>" + cid + "</b>"));
+    var body = el("div", "chbody");
+    ["down","up","side"].forEach(function(dir){
+      var b = el("div", "cbox"); var img = el("img");
+      img.style.width = "34px"; img.style.height = "45px";
+      b.appendChild(img); body.appendChild(b);
+      var f = 0;
+      setInterval(function(){
+        img.src = ART + "/people/" + cid + "_" + dir + "_" +
+          (f % 7 === 6 ? "idle" : "walk" + (f % 4)) + ".svg";
+        f++;
+      }, 140);
+    });
+    wrap.appendChild(body); peopleHost.appendChild(wrap);
+  });
+  /* 人物页的动画 */
+  document.querySelectorAll("[data-cid]").forEach(function(img){
+    var cid = img.dataset.cid, dir = img.dataset.dir, f = 0;
+    setInterval(function(){
+      img.src = ART + "/people/" + cid + "_" + dir + "_" +
+        (f % 7 === 6 ? "idle" : "walk" + (f % 4)) + ".svg";
+      f++;
+    }, 140);
+  });
+})();
+`; }

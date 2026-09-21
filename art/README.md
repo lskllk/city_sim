@@ -9,7 +9,8 @@
 
 ```bash
 bash art/build.sh          # 一条命令：生成 → 校验 → 出联络表
-open art/out/preview.html  # 分类预览：按 asset-list 九大类组织，虚线框=缺口
+# 验收在 wiki 里看：bash art/build.sh 会顺带重建 wiki
+open wiki/out/art.html     # 美术资产 · 按九大类 · 虚线框=缺口
 ```
 
 产物 `art/out/` 是**构建产物**（已 gitignore）—— 真源是下面三个文件。

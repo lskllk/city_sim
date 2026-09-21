@@ -70,7 +70,7 @@ def main() -> int:
 
     # ④ 导航入口都在
     nav_targets = ["index.html", "items.html", "buildings.html", "scene.html",
-                   "systems.html"]
+                   "art.html", "chars.html", "systems.html"]
     for f in pages:
         h = f.read_text(encoding="utf-8")
         for t in nav_targets:

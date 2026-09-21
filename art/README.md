@@ -9,7 +9,7 @@
 
 ```bash
 bash art/build.sh          # 一条命令：生成 → 校验 → 出联络表
-open art/out/preview.html  # 联络表：把资产放一起看（含一块组合场景）
+open art/out/preview.html  # 分类预览：按 asset-list 九大类组织，虚线框=缺口
 ```
 
 产物 `art/out/` 是**构建产物**（已 gitignore）—— 真源是下面三个文件。

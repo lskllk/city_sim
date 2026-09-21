@@ -961,14 +961,47 @@ portraits();
 fx();
 checkCharacters();
 
+/* ══════════════════════════════════════════════════════════════════════════
+   九、归到资产的【标准类别】（docs/asset-list.md 的九大类）
+   ----------------------------------------------------------------------------
+   判据是玩法属性，不是文件放哪儿：
+     A 环境  铺在地上、不交互        B 建筑  有门口、能走进去
+     C 角色  会走动、有需求          D 物件  玩家能点 / 能买卖 / 能用
+     E 界面  屏幕空间                F 特效  一次性、短命
+     G 氛围  覆盖全屏                H 认知  表达"我记的多旧 / 多准 / 从哪来"
+   ══════════════════════════════════════════════════════════════════════════ */
+function categorize(a) {
+  const T = a.tags;
+  const has = (...x) => x.some(k => T.indexOf(k) >= 0);
+  if (has("person")) return ["C", "world"];
+  if (has("portrait")) return ["C", "portrait"];
+  if (has("icon")) return ["D", "iicon"];            // 物品图标 = 物品的第二套语言
+  if (has("empty")) return ["D", "iempty"];
+  if (has("item")) return ["D", "iworld"];
+  if (has("attach")) return ["B", "attach"];
+  if (has("building")) return has("shadow") ? ["B", "shadow"]
+                       : has("night") ? ["B", "lit"] : ["B", "body"];
+  if (has("atmosphere")) return ["G", "rain"];
+  if (a.layer === "L0") return ["A", "ground"];
+  if (a.layer === "L1") return ["A", "road"];
+  if (a.layer === "L2") return ["A", "props"];
+  if (has("bar")) return ["E", "bar"];
+  if (has("badge")) return ["E", "badge"];
+  if (has("qmark")) return ["E", "marker"];
+  if (a.layer === "UI") return ["E", "ui"];
+  return ["F", "fx"];
+}
+for (const a of manifest) { const cs = categorize(a); a.cat = cs[0]; a.sub = cs[1]; }
+const byCat = {};
+for (const a of manifest) byCat[a.cat] = (byCat[a.cat] || 0) + 1;
+
 fs.writeFileSync(path.join(OUT, "manifest.json"),
   JSON.stringify({ style: "art/style.json", grid: G, authorScale: PX,
                    logicalSize: true, buildings: bldJson,
                    atmosphere: S.atmosphere, assets: manifest }, null, 1));
 
-const byLayer = {};
-for (const a of manifest) byLayer[a.layer] = (byLayer[a.layer] || 0) + 1;
 console.log(`\n生成 ${manifest.length} 个资产 → art/out/`);
-console.log("  按图层:", Object.entries(byLayer).sort().map(([k, v]) => `${k}:${v}`).join("  "));
+console.log("  按类别:", ["A", "B", "C", "D", "E", "F", "G", "H"]
+  .map(c => `${c}:${byCat[c] || 0}`).join("  ") + "   ← H 认知是最缺的");
 console.log(`  人物 ${who.length} 人 × ${S.person.directions.length} 向 × ${S.person.walkFrames + 1} 帧`);
 console.log(`  manifest.json 给了每个资产的 name / file / 逻辑尺寸 / 锚点 / 图层`);

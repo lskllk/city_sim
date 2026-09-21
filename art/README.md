@@ -32,8 +32,23 @@ art/out/             ✔ 可以删  构建产物（gitignore）。删了跑 buil
 art/__pycache__/     ✔ 可以删  Python 缓存
 ```
 
-★ **`art/out/` 是「能删」不是「该删」** —— wiki 用 `../../art/out/*.svg` 引用它，
-  删了 wiki 上的图就全空。要删就删完立刻 `bash art/build.sh` 重建。
+★ 但 **`art/out/` 其实也不用删** —— 它是【给游戏用的】产物（PixiJS 从这里加载）。
+  wiki 有自己的一份拷贝（见下），所以两边互不影响。
+
+## 〇之二、wiki 是自足的
+
+`wiki/gen.mjs` 会把 `art/out/` 整个拷到 `wiki/out/a/`，页面里写的是 `a/xxx.svg`。
+
+```
+art/out/      ← 给游戏用（PixiJS 从这里加载）
+wiki/out/a/   ← wiki 自己的一份（拷贝）
+```
+
+所以 **`wiki/out/` 可以整个 zip 出去发人看** —— 图不会断。
+（拷完试过：整个目录搬到别处，断链 0 处。）
+
+`wiki/verify.py` 第 ⑦ 条盯着这个：拿 `manifest.json` 逐个对，
+少一个文件就报"先跑 bash art/build.sh"。
 
 **为什么没有"直接交出 SVG 文件"这条路**：256 个文件、改一次色板就得手工改 256 处。
 现在改 `style.json` 一行，重跑，全套跟着变。这是这套东西唯一的立足点。

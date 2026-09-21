@@ -23,7 +23,9 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const CFG = path.join(ROOT, "config");
 const OUT = path.join(ROOT, "wiki", "out");
-const ART = "../../art/out";                       // wiki/out/*.html → art/out/
+// ★ 资源拷进 wiki/out/a/ —— 这一页（整个 wiki）要能单独打包发出去，
+//   不能靠 ../../ 回指 art/out（那样 zip 一下图就全断了）。
+const ART = "a";
 
 const readJSON = p => JSON.parse(fs.readFileSync(p, "utf8"));
 const listDir = (d, exts) => fs.existsSync(d)
@@ -60,7 +62,7 @@ const ARTCATS = [
     { k: "A4", n: "地块装饰", s: "props", hint: "锚点在底部中心，所以「立」在地上" },
     { k: "A5", n: "围栏与院子", s: "fence", gap: "木栅栏 / 矮砖墙 / 树篱（各 4 段：直/角/端/门）" },
   ]},
-  { k: "B", n: "建筑", hint: "有门口、能走进去、有名字", subs: [
+  { k: "B", n: "建筑", own: "buildings.html", hint: "有门口、能走进去、有名字", subs: [
     { k: "B1", n: "本体", s: "body", hint: "屋顶 + 立面揭示 + 门口" },
     { k: "B2", n: "落影", s: "shadow", hint: "单独一层：夜/雨可复用，也能整个关掉" },
     { k: "B3", n: "夜间窗光", s: "lit", hint: "和屋顶同一套坐标，所以一定对得上" },
@@ -68,13 +70,13 @@ const ARTCATS = [
     { k: "B5", n: "状态", s: "bstate", gap: "关门挂牌（休息中/打烊）· 装修中 · 出售/出租牌" },
     { k: "B6", n: "室内结构", s: "binter", gap: "室内墙 / 室内门 / 室内窗 / 楼梯 / 地板贴图" },
   ]},
-  { k: "C", n: "角色", hint: "会走动、有需求、有记忆", subs: [
+  { k: "C", n: "角色", own: "chars.html", hint: "会走动、有需求、有记忆", subs: [
     { k: "C1", n: "世界小人", s: "world", anim: true,
       hint: "走 4 帧 + 站 1 帧，循环播放；锚点在脚底；左右靠水平镜像" },
     { k: "C2", n: "头像", s: "portrait", hint: "32×32 正面胸像，给面板用；和世界小人同一份角色数据" },
     { k: "C3", n: "动作", s: "cemote", gap: "待机小动作（换重心/看表）· 坐 · 用东西（吃/睡/如厕）" },
   ]},
-  { k: "D", n: "物件", hint: "玩家能点 / 能买卖 / 能用 —— 判据是玩法属性，不是外观", subs: [
+  { k: "D", n: "物件", own: "items.html", hint: "玩家能点 / 能买卖 / 能用 —— 判据是玩法属性，不是外观", subs: [
     { k: "D1", n: "世界形态", s: "iworld", hint: "俯视，摆在屋里要贴地" },
     { k: "D2", n: "空态", s: "iempty", hint: "「卖光了」用形状说，不写字" },
     { k: "D3", n: "图标", s: "iicon", hint: "正视 16×16 —— 俯视的苹果就是个圆" },
@@ -438,6 +440,14 @@ function pageArt() {
         <div class="arow">${items.map(a => artCell(a, k)).join("")}</div>
         ${SB.gap ? `<div class="gapbox"><b>还缺</b> —— ${SB.gap}</div>` : ""}`;
     }).join("");
+    if (C.own) {      // 这一类在别的页面里已经完整展示 → 这里只留入口，不重复铺图
+      const gaps = C.subs.filter(SB => !artBy(C.k, SB.s).length && SB.gap);
+      return `<h2>${C.k} ${C.n} <span class="cnt">${list.length}</span>
+        <span class="h">${C.hint}</span></h2>
+        <div class="ownrow">美术在 <a href="${C.own}">${C.own.replace(".html", "")}
+          页</a> 里看 —— 那一页是它们的主场，这里不重复铺一遍。
+          ${gaps.length ? `还缺 ${gaps.length} 处：${gaps.map(SB => SB.k).join(" · ")}（见上面的清单）` : ""}</div>`;
+    }
     const gaps = C.subs.filter(SB => !artBy(C.k, SB.s).length && SB.gap);
     return `<details><summary><h2>${C.k} ${C.n}
       <span class="cnt">${list.length}</span>
@@ -462,7 +472,27 @@ function pageArt() {
       <button id="bNorm">统一大小</button>
       <button id="bAll">全部展开</button>
     </div>
-    <h2>九大类总览 <span class="h">这一页就是缺口报告 —— 虚线框 = 还缺什么</span></h2>
+    ${(() => {
+      // ★ 这一页的第一件事：还缺什么。做成【一张清单】，
+      //   不再让人从 256 个缩略图里找虚线框。
+      const g = [];
+      for (const C of ARTCATS)
+        for (const SB of C.subs)
+          if (!artBy(C.k, SB.s).length && SB.gap)
+            g.push({ cat: C.k, cn: C.n, k: SB.k, n: SB.n, what: SB.gap, own: C.own });
+      if (!g.length) return "";
+      return `<h2>还缺什么 <span class="cnt">${g.length} 处</span>
+        <span class="h">这是这一页的第一件事 —— 需求驱动，不是"想到什么画什么"</span></h2>
+        <table class="dt"><thead><tr><th>类别</th><th>缺什么</th><th>是什么 / 为什么重要</th></tr></thead>
+        <tbody>${g.map(x => `<tr>
+          <td><span class="tag">${x.k} ${x.n}</span></td>
+          <td><b>${ARTCATS.find(c => c.k === x.cat).subs.find(s => s.k === x.k).n}</b></td>
+          <td>${x.what}${x.own ? ` <span class="id">（这一类的成品在
+            <a href="${x.own}">${x.own.replace(".html", "")}</a> 页）</span>` : ""}</td>
+        </tr>`).join("")}</tbody></table>`;
+    })()}
+
+    <h2>九大类总览 <span class="h">每类多少 · 有几处缺口</span></h2>
     <div class="catbar">${ARTCATS.map(C => {
       const n = ARTASSETS.filter(a => a.cat === C.k).length;
       const gaps = C.subs.filter(SB => !artBy(C.k, SB.s).length && SB.gap).length;
@@ -470,7 +500,8 @@ function pageArt() {
         <b>${C.k}</b> ${C.n} <em>${n}</em>${gaps ? `<i>缺 ${gaps}</i>` : ""}</span>`;
     }).join("")}</div>
 
-    <h2>组合场景 <span class="h">资产放在一起才知道搭不搭</span></h2>
+    <h2>组合场景 <span class="h">★ 这一页第二件事：摆在一起协不协调 ——
+      这是唯一机器查不了的</span></h2>
     ${scenes}
     ${secs}`);
 }
@@ -620,6 +651,10 @@ h4 .cnt{font:11px ui-monospace,Consolas,monospace;color:#a49c8d}
 .gapbox b{color:var(--hi)}
 /* 统一大小：把每个格子拉到一样大，按比例缩放（world 资产本来就是各自的世界尺寸，
    验收图标一致性时才开这个）。 */
+/* 「这一类的美术在别处看」入口行 */
+.ownrow{margin:2px 0 16px;padding:9px 14px;border-radius:7px;background:#00000006;
+  border:1px solid var(--line);font-size:12px;color:var(--dim)}
+.ownrow a{color:var(--hi);font-weight:600}
 /* 九大类总览条 —— 不展开细节也能一眼看出哪里缺 */
 .catbar{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 14px}
 .cat{display:inline-flex;align-items:baseline;gap:5px;padding:4px 10px;border-radius:999px;
@@ -743,6 +778,18 @@ document.querySelectorAll("table tbody tr").forEach(function(tr){
 /* ── 写出 ──────────────────────────────────────────────────────────────── */
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
+/* ★ 把美术产物拷进 wiki/out/a/ —— 让 wiki 自足。
+   这样 wiki/out 可以整个 zip 出去发人看，图不会断。 */
+const ART_SRC = path.join(ROOT, "art", "out");
+const ART_DST = path.join(OUT, "a");
+if (fs.existsSync(ART_SRC)) {
+  fs.rmSync(ART_DST, { recursive: true, force: true });
+  fs.cpSync(ART_SRC, ART_DST, { recursive: true });
+  const n = fs.readdirSync(ART_DST, { recursive: true })
+    .filter(f => String(f).endsWith(".svg")).length;
+  console.log(`  资源 → wiki/out/a/（${n} 个 SVG）`);
+}
+
 const write = (name, html) => fs.writeFileSync(path.join(OUT, name), html, "utf8");
 
 fs.writeFileSync(path.join(OUT, "wiki.css"), CSS, "utf8");

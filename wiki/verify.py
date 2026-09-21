@@ -107,6 +107,19 @@ def main() -> int:
                 if f"bld/{base}.svg" not in h:
                     errors.append(f"building_{b['type']}.html 没贴自己的美术（应贴 {base}）")
 
+    # ⑦ ★ 美术产物必须已经拷进 wiki/out/a/（wiki 要能单独打包发出去）。
+    #    静态 <img> 上面第 ② 条会查；但人物动画、格子这些是 JS 拼路径加载的，
+    #    静态检查看不到 —— 所以拿 manifest.json 逐个对。
+    if man_path.exists():
+        man = json.loads(man_path.read_text(encoding="utf-8"))
+        missing = [a["file"] for a in man.get("assets", [])
+                   if not (OUT / "a" / a["file"]).exists()]
+        if missing:
+            errors.append(f"wiki/out/a/ 少了 {len(missing)} 个美术文件"
+                          f"（例如 {missing[0]}）—— 先跑 bash art/build.sh")
+        else:
+            print(f"资源自足: wiki/out/a/ 里 {len(man.get('assets', []))} 个资产齐全")
+
     bld_cov = ""
     man_path = ROOT / "art/out/manifest.json"
     if man_path.exists():
@@ -120,7 +133,7 @@ def main() -> int:
         if len(errors) > 30:
             print(f"   … 还有 {len(errors) - 30} 条")
         return 1
-    print("\n✓ 全部通过（页面完整 / 无脏值 / 链接可落地 / 单页齐 / 导航齐 / 交叉链接齐 / 建筑美术覆盖齐）")
+    print("\n✓ 全部通过（页面完整 / 无脏值 / 链接可落地 / 单页齐 / 导航齐 / 交叉链接齐 / 建筑美术覆盖齐 / 资源自足）")
     return 0
 
 

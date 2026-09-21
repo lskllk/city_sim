@@ -120,6 +120,25 @@ def main() -> int:
         else:
             print(f"资源自足: wiki/out/a/ 里 {len(man.get('assets', []))} 个资产齐全")
 
+    # ⑧ ★ 场景里写的每个资产路径都要存在。
+    #    场景是 JS 拼出来的，静态 <img> 检查看不到；
+    #    路径写错只表现为「场景里少了一块」，很容易被当成"这里没放东西"。
+    art_html = (OUT / "art.html").read_text(encoding="utf-8")
+    if art_html:
+        js = (OUT / "wiki.js").read_text(encoding="utf-8")
+        refs = set()
+        for m in re.finditer(r'"(ground|bld|attach|props|items|people|road|atm)/[\w./-]+"', js):
+            r = m.group(0)[1:-1]
+            if r.endswith(("_", "/")):      # 拼接出来的（"props/car_" + n），量不到
+                continue
+            refs.add(r)
+        # 拼接出来的（"props/car_" + n）静态量不到，交给 art/verify.py 的清单
+        broken = sorted(r for r in refs if not (OUT / "a" / r).exists())
+        if broken:
+            errors.append(f"场景里引用了不存在的资产 {len(broken)} 个：{', '.join(broken[:4])}")
+        else:
+            print(f"场景引用: {len(refs)} 个资产路径全部落地")
+
     bld_cov = ""
     man_path = ROOT / "art/out/manifest.json"
     if man_path.exists():

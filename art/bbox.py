@@ -13,6 +13,52 @@ import re
 NUM = re.compile(r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
 
 
+def _arc_pts(p0, rx, ry, rot_deg, large, sweep, p1) -> list[tuple[float, float]]:
+    """椭圆弧采样点。SVG 的 A 命令是终点式参数化，要先换成圆心式。
+
+    ★ 别拿"起点 ± 半径"当控制点 —— 半圆会被算到圆心左边一大截，
+      量出来的包围盒中心是歪的（踩过）。
+    """
+    import math
+
+    if rx == 0 or ry == 0 or p0 == p1:
+        return []
+    phi = math.radians(rot_deg)
+    cosp, sinp = math.cos(phi), math.sin(phi)
+    dx, dy = (p0[0] - p1[0]) / 2, (p0[1] - p1[1]) / 2
+    x1p, y1p = cosp * dx + sinp * dy, -sinp * dx + cosp * dy
+    lam = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry)
+    if lam > 1:                                   # 半径不够大，按规范放大
+        s = math.sqrt(lam)
+        rx, ry = rx * s, ry * s
+    num = rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p
+    den = rx * rx * y1p * y1p + ry * ry * x1p * x1p
+    co = math.sqrt(max(num / den, 0.0)) * (-1 if large == sweep else 1)
+    cxp, cyp = co * rx * y1p / ry, -co * ry * x1p / rx
+    cx = cosp * cxp - sinp * cyp + (p0[0] + p1[0]) / 2
+    cy = sinp * cxp + cosp * cyp + (p0[1] + p1[1]) / 2
+
+    def ang(ux, uy, vx, vy):
+        d = (ux * vx + uy * vy) / (math.hypot(ux, uy) * math.hypot(vx, vy))
+        a = math.acos(max(-1.0, min(1.0, d)))
+        return -a if ux * vy - uy * vx < 0 else a
+
+    th1 = ang(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry)
+    dth = ang((x1p - cxp) / rx, (y1p - cyp) / ry,
+              (-x1p - cxp) / rx, (-y1p - cyp) / ry)
+    if not sweep and dth > 0:
+        dth -= 2 * math.pi
+    elif sweep and dth < 0:
+        dth += 2 * math.pi
+
+    pts = []
+    for i in range(17):                           # 17 个采样点够量包围盒了
+        th = th1 + dth * i / 16
+        x, y = rx * math.cos(th), ry * math.sin(th)
+        pts.append((cosp * x - sinp * y + cx, sinp * x + cosp * y + cy))
+    return pts
+
+
 def _pts_from_path(d: str) -> list[tuple[float, float]]:
     """把 path 的 d 拆成坐标点。曲线取控制点（略微高估，够用了）。"""
     out: list[tuple[float, float]] = []
@@ -77,8 +123,7 @@ def _pts_from_path(d: str) -> list[tuple[float, float]]:
             elif cmd in "Aa":
                 a = take(7)
                 p = (a[5] + cur[0], a[6] + cur[1]) if lower else (a[5], a[6])
-                out += [(cur[0] - abs(a[0]), cur[1] - abs(a[1])),
-                        (cur[0] + abs(a[0]), cur[1] + abs(a[1]))]
+                out += _arc_pts(cur, abs(a[0]), abs(a[1]), a[2], a[3], a[4], p)
                 out.append(p)
                 cur = p
             else:
@@ -152,3 +197,101 @@ if __name__ == "__main__":
     for n, W, H, fr, fh in rows:
         flag = "  ← 画得太小" if min(fr, fh) < 0.7 else ""
         print(f"{n:38s} {W:4d}×{H:<4d} {fr:6.2f} {fh:6.2f}{flag}")
+
+
+# ── 按【颜色】取包围盒 ────────────────────────────────────────────────────
+# 用途：查「头发/帽子有没有长在头上」。头和头发都是已知颜色的图形，
+# 所以不用识别形状，直接按 fill 把两组分开量中心就行。
+
+_ELEM = re.compile(r"<(rect|circle|ellipse|line|path)\b([^>]*?)/?>", re.S)
+
+
+def _attrs(s: str) -> dict[str, str]:
+    return {k: v for k, v in re.findall(r'([\w:-]+)="([^"]*)"', s)}
+
+
+def _elem_bbox(tag: str, at: dict[str, str]) -> tuple[float, float, float, float] | None:
+    try:
+        if tag == "rect":
+            x, y = float(at["x"]), float(at["y"])
+            return x, y, x + float(at["width"]), y + float(at["height"])
+        if tag == "circle":
+            cx, cy, r = float(at["cx"]), float(at["cy"]), float(at["r"])
+            return cx - r, cy - r, cx + r, cy + r
+        if tag == "ellipse":
+            cx, cy = float(at["cx"]), float(at["cy"])
+            rx, ry = float(at["rx"]), float(at["ry"])
+            return cx - rx, cy - ry, cx + rx, cy + ry
+        if tag == "line":
+            x1, y1, x2, y2 = (float(at[k]) for k in ("x1", "y1", "x2", "y2"))
+            return min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)
+        if tag == "path" and "d" in at:
+            pts = _pts_from_path(at["d"])
+            if pts:
+                xs = [p[0] for p in pts]
+                ys = [p[1] for p in pts]
+                return min(xs), min(ys), max(xs), max(ys)
+    except (KeyError, ValueError):
+        return None
+    return None
+
+
+def bbox_by_fill(svg_text: str, color: str) -> tuple[float, float, float, float] | None:
+    """所有 fill == color 的图形的总包围盒。"""
+    want = color.lower()
+    boxes = []
+    for m in _ELEM.finditer(svg_text):
+        at = _attrs(m.group(2))
+        if at.get("fill", "").lower() != want:
+            continue
+        bb = _elem_bbox(m.group(1), at)
+        if bb:
+            boxes.append(bb)
+    if not boxes:
+        return None
+    return (min(b[0] for b in boxes), min(b[1] for b in boxes),
+            max(b[2] for b in boxes), max(b[3] for b in boxes))
+
+
+def biggest_circle_by_fill(svg_text: str, color: str):
+    """fill == color 的最大圆 —— 小人身上就是那颗头。"""
+    want, best = color.lower(), None
+    for m in re.finditer(r"<circle\b([^>]*?)/?>", svg_text):
+        at = _attrs(m.group(1))
+        if at.get("fill", "").lower() != want:
+            continue
+        try:
+            c = (float(at["cx"]), float(at["cy"]), float(at["r"]))
+        except (KeyError, ValueError):
+            continue
+        if best is None or c[2] > best[2]:
+            best = c
+    return best
+
+
+def elements_by_fill(svg_text: str, color: str) -> list[tuple[str, tuple[float, float, float, float]]]:
+    """[(tag, bbox)] —— 所有 fill == color 的图形，按出现顺序。"""
+    want = color.lower()
+    out = []
+    for m in _ELEM.finditer(svg_text):
+        at = _attrs(m.group(2))
+        if at.get("fill", "").lower() != want:
+            continue
+        bb = _elem_bbox(m.group(1), at)
+        if bb:
+            out.append((m.group(1), bb))
+    return out
+
+
+def biggest_by_fill(svg_text: str, color: str):
+    """fill == color 里【包围盒面积最大】的那块。返回 (tag, bbox, 中心x)。
+
+    为什么挑"最大的一块"而不是整个色的包围盒：
+    帽子有帽顶 + 帽檐两块，把它们的包围盒合起来算中心，
+    帽檐会把偏移抵消掉（踩过）—— 合起来量反而是错的。
+    """
+    els = elements_by_fill(svg_text, color)
+    if not els:
+        return None
+    tag, bb = max(els, key=lambda e: (e[1][2] - e[1][0]) * (e[1][3] - e[1][1]))
+    return tag, bb, (bb[0] + bb[2]) / 2

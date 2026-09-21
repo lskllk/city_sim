@@ -7,7 +7,8 @@
   ③ 没有 NaN / undefined / null 混进坐标
   ④ 所有 url(#id) 都指得到对应的 <pattern>（引用不到 = 那块直接不画）
   ⑤ 所有 fill/stroke 都是合法颜色或 url(#)
-  ⑥ 固定格子类（图标/徽章/头像）必须填满画布 —— 见 ⑥ 的说明
+  ⑥ 固定格子类（图标/徽章/头像）必须填满画布
+  ⑦ 头发/帽子必须长在头上 —— 见 ⑦ 的说明
 用法: python art/verify.py
 """
 from __future__ import annotations
@@ -21,6 +22,7 @@ from pathlib import Path
 ART = Path(__file__).resolve().parent
 OUT = ART / "out"
 STYLE = json.loads((ART / "style.json").read_text(encoding="utf-8"))
+CHARS = json.loads((ART / "characters.json").read_text(encoding="utf-8"))
 PX = STYLE["authorScale"]
 
 HEX = re.compile(r"^#[0-9a-fA-F]{3,8}$")
@@ -143,7 +145,7 @@ def main() -> int:
     #      一刀切会把它们全报成错，那种闸很快就会被无视。
     #    ★ 判 max(横, 纵) 而不是 min：长条工位 0.80×0.38 是对的。
     #      阈值 0.72 是按「坐标忘了乘 2」那个 bug 定的 —— 它会掉到 0.35〜0.5。
-    from bbox import fill_ratio  # noqa: E402  （同目录）
+    from bbox import biggest_by_fill, biggest_circle_by_fill, fill_ratio  # noqa: E402
     FIXED_TILE = {"iicon", "badge", "marker"}
     checked = 0
     for a in assets:
@@ -162,6 +164,42 @@ def main() -> int:
                           f"（{W}×{H}）。是不是画的时候坐标没过 u()？")
     print(f"固定格子类: {checked} 个（图标/徽章/头像），填充率下限 0.72")
 
+    # ⑦ ★ 头发/帽子必须【长在头上】。
+    #    踩过的坑：头画在 cx+0.8、发盖画在 cx-headR*0.55、帽子和长发又画回 cx ——
+    #    三个中心，侧向时帽子明显歪在脑袋旁边，而且前面露出一块光头。
+    #
+    #    判法：取头发色的图形里【包围盒面积最大的那块】的中心，跟头的圆心比。
+    #    ★ 为什么挑最大的一块，而不是整个色的包围盒中心：
+    #      帽子有帽顶 + 帽檐两块，合起来算中心时帽檐会把偏移抵消掉 —— 合起来量反而漏报。
+    #    ★ 阈值 0.5×头半径：正常"侧向头发往后偏"是 0.32×头半径，
+    #      而踩坑的那种偏移是 0.55×头半径 + 0.8 的头前移量 = 约 0.8×头半径，能切开。
+    skin_rgb = STYLE["palette"]["skin"]
+    hair_of = {c["id"]: CHARS["hairStyles"].get(c["hair"], {}) for c in CHARS["characters"]}
+    skin_of = {c["id"]: skin_rgb[c["skin"]] for c in CHARS["characters"]}
+    persons = [a for a in assets if "person" in a.get("tags", [])]
+    off_checked = 0
+    for a in persons:
+        cid = next((t2 for t2 in a["tags"] if t2 in hair_of), None)
+        if not cid:
+            continue
+        color = hair_of[cid].get("color")
+        if not color:
+            continue
+        f = OUT / a["file"]
+        if not f.exists():
+            continue
+        s = f.read_text(encoding="utf-8")
+        head = biggest_circle_by_fill(s, skin_of[cid])
+        big = biggest_by_fill(s, color)
+        if not head or not big:
+            continue
+        off_checked += 1
+        delta = abs(big[2] - head[0])
+        if delta > head[2] * 0.5:
+            errors.append(f"{a['file']}: 头发/帽子歪了 —— 发块中心比头中心偏了 "
+                          f"{delta:.1f}px（上限 {head[2] * 0.5:.1f} = 0.5×头半径）")
+    print(f"头发锚点: {off_checked} 张小人图，偏移上限 0.5×头半径")
+
     print(f"按图层: " + "  ".join(f"{k}:{v}" for k, v in sorted(by_layer.items())))
     print(f"总体积: {total_bytes / 1024:.0f} KB")
     print(f"人物: {len(ids)} 人 × {len(dirs)} 向 × {frames + 1} 帧 = {len(people)} 个文件")
@@ -173,7 +211,7 @@ def main() -> int:
         if len(errors) > 40:
             print(f"   … 还有 {len(errors) - 40} 条")
         return 1
-    print("\n✓ 全部通过（文件齐 / XML 合法 / 尺寸对 / 无脏值 / 图案引用有效 / 颜色合法 / 填充率达标）")
+    print("\n✓ 全部通过（文件齐 / XML 合法 / 尺寸对 / 无脏值 / 图案引用有效 / 颜色合法 / 填充率达标 / 头发长在头上）")
     return 0
 
 

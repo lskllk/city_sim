@@ -587,12 +587,12 @@ function stoveUnit(w, h) {
 /* ── 新物品的图标（16×16 正视）───────────────────────────────────────── */
 function iconRice() {
   const C = I.rice;
-  return dp("M 2.4 7.4 h 11.2 v 5 a 1.4 1.4 0 0 1 -1.4 1.4 H 3.8 "
-            + "a 1.4 1.4 0 0 1 -1.4 -1.4 Z", `fill="${C.barrel}"`)
-       + ell(8, 7.4, 5.6, 2.6, C.grain)
-       + ell(8, 7.2, 4.2, 1.9, C.grain2)
-       + ell(6.4, 7, 1.2, 0.6, C.grain)
-       + ell(9.6, 7.6, 1, 0.5, C.grain);
+  return dp("M 1.4 5.8 h 13.2 v 7.6 a 1.6 1.6 0 0 1 -1.6 1.6 H 3 "
+            + "a 1.6 1.6 0 0 1 -1.6 -1.6 Z", `fill="${C.barrel}"`)
+       + ell(8, 5.8, 6.6, 3.4, C.grain)
+       + ell(8, 5.6, 5.1, 2.5, C.grain2)
+       + ell(6.2, 5.4, 1.5, 0.8, C.grain)
+       + ell(9.8, 6.2, 1.2, 0.65, C.grain);
 }
 function iconBread() {
   const C = I.bread;
@@ -793,15 +793,19 @@ function portrait(ch) {
   b += circ(cx, 13, 8.2, skin);
   // 头发
   if (hs === "hat") {
+    // 帽顶和帽檐都挂在 cx 上（头像没有侧向，所以只有这一个中心）
     b += dp("M 7.2 8.6 A 8.8 8.8 0 0 1 24.8 8.6 Z", `fill="${hair.color}"`);
-    b += rrect(5.4, 8.2, 21.2, 2.4, 1.2, hair.color);
-    b += rrect(5.4, 8.2, 21.2, 1, 0.5, "#00000022");
+    b += rrect(cx - 10.6, 8.2, 21.2, 2.4, 1.2, hair.color);
+    b += rrect(cx - 10.6, 8.2, 21.2, 1, 0.5, "#00000022");
   } else if (hs === "bald") {
     b += rrect(6.8, 12.4, 2.2, 5.4, 1.1, hair.color, `opacity="0.9"`);
     b += rrect(23, 12.4, 2.2, 5.4, 1.1, hair.color, `opacity="0.9"`);
   } else {
     b += dp("M 7.5 13.4 A 8.5 8.5 0 0 1 24.5 13.4 Z", `fill="${hair.color}"`);
-    if (hs === "short") b += rrect(7.3, 9, 2.6, 5.2, 1.3, hair.color);
+    if (hs === "short") {   // ★ 原来只画了左边 —— 正面像看着是一边有鬓角一边没有
+      b += rrect(6.9, 9, 2.6, 5.2, 1.3, hair.color);
+      b += rrect(22.5, 9, 2.6, 5.2, 1.3, hair.color);
+    }
     if (hs === "bun") b += circ(cx, 3.6, 3.2, hair.color);
     if (hs === "long") {
       b += rrect(5.6, 11, 3.4, 11, 1.7, hair.color);
@@ -1126,7 +1130,10 @@ function person(ch, dir, frame) {
 
   let b = "";
   const dirEyes = dir === "down" ? 1 : dir === "side" ? 1 : 0;
+  // ★ 头只有【一个】中心。原来头用 cx+shift、发盖用 cx-headR*0.55、
+  //   帽子和长发又用回 cx —— 三个中心，侧向时帽子/长发明显歪在头旁边。
   const headShift = dir === "side" ? 0.8 : 0;
+  const headX = cx + headShift;
 
   // 腿（两条，前后错开 = 走路）
   const lw = B.legW, lh = 4.6;
@@ -1146,30 +1153,32 @@ function person(ch, dir, frame) {
   // 头
   // 头中心：压在肩膀上方一点点（用比例，别用绝对差 —— 三种体型都要放得下）
   const hy = by - B.shoulderRy * 0.55 - B.headR * 0.9;
-  b += circ(cx + headShift, hy, B.headR, skin);
+  b += circ(headX, hy, B.headR, skin);
   // 头发：down = 帽子形；up = 整个后脑勺；side = 往后偏
   // 头发：shape 决定形状、color 决定颜色（"白发"是 shape=short + 白）
   const hs = hair.shape || "short";
+  // 头发的锚点：侧向只往后偏 0.32（0.55 会让发盖整个滑到脑后、前面露光头）
+  const hairX = dir === "side" ? headX - B.headR * 0.32 : headX;
   if (dir === "up") {
-    b += circ(cx, hy, B.headR + 0.35, hair.color);
+    b += circ(headX, hy, B.headR + 0.35, hair.color);
   } else {
-    const hx = dir === "side" ? cx - B.headR * 0.55 : cx;
+    const hx = hairX;
     if (hs !== "bald")
       b += `<path d="M ${u(hx - B.headR - 0.35)} ${u(hy + 0.6)} `
          + `A ${u(B.headR + 0.35)} ${u(B.headR + 0.35)} 0 0 1 `
          + `${u(hx + B.headR + 0.35)} ${u(hy + 0.6)} Z" fill="${hair.color}"/>`;
     if (hs === "long")
-      b += rrect(cx - B.headR - 1, hy - 0.5, (B.headR + 1) * 2, B.headR * 1.5, 1.4,
+      b += rrect(hx - B.headR - 1, hy - 0.5, (B.headR + 1) * 2, B.headR * 1.5, 1.4,
                  hair.color, `opacity="0.95"`);
     if (hs === "bun")
       b += circ(hx, hy - B.headR - 1.1, 1.9, hair.color);
     if (hs === "hat")
-      b += rrect(cx - B.headR - 1.6, hy - B.headR - 0.6, (B.headR + 1.6) * 2, 2.2, 1,
+      b += rrect(hx - B.headR - 1.6, hy - B.headR - 0.6, (B.headR + 1.6) * 2, 2.2, 1,
                  hair.color);
     if (hs === "bald") {
-      b += rrect(cx - B.headR - 0.4, hy + B.headR * 0.2, 1.6, B.headR * 0.7, 0.7,
+      b += rrect(hx - B.headR - 0.4, hy + B.headR * 0.2, 1.6, B.headR * 0.7, 0.7,
                  hair.color, `opacity="0.85"`);
-      b += rrect(cx + B.headR - 1.2, hy + B.headR * 0.2, 1.6, B.headR * 0.7, 0.7,
+      b += rrect(hx + B.headR - 1.2, hy + B.headR * 0.2, 1.6, B.headR * 0.7, 0.7,
                  hair.color, `opacity="0.85"`);
     }
   }
@@ -1180,14 +1189,14 @@ function person(ch, dir, frame) {
       b += circ(cx + B.headR * 0.42, hy + 0.5, 0.5, "#2b2620");
     } else {
       // ★ 侧向：眼在【头中心往后偏一点】的位置。ex 是相对偏移量，别再自己加 cx。
-      b += circ(cx + headShift + B.headR * 0.45, hy + 0.5, 0.5, "#2b2620");
+      b += circ(headX + B.headR * 0.45, hy + 0.5, 0.5, "#2b2620");
     }
   }
   // 眼镜 / 拐杖
   if (ch.acc === "glasses" && dirEyes) {
     const gw = dir === "side" ? B.headR * 0.8 : B.headR * 1.7;
-    b += line(cx - gw / 2 + (dir === "side" ? B.headR * 0.2 : 0), hy + 0.5,
-              cx + gw / 2 + (dir === "side" ? B.headR * 0.2 : 0), hy + 0.5,
+    const gx = dir === "side" ? headX + B.headR * 0.2 : headX;
+    b += line(gx - gw / 2, hy + 0.5, gx + gw / 2, hy + 0.5,
               "#2b2620", 0.7, `opacity="0.85"`);
   }
   if (ch.acc === "cane")

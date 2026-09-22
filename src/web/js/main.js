@@ -13,6 +13,13 @@ import { Editor } from "./editor.js";
 import { Assets2, fetchManifest } from "./assets.js";
 import { renderPanel } from "./panel.js";
 
+// ★ 版本戳：显示在编辑器顶栏。
+//   起因：前端没有构建步骤，改完 JS 浏览器可能还拿着旧的模块 ——
+//   于是"我这边好了、你那边没好"，来回问好几轮。
+//   现在报 bug 时顺便说一句戳，就知道手上是哪一版。
+//   （每次改 JS 记得把它 +1）
+const BUILD = "r4";
+
 const LS_LAST = "citysim.last";
 const SPEEDS = [["pause", "停"], ["1x", "1×"], ["10x", "10×"],
                 ["100x", "100×"], ["1000x", "1000×"]];
@@ -182,6 +189,7 @@ async function openEditor() {
       setDirty: (d) => { $("eDirty").textContent = d ? " •" : ""; },
       setUndo: (n) => { $("eUndo").textContent = n ? `↶${n}` : ""; },
       setCursor: (snap) => { $("eSnapLabel").textContent = editor.snapText() || "—"; },
+      version: () => { $("eVer").textContent = BUILD; },
       openBuilding: (bid) => openBuilding(bid),   // 地图上点建筑 → 跳过来
       setTool: (t) => {
         for (const b of $("eTool").children) b.classList.toggle("on", b.dataset.tool === t);
@@ -189,6 +197,7 @@ async function openEditor() {
       },
     };
     editor = await new Editor($("ecanvas"), $("elabels"), a, ui).init();
+    ui.version();
     await buildPalettes();
     ui.setTool("select");
     // 类别 tab
@@ -578,7 +587,7 @@ function renderNpcForm() {
     cur.traits = { ...(cur.traits || {}), tags: randTraits() };
     renderNpcForm();
   });
-  on("pSave", () => {
+  on("pSave", async () => {
     const spec = {
       name: ($("pName")?.value || cur.name || "").trim(),
       gender: $("pGender").value,
@@ -601,7 +610,8 @@ function renderNpcForm() {
     editor.doc.dirty = true;
     editor.ui.setDirty?.(true);
     renderPeople();
-    toast(isNew ? "加上了 " + spec.name : "已保存");
+    await editor.save();          // ★ 写盘，不然刷新就没了（同建筑面板）
+    toast(isNew ? "加上了 " + spec.name : "已保存到 " + (editor.name || "场景"));
   });
   on("pPickHome", () => {
     // ★ 在地图上点一个住宅。满了就当场拒绝。
@@ -661,6 +671,7 @@ async function openBuilding(pick) {
   $("eBld").classList.remove("hide");
   editor.hoverLoc = "";
   bldSel = pick || "";
+  $("popVeil")?.remove();
   renderBuildings();
 }
 
@@ -717,19 +728,16 @@ function renderBldForm() {
   const coOpts = opt("", "（无）", !mine)
     + (BPARTS?.companies || []).map((c) => opt(esc(c.id), esc(c.name), !!mine && mine.id === c.id)).join("");
 
-  // 一行一件：图标 · 名字 · 存量 · 售价 · 拿走
+  // 一行一件，只有【图标 + 名字】+ 右边一个数量提示 —— 点它才弹详情。
   const things = inside.length ? inside.map((e, i) => {
     const it = items.find((x) => x.type === e.type) || {};
     const fix = isFix(e.type);
     const ic = iconOf(e.type);
-    return '<div class="th" title="' + esc(e.id) + '">'
+    const qt = fix ? "" : "×" + (e.stock ?? it.stock ?? 0);
+    return '<button class="th" data-open="' + i + '" title="点开改详情">'
       + (ic ? '<img class="ic" src="' + ic + '">' : '<span class="ic"></span>')
       + '<span class="nm3">' + esc(it.name || e.type) + "</span>"
-      + '<input type="number" data-stock="' + i + '" value="'
-      + (fix ? "—" : (e.stock ?? it.stock ?? 0)) + '"' + (fix ? " disabled" : "") + ">"
-      + '<input type="number" step="0.5" data-price="' + i + '" value="'
-      + (fix ? "—" : (e.price ?? it.price ?? 0)) + '"' + (fix ? " disabled" : "") + ">"
-      + '<button class="x2" data-del="' + i + '">×</button></div>';
+      + '<span class="qt">' + qt + "</span></button>";
   }).join("") : '<div class="none2">空着</div>';
 
   // 候选（和头像那个一样：点「放一件」才弹）
@@ -747,12 +755,13 @@ function renderBldForm() {
     + b.size[0].toFixed(1) + " × " + b.size[1].toFixed(1) + " m</span></div>"
     + '<div class="row"><label>公开</label><label class="cb"><input type="checkbox" id="bPub"'
     + (loc.public === true ? " checked" : "") + ">谁都能进</label></div>"
-    + '<div class="row"><label>公司</label><select id="bCo">' + coOpts + "</select></div>"
+    // ★ 住所类没有"公司"这回事 —— 那是经营场所才有的
+    + (tp.kind === "home" ? ""
+       : '<div class="row"><label>公司</label><select id="bCo">' + coOpts + "</select></div>")
 
     + '<div class="sec">里面的东西 <span class="dim">' + inside.length + " 件</span></div>"
     + '<div class="things">' + things + "</div>"
     + '<div class="addrow"><button id="bAdd">+ 放一件</button></div>'
-    + '<div class="facepop hide" id="bItemPop">' + cand + "</div>"   // position:absolute，见 CSS
 
     + '<div class="bar2"><button class="primary" id="bSave">保存</button>'
     + '<span class="sp"></span>'
@@ -760,8 +769,16 @@ function renderBldForm() {
 
   const on = (id, fn) => { const e2 = $(id); if (e2) e2.onclick = fn; };
 
+  // 两个弹框住在 body 顶层（见 index.html 的注释），内容由这里填。
+  $("bItemPop").innerHTML = cand;
+  $("bItemPop").classList.add("hide");
+  $("thingPop").classList.add("hide");
+  for (const el2 of $("bItemPop").querySelectorAll("[data-put]"))
+    el2.onclick = () => putItem(el2.dataset.put);
+
   // 「放一件」→ 弹出候选（和头像一样），点一个就放进去
   on("bAdd", () => {
+    $("thingPop").classList.add("hide");          // 和"物品详情"互斥
     const pop = $("bItemPop");
     const open = pop.classList.contains("hide");
     pop.classList.toggle("hide", !open);
@@ -772,8 +789,7 @@ function renderBldForm() {
       veil.onclick = () => { pop.classList.add("hide"); veil.remove(); };
     } else veil?.remove();
   });
-  for (const el2 of host.querySelectorAll("[data-put]")) el2.onclick = () => {
-    const ty = el2.dataset.put;
+  function putItem(ty) {
     const it = items.find((x) => x.type === ty) || {};
     const fix = (it.tags || []).includes("fixture");
     editor.pushUndo();
@@ -785,29 +801,63 @@ function renderBldForm() {
     D.dirty = true; editor.ui.setDirty?.(true);
     $("popVeil")?.remove();
     renderBldForm();
-  };
+  }
 
-  for (const el2 of host.querySelectorAll("[data-del]")) el2.onclick = () => {
-    editor.pushUndo();
-    D.meta.entities.splice((D.meta.entities || []).indexOf(inside[+el2.dataset.del]), 1);
-    D.dirty = true; editor.ui.setDirty?.(true);
-    renderBldForm();
-  };
-  for (const el2 of host.querySelectorAll("[data-stock]")) el2.onchange = () => {
-    D.meta.entities[(D.meta.entities || []).indexOf(inside[+el2.dataset.stock])].stock
-      = Number(el2.value) || 0;
-    D.dirty = true; editor.ui.setDirty?.(true);
-  };
-  for (const el2 of host.querySelectorAll("[data-price]")) el2.onchange = () => {
-    D.meta.entities[(D.meta.entities || []).indexOf(inside[+el2.dataset.price])].price
-      = Number(el2.value) || 0;
-    D.dirty = true; editor.ui.setDirty?.(true);
-  };
+  // ★ 点一行 → 弹详情框（存量 / 售价 / 删掉）。
+  //   行里只放图标和名字 —— 296px 的栏塞不下"图标+名字+两个数字框+删除"。
+  for (const el2 of host.querySelectorAll("[data-open]"))
+    el2.onclick = () => openThing(inside[+el2.dataset.open]);
 
-  on("bSave", () => {
+  /** 一件东西的详情框：存量 / 售价 / 删掉。家具类只有名字和"删掉"。 */
+  function openThing(ent) {
+    const it = items.find((x) => x.type === ent.type) || {};
+    const fix = isFix(ent.type);
+    const ic = iconOf(ent.type);
+    const pop = $("thingPop");
+    pop.innerHTML =
+      '<div class="th2">' + (ic ? '<img src="' + ic + '">' : "")
+      + "<div><b>" + esc(it.name || ent.type) + "</b>"
+      + '<div class="id">' + esc(it.tags ? it.tags.join(" · ") : "") + "</div></div></div>"
+      + (fix
+        ? '<div class="row"><label>说明</label><span class="hn">家具 —— 不买卖、没有存量</span></div>'
+        : '<div class="row"><label>存量</label><input id="tStock" type="number" value="'
+          + (ent.stock ?? it.stock ?? 0) + '"></div>'
+          + '<div class="row"><label>售价</label><input id="tPrice" type="number" step="0.5" value="'
+          + (ent.price ?? it.price ?? 0) + '"></div>')
+      + '<div class="bar3"><button class="primary" id="tSave">保存</button>'
+      + '<span class="sp"></span><button class="danger" id="tDel">删掉</button></div>';
+    pop.classList.remove("hide");
+    let veil = $("popVeil");
+    if (!veil) { veil = document.createElement("div"); veil.id = "popVeil";
+                 document.body.appendChild(veil); }
+    veil.onclick = () => { pop.classList.add("hide"); veil.remove(); };
+    const close = () => { pop.classList.add("hide"); veil.remove(); };
+  $("bItemPop").classList.add("hide");            // 和"放一件"的候选框互斥
+    on("tSave", () => {
+      editor.pushUndo();
+      if (!fix) {
+        ent.stock = Number($("tStock").value) || 0;
+        ent.price = Number($("tPrice").value) || 0;
+      }
+      D.dirty = true; editor.ui.setDirty?.(true);
+      close();
+      renderBldForm();
+    });
+    on("tDel", () => {
+      editor.pushUndo();
+      const arr = D.meta.entities || [];
+      const k = arr.indexOf(ent);
+      if (k >= 0) arr.splice(k, 1);
+      D.dirty = true; editor.ui.setDirty?.(true);
+      close();
+      renderBldForm();
+    });
+  }
+
+  on("bSave", async () => {
     const name = $("bName").value.trim();
     const newType = $("bType").value;
-    const co = $("bCo").value;
+    const co = $("bCo") ? $("bCo").value : "";    // 住所没有这个下拉
     editor.pushUndo();
     if (name) D.names[bid] = name;
     if (D.meta.locations?.[bid]) D.meta.locations[bid].name = name || bid;
@@ -829,7 +879,10 @@ function renderBldForm() {
               if (c) (c.shops ||= []).push(bid); }
     D.dirty = true; editor.ui.setDirty?.(true);
     renderBuildings();
-    toast("已保存");
+    // ★ 必须写盘。原来只改内存 —— 编辑完刷新一下改动全没了，
+    //   看着就是"编辑失败"（顶栏那个「保存」才真写盘，两个按钮同名很容易混）。
+    await editor.save();
+    toast("已保存到 " + (editor.name || "场景"));
   });
   on("bDel", () => {
     if (!confirm("拆掉 " + (D.nameOf(bid) || bid) + "？")) return;

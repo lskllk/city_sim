@@ -63,6 +63,7 @@
       <span id="eSnapLabel" class="dim"></span>
       <span class="sep"></span>
       <span id="eUndo" class="mono dim"></span>
+      <span id="eVer" class="mono" style="font-size:10px;color:#c8c1b2"></span>
     </div>
 
     <div class="tr">
@@ -116,6 +117,14 @@
     <div class="r2"><div class="sect row" id="ePalette"></div></div>
   </div>
 </div>
+
+<!-- ══ 弹框（★ 必须在 body 顶层）════════════════════════════════════════
+     不能塞进 .pform 里 —— .pform{position:fixed;z-index:20} 会建立层叠上下文，
+     弹框写 z-index:40 也只在它内部有效；而蒙布 #popVeil 挂在 body 上、z-index 39，
+     跟 .pform(20) 一比就赢了 → 蒙布盖在弹框上面：悬浮不高亮、点也点不动。
+     踩过的坑：程序化 .click() 能穿过遮挡物，所以测试全绿、用鼠标的人却在骂。 -->
+<div class="facepop hide" id="bItemPop"></div>
+<div class="facepop hide" id="thingPop"></div>
 
 <!-- ══ 主菜单 ══════════════════════════════════════════════════════════ -->
 <div id="menu">

@@ -124,6 +124,49 @@ tests/      pytest
 
 ## 三、跑起来
 
+### 一键启动（推荐）
+
+```
+start.cmd            ← Windows 双击
+bash start.sh        ← git-bash / WSL / macOS / Linux
+```
+
+它会：**起后端 → 等端口真的在监听 → 自动开浏览器**。
+（等端口这一步是必须的：不等就先开浏览器，看到的是"无法访问"，
+用户会以为坏了。所以这件事写在 `tools/run.py` 里，不写在 .cmd 里。）
+
+```
+python tools/run.py                 起在 8765
+python tools/run.py --port 9000     换端口
+python tools/run.py --no-open       不开浏览器（跑 CI / 无界面）
+```
+
+· 已经在跑了 → **认出来，直接开浏览器**，不会起第二个去撞端口
+· 缺依赖 → 明说缺哪个 + `python -m pip install -e ".[viz]"`
+· 没 `pip install -e .` 过也能跑（`run.py` 自己把 `src/` 加进 `sys.path`）
+
+### 手动
+
+```bash
+python -m pip install -e .            # 内核 + 测试(零第三方依赖)
+python -m pip install -e ".[viz]"     # 额外: 后端 (fastapi + uvicorn)
+python -m uvicorn citysim.game.server:app --port 8765
+```
+
+然后 `http://127.0.0.1:8765/game/`（游戏）· `.../game/#editor`（编辑器）。
+**后端顺手就把前端和美术发出去了**（`/game/` → `src/web/`，`/art/` → `art/out/`），
+所以不用另开 dev server、不用 npm、没有构建步骤。
+
+### 其它
+
+```bash
+python tools/sim_report.py config/scenes/scene.json 30   # 无头跑 30 天, 出健康度报告
+python tools/watch.py --npc 6 --ticks 2400               # 终端观察器
+bash art/build.sh                                        # 重画美术 + 重建 wiki
+bash wiki/build.sh                                       # 只重建 wiki
+python -m pytest
+```
+
 ```bash
 python -m pip install -e .            # 内核 + 测试(零第三方依赖)
 python -m pip install -e ".[viz]"     # 额外: 观察器后端 (fastapi + uvicorn)

@@ -53,6 +53,12 @@ export class MapDoc {
     //   如果不带 name，就会退回自动生成的"店铺4" —— 一次保存把所有人起的名洗掉。
     this.names = Object.fromEntries(
       Object.entries(scene.locations || {}).map(([k, v]) => [k, v.name]).filter(([, v]) => v));
+    // ★ 同理，「谁都能进」这个标记也得单独记着。
+    //   toScene() 是从 buildings 重算 locations 的，只带 type/name/x/y/w/h ——
+    //   public 不在里面，所以以前【每保存一次就被洗掉】。
+    this.publics = Object.fromEntries(
+      Object.entries(scene.locations || {})
+        .filter(([, v]) => v.public === true).map(([k]) => [k, true]));
     // 场景里【不是地图】的部分原样留着 —— 保存时透传，不碰。
     // （地图编辑器和人物设计器是两个独立部分，各改各的字段。）
     const { map, canvas, locations, ...rest } = scene;
@@ -77,6 +83,7 @@ export class MapDoc {
         w: +w.toFixed(3), h: +h.toFixed(3),
       };
       if (b.floors > 1) locations[bid].floors = b.floors;
+      if (this.publics[bid]) locations[bid].public = true;
     }
     return {
       ...this.meta,
@@ -93,6 +100,8 @@ export class MapDoc {
   }
 
   nameOf(bid) { return this.names[bid] || this._plate(bid); }
+  /** 这栋楼是不是"谁都能进"。 */
+  isPublic(bid) { return this.publics[bid] === true; }
 
   _plate(bid) {
     const n = parseInt((bid.match(/(\d+)$/) || [])[1] || "0", 10);

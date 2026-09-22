@@ -18,7 +18,7 @@ import { renderPanel } from "./panel.js";
 //   于是"我这边好了、你那边没好"，来回问好几轮。
 //   现在报 bug 时顺便说一句戳，就知道手上是哪一版。
 //   （每次改 JS 记得把它 +1）
-const BUILD = "r4";
+const BUILD = "r5";
 
 const LS_LAST = "citysim.last";
 const SPEEDS = [["pause", "停"], ["1x", "1×"], ["10x", "10×"],
@@ -713,7 +713,6 @@ function renderBldForm() {
     return;
   }
   const bid = bldSel, b = D.buildings[bid], tp = D.types[b.type] || {};
-  const loc = D.meta.locations?.[bid] || {};
   const inside = (D.meta.entities || []).filter((e) => e.at === bid);
   const mine = (D.meta.companies || []).find((c) => (c.shop_list || c.shops || []).includes(bid));
   const items = BPARTS?.items || [];
@@ -725,8 +724,30 @@ function renderBldForm() {
     '<option value="' + v + '"' + (on ? " selected" : "") + ">" + label + "</option>";
   const typeOpts = (BPARTS?.types || []).map((x) =>
     opt(x.type, esc(x.name) + "（" + esc(x.kind) + " " + x.capacity + "）", b.type === x.type)).join("");
-  const coOpts = opt("", "（无）", !mine)
-    + (BPARTS?.companies || []).map((c) => opt(esc(c.id), esc(c.name), !!mine && mine.id === c.id)).join("");
+  // ★ 权限是【读出来】的，不是选出来的 —— 由建筑类型定，public 只是
+  //   「谁都能进」这个更强的例外。
+  //   以前靠一个 public 开关算：非住宅 + 没标公开 = 「仅内部人员」
+  //   —— 于是店铺也被写成仅内部，显然不对。
+  const dwellers = D.npcs.filter((n) => n.home === bid);
+  const cap = tp.capacity || 0;
+  const BY_KIND = {
+    home: () => (dwellers.length
+      ? "只住客能进 —— " + dwellers.map((n) => n.name).join("、")
+        + "（" + dwellers.length + "/" + cap + "）"
+      : "只住客能进 —— 还没人住（0/" + cap + "）"),
+    shop: () => "顾客能进" + (mine && mine.open != null
+      ? "（" + String(mine.open).slice(0, 5) + "–" + String(mine.close).slice(0, 5) + "）"
+      : "（营业时）"),
+    market: () => "谁都能进",
+    public: () => "谁都能进",
+    clinic: () => "病人能进",
+    school: () => "学生和老师能进",
+    work: () => "仅员工",
+    factory: () => "仅员工",
+  };
+  const access = D.isPublic(bid) ? "谁都能进"
+    : ((BY_KIND[tp.kind] || (() => "仅内部人员"))());
+  const companyName = mine ? (mine.name || mine.id) : "无";
 
   // 一行一件，只有【图标 + 名字】+ 右边一个数量提示 —— 点它才弹详情。
   const things = inside.length ? inside.map((e, i) => {
@@ -753,11 +774,8 @@ function renderBldForm() {
     + esc(D.nameOf(bid) || "") + '"></div>'
     + '<div class="row"><label>占地</label><span class="hn">'
     + b.size[0].toFixed(1) + " × " + b.size[1].toFixed(1) + " m</span></div>"
-    + '<div class="row"><label>公开</label><label class="cb"><input type="checkbox" id="bPub"'
-    + (loc.public === true ? " checked" : "") + ">谁都能进</label></div>"
-    // ★ 住所类没有"公司"这回事 —— 那是经营场所才有的
-    + (tp.kind === "home" ? ""
-       : '<div class="row"><label>公司</label><select id="bCo">' + coOpts + "</select></div>")
+    + '<div class="row"><label>权限</label><span class="hn">' + esc(access) + "</span></div>"
+    + '<div class="row"><label>公司</label><span class="hn">' + esc(companyName) + "</span></div>"
 
     + '<div class="sec">里面的东西 <span class="dim">' + inside.length + " 件</span></div>"
     + '<div class="things">' + things + "</div>"
@@ -857,7 +875,6 @@ function renderBldForm() {
   on("bSave", async () => {
     const name = $("bName").value.trim();
     const newType = $("bType").value;
-    const co = $("bCo") ? $("bCo").value : "";    // 住所没有这个下拉
     editor.pushUndo();
     if (name) D.names[bid] = name;
     if (D.meta.locations?.[bid]) D.meta.locations[bid].name = name || bid;
@@ -871,12 +888,9 @@ function renderBldForm() {
         D.meta.locations[bid].y = +(b.center[1] - sz[1] / 2).toFixed(3);
       }
     }
-    if (D.meta.locations?.[bid])
-      D.meta.locations[bid].public = $("bPub").checked ? true : null;
-    for (const c of D.meta.companies || [])
-      c.shops = (c.shops || []).filter((x) => x !== bid);        // 先从所有公司摘掉
-    if (co) { const c = (D.meta.companies || []).find((x) => x.id === co);
-              if (c) (c.shops ||= []).push(bid); }
+    // ★ 权限 / 公司 不在这里写 —— 它们是读出来的（权限由类型 + public 决定，
+    //   公司由 companies[].shops 决定）。以前这里会重写 public 和 shops，
+    //   对着"只读"的值瞎改，反而把数据弄坏。
     D.dirty = true; editor.ui.setDirty?.(true);
     renderBuildings();
     // ★ 必须写盘。原来只改内存 —— 编辑完刷新一下改动全没了，

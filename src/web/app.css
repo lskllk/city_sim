@@ -271,6 +271,12 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .pform .sec{margin:16px 0 8px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
   color:#a49c8d;font-weight:600;border-top:1px solid var(--line);padding-top:12px}
 
+/* ★「里面的东西」那一行：右边放一行提示（怎么进摆放 / 怎么退出）。
+   加 display:flex 是为了 margin-left:auto 能把它顶到最右 —— 不然贴着标题。 */
+.pform .sec{display:flex;align-items:center;gap:8px}
+/* ★ 按钮撤了，这里现在只放一行提示（怎么进摆放 / 怎么退出） */
+.pform .sec .hint{margin-left:auto;font-size:10px;letter-spacing:0;text-transform:none}
+
 /* 头像：当前 + 「编辑头像」→ 弹出一个选择框（不是把 8 个全铺在页面上） */
 .faceNow{width:40px;height:40px;border-radius:9px;background:#e9e6da;flex:0 0 auto}
 .facepop{position:absolute;right:16px;z-index:5;margin-top:4px;padding:8px;
@@ -298,6 +304,14 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 /* 建筑编辑：复用 .plist / .pform 那一套，只加「里面的东西」那一段 */
 #eBld{position:static}
 #eBld .plist,#eBld .pform{z-index:20}
+#eComp{position:static}
+#eComp .plist,#eComp .pform{z-index:20}
+/* 公司模式：所属建筑那一行（名字 + 拿掉） */
+#eComp .owns{display:flex;align-items:center;gap:7px;padding:5px 2px;
+  border-bottom:1px solid var(--line)}
+#eComp .owns .nm5{flex:1 1 auto;font-size:12px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+#eComp .owns .n2{font:10px ui-monospace,Consolas,monospace;color:var(--ink2)}
 
 /* 里面的东西：一行一件，只有【图标 + 名字】。
    ★ 不内嵌输入框 —— 296px 的栏里塞 图标+名字+两个数字框+删除，
@@ -307,6 +321,9 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .things .th{display:flex;align-items:center;gap:8px;width:100%;padding:6px 2px;
   border-bottom:1px solid var(--line);text-align:left}
 .things .th:hover{background:var(--paper2)}
+/* ★ 摆放家具时：手上拿着的那一行要亮出来，和地图上的高亮对上 */
+.things .th.pick{background:var(--ink);color:var(--paper)}
+.things .th.pick .qt{color:var(--paper)}
 .things .th .ic{width:20px;height:20px;flex:0 0 auto}
 .things .th .nm3{flex:1 1 auto;font-size:12px;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
@@ -317,41 +334,278 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   font-size:12px;color:var(--ink2)}
 .addrow button:hover{background:var(--paper2);color:var(--ink)}
 
-/* ★ 居中弹出，不用"贴着按钮" —— 19 个候选挂在表单底部会超出屏幕被切掉
-   （踩过：bottom 836 > 视口 820）。 */
-#bItemPop,#thingPop{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
-  width:420px;max-height:72vh;overflow-y:auto;z-index:40;
+/* ══ 三个居中弹框：放一件 / 物品详情 / 选建筑 ═══════════════════════
+   ★ 三个都是 body 顶层的（见 index.html）—— 不能塞进 .pform，
+     那个 position:fixed;z-index:20 会建立层叠上下文，弹框的 40 只在它内部有效，
+     而蒙布在 body 上、z-index 39，一比就赢 → 蒙布盖住弹框，点不动也悬浮不高亮。
+   ★ 三个的 class 里都带 facepop，而 .facepop 是「贴着按钮的 4 格网格」——
+     position / right / z-index / display 全得显式覆盖。
+     （踩过两次：漏 display → 详情框被挤成一条；漏 position+right → 跑到右上角。
+       还有一次是这段前面的孤儿声明把 #cBldPop 整条规则吃了 —— 改完记得看括号配平。） */
+#bItemPop,#thingPop,#cBldPop{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+  right:auto;bottom:auto;                       /* 压掉 .facepop 的 right:16px */
+  max-height:72vh;overflow-y:auto;z-index:40;   /* 蒙布是 39 */
   padding:12px;border-radius:12px;background:var(--paper);border:1px solid var(--line);
   box-shadow:0 18px 50px #0000003d}
-#bItemPop{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
-#bItemPop::before{content:"放一件";grid-column:1/-1;font-size:10px;letter-spacing:.1em;
+#bItemPop,#cBldPop{display:grid;gap:6px}
+#bItemPop::before,#cBldPop::before{grid-column:1/-1;font-size:10px;letter-spacing:.1em;
   color:#a49c8d;font-weight:600}
-/* ★ 必须显式 display:block —— 它的 class 是 facepop，而 .facepop 是
-   「4 格网格」（头像弹框用的）。不覆盖的话详情框会变成网格，
-   .row 只分到 44px，输入框和按钮全被挤成一条（踩过：
-   看着像"添加失败/编辑失败"，其实是布局被挤没了）。 */
-#thingPop{display:block;width:300px}
-#thingPop .id{font:10px ui-monospace,Consolas,monospace;color:var(--ink2);
-  display:block;margin-top:1px}
-#thingPop .th2{display:flex;align-items:center;gap:9px;margin-bottom:12px}
-#thingPop .th2 img{width:34px;height:34px}
-#thingPop .th2 b{font-size:15px}
-#thingPop .row{display:grid;grid-template-columns:44px 1fr;gap:8px 10px;align-items:center;
-  margin-bottom:9px}
-#thingPop .row>label{font-size:12px;color:var(--ink2);text-align:right}
-#thingPop input{padding:6px 9px;border:1px solid var(--line);border-radius:7px;
-  font:13px ui-monospace,Consolas,monospace;text-align:right;background:#fff;width:100%}
-#thingPop .bar3{display:flex;gap:8px;margin-top:14px;border-top:1px solid var(--line);
-  padding-top:12px}
-#thingPop .bar3 .sp{flex:1}
+#bItemPop::before{content:"放一件"}
+#cBldPop::before{content:"用哪栋楼注册公司（类型由楼定）"}
+#cBldPop[data-role="move"]::before{content:"搬到哪栋楼（里面的东西一起走）"}
+
+/* ── 放一件：图标网格 ── */
+#bItemPop{width:420px;grid-template-columns:repeat(5,1fr)}
 #bItemPop button{display:flex;flex-direction:column;align-items:center;gap:3px;
   padding:5px 2px;border-radius:8px;border:1px solid transparent}
 #bItemPop button:hover{background:var(--paper2)}
 #bItemPop img{width:26px;height:26px}
 #bItemPop .nm4{font-size:10px;color:var(--ink2);text-align:center;line-height:1.2}
+
+/* ── 选建筑：两列，名字 + 副标题 ── */
+#cBldPop{width:380px;grid-template-columns:1fr 1fr}
+#cBldPop button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+  padding:7px 10px;border-radius:8px;border:1px solid var(--line);text-align:left;min-width:0}
+#cBldPop button:hover{background:var(--paper2)}
+#cBldPop .nm4{font-size:12px}
+#cBldPop .n5{font-size:10px;color:var(--ink2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+
+/* ── 物品详情：字段 + 数据 ── */
+#thingPop{display:block;width:300px}
+#thingPop .th2{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+#thingPop .th2 img{width:34px;height:34px}
+#thingPop .th2 b{font-size:15px}
+#thingPop .id{font:10px ui-monospace,Consolas,monospace;color:var(--ink2);
+  display:block;margin-top:1px}
+#thingPop .row{display:grid;grid-template-columns:50px 1fr;gap:7px 9px;align-items:center;
+  margin-bottom:7px}
+#thingPop .row>label{font-size:11px;color:var(--ink2);text-align:right}
+#thingPop .hn{font-size:12px;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+#thingPop input{padding:6px 9px;border:1px solid var(--line);border-radius:7px;
+  font:13px ui-monospace,Consolas,monospace;text-align:right;background:#fff;width:100%}
+/* 标签（tags）→ 一排小碎块，不写成句子 */
+#thingPop .tags2{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;
+  padding-top:9px;border-top:1px solid var(--line)}
+#thingPop .tags2 span{font:10px ui-monospace,Consolas,monospace;color:var(--ink2);
+  background:var(--paper2);border-radius:5px;padding:2px 6px}
+#thingPop .bar3{display:flex;gap:8px;margin-top:12px;border-top:1px solid var(--line);
+  padding-top:11px}
+#thingPop .bar3 .sp{flex:1}
+
 #popVeil{position:fixed;inset:0;z-index:39;background:#00000012}
 #bItemPop button{display:flex;flex-direction:column;align-items:center;gap:3px;
   padding:5px 2px;border-radius:8px;border:1px solid transparent}
 #bItemPop button:hover{background:var(--paper2)}
 #bItemPop img{width:26px;height:26px}
 #bItemPop .nm4{font-size:10px;color:var(--ink2);text-align:center;line-height:1.2}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ★ 下面这一大段是从 proto/ui-prototype.html 【原样搬过来】的。
+     proto 是冻结的参考实现（用户："严格按照 proto 的风格"），
+     所以面板/气泡/行动队列这些样式【不要在这里自由发挥】——
+     要改就去改 proto，然后重新搬。搬的时候只动了三处：
+       · #world .bub  → #labels .bub     （我们的气泡挂在标注层）
+       · 去掉依赖 #world 的规则（那是 proto 自己的地图容器）
+       · 补了 .br / .entry .n / #surprise（HUD 右下角与提醒条）
+     ══════════════════════════════════════════════════════════════════════ */
+
+/* ═══════ 当前动作 + 行动队列（左上角，状态下面）═══════
+   ① 只有【正在做】那一条有进度条 —— 一眼看出你在干什么、做到哪了
+   ② 队列用【序号】，不是项目符号 —— 它是有顺序的计划
+   ③ 点一下 = 排队（不是立即打断）；Shift+点 = 插到队首
+   ④ 队列在地图上画成带编号的路点 —— 你能"看见自己的一天"
+   ═════════════════════════════════════════════════════ */
+#paneMe .actwrap{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}
+.actwrap .none{font-size:11px;color:var(--ink2)}
+.now{display:flex;align-items:center;gap:7px}
+.now .ic{width:14px;height:14px;flex:0 0 auto;color:var(--ink)}
+.now .lb{flex:1;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.now .x,.qi .x{flex:0 0 auto;width:18px;height:18px;border-radius:50%;color:var(--ink2);
+  font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center}
+.now .x:hover,.qi .x:hover{background:#00000010;color:var(--hi)}
+.prog{height:3px;border-radius:2px;background:#00000012;overflow:hidden;margin:6px 0 2px}
+.prog i{display:block;height:100%;background:var(--hi);border-radius:2px;
+  transition:width .12s linear}
+.queue{margin-top:9px;border-top:1px solid var(--line);padding-top:8px}
+.queue .qh{font-size:10px;color:var(--ink2);letter-spacing:.05em;margin-bottom:5px}
+.qi{display:flex;align-items:center;gap:7px;padding:3px 0;border-radius:5px}
+.qi:hover{background:#00000006}
+.qi .no{width:13px;height:13px;flex:0 0 auto;border-radius:50%;border:1.2px solid #b9b2a4;
+  font-size:9px;line-height:11px;text-align:center;color:var(--ink2)}
+.qi .ic{width:13px;height:13px;flex:0 0 auto;color:var(--ink2)}
+.qi .lb{flex:1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qi.done .lb{text-decoration:line-through;color:var(--ink2)}
+.qi.done{opacity:.5}
+.qi.next .no{border-color:var(--ink);color:var(--ink);font-weight:700}
+/* 队列在地图上的编号标记 */
+#world .qmark{position:absolute;width:17px;height:17px;border-radius:50%;
+  transform:translate(-50%,-50%);z-index:9;pointer-events:none;
+  background:#f7f4eee8;border:1.4px solid var(--ink2);color:var(--ink2);
+  font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
+#world .qmark.now{border-color:var(--hi);color:var(--hi);box-shadow:0 0 0 3px #b4552d22}
+
+/* 我的家：外墙暖一点 + 同一条强调描边（和店铺一样"是你的"） */
+#world .bld.minehome{--roof:#8a6a4e;--floor:#ecdfc6}
+/* 家里东西的卡片 */
+.homebar{display:flex;align-items:center;gap:9px;border:1px solid var(--line);
+  border-radius:8px;padding:9px 12px;background:#fff}
+.homebar.out{background:#f7f4ee;border-style:dashed}
+.homebar .ic{color:var(--ink2)}
+.homebar .t{flex:1;font-weight:600}
+.homebar button{padding:4px 12px;border:1px solid var(--ink2);border-radius:999px;font-size:12px}
+.homebar button:hover{background:var(--ink);color:var(--paper)}
+.hgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+#labels .bub{pointer-events:auto;position:absolute;transform-origin:50% 100%;z-index:50;
+  background:var(--paper);border:1px solid var(--line);border-radius:9px;
+  box-shadow:0 8px 26px #0003;padding:9px 11px;min-width:190px;max-width:270px;cursor:default}
+#labels .bub .t{font-weight:700;font-size:13px}
+#labels .bub .sub{font-size:11px;color:var(--ink2);margin-top:1px}
+#labels .bub .info{margin-top:7px;padding-top:7px;border-top:1px dashed var(--line);font-size:11px}
+#labels .bub .info .r{display:flex;justify-content:space-between;gap:8px}
+#labels .bub .acts{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
+#labels .bub .acts button{padding:4px 10px;border:1px solid var(--ink2);border-radius:999px;font-size:11px}
+#labels .bub .acts button:hover:not(:disabled){background:var(--ink);color:var(--paper)}
+#labels .bub .acts button:disabled{opacity:.42;cursor:not-allowed;border-style:dashed}
+#labels .bub .why{font-size:10px;color:var(--warn);margin-top:5px}
+#labels .bub::after{content:"";position:absolute;left:50%;bottom:-6px;margin-left:-6px;
+  width:11px;height:11px;background:var(--paper);border-right:1px solid var(--line);
+  border-bottom:1px solid var(--line);transform:rotate(45deg)}
+/* ══════════════════════ 详情页 ══════════════════════ */
+#veil{position:fixed;inset:0;z-index:20;display:none;background:rgba(233,229,219,.42);
+  backdrop-filter:blur(7px) saturate(.75);-webkit-backdrop-filter:blur(7px) saturate(.75)}
+#sheet{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:21;
+  width:min(1020px,86vw);height:min(660px,82vh);display:none;flex-direction:column;
+  background:var(--paper);border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 24px 70px #0003;overflow:hidden;font-size:calc(13px * var(--ui))}
+#sheet.narrow{width:min(560px,88vw);height:auto;max-height:82vh}
+body.open #veil,body.open #sheet{display:flex}
+.sheet-hd{display:flex;align-items:baseline;gap:14px;padding:14px 20px 0;flex:0 0 auto}
+.sheet-hd h2{margin:0;font-size:16px;font-weight:700}
+.sheet-hd .sub{font-size:12px;color:var(--ink2)}
+.sheet-hd .x{margin-left:auto;font-size:12px;color:var(--ink2);padding:3px 11px;
+  border:1px solid var(--line);border-radius:999px}
+.sheet-hd .x:hover{border-color:var(--ink2);color:var(--ink)}
+.tabs{display:flex;gap:2px;padding:12px 20px 0;flex:0 0 auto}
+.tabs button{padding:6px 14px;font-size:13px;color:var(--ink2);border-radius:6px 6px 0 0;
+  border-bottom:2px solid transparent}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{color:var(--ink);font-weight:600;border-bottom-color:var(--hi)}
+.sheet-bd{flex:1;overflow:auto;padding:14px 20px 20px;border-top:1px solid var(--line)}
+h4.sec{margin:16px 0 7px;font-size:11px;font-weight:700;color:var(--ink2);letter-spacing:.06em}
+h4.sec:first-child{margin-top:0}
+.card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#fff}
+.kv{display:flex;gap:10px;font-size:13px}
+.kv .k{color:var(--ink2);min-width:70px}
+.acts{display:flex;gap:7px;flex-wrap:wrap}
+.acts button{padding:5px 12px;border:1px solid var(--ink2);border-radius:999px;font-size:12px}
+.acts button:hover{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line)}
+th{font-size:10px;color:var(--ink2);font-weight:700;letter-spacing:.05em}
+td.num{text-align:right;font-family:ui-monospace,Consolas,monospace}
+.nb{border-left:2px solid var(--line);padding:1px 0 1px 12px;margin-bottom:13px}
+.nb.hearsay{border-left-style:dotted}
+.nb .top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.nb .subj{font-weight:600}
+.nb .when{font-size:11px;color:var(--ink2)}
+.nb .val{font-size:16px;margin:1px 0}
+.nb .src{font-size:11px;color:var(--ink2)}
+.nb .chain{font-size:11px;color:var(--warn)}
+.nb .todo{font-size:11px;color:var(--ink2);cursor:pointer;user-select:none;margin-top:3px}
+.nb .todo.on{color:var(--hi);font-weight:600}
+.people-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.pcard{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:#fff;cursor:pointer}
+.pcard:hover{border-color:var(--ink2)}
+.pcard .nm{font-weight:600}
+.pcard small{color:var(--ink2);font-size:11px}
+.bubble{background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px 13px;margin-top:9px}
+.bubble .say{font-size:15px}
+.bubble .evid{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);
+  font-size:11px;color:var(--ink2);display:grid;grid-template-columns:auto 1fr;gap:2px 12px}
+/* 设置行 */
+.row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
+.row .lab{flex:1}
+.row .sub{font-size:11px;color:var(--ink2)}
+.seg{display:flex;gap:3px}
+.seg button{padding:3px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px}
+.seg button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.sw{width:42px;height:23px;border-radius:999px;background:var(--paper3);position:relative;transition:.15s}
+.sw i{position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px #0003;transition:.15s}
+.sw.on{background:var(--ok)} .sw.on i{left:22px}
+.slot{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--line)}
+.slot .t{flex:1;font-size:12px}
+.slot button{padding:3px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px}
+.slot button:hover{border-color:var(--ink2)}
+#summary{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;
+  background:rgba(233,229,219,.5);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+body.sum #summary{display:flex}
+#summary .box{width:min(420px,86vw);background:var(--paper);border:1px solid var(--line);
+  border-radius:12px;padding:20px 22px;box-shadow:0 24px 70px #0003;
+  font-size:calc(13px * var(--ui))}
+#summary h3{margin:0 0 3px;font-size:15px}
+#summary ul{margin:12px 0 0;padding-left:17px} #summary li{margin:4px 0}
+#summary .miss{color:var(--hi);font-weight:600}
+
+/* ═══════════ 常客墙：把「一行一行的表格」变成「一个个可看的人」 ═══════════
+   每张卡 = 一个常客。要读的三件事都用【形状】给：
+     亮度/饱和  = 还来吗（越久没来越灰、越像空位）
+     热度条     = 上次来是多久前（越短越旧）
+     大数字     = 来过几次（熟不熟 —— 这个精确反而好读）
+   右下角的绿点 = 今天来过
+   ────────────────────────────────────────────────────────────────────── */
+.regs{display:flex;gap:10px;flex-wrap:wrap;padding:2px 0 6px}
+.reg{width:96px;border:1px solid var(--line);border-radius:8px;background:#fff;
+  padding:10px 8px 8px;text-align:center;cursor:pointer;position:relative;
+  transition:transform .16s ease-out,box-shadow .16s ease-out,border-color .16s}
+.reg:hover{transform:translateY(-3px);box-shadow:0 8px 18px #00000024;border-color:var(--ink2)}
+.reg .face{width:36px;height:34px;margin:0 auto 6px}
+.reg .nm{font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reg .heat{height:5px;border-radius:3px;background:#00000010;overflow:hidden;margin-top:8px}
+.reg .heat i{display:block;height:100%;border-radius:3px;transition:width .3s}
+.reg .n{font-family:ui-monospace,Consolas,monospace;font-size:18px;font-weight:700;
+  line-height:1.1;margin-top:4px}
+.reg .n span{font-size:10px;font-weight:400;color:var(--ink2);margin-left:1px}
+.reg .today{position:absolute;right:8px;top:8px;width:7px;height:7px;border-radius:50%;
+  background:var(--ok);box-shadow:0 0 0 2px #fff}
+/* 四级：今天/最近 → 有点久 → 很久 → 基本不来了（虚线 = 那个位置空了） */
+.reg[data-lvl="0"] .heat i{background:var(--ok)}
+.reg[data-lvl="1"] .heat i{background:#8fa86c}
+.reg[data-lvl="2"] .heat i{background:#c9a24a}
+.reg[data-lvl="2"]{opacity:.86}
+.reg[data-lvl="3"] .heat i{background:#b08a5a}
+.reg[data-lvl="3"]{opacity:.62;background:#f3ecdc;border-style:dashed}
+.reg[data-lvl="3"] .nm{color:var(--ink2)}
+
+/* 今天的流水：一个进门的人 = 一张小票; 我不在场的那些是【虚线】的 */
+.flows{display:flex;gap:7px;flex-wrap:wrap;padding:2px 0 4px}
+.trade{display:flex;align-items:center;gap:6px;padding:5px 10px 5px 6px;
+  border:1px solid var(--line);border-radius:999px;background:#fff;font-size:12px;
+  cursor:default;transition:transform .14s ease-out}
+.trade:hover{transform:translateY(-2px)}
+.trade .mini{width:16px;height:15px;flex:0 0 auto}
+.trade.away{border-style:dashed;opacity:.6;background:#f7f4ee}
+.sumline{margin-top:10px;font-size:12px;color:var(--ink2)}
+.sumline b{font-family:ui-monospace,Consolas,monospace;font-size:15px;color:var(--ink)}
+/* 空：给形状, 不给"暂无数据" */
+.empty-row{height:5px;border-radius:3px;border:1px dashed #cfc7b6;margin:6px 0 2px}
+
+/* ── 四角 HUD 我们缺的几条 ── */
+.br{position:absolute;right:16px;bottom:16px;display:flex;gap:8px}
+.entry .n{min-width:17px;height:17px;padding:0 5px;border-radius:9px;background:var(--paper3);
+  color:var(--ink2);font-size:11px;display:flex;align-items:center;justify-content:center}
+.entry.hot .n{background:var(--hi);color:#fff}
+#surprise{position:absolute;left:50%;top:70px;transform:translateX(-50%);
+  max-width:min(430px,80vw);display:none;border-color:var(--hi);box-shadow:0 6px 22px #0002}
+#surprise.on{display:block}
+#surprise .t{font-weight:700;color:var(--hi);font-size:12px;margin-bottom:3px}
+#surprise .was{color:var(--ink2)} #surprise s{text-decoration-thickness:1px}
+
+/* 详情页要用 body.open 控制显隐（proto 的做法），这里保持一致 */
+#veil{display:none} #sheet{display:none}
+body.open #veil{display:block}
+body.open #sheet{display:flex}
+/* 我们的遮罩层比 proto 的再多一层：面板打开时暂停（见 ui.js） */

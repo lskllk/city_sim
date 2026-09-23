@@ -19,6 +19,8 @@ const ROAD_SNAP = 3.0;        // 画路时吸附到既有道路中心线的距�
 const DOOR_SNAP = 4.0;        // 画路时吸附到建筑门的距离（米）
 const AREA_PER_CAPACITY = 20; // 面积 ∝ 容量：1 capacity ≈ 20 m²
 
+import { placeIn, sortIds } from "./layout.js";
+
 let seq = 0;
 const uid = (p) => `${p}_${String(++seq).padStart(3, "0")}`;
 
@@ -28,7 +30,10 @@ export class MapDoc {
     this.nodes = {}; this.edges = {}; this.buildings = {};
     this.props = [];                   // 环境物件（树/长椅/路灯/车…）：{name, xy}
     this.areas = [];                   // 地面区域：{nodes:[节点 id...], kind} 闭合多边形
-    this.gridM = 4;                    // 栅格边长（米）—— 界面上可改
+    this.gridM = 4;                    // 【室外】栅格边长（米）—— 界面上可改
+    this.gridInM = 0.5;                // 【屋内】栅格边长（米）—— 摆家具时用。
+                                       //   两套参数：4 米的格子摆不了家具
+                                       //   （一件东西才 0.6 米宽）。
     this.netSnap = true; this.gridSnap = true;
     this.meta = {};                    // 场景里跟几何无关的部分（人/货/公司/认知）
     this.types = {};                   // type_id -> 类型库条目
@@ -69,11 +74,15 @@ export class MapDoc {
     seq = Math.max(seq, maxOf(this.nodes, "n"), maxOf(this.edges, "e"),
                    maxOf(this.buildings, "bld"));
     this.dirty = false;
+    this._pruned = [];
+    this.prune();                      // 读进来的也看不见脏数据
+    this.dirty = false;                // 清理不算"有改动"，别一打开就提示未保存
     this._changed();
   }
 
   /** 导出成场景 JSON：`map` 是编辑的结果，`locations` 由它派生，其余透传。 */
   toScene() {
+    this.prune();                      // 写出去的永远不可能是脏的
     const locations = {};
     for (const [bid, b] of Object.entries(this.buildings)) {
       const [x, y] = b.center, [w, h] = b.size;
@@ -662,6 +671,94 @@ export class MapDoc {
     for (const [eid, e] of Object.entries(this.edges))
       if (!this.nodes[e.a] || !this.nodes[e.b]) delete this.edges[eid];
     this.pruneOrphans();
+    this.prune();                      // 楼里的东西和挂在它名下的公司一起清掉
+  }
+
+  /** ★ 世界不允许有【虚空物品】和【虚空公司】，有则删除。
+   *
+   *  虚空物品 = 挂在一栋不存在的楼上的东西（拆楼、手改文件都造得出来）
+   *  虚空公司 = 一栋楼都没占的，或者占着一栋不存在的楼的
+   *
+   *  这是【不变式】，不是一次性的清理 —— 所以 load() 和 toScene() 两头都调：
+   *  读进来的看不见脏数据，写出去的更不可能是脏的。
+   */
+  prune() {
+    const live = new Set(Object.keys(this.buildings));
+    const ents = this.meta.entities || [];
+    // ① 虚空物品：删。它的 owner 也跟着没意义了。
+    const keptEnts = ents.filter((e) => live.has(e.at));
+    if (keptEnts.length !== ents.length) {
+      this.meta.entities = keptEnts;
+      this.dirty = true;
+      this._pruned = (this._pruned || []);
+      this._pruned.push("删了 " + (ents.length - keptEnts.length) + " 件挂在不存在建筑上的东西");
+    }
+    // ② 虚空公司：一栋都没占 / 占着的楼不存在 → 删
+    const comps = this.meta.companies || [];
+    const keptComps = comps.filter((c) => (c.shops || []).some((b) => live.has(b)));
+    if (keptComps.length !== comps.length) {
+      this.meta.companies = keptComps;
+      this.dirty = true;
+      this._pruned = (this._pruned || []);
+      this._pruned.push("删了 " + (comps.length - keptComps.length) + " 家没有建筑的虚空公司");
+    }
+    // ③ 公司占了不存在的楼 → 把那条引用摘掉（公司本身上面已经处理了）
+    for (const c of keptComps) {
+      const ok = (c.shops || []).filter((b) => live.has(b));
+      if (ok.length !== (c.shops || []).length) c.shops = ok;
+    }
+    // ④ owner 指向不存在的公司（或者指向一家不占这栋楼的公司）→ 清掉
+    const byId = new Map(keptComps.map((c) => [c.id, c]));
+    for (const e of keptEnts) {
+      if (!e.owner) continue;
+      const c = byId.get(e.owner);
+      if (!c || !(c.shops || []).includes(e.at)) delete e.owner;
+    }
+    return this._pruned || [];
+  }
+
+  /** 楼里所有的东西（不管是不是家具）。 */
+  at(bid) { return (this.meta.entities || []).filter((e) => e.at === bid); }
+
+  /** 楼内布局：Map<id, [x, y]>（世界坐标，米）。
+   *
+   *  ★ 和游戏端用【同一个 layout.js】—— 所以编辑器里拖到哪儿，
+   *    游戏里就画在哪儿。两边各写一份迟早对不上。
+   *  ⚠ 矩形只用 center+size（忽略 rot）—— 和 toScene() 写出的 locations
+   *    一致（那边也是 x=cx-w/2），所以两边看到的框是同一个。
+   */
+  layoutOf(bid, sizes = {}) {
+    const b = this.buildings[bid];
+    if (!b) return new Map();
+    const [cx, cy] = b.center, [w, h] = b.size;
+    const ents = this.at(bid);
+    const authored = {};
+    for (const e of ents) if (Array.isArray(e.pos)) authored[e.id] = e.pos;
+    return placeIn({ x: cx - w / 2, y: cy - h / 2, w, h },
+                   sortIds(ents.map((e) => e.id)), authored, sizes);
+  }
+
+  /** 把某件东西摆到楼内某处（相对 0~1）。
+   *
+   *  ★ 位置是【前端的事】—— 后端读到也不认（它只说"在哪个 region 里"）。
+   *    存在场景文件的 entities[].pos，游戏端自己读。
+   */
+  setEntPos(id, rx, ry) {
+    const e = (this.meta.entities || []).find((x) => x.id === id);
+    if (!e) return false;
+    const c = (v) => Math.min(1, Math.max(0, +v || 0));   // 夹在 0~1：楼改小了也不出墙
+    e.pos = [+c(rx).toFixed(4), +c(ry).toFixed(4)];
+    this._changed();
+    return true;
+  }
+
+  /** 清掉某件东西的摆放 → 退回自动码一排。 */
+  clearEntPos(id) {
+    const e = (this.meta.entities || []).find((x) => x.id === id);
+    if (!e || e.pos === undefined) return false;
+    delete e.pos;
+    this._changed();
+    return true;
   }
 
   /** ★ ③ 没有边的节点不存在。 */

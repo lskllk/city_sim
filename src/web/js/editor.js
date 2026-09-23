@@ -17,15 +17,20 @@
  *   onDown → true   工具接了（画路 / 拖房子 / 拖节点）
  *          → false  没接 → 相机平移（默认行为，永远不会"拖不动"）
  */
+import { clampRel } from "./layout.js";
+// ★ 光标标记只有这一份实现（形状/颜色/手势的语义都写在它的文件头里）
+import { MARK, markRing } from "./markers.js";
 import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
 import { View, U } from './view.js';
 import { MapLayer } from './maprender.js';
 import { MapDoc } from './mapdoc.js';
 
 // 亮一档的强调色 —— 细圈在草地和沥青上都看不清，换成高亮
-const SNAP_COLOR = { node: 0x2fbf6f, door: 0xff6b3d, road: 0xffc53d, free: 0xffffff };
-const SNAP_TEXT = { node: "节点", door: "门", road: "路中线（会拆成两条）", free: "自由" };
-// 环境资产的逻辑尺寸（和 maprender.js 的 SIZE 一致）
+// 吸附点用哪个颜色 —— 语义表在 markers.js 里，这里只是把"吸附种类"对到"标记语义"。
+// 节点/门/路中线本来就是三类东西，各占一个色；它们同时也是 item/door/road 的色。
+const SNAP_KIND = { node: "node", door: "door", road: "road", free: "free" };
+// 吸附到什么：短词就行，别写句子（“路中线（会拆成两条）”这种太长，顶栏一闪一闪的）。
+const SNAP_TEXT = { node: "节点", door: "门", road: "路段", free: "自由" };
 const AREA_LABEL = { farm: "农田", concrete: "水泥地", tile: "地砖" };
 // 第一个顶点允许落在哪：路 / 节点 / 建筑的门。空地不行。
 const AREA_ANCHOR = new Set(["node", "door", "road"]);
@@ -60,6 +65,13 @@ export class Editor {
     this._MAX_UNDO = 60;
     this._drag = null;
     this._last = null;
+    // placing: 屋内摆放模式。★ 家具位置是【前端的事】—— 后端只说"在哪个 region
+    //   里"，楼里摆在哪儿存在场景文件的 entities[].pos（相对 0~1 比值），
+    //   游戏端自己读。进摆放 = 【双击地图上的楼】（见 _double），出来 = Esc/右键。
+    this.placing = false;
+    this.pick = "";          // 手上【拿着】哪件家具（跟着鼠标走）；空 = 没拿
+    this.pickAt = null;      // 拿着的时候鼠标在哪（世界坐标）
+    this.hoverItem = "";     // 鼠标悬在哪件上（要亮起来，不然不知道点得中哪个）
     this.doc.on(() => this.map.draw(this.doc.toScene()));
   }
 
@@ -74,6 +86,7 @@ export class Editor {
     this.view.onDrag = (x, y) => this._move(x, y);
     this.view.onUp = (x, y) => this._up(x, y);
     this.view.onPick = (x, y) => this._click(x, y);
+    this.view.onDouble = (x, y) => this._double(x, y);
     this.view.onHover = (x, y) => this._hover(x, y);
     this.view.onView = () => this.view.syncPaper();
     // 右键 = 【放下手上的东西 / 取消选中】。撤销归 Ctrl+Z。
@@ -120,11 +133,12 @@ export class Editor {
     if (!r.ok) return this.ui.toast("保存失败：" + r.status);
     this.name = target; this.doc.dirty = false;
     this.ui.setScene(target, this.doc.stats(), true);
-    this.ui.toast("已保存 " + target + "（旧文件留了一份 .bak）");
+    this.ui.toast("已保存 " + target);      // 直接覆盖，不留 .bak
   }
 
   /** 右键：放下手上拿的、取消选中。回到「选择」，什么都不拿。 */
   deselect() {
+    if (this.placing) { this.exitPlacing(); return; }   // ESC / 右键 = 退出摆放
     this.cancelGesture();              // 半截手势（画路 / 围区域 / 拖动）一起放掉
     this.buildType = ""; this.propName = ""; this.selected = "";
     this.selectedArea = "";
@@ -206,6 +220,129 @@ export class Editor {
     return "";
   }
 
+  // ── 摆家具（屋内摆放模式）────────────────────────────────────────
+  //  ★ 家具在楼【里面】，命中必须在 hitBuilding 之前判 ——
+  //    不然点家具会先被楼抢走，变成拖房子。
+  //  坐标走 doc.layoutOf()（和游戏端同一个 layout.js）→
+  //    编辑器里看到的位置，就是游戏里画出来的位置。
+
+  /** 当前在摆哪栋楼（没选中 / 没开摆放模式 = 空）。 */
+  placingIn() { return this.placing && this.doc.buildings[this.selected] ? this.selected : ""; }
+
+  /** 进屋摆放：把镜头平滑推到那栋楼，占窗口 80%。
+   *
+   *  ★ 为什么要自动推：屋里的东西才 0.6 米宽，整城视角下就是几个像素，
+   *    根本没法摆。手动缩放到那栋楼又太绕。
+   */
+  enterPlacing(bid) {
+    if (!this.doc.buildings[bid]) return;
+    this.placing = true;
+    this.pick = ""; this.pickAt = null; this.hoverItem = "";
+    this.selected = bid;
+    this.setTool("select");                 // 命中/拖拽只在 select 下走
+    const [cx, cy] = this.doc.buildings[bid].center;
+    const r4 = this._rect4(bid);
+    this.fitBox(cx, cy, r4[2], r4[3], 0.8);
+    this.redraw();
+  }
+
+  exitPlacing() {
+    if (!this.placing) return;
+    this.placing = false;
+    this.pick = ""; this.pickAt = null; this.hoverItem = "";
+    this._pickSnap = null;
+    this.view.el.style.cursor = "crosshair";
+    this.redraw();
+  }
+
+  /** 楼的世界矩形 (x, y, w, h)。只按 center+size —— 和 toScene() 写的
+   *  locations 一致（那边也是 x=cx-w/2），所以两边看到的框是同一个。 */
+  _rect4(bid) {
+    const b = this.doc.buildings[bid];
+    const [cx, cy] = b.center, [w, h] = b.size;
+    return [cx - w / 2, cy - h / 2, w, h];
+  }
+
+  /** 把某个矩形平滑推到窗口的 frac（0~1）大小。 */
+  fitBox(cx, cy, w, h, frac = 0.8) {
+    const [vw, vh] = this.view.viewport();
+    const k = Math.min((vw * frac) / (Math.max(0.1, w) * U),
+                       (vh * frac) / (Math.max(0.1, h) * U));
+    this.view.flyTo(cx, cy, k, 460);
+  }
+
+  /** 这栋楼里每件东西的【世界占地】（米）：{id: [宽, 高]}。
+   *  ★ 尺寸只在美术清单里 —— 摆放的边界要按它算，不然图形会挂出墙。 */
+  _itemSizes(bid) {
+    const out = {};
+    for (const e of this.doc.at(bid)) {
+      const ent = this.assets.entry(`items/${e.type}.svg`);
+      // ★ 返回【米】—— layout.js 里的 STRIDE/PAD/墙宽全是米。
+      //   作者尺寸 2× 画的 → 除 2 得世界像素 → 再除 U 才是米。
+      //   漏掉 /U 的话：26px 的机器被当成 26 米宽，比房子还大，
+      //   于是被夹到墙角 —— 表现就是"拖不动"（用户实测）。
+      if (ent) out[e.id] = [ent.w / 2 / U, ent.h / 2 / U];
+    }
+    return out;
+  }
+
+  /** 光标下那件东西（只在自己那栋楼里找）。 */
+  hitItem(p) {
+    const bid = this.placingIn();
+    if (!bid) return "";
+    const t = this._tol();
+    let best = "", bd = t;
+    for (const [id, q] of this.doc.layoutOf(bid, this._itemSizes(bid))) {
+      const d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (d < bd) { bd = d; best = id; }
+    }
+    return best;
+  }
+
+  /** 捡起一件。开一张撤销快照 —— "挪一件 = 一步撤销"。 */
+  takeItem(id) {
+    this.pick = id;
+    this.pickAt = this._last;
+    this.hoverItem = id;
+    this._pickSnap = this.doc.snapshot();
+    this.view.el.style.cursor = "grabbing";
+    this.redraw();
+  }
+
+  /** 把手上的放到 p（吸屋内栅格 + 按占地夹进屋里）。 */
+  dropPick(p) {
+    const id = this.pick;
+    if (!id) return;
+    const [rx, ry] = this._relIn(this.selected, this._gridIn(p), this._itemSizes(this.selected)[id]);
+    this.doc.setEntPos(id, rx, ry);
+    this.pick = ""; this.pickAt = null;
+    if (this._pickSnap) { this._undo.push(this._pickSnap); this._pickSnap = null; }
+    this.view.el.style.cursor = "crosshair";
+    this.redraw();
+  }
+
+  /** 世界坐标 → 楼内相对坐标 0~1。
+   *
+   *  ★ 必须按【占地】夹，不是只夹 0~1：`pos` 是脚底那个点，只夹 0~1 的话
+   *    点在墙内、半个图形挂在墙外（实测："家具超出了房屋边界"）。
+   *    边界算法在 layout.clampRel —— 和游戏端同一个，所见即所得。
+   */
+  _relIn(bid, p, size) {
+    const b = this.doc.buildings[bid];
+    const [cx, cy] = b.center, [w, h] = b.size;
+    const rect = { x: cx - w / 2, y: cy - h / 2, w, h };
+    const rx = w > 0 ? (p[0] - rect.x) / w : 0.5;
+    const ry = h > 0 ? (p[1] - rect.y) / h : 0.5;
+    return clampRel(rect, size, rx, ry);
+  }
+
+  /** 屋内栅格吸附（只在开着栅格吸附时）。4 米那一套是室外的，摆家具不能用。 */
+  _gridIn(p) {
+    const g = Math.max(0.05, +(this.doc.gridInM || 0.5));
+    if (this.doc.gridSnap === false) return p;
+    return [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g];
+  }
+
   _snapAt(p) { return this.doc.snap(p, this.hitNode(p)); }
 
   // ── 按下 ────────────────────────────────────────────────────────────
@@ -216,6 +353,17 @@ export class Editor {
     //   不拦的话：点建筑 = 开始拖房子，onDown 返回 true，_click 根本不会触发，
     //   回调永远收不到（踩过：pickBuilding 看着装了却没反应）。
     if (this._pick) return false;
+    // ★ 摆家具【优先于一切】：家具在楼里面，先判楼的话永远拖不到它们。
+    //   没点到东西就 return false → 让相机平移（拖地板 = 挪镜头，老手感）。
+    if (this.placing) {
+      // ★ 这套是「点起来 → 跟着鼠标 → 点击放下」，不是"按住拖"：
+      //   按住拖在东西叠一起时根本选不中（用户："放置重叠不好选"）。
+      if (this.pick) { this.dropPick(p); return true; }   // 手上拿着 → 这一下是放下
+      const eid = this.hitItem(p);
+      if (!eid) return false;                             // 空地 → 让相机平移
+      this.takeItem(eid);
+      return true;
+    }
     // ★ 只有"拖"在这里接：房子 / 节点 / 环境物件。
     //   画路和围区域都是【点一下再点一下】，走 _click ——
     //   这样拖 = 平移、点 = 操作，两个工具同一套手感。
@@ -251,6 +399,7 @@ export class Editor {
   _move(x, y) {
     const p = [x, y];
     this._last = p;
+    if (this._placingMove(p)) return;    // ★ 和 _hover 共用一套（见 _placingMove）
     const d = this._drag;
     if (d) d.moved = true;                                // 动过就算拖动
     if (this._pending) this.snapHint = this._snapAt(p);   // 画路：橡皮筋跟着鼠标
@@ -399,6 +548,20 @@ export class Editor {
     this.redraw();
   }
 
+  /** 双击一栋楼 → 直接进屋内摆放。
+   *
+   *  ★ 为什么是双击：单击已经给了"进建筑面板"，再双击进去摆家具是自然的下一层
+   *    （点一下 = 选它，点两下 = 进去）。比在面板上放个按钮少一步、也不用先选中。
+   *  退出只剩 Esc / 右键 —— 不再有「摆完了」按钮（用户砍掉的）。
+   */
+  _double(x, y) {
+    if (this.tool !== "select") return;          // 画路/围区域时双击是"手滑"
+    if (this._pending || this._areaPath.length) return;
+    if (this._pick) return;                      // 人物设计器正等着选住所
+    const bid = this.hitBuilding([x, y]);
+    if (bid) this.enterPlacing(bid);
+  }
+
   /** 纯点击（没被 _down 接走、也没平移）。 */
   _click(x, y) {
     const p = [x, y];
@@ -413,6 +576,9 @@ export class Editor {
     if (this.tool === "area") return this._areaClick(p);
     if (this.tool === "place") return this._place(p);
     if (this.tool === "erase") return this._erase(p);
+    // ★ 摆放模式里点空地【什么都不做】。以前会走到下面那句把 selected 清掉，
+    //   于是"随便点击一下就出去了"（用户实测）。
+    if (this.placing) return;
     if (this.tool === "select") { this.selected = ""; this.redraw(); }
   }
 
@@ -436,6 +602,12 @@ export class Editor {
   }
 
   _hover(x, y) {
+    // ★ 摆放模式下不吸路网、不亮楼 —— 那套是室外的。光标就在屋里，直接处理。
+    if (this._placingMove([x, y])) {
+      this.snapHint = null;                 // 屋里不吸路网：清掉残留的十字标
+      this.ui.setCursor?.(null);
+      return;
+    }
     this._last = [x, y];
     this.snapHint = this._snapAt([x, y]);
     this.ui.setCursor?.(this.snapHint);
@@ -483,6 +655,88 @@ export class Editor {
   redraw() {
     this.map.draw(this.doc.toScene());
     this._paint();
+  }
+
+  /** 摆放模式下的鼠标移动：悬停高亮 + 手上那件跟手。
+   *
+   *  ★★ 必须在【两条路】上都调：view.js 的 pointermove 在不按键时走
+   *    `onHover`、按住时走 `onDrag`。只挂在 _move 上的话，"家具跟着鼠标走"
+   *    就只在按住的时候才动（用户实测：点了没反应、不跟手）。
+   *    而点起来 / 放下走的是 pointerdown，那条路是好的 —— 于是症状正好是
+   *    "能拿起来，但不动"。
+   */
+  _placingMove(p) {
+    if (!this.placingIn()) return false;
+    this._last = p;
+    if (this.pick) { this.pickAt = p; this.redraw(); return true; }   // 手上拿着 → 跟手
+    const h = this.hitItem(p);
+    if (h !== this.hoverItem) { this.hoverItem = h; this.redraw(); }
+    return true;
+  }
+
+  /** 被拿走那件原来站的地方：画个虚空圈，知道"它本来在哪儿"。 */
+  /** 屋内摆放：把选中那栋楼的里面画出来。
+   *
+   *  为什么画在【地图上】而不是右栏开个小画布：
+   *  状态只有一份 —— 两套坐标系一定会出现"地图上一个地方、小图里另一个地方"。
+   *  房子本来就是按真实比例画的，滚轮放大就能精确定位。
+   */
+  _paintPlacing(b) {
+    const [cx, cy] = b.center, [w, h] = b.size;
+    const x0 = (cx - w / 2) * U, y0 = (cy - h / 2) * U;
+    const pw = w * U, ph = h * U;
+    // ① 屋内地面：盖上底色，把屋外的路网压下去 —— 一眼看出"现在在屋里"
+    this.overlay2.addChild(new Graphics().rect(x0, y0, pw, ph)
+      .fill({ color: 0xfdfbf6, alpha: 0.9 })
+      .stroke({ color: 0xb4552d, width: 3 }));
+    // ② 屋内淡格：★ 步长用 doc.gridInM（屋内的那一套），不是 gridM。
+    //    4 米的室外格摆不了家具；太密（屏幕上不到 14px）就不画 —— 画出来
+    //    是一片噪声，用户看到的是"一堆不知道干嘛的线"。
+    const gi = Math.max(0.05, +(this.doc.gridInM || 0.5));
+    if (gi * U * this.view.cam.k >= 14) {
+      const g = new Graphics();
+      for (let x = gi; x < w - 1e-6; x += gi)
+        g.moveTo((cx - w / 2 + x) * U, y0).lineTo((cx - w / 2 + x) * U, y0 + ph);
+      for (let y = gi; y < h - 1e-6; y += gi)
+        g.moveTo(x0, (cy - h / 2 + y) * U).lineTo(x0 + pw, (cy - h / 2 + y) * U);
+      g.stroke({ color: 0xd9d2c4, width: 1, alpha: 0.7 });
+      this.overlay2.addChild(g);
+    }
+    // ③ 件件东西画【真资产】，不是圆点 —— 不看到灶台就不知道自己在挪什么
+    const sizes = this._itemSizes(this.selected);
+    const carried = this.pick;
+    for (const [id, q] of this.doc.layoutOf(this.selected, sizes)) {
+      const e = (this.doc.meta.entities || []).find((x) => x.id === id);
+      if (!e) continue;
+      const ent = this.assets.entry(`items/${e.type}.svg`);
+      const m = ent ? [ent.w / 2 / U, ent.h / 2 / U] : [1.2, 1.2];   // 米
+      const px = [m[0] * U, m[1] * U];                              // 画的时候要像素
+      // 手上拿着那件【不在这画】—— 它画在鼠标那儿（见下面），原位留个虚圈
+      // ★ 屋里【不用标记】，一律用高亮（见 markers.js 的文件头）：
+      //   普通 = 半透明；悬停 = 不透明 + 暖色。圈会盖住家具，还看不清它长什么样。
+      if (id === carried) continue;        // 手上那件画在鼠标处，原位留个空位就行
+      const hover = id === this.hoverItem;
+      this._ghost(`items/${e.type}.svg`, q, px,
+        { px: true, alpha: hover ? 1 : 0.62, tint: hover ? 0xfff0c4 : 0xffffff });
+    }
+    // 手上那件：画在【会落在哪儿】（吸完栅格、夹完边界的位置），
+    // 不是画在鼠标原始位置 —— 不然看着落这儿、实际落那儿。
+    if (carried && this.pickAt) {
+      const e = (this.doc.meta.entities || []).find((x) => x.id === carried);
+      const ent = e ? this.assets.entry(`items/${e.type}.svg`) : null;
+      const m = ent ? [ent.w / 2 / U, ent.h / 2 / U] : [1.2, 1.2];   // ★ 米
+      const px = [m[0] * U, m[1] * U];
+      const [rx, ry] = this._relIn(this.selected, this._gridIn(this.pickAt), m);
+      const r4 = this._rect4(this.selected);
+      const halo = [r4[0] + rx * r4[2], r4[1] + ry * r4[3]];
+      // 手上那件：不透明 + 选中色 —— 高亮即是"锁在这儿了"，不再另加标记
+      if (e) this._ghost(`items/${e.type}.svg`, halo, px,
+        { px: true, alpha: 1, tint: 0xfff0b0 });
+      const from = this.doc.layoutOf(this.selected, sizes).get(carried);
+      if (from) this.overlay2.addChild(new Graphics()
+        .moveTo(from[0] * U, from[1] * U).lineTo(halo[0] * U, halo[1] * U)
+        .stroke({ color: 0x2fbf6f, width: 1.5, alpha: 0.5 }));
+    }
   }
 
   _paint() {
@@ -534,6 +788,8 @@ export class Editor {
       o.position.set(cx * U, cy * U);
       o.rotation = (b.rot || 0) * Math.PI / 180;
       this.handles.addChild(o);
+      // ③b 正在摆家具 → 把屋里画出来（压在上面那个淡框之上）
+      if (this.placingIn()) this._paintPlacing(b);
     }
 
     // ④ 十字标 —— 画路时【两个】：
@@ -566,17 +822,14 @@ export class Editor {
         g.stroke({ color: 0xff6b3d, width: 3, alpha: 0.95 });
         this.overlay2.addChild(g);
         for (const [x, y] of poly)
-          this.overlay2.addChild(new Graphics().circle(x * U, y * U, 6)
-            .fill({ color: 0xf7f4ee }).stroke({ color: 0xff6b3d, width: 2.5 }));
+          markRing(this.overlay2, x, y, "area", { r: 5 });
       }
     }
 
     // ⑤ 地面区域：正在围的多边形（最后一个点连到鼠标）
     if (this.tool === "area" && this.snapHint?.kind === "road" && this._last) {
       const v = this.areaVertexPoint(this.snapHint, this._last);   // 让开后的落点
-      this.overlay2.addChild(new Graphics().circle(v[0] * U, v[1] * U, 5)
-        .fill({ color: 0xffc53d, alpha: 0.85 })
-        .stroke({ color: 0x141414, width: 2 }));
+      markRing(this.overlay2, v[0], v[1], "pick", { r: 5 });
       this.overlay2.addChild(new Graphics()
         .moveTo(this.snapHint.point[0] * U, this.snapHint.point[1] * U)
         .lineTo(v[0] * U, v[1] * U)
@@ -595,12 +848,10 @@ export class Editor {
         this.overlay2.addChild(g);
       }
       // 每个已选节点点一个亮圈；第一个再套一圈，提示"点它闭合"
-      pts.forEach(([x, y], i) => {
-        const r = i === 0 ? 12 : 8;
-        this.overlay2.addChild(new Graphics().circle(x * U, y * U, r)
-          .fill({ color: i === 0 ? 0xffc53d : 0x2fbf6f, alpha: 0.3 })
-          .stroke({ color: i === 0 ? 0xffc53d : 0x2fbf6f, width: 2.5 }));
-      });
+      // 已选顶点：第一个（点它能闭合）用 pick 色强调并"锁定"，其余用 node 色
+      pts.forEach(([x, y], i) =>
+        markRing(this.overlay2, x, y, i === 0 ? "pick" : "node",
+                 { r: i === 0 ? 9 : 6, locked: i === 0 }));
     }
 
     // ⑥ 摆放预览：画【真资产】的半透明幽灵 —— 光一个圆圈看不出要摆的是什么
@@ -628,8 +879,7 @@ export class Editor {
       gh.position.set(c[0] * U, c[1] * U);
       gh.rotation = rot * Math.PI / 180;
       this.overlay2.addChild(gh);
-      this.overlay2.addChild(new Graphics().circle(px * U, py * U, 3)
-        .fill({ color: 0xf7f4ee }));                     // 鼠标落点
+      markRing(this.overlay2, px, py, "free", { r: 3 });   // 鼠标落点
     }
     this.view.syncPaper();
     this.ui.setStats?.(this.doc.stats());
@@ -662,32 +912,21 @@ export class Editor {
    *    只有一个细圈的话，在沥青上几乎看不见。
    */
   _paintSnap(s, opt = {}) {
-    // 区域模式下复用同一套吸附，只是"能不能当顶点"决定颜色 ——
-    // 灰 = 这里不行（点了也白点），亮 = 可以当顶点。
-    const col = (this.tool === "area" && !this.areaVertexOk(s))
-      ? 0x8a8779 : (SNAP_COLOR[s.kind] ?? 0xffffff);
-    const [x, y] = [s.point[0] * U, s.point[1] * U];
-    const r = s.kind === "free" ? 6 : 9;
-    const arm = r + 7;
-    const g = new Graphics();
-    // ① 深色底
-    g.moveTo(x - arm, y).lineTo(x + arm, y);
-    g.moveTo(x, y - arm).lineTo(x, y + arm);
-    g.stroke({ color: 0x141414, width: 5.5, alpha: 0.6, cap: "round" });
-    // ② 亮色十字
-    g.moveTo(x - arm, y).lineTo(x + arm, y);
-    g.moveTo(x, y - arm).lineTo(x, y + arm);
-    g.stroke({ color: col, width: 2.6, cap: "round" });
-    // ③ 环（实心淡 + 亮边）
-    g.circle(x, y, r).fill({ color: col, alpha: 0.22 }).stroke({ color: col, width: 2.6 });
-    if (opt.locked) {          // 起点：外圈再加一道深色，一眼看出"这个已经定住了"
-      g.circle(x, y, r + 4).stroke({ color: 0x141414, width: 3, alpha: 0.8 });
-    }
-    this.overlay2.addChild(g);
+    // 区域模式下复用同一套吸附，只是"能不能当顶点"决定语义 ——
+    // bad = 这里不行（点了也白点），其余按吸附种类上色。
+    const bad = this.tool === "area" && !this.areaVertexOk(s);
+    const kind = bad ? "bad" : (SNAP_KIND[s.kind] || "free");
+    markRing(this.overlay2, s.point[0], s.point[1], kind, { locked: opt.locked });
   }
 
   /** 半透明幽灵：把真资产按世界尺寸画在目标位置。 */
   /** 幽灵。size 传【世界像素】（调用方自己乘好 U）。 */
+  /** 一件资产的半透明幽灵（摆放预览 / 屋内家具）。
+   *
+   *  ★ 返回 Sprite —— 屋内【不用标记】，靠改这个 Sprite 的 tint/alpha 做高亮。
+   *    白色 tint = 原色；别的颜色是**乘上去**的（Pixi 的规矩），
+   *    所以高亮色只能往暖/亮里挑，挑了深色会把图压黑。
+   */
   _ghost(file, at, size, opt = {}) {
     const tex = this.assets.get(file);
     const [w, h] = size;                 // 世界像素
@@ -695,15 +934,17 @@ export class Editor {
       this.overlay2.addChild(new Graphics()
         .rect(at[0] * U - w / 2, at[1] * U - h / 2, w, h)
         .fill({ color: 0xf7f4ee, alpha: 0.2 }).stroke({ color: 0xf7f4ee, width: 2 }));
-      return;
+      return null;
     }
     const sp = new Sprite(tex);
     sp.width = w; sp.height = h;
-    sp.alpha = 0.62;
+    sp.alpha = opt.alpha ?? 0.62;
     sp.anchor.set(0.5, opt.bottomCenter ? 1 : 0.5);
     sp.position.set(at[0] * U, at[1] * U);
     if (opt.rot) sp.rotation = opt.rot * Math.PI / 180;
+    if (opt.tint) sp.tint = opt.tint;
     this.overlay2.addChild(sp);
+    return sp;
   }
 
   snapText() {
@@ -713,7 +954,7 @@ export class Editor {
         ? (this._areaPath.length ? "可以当顶点（点它）" : "起点（挂在路上）")
         : (this._areaPath.length ? "这里不能当顶点" : "起点要落在路或建筑上");
     if (this.tool === "road") return this._pending ? "再点一下定终点" : "点一下定起点";
-    return SNAP_TEXT[this.snapHint.kind];
+    return SNAP_TEXT[this.snapHint.kind] || "";
   }
 }
 

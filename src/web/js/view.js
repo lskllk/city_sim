@@ -30,6 +30,7 @@ export class View {
     this.el = canvasEl;
     this.hud = hudEl;
     this.cam = { x: 0, y: 0, k: 1 };
+    this._fly = null;                 // 平滑飞行（flyTo）的补间状态
     this.minK = 0.1; this.maxK = 6;
     this.world = { w: 1280 * U, h: 800 * U };   // 像素
     this.onDown = null;    // (wx, wy) => bool   上层要不要接这次按下
@@ -38,6 +39,7 @@ export class View {
     this.onPick = null;    // (wx, wy) => void   纯点击（没被 onDown 接走、也没平移）
     this.onHover = null;   // (wx, wy) => void
     this.onContext = null; // (wx, wy) => void  右键（右键不当拖动的起点）
+    this.onDouble = null;  // (wx, wy) => void  双击（不算手势：两次点击合计一次）
     this.onView = null;    // () => void          相机变了（重画屏幕纸片）
     this.app = new Application();
   }
@@ -120,8 +122,38 @@ export class View {
     this.cam.y = wy * U - vh / this.cam.k / 2;
     this.apply();
   }
+  /** 平滑飞到某处（世界坐标 + 倍率）。
+   *
+   *  ★ 和 step() 里那段滚轮逼近是【两回事】：
+   *    那条是"把鼠标下那个世界点钉住"，这条是"我要去看那个地方"。
+   *    所以飞的时候要把 _zT 清掉，否则两个目标每帧打架，相机一帧一个样。
+   */
+  flyTo(wx, wy, k, ms = 420) {
+    const [vw, vh] = this.viewport();
+    const kk = Math.min(this.maxK, Math.max(this.minK, k));
+    this._zT = null;
+    this._fly = {
+      t0: performance.now(), ms,
+      from: { x: this.cam.x, y: this.cam.y, k: this.cam.k },
+      to: { x: wx * U - vw / kk / 2, y: wy * U - vh / kk / 2, k: kk },
+    };
+  }
+
   /** 每帧调一次：把缩放平滑逼近目标。返回 true = 相机动了（调用方该重画屏幕纸片）。 */
   step() {
+    // ① 飞行优先：一次性把一个"从 A 到 B"的补间推完
+    const f = this._fly;
+    if (f) {
+      const u = Math.min(1, (performance.now() - f.t0) / f.ms);
+      // ease-in-out：两头慢中间快。线性会显得像"被谁推了一把"
+      const e = u < 0.5 ? 2 * u * u : 1 - ((-2 * u + 2) ** 2) / 2;
+      this.cam.x = f.from.x + (f.to.x - f.from.x) * e;
+      this.cam.y = f.from.y + (f.to.y - f.from.y) * e;
+      this.cam.k = f.from.k + (f.to.k - f.from.k) * e;
+      if (u >= 1) this._fly = null;
+      this.apply();
+      return true;
+    }
     const z = this._zT;
     if (!z) return false;
     // ★★ 锚点必须【在改 k 之前】算。
@@ -157,6 +189,7 @@ export class View {
       if (e.button === 2) return;            // 右键交给 onContext
       const r = el.getBoundingClientRect();
       const w = this.toWorld(e.clientX - r.left, e.clientY - r.top);
+      this._fly = null;                      // 手动一按就打断飞行（别和用户抢镜头）
       const grabbed = !!this.onDown?.(w[0], w[1]);
       down = { sx: e.clientX, sy: e.clientY, cx: this.cam.x, cy: this.cam.y,
                moved: 0, grabbed, w0: w };
@@ -192,10 +225,20 @@ export class View {
       const r = el.getBoundingClientRect();
       this.onContext?.(...this.toWorld(e.clientX - r.left, e.clientY - r.top));
     });
+    // ★ 双击也走输入层，不另开一路监听 —— 不然"所有输入都从 view 进"这条就破了。
+    //   注意它发生在两次 pointerdown/up（+ 两次 onPick）【之后】，
+    //   所以双绑了"单击也做事"的地方要自己判（比如编辑器：单击进建筑面板，
+    //   双击再进摆放 —— 顺序上前面那次已经生效了，无所谓）。
+    el.addEventListener("dblclick", e => {
+      const r = el.getBoundingClientRect();
+      this.onDouble?.(...this.toWorld(e.clientX - r.left, e.clientY - r.top));
+    });
+
     el.addEventListener("wheel", e => {
       e.preventDefault();
       const r = el.getBoundingClientRect();
       const sx = e.clientX - r.left, sy = e.clientY - r.top;
+      this._fly = null;                      // 滚轮同理
       // ★ 不直接改 k，只记一个目标：真正的缩放在 step() 里逐帧逼近。
       //   滚轮一格 Δk 很大，直接跳过去是"突变"；而且一帧到位会把
       //   锚点算错（相机在夹边界上时尤其明显 —— 所以干脆不夹）。

@@ -9,36 +9,58 @@
 <body>
 
 <!-- ══ 地图视口（铺满整个窗口）══════════════════════════════════════════ -->
-<div id="viewport"><canvas id="stage"></canvas></div>
-<div id="labels"></div>
+<div id="viewport" class="hide"><canvas id="stage"></canvas></div>
+<div id="labels" class="hide"></div>
 
 <!-- ══ 游戏：四角 HUD ══════════════════════════════════════════════════ -->
-<div id="hud">
+<div id="hud" class="hide">
+  <!-- 左上：我 → 状态 → 当前动作 → 行动队列 -->
   <div class="pane tl" id="paneMe">
     <div class="me-name" id="meName">镇上的小店</div>
     <div class="me-money" id="meMoney">—<span class="d">元</span></div>
     <div class="bars" id="meBars"></div>
-    <div class="hr"></div>
-    <div id="meAct" class="dim" style="font-size:11px">点一个人看看</div>
+    <div class="dim" id="meAuto" style="font-size:10px;margin-top:7px"></div>
+    <div class="actwrap" id="meAct"></div>
   </div>
 
+  <!-- 中上：天 · 钟 · 天气 -->
   <div class="pane tc">
     <span class="day" id="gDay">第 1 天</span>
     <span class="sep"></span>
     <span class="clock mono" id="gClock">--:--</span>
     <span class="sep"></span>
-    <span class="wx" id="gWx">☀ 晴</span>
+    <span class="wx"><span class="ic" id="gWxIcon">☀</span><span id="gWx">晴</span></span>
+    <span class="temp mono" id="gTemp">22°</span>
   </div>
 
+  <!-- 右上：存档 / 设置 -->
   <div class="tr">
-    <button class="entry" id="gHome"><span class="ic">⌂</span>我的店</button>
+    <button class="entry" id="gSave"><span class="ic">▣</span>存档</button>
+    <button class="entry" id="gSet"><span class="ic">⚙</span>设置</button>
     <button class="entry" id="gMenu"><span class="ic">←</span>菜单</button>
   </div>
 
+  <!-- 右下：信息 / 公司 / 家 -->
+  <div class="br" id="paneNav">
+    <button class="entry hot" id="gInfo"><span class="ic">▤</span>我知道的信息<span class="n" id="nCount">0</span></button>
+    <button class="entry" id="gShop"><span class="ic">◧</span>公司管理</button>
+    <button class="entry" id="gHome2"><span class="ic">⌂</span>我的家</button>
+  </div>
+
+  <!-- 中下：时间档位 -->
   <div class="bc" id="gSpeed"></div>
+
+  <!-- 提醒条（比如"你要的那个价变了"） -->
+  <div class="pane" id="surprise"></div>
 </div>
 
-<aside id="panel" class="hide"></aside>
+<!-- ══ 详情页：居中前图层 · 背后虚化 · 打开即暂停 ══════════════════════
+     ★ 不是右边侧栏。proto 的做法：盖住中间 + 背景 blur + 暂停世界，
+       看完关掉接着跑。-->
+<div id="veil"></div>
+<div id="sheet"></div>
+<div id="summary"><div class="box" id="summaryBox"></div></div>
+
 <div id="hint"></div>
 
 <!-- ══ 编辑器：同一套四角 ══════════════════════════════════════════════ -->
@@ -53,16 +75,14 @@
         <button data-mode="map" class="on">地图</button>
         <button data-mode="people">人物</button>
         <button data-mode="building">建筑</button>
+        <button data-mode="company">公司</button>
       </span>
       <span class="sep"></span>
       <span class="day"><b id="eName" class="mono">—</b><span id="eDirty" class="bad"></span></span>
       <span class="sep"></span>
-      <span class="dim" id="eStats">—</span>
-      <span class="sep"></span>
       <span id="eXY" class="mono"></span>
       <span id="eSnapLabel" class="dim"></span>
       <span class="sep"></span>
-      <span id="eUndo" class="mono dim"></span>
       <span id="eVer" class="mono" style="font-size:10px;color:#c8c1b2"></span>
     </div>
 
@@ -92,6 +112,18 @@
       <div class="plist-body" id="bList"></div>
     </aside>
     <section class="pane pform" id="bForm"></section>
+  </div>
+
+  <!-- ★ 公司编辑：和人物/建筑一个样子（左名单 + 右详情）。
+       公司在场景里本来就有（scene.companies），规则也定死了：
+       ★ 公司占用的建筑，里面所有物品都归公司 —— 分配时一并搬过去。 -->
+  <div id="eComp" class="hide">
+    <aside class="pane plist">
+      <div class="phead"><b>城里的公司</b><span class="dim" id="cCount"></span>
+        <button id="cAdd">+ 新增</button></div>
+      <div class="plist-body" id="cList"></div>
+    </aside>
+    <section class="pane pform" id="cForm"></section>
   </div>
 
   <!-- ★ 摆放栏：上下两排。
@@ -125,6 +157,7 @@
      踩过的坑：程序化 .click() 能穿过遮挡物，所以测试全绿、用鼠标的人却在骂。 -->
 <div class="facepop hide" id="bItemPop"></div>
 <div class="facepop hide" id="thingPop"></div>
+<div class="facepop hide" id="cBldPop"></div>
 
 <!-- ══ 主菜单 ══════════════════════════════════════════════════════════ -->
 <div id="menu">

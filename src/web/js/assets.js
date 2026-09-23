@@ -37,16 +37,28 @@ export class Assets2 {
    *  ★ 这里漏一个类，症状都是"永远不出现"而不是"报错"：
    *    · 漏 road  → 道路的中线虚线不画（地图只画一次，等不到懒加载）
    *    · 漏 props → 摆放预览变成兜底方框（长得像"预览太大了"）
-   *    所以宁可多加载：反正就 26 张。 */
+   *    · 漏 world → 人是一个白块（走路帧永远等不到）
+   *    · 漏 iworld → 货架/床/苹果全隐形（游戏里看不见一件东西）
+   *    所以宁可多加载：反正就几十张。 */
   async preloadMap() {
     const files = this.manifest.assets
       .filter(a => ["ground", "road", "body", "shadow", "lit", "props", "world",
-                    "portrait", "iworld", "iempty", "attach", "fx"].includes(a.sub))
+                    "iworld", "iempty", "portrait", "iicon", "attach", "fx",
+                    "badge", "bar", "marker", "atm", "rain"].includes(a.sub))
       .map(a => a.file);
     await this.loadAll(files);
   }
 
   buildingTypes() { return this.manifest.buildingTypes || {}; }
+
+  /** 资产定义（拿 w/h/anchor/tags 用）。file → entry。 */
+  entry(file) {
+    if (!this._byFile) {
+      this._byFile = new Map();
+      for (const a of this.manifest.assets || []) this._byFile.set(a.file, a);
+    }
+    return this._byFile.get(file);
+  }
 }
 
 export async function fetchManifest() {

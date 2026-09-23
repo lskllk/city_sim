@@ -171,7 +171,6 @@ def set_price(world, entity_id: str, price) -> dict:
     if ent is None:
         return {"ok": False, "why": "没有这个物件", "data": None}
     ent.price = max(0.0, float(price))
-    world.layout_location(ent.location_id)
     return {"ok": True, "why": None,
             "data": {"entity": ent.entity_id, "price": ent.price}}
 
@@ -183,3 +182,60 @@ def hire_now(world, systems, cfg) -> dict:
     """
     return {"ok": True, "why": None,
             "data": {"hired": api.hire_at(world, systems, cfg)}}
+
+
+# ══ 玩家操控（游戏端）══════════════════════════════════════════════════
+#  为什么单开一节：上面全是"经营"动词（改真值、要别人看见了才生效）。
+#  这一节是【操作人物】—— 规则不一样：玩家的化身不听它自己的脑子，
+#  你点哪儿它去哪儿。这是唯一一处玩家能直接写世界进程的地方。
+#
+#  ★ 仍然只改世界真值：接管 = 换了个决策者（从 npc 的脑子换成玩家），
+#    而不是"给你的化身开挂"。体力/饿/累照旧算账。
+#  ★ 移动【仍然走 travel】（地点 → 地点），不另开一套自由坐标 ——
+#    全城所有逻辑（谁在哪、能不能进、走多久）都以 region 为准，
+#    另开一套等于第二份真相。
+
+def player_take(world, systems, args: dict) -> dict:
+    """接管一个 npc（空字符串 = 放手，让它自己过日子）。"""
+    pid = str(args.get("npc", ""))
+    if pid and pid not in world.npcs:
+        return {"ok": False, "why": "没有这个人", "player": ""}
+    systems.player = pid
+    return {"ok": True, "why": None, "player": pid}
+
+
+def player_goto(world, systems, cfg, args: dict) -> dict:
+    """操控的化身走到某个地点（点地图上的建筑）。
+
+    ★ 走的是 api.go_to —— 也就是【NPC 自己决定去时走的同一条路】。
+      不在这里重算寻路/耗时：那会变成第二份真相，编辑器里摆的路网一旦
+      和内核的寻路有出入，玩家走的时间和 NPC 就不一样了。
+    """
+    pid = getattr(systems, "player", "")
+    if not pid or pid not in world.npcs:
+        return {"ok": False, "why": "还没接管任何人", "travel": None}
+    dest = str(args.get("location", ""))
+    if dest not in world.locations:
+        return {"ok": False, "why": "没有这个地点", "travel": None}
+    here = world.loc_of(pid)
+    if dest == here:
+        return {"ok": True, "why": None, "travel": None}          # 已经到了
+    ack = api.go_to(world, systems, cfg, pid, dest)
+    ok = bool(getattr(ack, "ok", False))
+    if not ok:
+        return {"ok": False, "why": str(getattr(ack, "reason", "") or "走不了"),
+                "travel": None}
+    tv = systems.travel.get(pid)
+    return {"ok": True, "why": None,
+            "travel": None if tv is None else
+            {"from": tv.from_loc, "to": tv.to_loc,
+             "ticks": max(1, int(tv.arrive_tick) - int(tv.depart_tick))}}
+
+
+def player_stop(world, systems, args: dict) -> dict:
+    """就地停下（路上就取消这次移动）。"""
+    pid = getattr(systems, "player", "")
+    if not pid:
+        return {"ok": False, "why": "还没接管任何人"}
+    systems.travel.pop(pid, None)
+    return {"ok": True, "why": None}

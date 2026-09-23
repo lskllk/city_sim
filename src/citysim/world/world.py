@@ -2,7 +2,8 @@
 
 世界是唯一事实源; Entity 为可变真实体。NPC Person 来自 npc/person(纯数据)。
 世界坐标 = 场景画布坐标(x/y/w/h 即几何, 没有米制、没有第二套地图);
-World.locations 存 region 矩形, NPC.position/Entity.position 为连续 2D 坐标。
+World.locations 存 region 矩形, NPC 的连续坐标是【派生量】—— 快照时由 travel
+现算, 不存。Entity（物品/家具）【没有坐标】: 前端负责摆位(见 web/js/layout.js)。
 """
 from __future__ import annotations
 
@@ -16,26 +17,6 @@ from citysim.world.model.itemdefs import ItemDef, load_item_defs
 
 def _region_center(rect: dict) -> tuple[float, float]:
     return (rect["x"] + rect["w"] / 2.0, rect["y"] + rect["h"] / 2.0)
-
-
-def _stable_unit(s: str, salt: int) -> float:
-    """确定性伪随机 0..1(同一实体永得同一相对位, 与数量/顺序无关)。"""
-    h = 2166136261 ^ salt
-    for ch in s:
-        h = (h ^ ord(ch)) * 16777619 & 0xFFFFFFFF
-    return ((h >> 8) % 10000) / 10000.0
-
-
-def _default_anchor(rect: dict, entity_id: str) -> tuple[float, float]:
-    """region 内稳定默认锚点: 用实体 id 的确定性哈希, 落在矩形边距内。"""
-    margin_x = min(30.0, rect["w"] / 4.0)
-    margin_y = min(30.0, rect["h"] / 4.0)
-    ix = margin_x + _stable_unit(entity_id, 11) * max(0.0, rect["w"] - 2 * margin_x)
-    iy = margin_y + _stable_unit(entity_id, 29) * max(0.0, rect["h"] - 2 * margin_y)
-    return (round(rect["x"] + ix, 3), round(rect["y"] + iy, 3))
-
-
-
 
 
 @dataclass
@@ -59,8 +40,10 @@ class Entity:
     expires_tick: int = 0                   # 到点变质(0=不过期); 送货/生成时打戳
     # elm_lane 开放时段: None=全天; []=永久关闭; [[start,end],...]分钟-of-day
     open_hours: list | None = None
-    position: tuple[float, float] | None = None  # 空间锚点(场景单位; None=未布置)
-
+    # ★ 【实体没有坐标】—— 位置是「怎么画」的事，不是世界状态的事。
+    #   以前这里有个 position 字段，开局按 id 哈希撒一个点；那是个中间态：
+    #   声明了「物品有空间性」，却没被设计过、也没被模拟用过。
+    #   现在位置上移到前端（src/web/js/layout.js），后端只说「在哪个 region 里」。
     def is_open_now(self, hour_f: float) -> bool:
         """当前是否营业。hour_f: 0..24 (含跨天则 mod 1440)。"""
         if self.open_hours is None:
@@ -313,18 +296,6 @@ class World:
             if isinstance(c, (list, tuple)) and len(c) >= 2:
                 return (float(c[0]), float(c[1]))
         return self.region_center(location_id)
-
-    def layout_location(self, location_id: str) -> None:
-        """给某 region 内全部实体写入稳定默认锚点(显式 position 不覆盖)。
-
-        幂等、确定性: 锚点由实体 id 哈希决定, 与数量/顺序无关。
-        """
-        r = self.locations.get(location_id)
-        if r is None:
-            return
-        for e in self.entities_at(location_id):
-            if e.position is None:
-                e.position = _default_anchor(r, e.entity_id or e.name or "?")
 
     def spawn_entity(self, e: Entity) -> Entity:
         """加入世界; 没 id 的自动编号。

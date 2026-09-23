@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+from math import hypot as _hypot
 from typing import Collection
 
 from pathlib import Path
@@ -138,6 +139,38 @@ def economy_block(world, systems) -> dict:
             "queues": queues}
 
 
+def _pos_of(world, systems, pid: str, loc: str,
+            center: tuple[float, float]) -> list[float]:
+    """这个人此刻【在哪】（世界坐标）。
+
+    在路上 → 沿 travel 的折线按时间插值；否则 → 所在 region 的中心。
+
+    ★ 位置只在后端算一次。以前只发“地点中心”，插值交给前端 ——
+      结果是前端根本没读 travel，所有人一辈子杵在自己家门口（实测）。
+      而且交给前端算的话，它不知道 clock_tick 的权威值，
+      暂停/回放/丢帧时两边会算出不一样的位。
+    """
+    tv = systems.travel.get(pid) if systems is not None else None
+    pts = list(getattr(tv, "waypoints", ()) or ())
+    if tv is None or len(pts) < 2:
+        return [float(x) for x in center]
+    span = max(1, int(tv.arrive_tick) - int(tv.depart_tick))
+    t = (int(world.clock_tick) - int(tv.depart_tick)) / float(span)
+    t = min(1.0, max(0.0, t))
+    # 按累计长度找到落在第几段上，再在段内插值 —— 均分折线点会走快慢不一致
+    segs = [(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
+    lens = [_hypot(b[0] - a[0], b[1] - a[1]) for a, b in segs]
+    total = sum(lens) or 1.0
+    want = t * total
+    for (a, b), ln in zip(segs, lens):
+        if want <= ln or (a, b) == segs[-1]:
+            u = 0.0 if ln <= 0 else min(1.0, want / ln)
+            return [float(a[0] + (b[0] - a[0]) * u),
+                    float(a[1] + (b[1] - a[1]) * u)]
+        want -= ln
+    return [float(pts[-1][0]), float(pts[-1][1])]
+
+
 def _npc_core(world, systems, pid: str, p,
               ticks_per_day: int = 1440, render_line=None) -> dict:
     """NPC 的【渲染 + 列表】字段。
@@ -155,7 +188,7 @@ def _npc_core(world, systems, pid: str, p,
     return {
         "id": pid, "name": p.name, "loc": loc,
         "gender": p.gender,
-        "home": p.home, "position": [float(x) for x in center],
+        "home": p.home, "position": _pos_of(world, systems, pid, loc, center),
         "activity": p.current_activity,
         # 上岗信息(公司画布要画"谁守着哪个台"): 空 = 没工作
         "work": p.work or None,
@@ -283,8 +316,7 @@ def build_snapshot(world, systems, cfg, speed: str,
              "item_type": e.item_type,
              "tags": sorted(e.tags), "stock": e.stock,
              "claimed_by": e.claimed_by, "icon": icon_of(e),
-             "position": None if e.position is None else
-                          [float(e.position[0]), float(e.position[1])],
+             # ★ 没有 position：实体不带坐标，位置由前端摆（web/js/layout.js）
              "affordances": dict(e.affordances), "price": e.price,
              "owner": e.owner, "duration_ticks": e.duration_ticks,
              "attrs": dict(e.attrs),
@@ -302,6 +334,8 @@ def build_snapshot(world, systems, cfg, speed: str,
     if entities_only is not None:
         ents = [e for e in ents if e["id"] in entities_only]
     out = {"type": "snapshot", "tick": tick,
+           # 玩家在操控谁（前端用它决定画不画"操控中"的标记）
+           "player": str(getattr(systems, "player", "")),
            "day": tick // cfg.ticks_per_day + 1,
            "hour_f": round(world.hour_f(), 4),
            "clock": fmt_clock(world.hour_f()),
@@ -400,6 +434,8 @@ def hello_payload(runner) -> dict:
             "scene_error": getattr(runner, "build_error", ""),
             # 编辑器原始地图(节点/路段/建筑含 rot/doors); 无则 {}
             "map": getattr(runner.world, "map", {}) or {},
+            # 玩家正在操控的化身（空 = 没接管任何人）
+            "player": str(getattr(runner.systems, "player", "")),
             "scenario": runner.params["scenario"],
             "seed": runner.params["seed"],
             "n_npc": runner.params["n_npc"],

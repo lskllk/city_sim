@@ -154,11 +154,11 @@ def load_scene(path: str | Path | None = None,
             #   "开门前补货"就找不到"这家店卖什么" → 永远不再补 → 全城饿死(实测 D87)
             e.persist_empty = True
         e.open_hours = Entity.parse_open_hours(spec.get("open_hours"))
-        if "position" in spec:          # 显式锚点优先(可选)
-            e.position = (float(spec["position"][0]), float(spec["position"][1]))
+        # ★ 场景里的 "position" 会被【忽略】——位置的权威在前端。
+        #   不报错（老场景文件里可能有残留），就当没看见。
         # 同一【货物】(同 类型/地点/归属/售价) → 数量合并, 不重复建实体。
         # ★ 家具【不合并】也不带数量: 每件独立一个(两个马桶 = 两个实体, 各 stock=1)
-        #   —— 否则会变成"一件实体代表 N 个马桶", 容量/归属/位置都会串。
+        #   —— 否则会变成"一件实体代表 N 个马桶", 容量/归属/占用都会串。
         if e.is_furniture:
             e.stock = 1                    # 家具数量恒为 1(场景里写几都归一)
             world.spawn_entity(e)
@@ -170,9 +170,6 @@ def load_scene(path: str | Path | None = None,
             continue
         merged[key] = e
         world.spawn_entity(e)
-    # 默认锚点: 每个 region 内按实体 id 稳定生成(显式 position 不覆盖)
-    for loc_id in world.locations:
-        world.layout_location(loc_id)
 
     # ---- NPC: 人设 + 初始记忆(memory 段, 出生空白, 单层靠 obs 学) ------
     for idx, spec in enumerate(data.get("npcs", [])):

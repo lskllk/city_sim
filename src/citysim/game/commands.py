@@ -22,7 +22,8 @@ import json
 from typing import TYPE_CHECKING
 
 from citysim import api
-from citysim.game.actions import admin_company, hire_now, set_price
+from citysim.game.actions import (admin_company, hire_now, player_goto,
+                                 player_stop, player_take, set_price)
 from citysim.game.clock import SPEED_TPS
 
 if TYPE_CHECKING:                       # 只为类型标注, 不在运行期依赖
@@ -62,6 +63,14 @@ _COMPANY_OPS = {
     "company_assign": "assign",
     "company_wage": "wage",
     "company_schedule": "schedule",
+}
+
+# 玩家操控（操作人物）—— 和上面那组分开：
+#   上面改的是【经营真值】（钱/价/人），这组改的是【玩家化身的行为】。
+_PLAYER_OPS = {
+    "player_take": player_take,
+    "player_goto": player_goto,
+    "player_stop": player_stop,
 }
 
 
@@ -104,6 +113,13 @@ async def handle_cmd(r: "SimRunner", ws: "WebSocket", cmd: dict) -> None:
         if res["ok"]:
             r.note_world_changed()   # 暂停时也要把新价格推给前端
         await _reply(ws, rid, res, data=res["data"])
+    elif name in _PLAYER_OPS:
+        # 玩家操控人物：接管 / 走 / 停。
+        # 改完就说一声 —— 暂停时也要把新位置/新 travel 推给前端。
+        res = _PLAYER_OPS[name](r.world, r.systems, r.cfg, args)
+        if res.get("ok"):
+            r.note_world_changed()
+        await _reply(ws, rid, res, data=res)
     elif name == "select":
         # 观察驱动: 客户端告知“我在看谁 / 看哪栋楼” → 这些每帧全量下发。
         r.focus_npc = str(args.get("npc", ""))

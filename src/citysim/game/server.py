@@ -283,6 +283,9 @@ async def building_parts(name: str = "scene.json") -> dict:
             w = math.sqrt(area * aspect)
             types.append({"type": b.get("type", f.stem), "name": b.get("name", f.stem),
                           "kind": b.get("kind", ""), "capacity": b.get("capacity", 0),
+                          # ★ 这种楼能开什么公司（空 = 开不了）。由建筑类型定死，
+                          #   不是注册时手选 —— 见 world/model/companies.py。
+                          "company_kind": api.kind_for_building(b.get("kind", "")),
                           "size": [round(w, 3), round(w / aspect, 3)]})
 
     items = []
@@ -295,14 +298,30 @@ async def building_parts(name: str = "scene.json") -> dict:
                           # 有没有图标 —— 前端照着决定是贴图还是占位
                           "icon": (ROOT / "art" / "out" / "items" /
                                    ("icon_" + ty + ".svg")).is_file(),
+                          # ★ 定义里的字段【全部】透出去 —— 详情框要一个一个列，
+                          #   前端不该自己再维护一份"有哪些属性"。
                           "tags": sorted(it.get("tags", [])),
                           "price": it.get("price", 0), "stock": it.get("stock", 1),
                           "build_cost": it.get("build_cost", 0),
-                          "affordances": sorted((it.get("affordances") or {}).keys())})
+                          "duration_ticks": it.get("duration_ticks", 0),
+                          "shelf_life_ticks": it.get("shelf_life_ticks", 0),
+                          "persist_empty": it.get("persist_empty", False),
+                          "attrs": it.get("attrs") or {},
+                          "affordances": it.get("affordances") or {}})
 
-    return {"types": types, "items": items,
-            "companies": [{"id": c.get("id"), "name": c.get("name"), "kind": c.get("kind")}
-                          for c in scene.get("companies", [])]}
+    # ★ 公司要带上 shops / cash / staff —— 公司模式得显示"这家占着哪几栋"，
+    #   分配时也要判定"这栋有没有主"。
+    companies = [{"id": c.get("id"), "name": c.get("name"), "kind": c.get("kind"),
+                  "shops": list(c.get("shops", [])), "cash": c.get("cash", 0),
+                  "staff": len(c.get("staff", [])),
+                  "wage_per_hour": c.get("wage_per_hour", 0),
+                  "open": c.get("open", ""), "close": c.get("close", ""),
+                  "produces_item": c.get("produces_item", "")}
+                 for c in scene.get("companies", [])]
+
+    return {"types": types, "items": items, "companies": companies,
+            # 建筑 kind → 能开的公司 kind（编辑器要的正向表）
+            "kind_by_building": dict(api.KIND_BY_BUILDING)}
 
 
 @app.get("/api/catalog")

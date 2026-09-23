@@ -138,7 +138,6 @@ def purchase(world, company, shop_id: str, item_type: str, qty: int) -> dict:
     cost = unit * qty
     company.cash -= cost
     shelf.stock += qty
-    world.layout_location(shop_id)
     return {"ok": True, "why": "", "cost": cost, "stock": int(shelf.stock),
             "shelf": shelf.entity_id}
 
@@ -171,7 +170,6 @@ def decorate(world, company, shop_id: str, item_type: str,
     world.spawn_entity(e)
     if price > 0:
         company.cash -= price
-    world.layout_location(shop_id)
     return {"ok": True, "why": "", "cost": price,
             "entity": e.entity_id, "item_type": item_type}
 

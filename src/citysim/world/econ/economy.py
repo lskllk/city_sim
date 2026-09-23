@@ -68,7 +68,6 @@ def _deliver(world, pid: str, npc, shop, qty: int, home: str):
             exp = _expiry(world, shelf)
             if exp and (e.expires_tick == 0 or exp < e.expires_tick):
                 e.expires_tick = exp          # 合并取最早到期
-            world.layout_location(home)
             return e
     d = load_item_defs().get(shop.item_type)
     if d is None:
@@ -83,7 +82,6 @@ def _deliver(world, pid: str, npc, shop, qty: int, home: str):
     e.shelf_life_ticks = shelf
     e.expires_tick = _expiry(world, shelf)
     world.spawn_entity(e)
-    world.layout_location(home)
     return e
 
 

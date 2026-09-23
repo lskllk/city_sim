@@ -105,9 +105,14 @@ def tick(world, systems, cfg: SimConfig) -> None:
     #     每人一轮: observe → decide → try_*(端口立即落账, 失败自己处理)。
     port = WorldPortImpl(world, systems, cfg)
     due = due_npcs(world, systems)
+    # ★ 玩家操控的那个人【不跑脑子】—— 否则你刚点它去店里，
+    #   它下一 tick 就自己决定回家睡觉了。身体照常（心跳/代谢在上面）。
+    player = getattr(systems, "player", "")
     for npc_id in due:
         npc = world.npcs.get(npc_id)
         if npc is None:
+            continue
+        if npc_id == player:
             continue
         decision = npc.step(port, cfg)
         # 语义层: 攒下的“值得说的话”变成头顶气泡。

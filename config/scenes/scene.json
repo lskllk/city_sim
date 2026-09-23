@@ -23,21 +23,6 @@
   {
    "cash": 1000,
    "close": "19:00",
-   "hiring_slots": 3,
-   "id": "org_bld_013",
-   "kind": "retail",
-   "name": "食品加工",
-   "open": "08:00",
-   "produces_item": "",
-   "shops": [
-    "bld_013"
-   ],
-   "staff": [],
-   "wage_per_hour": 3
-  },
-  {
-   "cash": 1000,
-   "close": "19:00",
    "hiring_slots": 4,
    "id": "org_bld_014",
    "kind": "manufacture",
@@ -49,6 +34,21 @@
    ],
    "staff": [],
    "wage_per_hour": 5
+  },
+  {
+   "id": "org_bld_016",
+   "name": "店铺16公司",
+   "kind": "retail",
+   "shops": [
+    "bld_016"
+   ],
+   "cash": 1000,
+   "open": "08:00",
+   "close": "19:00",
+   "wage_per_hour": 3,
+   "hiring_slots": 0,
+   "staff": [],
+   "produces_item": ""
   }
  ],
  "display_name": "scene",
@@ -66,12 +66,20 @@
   {
    "at": "bld_009",
    "id": "bed_basic_038",
-   "type": "bed_basic"
+   "type": "bed_basic",
+   "pos": [
+    0.2257,
+    0.4578
+   ]
   },
   {
    "at": "bld_009",
    "id": "toilet_basic_039",
-   "type": "toilet_basic"
+   "type": "toilet_basic",
+   "pos": [
+    0.8066,
+    0.8451
+   ]
   },
   {
    "at": "bld_008",
@@ -83,7 +91,11 @@
    "at": "bld_009",
    "id": "meal_simple_041",
    "stock": 100,
-   "type": "meal_simple"
+   "type": "meal_simple",
+   "pos": [
+    0.6775,
+    0.3932
+   ]
   },
   {
    "at": "bld_008",
@@ -98,7 +110,11 @@
   {
    "at": "bld_009",
    "id": "bed_basic_044",
-   "type": "bed_basic"
+   "type": "bed_basic",
+   "pos": [
+    0.7421,
+    0.1463
+   ]
   },
   {
    "at": "bld_009",
@@ -324,16 +340,16 @@
   "bld_008": {
    "type": "home_small",
    "name": "小屋1号",
-   "x": 342.247,
-   "y": 230.254,
+   "x": 342.932,
+   "y": 229.954,
    "w": 7.746,
    "h": 7.746
   },
   "bld_009": {
    "type": "home_small",
    "name": "小屋2号",
-   "x": 358.952,
-   "y": 230.254,
+   "x": 360.752,
+   "y": 229.954,
    "w": 7.746,
    "h": 7.746
   },
@@ -360,6 +376,14 @@
    "y": 428.233,
    "w": 30.594,
    "h": 23.534
+  },
+  "bld_016": {
+   "type": "shop_small",
+   "name": "店铺16",
+   "x": 462.934,
+   "y": 305.792,
+   "w": 21.909,
+   "h": 21.909
   }
  },
  "map": {
@@ -452,6 +476,33 @@
      640,
      330
     ]
+   },
+   "n_017": {
+    "xy": [
+     473.888,
+     327.7004511501033
+    ],
+    "kind": "junction",
+    "door_of": "bld_016",
+    "door_index": 0
+   },
+   "n_018": {
+    "xy": [
+     346.805,
+     237.7
+    ],
+    "kind": "junction",
+    "door_of": "bld_008",
+    "door_index": 0
+   },
+   "n_019": {
+    "xy": [
+     364.625,
+     237.7
+    ],
+    "kind": "junction",
+    "door_of": "bld_009",
+    "door_index": 0
    }
   },
   "edges": {
@@ -694,8 +745,8 @@
    },
    "bld_008": {
     "center": [
-     346.12,
-     234.127
+     346.805,
+     233.827
     ],
     "doors": [
      [
@@ -713,8 +764,8 @@
    },
    "bld_009": {
     "center": [
-     362.825,
-     234.127
+     364.625,
+     233.827
     ],
     "doors": [
      [
@@ -798,6 +849,20 @@
      23.534
     ],
     "type": "factory_plant"
+   },
+   "bld_016": {
+    "type": "shop_small",
+    "center": [
+     473.888,
+     316.746
+    ],
+    "size": [
+     21.908902300206645,
+     21.908902300206645
+    ],
+    "rot": 0,
+    "doors": [],
+    "floors": 1
    }
   }
  }

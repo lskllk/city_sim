@@ -70,6 +70,7 @@ class SimRunner:
                            tell_p=None, listen_p=None)
         self.build_error: str = ""     # 场景加载失败的原因(给 UI 看, 不再闪退)
         self._pushed_tick: int | None = None   # 上次推送时的 tick(None=需重推)
+        self._pushed_player: str = "\x00"     # 上次推送时的玩家化身（变了就强制推一帧）
         # 观察驱动: 只下发「渲染状态变了」的 NPC + 当前选中的那个。
         self._npc_sig: dict[str, tuple] = {}   # pid -> 上次推送时的渲染签名
         # 【观察集】: 客户端正在看谁 / 看哪栋楼 —— 这些每帧全量下发。
@@ -190,8 +191,9 @@ class SimRunner:
 
     # ── 脏计算: 这一帧该发谁 ────────────────────────────────────────────
     def _ent_sig_of(self, e) -> tuple:
+        # ★ 不再包含位置：实体本来就没有坐标了（见 world.model.Entity）
         return (e.location_id, e.stock, round(float(e.price), 4), e.owner,
-                tuple(sorted(e.claimants)), e.position, bool(e.persist_empty))
+                tuple(sorted(e.claimants)), bool(e.persist_empty))
 
     def _dirty_entities(self) -> set[str]:
         """物品很少变 → 变了才推。客户端 merge + gone 删除, 不会错。"""
@@ -313,6 +315,13 @@ class SimRunner:
             dirty.add(self.focus_npc)
             if self._push_seq % max(1, self.rich_every) == 0:
                 rich.add(self.focus_npc)
+        # ★ 玩家操控谁 —— 变了就必须推一帧。
+        #   player 是快照顶层字段，但早退检查在下面；不把它算进"有变化"，
+        #   暂停时点「接管」前端会永远等不到（跟上面 focus 那个坑一模一样）。
+        player = str(getattr(self.systems, "player", ""))
+        if player != self._pushed_player:
+            self._pushed_player = player
+            self._pushed_tick = None        # 强制推一帧
         # 状态未变(暂停/无人移动且无事件) → 不重复推: 省掉暂停时的全量空转。
         # 新客户端接入/重置/步进 会把 _pushed_tick 置 None 或推进 tick。
         if self._pushed_tick == tick and not evs and not dirty and not watching:

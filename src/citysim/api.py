@@ -105,6 +105,10 @@ from citysim.world.world import Entity, World, entity_from_def
 from citysim.world.model.buildings import build_locations
 from citysim.world.model.itemdefs import load_item_defs
 from citysim.world.model.roads import RoadGraph
+# 移动: 让某人出发去某地。★ 玩家点地图和 NPC 自己决定去，
+#   必须走【同一条路】（同一个 try_move）—— 不然耗时/寻路/门禁会变成两份真相。
+from citysim.world.edge.port import WorldPortImpl
+from citysim.world.run.travel import Travel
 
 # ── 认知: 人 ───────────────────────────────────────────────────────────
 # Person 是门面(聚合根)。玩家化身就是接管某个 Person 的 decide()。
@@ -114,7 +118,8 @@ from citysim.npc.planner import ScriptedPlanner
 # ── 经济: 公司 ─────────────────────────────────────────────────────────
 # 公司 = 经济单位(它的 cash 是账; 店铺属于它; 工资从它出)。
 # 类型由建筑定死: 店铺→零售 / 工厂→制造。
-from citysim.world.model.companies import Company, kind_for_building
+from citysim.world.model.companies import (
+    KIND_BY_BUILDING, Company, kind_for_building)
 
 # ── 经营动词: 老板面板 / 老板 NPC 用 ───────────────────────────────────
 # 全部【只改世界真值】, 不做任何模拟计算 —— 决策在 NPC 侧。
@@ -184,10 +189,12 @@ __all__ = [
     "Entity", "World", "entity_from_def",
     # 世界模型
     "build_locations", "load_item_defs", "RoadGraph",
+    # 移动（玩家操控和 NPC 自发共用这一条）
+    "go_to", "Travel",
     # 认知
     "Identity", "Person", "signals_as_percent", "ScriptedPlanner",
     # 经济
-    "Company", "kind_for_building",
+    "Company", "kind_for_building", "KIND_BY_BUILDING",
     # 经营动词
     "assign_station", "hire_at", "schedule_worker", "vacant_counters",
     "decorate", "fixture_catalog", "market_catalog", "market_places", "purchase",
@@ -199,3 +206,12 @@ __all__ = [
     "encode_event", "envelope", "hello_payload",
     "SEMANTIC_EMOJI", "act_class_of",
 ]
+
+
+def go_to(world, systems, cfg, pid: str, dest: str):
+    """让某人出发去某地 —— 和 NPC 自己决定去走【同一条路】。
+
+    返回 (ok, why)：ok=False 就是没出发（门禁/已在原地/…）。
+    玩家点地图走的是这个；NPC 的脑子走的也是这个（同一个 WorldPortImpl.try_move）。
+    """
+    return WorldPortImpl(world, systems, cfg).try_move(str(pid), str(dest))

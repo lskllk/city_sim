@@ -130,7 +130,6 @@ def _make_one(world, company, npc):
         pile.owner = company.company_id                # ★ 商品: 员工也不能白拿
         pile.stock = 0
         world.spawn_entity(pile)
-        world.layout_location(here)
     pile.stock += 1
     return {"company": company.company_id, "item_type": itype,
             "loc": here, "stock": int(pile.stock)}

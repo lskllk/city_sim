@@ -42,9 +42,21 @@ export async function startGame() {
     startLoop();
   }
   show("game");
-  app.world.view.fill();                       // ★ 铺满窗口，不留边距
+  // ★ 进场看【一个街区】，不是整座城。
+  //   铺满整城（fill）的时候 k≈0.1：一个人才 1.5 米宽 → 屏幕上 1.5 像素 ✗
+  //   高亮/名牌全在，但你看不见；悬停也等于瞎指（判定半径会涨到 260 米）。
+  //   这里让【短边】看到 ~80 米 —— 人 15 像素、房子看得清门在哪。
+  const vv = app.world.view, [vw2, vh2] = vv.viewport();
+  const shop = store.myShop();
+  const c = shop ? [shop.x + shop.w / 2, shop.y + shop.h / 2]
+                 : [store.canvas.w / 2, store.canvas.h / 2];
+  vv.centerOn(c[0], c[1], Math.min(vw2, vh2) / (STREET_M * U));
   syncSpeed();
 }
+
+/** 进场时短边看到多少米。80 米 ≈ 一个街区：人看得清、房子看得清门。
+ *  ★ 改这个数就是改默认缩放。调小 = 更近（看得细），调大 = 更远（看得广）。 */
+const STREET_M = 80;
 
 /** 把物品的【世界占地尺寸】填进 store（单位米）。
  *

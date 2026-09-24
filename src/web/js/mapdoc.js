@@ -734,8 +734,9 @@ export class MapDoc {
     const ents = this.at(bid);
     const authored = {};
     for (const e of ents) if (Array.isArray(e.pos)) authored[e.id] = e.pos;
+    // ★ rot 要一起传：相对坐标是"楼内"的，落到世界得带上这个角度
     return placeIn({ x: cx - w / 2, y: cy - h / 2, w, h },
-                   sortIds(ents.map((e) => e.id)), authored, sizes);
+                   sortIds(ents.map((e) => e.id)), authored, sizes, b.rot || 0);
   }
 
   /** 把某件东西摆到楼内某处（相对 0~1）。

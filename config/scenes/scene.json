@@ -56,12 +56,20 @@
   {
    "at": "bld_008",
    "id": "bed_basic_036",
-   "type": "bed_basic"
+   "type": "bed_basic",
+   "pos": [
+    0.7834,
+    0.3932
+   ]
   },
   {
    "at": "bld_008",
    "id": "toilet_basic_037",
-   "type": "toilet_basic"
+   "type": "toilet_basic",
+   "pos": [
+    0.1379,
+    0.135
+   ]
   },
   {
    "at": "bld_009",
@@ -85,7 +93,11 @@
    "at": "bld_008",
    "id": "meal_simple_040",
    "stock": 100,
-   "type": "meal_simple"
+   "type": "meal_simple",
+   "pos": [
+    0.1379,
+    0.3287
+   ]
   },
   {
    "at": "bld_009",
@@ -100,12 +112,20 @@
   {
    "at": "bld_008",
    "id": "bed_basic_042",
-   "type": "bed_basic"
+   "type": "bed_basic",
+   "pos": [
+    0.7891,
+    0.6514
+   ]
   },
   {
    "at": "bld_008",
    "id": "bed_basic_043",
-   "type": "bed_basic"
+   "type": "bed_basic",
+   "pos": [
+    0.7834,
+    0.1463
+   ]
   },
   {
    "at": "bld_009",

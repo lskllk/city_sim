@@ -17,7 +17,7 @@
  *   onDown → true   工具接了（画路 / 拖房子 / 拖节点）
  *          → false  没接 → 相机平移（默认行为，永远不会"拖不动"）
  */
-import { clampRel } from "./layout.js";
+import { clampRel, relToWorld, worldToRel } from "./layout.js";
 // ★ 光标标记只有这一份实现（形状/颜色/手势的语义都写在它的文件头里）
 import { MARK, markRing } from "./markers.js";
 import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
@@ -29,6 +29,11 @@ import { MapDoc } from './mapdoc.js';
 // 吸附点用哪个颜色 —— 语义表在 markers.js 里，这里只是把"吸附种类"对到"标记语义"。
 // 节点/门/路中线本来就是三类东西，各占一个色；它们同时也是 item/door/road 的色。
 const SNAP_KIND = { node: "node", door: "door", road: "road", free: "free" };
+
+/** 光标。★ 摆放模式的两态：能拿的 = 张开的手，拿着的 = 握起来的手。
+ *  高亮说"这是哪件"，抓手说"这件能拿" —— 两件事，都要说。 */
+const CURSOR = { grab: "grab", grabbing: "grabbing",
+                 arrow: "default", crosshair: "crosshair" };
 // 吸附到什么：短词就行，别写句子（“路中线（会拆成两条）”这种太长，顶栏一闪一闪的）。
 const SNAP_TEXT = { node: "节点", door: "门", road: "路段", free: "自由" };
 const AREA_LABEL = { farm: "农田", concrete: "水泥地", tile: "地砖" };
@@ -242,7 +247,7 @@ export class Editor {
     this.setTool("select");                 // 命中/拖拽只在 select 下走
     const [cx, cy] = this.doc.buildings[bid].center;
     const r4 = this._rect4(bid);
-    this.fitBox(cx, cy, r4[2], r4[3], 0.8);
+    this.fitBox(cx, cy, r4.w, r4.h, 0.8);
     this.redraw();
   }
 
@@ -251,16 +256,21 @@ export class Editor {
     this.placing = false;
     this.pick = ""; this.pickAt = null; this.hoverItem = "";
     this._pickSnap = null;
-    this.view.el.style.cursor = "crosshair";
+    this._cursor(CURSOR.crosshair);
     this.redraw();
   }
 
-  /** 楼的世界矩形 (x, y, w, h)。只按 center+size —— 和 toScene() 写的
-   *  locations 一致（那边也是 x=cx-w/2），所以两边看到的框是同一个。 */
+  /** 楼的【未旋转】矩形 (x, y, w, h)。只按 center+size —— 和 toScene() 写的
+   *  locations 一致（那边也是 x=cx-w/2），所以两边看到的框是同一个。
+   *  ★ 它是"楼内坐标系"的框，不是屏幕上的框 —— 楼转了多少度要另看 b.rot。
+   *    换算走 layout.js 的 relToWorld / worldToRel（唯一的口）。 */
   _rect4(bid) {
     const b = this.doc.buildings[bid];
     const [cx, cy] = b.center, [w, h] = b.size;
-    return [cx - w / 2, cy - h / 2, w, h];
+    // ★ 返回【对象】不是数组 —— 和 layout.js 的 relToWorld / worldToRel 对齐。
+    //   混用出的错是静默的 NaN（东西画到看不见的地方，控制台不报），
+    //   所以这里统一形状，别再让人猜。
+    return { x: cx - w / 2, y: cy - h / 2, w, h };
   }
 
   /** 把某个矩形平滑推到窗口的 frac（0~1）大小。 */
@@ -302,10 +312,16 @@ export class Editor {
   /** 捡起一件。开一张撤销快照 —— "挪一件 = 一步撤销"。 */
   takeItem(id) {
     this.pick = id;
-    this.pickAt = this._last;
     this.hoverItem = id;
+    // ★ 锚点【一定要有】。以前直接用 _last，而 _last 可以是空的
+    //   （从右栏列表点进来时鼠标不在图上）→ 那件东西就没有落点、画不出来
+    //   → 看着就是"抓起来就消失了"。
+    //   兜底顺序：鼠标最后位置 → 它原来在哪 → 楼中心。
+    const cur = this.doc.layoutOf(this.selected, this._itemSizes(this.selected)).get(id);
+    const [cx, cy] = this.doc.buildings[this.selected].center;
+    this.pickAt = this._last || cur || [cx, cy];
     this._pickSnap = this.doc.snapshot();
-    this.view.el.style.cursor = "grabbing";
+    this._cursor(CURSOR.grabbing);
     this.redraw();
   }
 
@@ -317,7 +333,7 @@ export class Editor {
     this.doc.setEntPos(id, rx, ry);
     this.pick = ""; this.pickAt = null;
     if (this._pickSnap) { this._undo.push(this._pickSnap); this._pickSnap = null; }
-    this.view.el.style.cursor = "crosshair";
+    this._cursor(CURSOR.grab);
     this.redraw();
   }
 
@@ -331,8 +347,9 @@ export class Editor {
     const b = this.doc.buildings[bid];
     const [cx, cy] = b.center, [w, h] = b.size;
     const rect = { x: cx - w / 2, y: cy - h / 2, w, h };
-    const rx = w > 0 ? (p[0] - rect.x) / w : 0.5;
-    const ry = h > 0 ? (p[1] - rect.y) / h : 0.5;
+    // ★ 先把世界坐标【反转】回楼内（楼是转过的），再夹边界。
+    //   少了这一步，转过角度的楼里，鼠标和家具的位置会整体错开一个角度。
+    const [rx, ry] = worldToRel(rect, b.rot || 0, p[0], p[1]);
     return clampRel(rect, size, rx, ry);
   }
 
@@ -668,11 +685,20 @@ export class Editor {
   _placingMove(p) {
     if (!this.placingIn()) return false;
     this._last = p;
-    if (this.pick) { this.pickAt = p; this.redraw(); return true; }   // 手上拿着 → 跟手
+    // ★ 光标本身就是"抓手"：能拿的 = 张开的手，拿着的 = 握起来的手。
+    if (this.pick) {
+      this._cursor(CURSOR.grabbing);
+      this.pickAt = p;
+      this.redraw();
+      return true;
+    }
     const h = this.hitItem(p);
+    this._cursor(h ? CURSOR.grab : CURSOR.arrow);
     if (h !== this.hoverItem) { this.hoverItem = h; this.redraw(); }
     return true;
   }
+
+  _cursor(c) { if (this.view.el.style.cursor !== c) this.view.el.style.cursor = c; }
 
   /** 被拿走那件原来站的地方：画个虚空圈，知道"它本来在哪儿"。 */
   /** 屋内摆放：把选中那栋楼的里面画出来。
@@ -683,10 +709,16 @@ export class Editor {
    */
   _paintPlacing(b) {
     const [cx, cy] = b.center, [w, h] = b.size;
-    const x0 = (cx - w / 2) * U, y0 = (cy - h / 2) * U;
     const pw = w * U, ph = h * U;
+    // ★ 整块屋内的东西都画在【以楼中心为原点】的局部坐标里，
+    //   最后统一 rotation —— 不然楼是斜的、屋里的格子和家具是正的。
+    //   （和地图上的高亮框同一个做法，见 _paint 里的 hoverLoc 那段。）
+    const rot = (b.rot || 0) * Math.PI / 180;
+    const put = (g) => { g.position.set(cx * U, cy * U); g.rotation = rot;
+                         this.overlay2.addChild(g); return g; };
+    const ox = -w / 2 * U, oy = -h / 2 * U;      // 局部坐标下的左上角
     // ① 屋内地面：盖上底色，把屋外的路网压下去 —— 一眼看出"现在在屋里"
-    this.overlay2.addChild(new Graphics().rect(x0, y0, pw, ph)
+    put(new Graphics().rect(ox, oy, pw, ph)
       .fill({ color: 0xfdfbf6, alpha: 0.9 })
       .stroke({ color: 0xb4552d, width: 3 }));
     // ② 屋内淡格：★ 步长用 doc.gridInM（屋内的那一套），不是 gridM。
@@ -696,11 +728,11 @@ export class Editor {
     if (gi * U * this.view.cam.k >= 14) {
       const g = new Graphics();
       for (let x = gi; x < w - 1e-6; x += gi)
-        g.moveTo((cx - w / 2 + x) * U, y0).lineTo((cx - w / 2 + x) * U, y0 + ph);
+        g.moveTo(ox + x * U, oy).lineTo(ox + x * U, oy + ph);
       for (let y = gi; y < h - 1e-6; y += gi)
-        g.moveTo(x0, (cy - h / 2 + y) * U).lineTo(x0 + pw, (cy - h / 2 + y) * U);
+        g.moveTo(ox, oy + y * U).lineTo(ox + pw, oy + y * U);
       g.stroke({ color: 0xd9d2c4, width: 1, alpha: 0.7 });
-      this.overlay2.addChild(g);
+      put(g);
     }
     // ③ 件件东西画【真资产】，不是圆点 —— 不看到灶台就不知道自己在挪什么
     const sizes = this._itemSizes(this.selected);
@@ -716,22 +748,34 @@ export class Editor {
       //   普通 = 半透明；悬停 = 不透明 + 暖色。圈会盖住家具，还看不清它长什么样。
       if (id === carried) continue;        // 手上那件画在鼠标处，原位留个空位就行
       const hover = id === this.hoverItem;
+      // q 已经是【世界坐标】（layoutOf 带上了 rot），位置不用再转；
+      // 但【朝向】要跟着楼 —— 不然斜楼里的家具全是正的，看着像贴上去的。
       this._ghost(`items/${e.type}.svg`, q, px,
-        { px: true, alpha: hover ? 1 : 0.62, tint: hover ? 0xfff0c4 : 0xffffff });
+        { px: true, rot: b.rot || 0,
+          alpha: hover ? 1 : 0.62, tint: hover ? 0xfff0c4 : 0xffffff });
     }
     // 手上那件：画在【会落在哪儿】（吸完栅格、夹完边界的位置），
     // 不是画在鼠标原始位置 —— 不然看着落这儿、实际落那儿。
+    // ★ 锚点兜底：正常是 pickAt；万一没有就退回 _last，再没有就退回楼中心。
+    //   没有锚点 = 画不出来 = "抓起来就消失"，所以宁可摆在楼中间。
+    if (carried && !this.pickAt) {
+      const [ccx, ccy] = b.center;
+      this.pickAt = this._last || [ccx, ccy];
+    }
     if (carried && this.pickAt) {
       const e = (this.doc.meta.entities || []).find((x) => x.id === carried);
       const ent = e ? this.assets.entry(`items/${e.type}.svg`) : null;
       const m = ent ? [ent.w / 2 / U, ent.h / 2 / U] : [1.2, 1.2];   // ★ 米
       const px = [m[0] * U, m[1] * U];
       const [rx, ry] = this._relIn(this.selected, this._gridIn(this.pickAt), m);
+      // ★ 楼内 0~1 → 世界：必须走 relToWorld（带旋转）。
+      //   自己拼 rect.x + rx*w 的话，转过角度的楼里落点会跑到别处。
+      const b2 = this.doc.buildings[this.selected];
       const r4 = this._rect4(this.selected);
-      const halo = [r4[0] + rx * r4[2], r4[1] + ry * r4[3]];
+      const halo = relToWorld(r4, b2.rot || 0, rx, ry);
       // 手上那件：不透明 + 选中色 —— 高亮即是"锁在这儿了"，不再另加标记
       if (e) this._ghost(`items/${e.type}.svg`, halo, px,
-        { px: true, alpha: 1, tint: 0xfff0b0 });
+        { px: true, rot: b2.rot || 0, alpha: 1, tint: 0xfff0b0 });
       const from = this.doc.layoutOf(this.selected, sizes).get(carried);
       if (from) this.overlay2.addChild(new Graphics()
         .moveTo(from[0] * U, from[1] * U).lineTo(halo[0] * U, halo[1] * U)

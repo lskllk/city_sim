@@ -6,13 +6,20 @@
  * 它没有地图 —— 不知道门在哪、柜台在哪、路上有没有树。所以它给不出
  * "视觉上这个人在哪一米"，也不该给。
  *
- * 于是前端编：**拿后端的逻辑状态当目标，自己按速度走过去。**
- *   · 后端说他在用 meal_simple_041  → 前端让他走到那个物件旁边
- *   · 后端说他在 travel bld_008→bld_004 → 前端跟着后端那条沿路网的点走
- *   · 后端说他在 bld_008 闲着         → 前端让他就地站住
+ * ★★ 两个权威，按【在不在路上】切（用户定的）：
  *
- * ★ 不追求和后端同步。用户的话："移动过去看起来像真的过去吃饭就行"。
- *   这条很关键 —— 想做"精确同步"就得让后端有地图，那是另一场战争。
+ *     在 路 上 → **后端说了算**：目标就是它沿路网折线插值出来的那个点。
+ *                前端只负责"平滑地跟过去"（10Hz 的快照直接照抄会一跳一跳）。
+ *                这样人【永远在路中线上】，每一个弯都跟着拐。
+ *     在 屋 里 → **前端说了算**：后端没有地图，不知道门在哪、柜台在哪，
+ *                它给不出"视觉上该站哪一米"。前端走到正在用的那个物件旁边。
+ *
+ * ⚠ 踩过的坑：原来没有这条分界 —— 一律"朝目标走直线"，
+ *   于是从 A 楼去 B 楼的人**斜穿整张地图、切掉每一个弯**（用户："npc 都不走道路上"）。
+ *   信息本来就是够的（snapshot 带着 travel.waypoints 和插值好的 position），
+ *   是前端把"沿折线走到哪一米"换成了"朝那个点走直线"。
+ *
+ * ★ 屋里那部分不追求和后端同步。用户的话："移动过去看起来像真的过去吃饭就行"。
  *
  * ══ 三条规矩 ══
  *
@@ -65,21 +72,28 @@ export class Motion {
       const [gx, gy] = this.goalOf(npc, store);
       const dx = gx - a.x, dy = gy - a.y;
       const d = Math.hypot(dx, dy);
+      const px = a.x, py = a.y;                    // 记下走之前在哪
 
-      if (d <= ARRIVE_M || maxStep <= 0) {
-        a.walk = false;                            // 到了 / 暂停 → 站着
-      } else {
+      if (d > ARRIVE_M && maxStep > 0) {
         // 距离越远走得越快（最多 3 倍）—— 掉帧后不至于永远落在后面
         const boost = d > CATCHUP_M ? Math.min(3, d / CATCHUP_M) : 1;
         const step = Math.min(d, maxStep * boost);
         a.x += (dx / d) * step;
         a.y += (dy / d) * step;
-        a.walk = true;
-        a.phase = (a.phase + step) % (STEP_M * 4);
+      }
+
+      // ★ 走没走在看【自己实际挪了多少】，不是"离目标多远"。
+      //   在路上时目标是个【移动的点】：老判据会让 d 常年很小 →
+      //   人一边赶路一边显示 idle（腿不动、身位在滑）——踩过。
+      const moved = Math.hypot(a.x - px, a.y - py);
+      a.walk = moved > 1e-3;
+      if (a.walk) {
+        a.phase = (a.phase + moved) % (STEP_M * 4);
         a.frame = Math.floor(a.phase / STEP_M) % 4;
-        // 朝向取主轴；相等时算横着走（人比房子宽，横着更常见）
-        if (Math.abs(dx) >= Math.abs(dy)) { a.dir = "side"; a.face = dx < 0 ? -1 : 1; }
-        else { a.dir = dy < 0 ? "up" : "down"; a.face = 1; }
+        // 朝向取【实际位移】的主轴；相等时算横着走（人比房子宽，横着更常见）
+        const mx = a.x - px, my = a.y - py;
+        if (Math.abs(mx) >= Math.abs(my)) { a.dir = "side"; a.face = mx < 0 ? -1 : 1; }
+        else { a.dir = my < 0 ? "up" : "down"; a.face = 1; }
       }
     }
     // 不在场上的人（死了 / 走了）清掉，免得 Map 越攒越大
@@ -89,11 +103,15 @@ export class Motion {
 
   /** 这个人现在【该站在哪】（世界坐标，米）。
    *
-   *  越具体的越优先 —— 后端说"他正在用那个马桶"，就比"他在 bld_009"具体：
-   *    ① 正在用一个物件 → 走到那个物件【旁边】
-   *    ② 其它            → 用后端的逻辑位置（在路上时它沿路网在动，跟得上）
+   *  ★ 顺序不能换 —— 先判"在不在路上"：
+   *    ① 在路上（travel 有折线）→ **后端说了算**，直接用它插值出来的点。
+   *       这一条必须最优先：不然去 B 楼的人会被下面那条"走向物件"拽着斜穿地图。
+   *    ② 里屋正在用一个物件    → 前端说了算，走到那个物件【旁边】
+   *    ③ 其它                  → 后端的逻辑落脚点（region 中心）
    */
   goalOf(npc, store) {
+    // ① 在路上：后端沿路网折线插值出来的那个点，就是唯一权威
+    if (npc.travel && (npc.travel.waypoints || []).length >= 2) return npc.position || [0, 0];
     const act = npc.active;
     if (act && act.entity) {
       const e = store.entities.get(act.entity);

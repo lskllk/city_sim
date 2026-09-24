@@ -325,6 +325,15 @@ export class MapLayer {
     }
   }
 
+  /** 需要按 y【深度排序】的东西都加到这里：建筑、人、物件。
+   *
+   *  ★ 必须放同一个容器 —— Pixi 的 zIndex 只在同一个父容器里比。
+   *    分开三个容器的话，"人在房子北边"永远画在房子上面，看着像浮在空中；
+   *    实际是两个容器在比最外层 zIndex，不是真的按深度排。
+   *  本层里的排序键：建筑 = 下边缘 y，人和物件 = 脚底 / 中心 y。
+   */
+  get depthLayer() { return this.bld; }
+
   /** 建筑：按 loc_id 复用精灵，拖动时只改 transform。 */
   _buildings_(scene) {
     const types = scene.map?.buildings || {};

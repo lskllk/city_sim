@@ -131,7 +131,8 @@ export class Store {
    */
   placeOf(bid) {
     const ents = this.entitiesAt(bid);
-    const key = bid + "|" + ents.join(",");
+    // ★ 缓存键带上 rot：楼转了但东西没变，位置其实变了
+    const key = bid + "|" + ents.join(",") + "|" + (this.map?.buildings?.[bid]?.rot || 0);
     const hit = this._placeCache.get(key);
     if (hit) return hit;
     // 按类型查占地，摊成 id → 尺寸给 layout 用
@@ -140,7 +141,10 @@ export class Store {
       const s = this.entSize[this.entities.get(id)?.item_type];
       if (s) sizes[id] = s;
     }
-    const out = placeIn(rectOf(this.locations, bid), ents, this.entPos, sizes);
+    // ★ 建筑能转：rot 从 map.buildings 拿（locations 里只有轴对齐矩形，没有 rot）。
+    //   不传的话，转过角度的楼里家具会摆歪。
+    const rot = this.map?.buildings?.[bid]?.rot || 0;
+    const out = placeIn(rectOf(this.locations, bid), ents, this.entPos, sizes, rot);
     if (this._placeCache.size > 64) this._placeCache.clear();   // 跑一整天的场景别把内存长成山
     this._placeCache.set(key, out);
     return out;

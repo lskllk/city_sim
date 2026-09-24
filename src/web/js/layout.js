@@ -39,6 +39,46 @@ export function rectOf(locations, bid) {
   return { x: r.x, y: r.y, w: r.w, h: r.h };
 }
 
+/** 统一收成 {x, y, w, h}。传数组 [x, y, w, h] 进来也认。
+ *
+ *  ★ 这个宽容是【有意】的：数组/对象混用出的错**静默且致命** ——
+ *    rect.x 是 undefined → 算出 NaN → 东西被画到看不见的地方，
+ *    而控制台一声不响、也不报错（踩过：整件家具"抓起来就消失"）。
+ *    宁可在这里多转一下，也不要再出一个查半天的 NaN。
+ */
+function asRect(r) {
+  if (!r) return null;
+  return Array.isArray(r) ? { x: r[0], y: r[1], w: r[2], h: r[3] } : r;
+}
+
+/** 楼内相对坐标（0~1）→ 世界坐标（米）。★ 建筑能转，所以这里是唯一的换算口。
+ *
+ *  rect 用的是【未旋转】的框（toScene 写出来的 locations 就是 center±size/2），
+ *  所以先按 rect 算出"相对中心"的偏移，再绕中心转 rot 度。
+ */
+export function relToWorld(rect0, rot, rx, ry) {
+  const rect = asRect(rect0);
+  const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+  const lx = rx * rect.w - rect.w / 2, ly = ry * rect.h - rect.h / 2;
+  if (!rot) return [cx + lx, cy + ly];
+  const r = rot * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+  return [cx + lx * c - ly * s, cy + lx * s + ly * c];
+}
+
+/** 世界坐标（米）→ 楼内相对坐标（0~1）。relToWorld 的逆。 */
+export function worldToRel(rect0, rot, wx, wy) {
+  const rect = asRect(rect0);
+  const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+  let dx = wx - cx, dy = wy - cy;
+  if (rot) {                       // 反转回去（-rot）
+    const r = -rot * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+    const nx = dx * c - dy * s, ny = dx * s + dy * c;
+    dx = nx; dy = ny;
+  }
+  return [rect.w > 0 ? (dx + rect.w / 2) / rect.w : 0.5,
+          rect.h > 0 ? (dy + rect.h / 2) / rect.h : 0.5];
+}
+
 /** 把一条相对坐标夹到「整个图形都在屋里」的范围里。
  *
  *  ★ 只夹 0~1 是不够的：那保证的是【那个点】在墙内，半个图形照样挂在墙外
@@ -67,8 +107,10 @@ export function clampRel(rect, size, rx, ry) {
  *  @param ids      这栋楼里所有东西的 id（**调用方先排序**，见 sortIds）
  *  @param authored {id: [rx, ry]} 编辑器摆过的相对位置（0~1，可缺省）
  *  @param sizes    {id: [宽, 高]} 米。只用来算边界 / 步长；可缺省
+ *  @param rot      建筑旋转（度，顺时针）。★ 不传的话转过的楼里东西会摆歪
+ *                  —— 相对坐标是"楼内"的，落到世界必须带上这个角度。
  */
-export function placeIn(rect, ids, authored = {}, sizes = {}) {
+export function placeIn(rect, ids, authored = {}, sizes = {}, rot = 0) {
   const out = new Map();
   if (!rect || !ids.length) return out;
 
@@ -77,7 +119,7 @@ export function placeIn(rect, ids, authored = {}, sizes = {}) {
     const a = authored[id];
     if (!a) continue;
     const [rx, ry] = clampRel(rect, sizes[id], +a[0], +a[1]);
-    out.set(id, [rect.x + rx * rect.w, rect.y + ry * rect.h]);
+    out.set(id, relToWorld(rect, rot, rx, ry));
   }
 
   // ② 剩下的自动码一排
@@ -98,7 +140,7 @@ export function placeIn(rect, ids, authored = {}, sizes = {}) {
   const innerH = rect.h - 2 * padY;
   // ★ 屋子装不下一格 → 全摆正中（分格会算出负数）
   if (innerW < 0 || innerH < 0) {
-    const c = [rect.x + rect.w / 2, rect.y + rect.h / 2];
+    const c = relToWorld(rect, rot, 0.5, 0.5);
     for (const id of rest) out.set(id, c.slice());
     return out;
   }
@@ -109,7 +151,9 @@ export function placeIn(rect, ids, authored = {}, sizes = {}) {
     const row = Math.floor(i / cols) % rows;
     const tx = cols > 1 ? col / (cols - 1) : 0.5;    // 只有一列时别除零
     const ty = rows > 1 ? row / (rows - 1) : 0.5;
-    out.set(id, [rect.x + padX + tx * innerW, rect.y + padY + ty * innerH]);
+    // 算出来的是【楼内】坐标 → 交给 relToWorld 统一带旋转落到世界
+    out.set(id, relToWorld(rect, rot, (padX + tx * innerW) / rect.w,
+                                       (padY + ty * innerH) / rect.h));
   });
   return out;
 }

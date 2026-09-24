@@ -77,7 +77,11 @@ export class Editor {
     this.pick = "";          // 手上【拿着】哪件家具（跟着鼠标走）；空 = 没拿
     this.pickAt = null;      // 拿着的时候鼠标在哪（世界坐标）
     this.hoverItem = "";     // 鼠标悬在哪件上（要亮起来，不然不知道点得中哪个）
-    this.doc.on(() => this.map.draw(this.doc.toScene()));
+    // ★ doc 一变就【整屏重画】，不是只重画地图层。
+    //   地图层好之后，overlay（屋内的地板/米格/家具、手柄、高亮）还停在
+    //   老数据上 —— 症状就是"加/删家具，屋里不马上刷"（用户实测）。
+    //   _paint 不会反过来改 doc，所以这样调是安全的，不会递归。
+    this.doc.on(() => this.redraw());
   }
 
   async init() {
@@ -249,6 +253,7 @@ export class Editor {
     const r4 = this._rect4(bid);
     this.fitBox(cx, cy, r4.w, r4.h, 0.8);
     this.redraw();
+    this.ui.onPlacing?.(bid);      // 面板跟着切（「屋内栅格」那行只在这时出现）
   }
 
   exitPlacing() {
@@ -258,6 +263,7 @@ export class Editor {
     this._pickSnap = null;
     this._cursor(CURSOR.crosshair);
     this.redraw();
+    this.ui.onPlacing?.("");       // 通知面板：退出摆放了
   }
 
   /** 楼的【未旋转】矩形 (x, y, w, h)。只按 center+size —— 和 toScene() 写的
@@ -724,15 +730,28 @@ export class Editor {
     // ② 屋内淡格：★ 步长用 doc.gridInM（屋内的那一套），不是 gridM。
     //    4 米的室外格摆不了家具；太密（屏幕上不到 14px）就不画 —— 画出来
     //    是一片噪声，用户看到的是"一堆不知道干嘛的线"。
+    //
+    //  ★ 线宽按【屏幕像素】算（1/k），不按世界像素 ——
+    //    世界像素的话放大一倍线就粗一倍，缩得近时屋里像铺了一层铁丝网
+    //    （用户："室内网格线怎么那么粗，比室外还粗"）。夹一个下限，
+    //    太细会闪。
+    //  ★ 两档：每格一条淡的 + 每【整米】一条略深的。
+    //    只有一档的话眼睛没法数距离（"离墙还有几格"数着数着就丢了）。
     const gi = Math.max(0.05, +(this.doc.gridInM || 0.5));
-    if (gi * U * this.view.cam.k >= 14) {
+    const lw = Math.max(0.4, 1 / this.view.cam.k);
+    const line = (stepM, color, alpha) => {
       const g = new Graphics();
-      for (let x = gi; x < w - 1e-6; x += gi)
+      for (let x = stepM; x < w - 1e-6; x += stepM)
         g.moveTo(ox + x * U, oy).lineTo(ox + x * U, oy + ph);
-      for (let y = gi; y < h - 1e-6; y += gi)
+      for (let y = stepM; y < h - 1e-6; y += stepM)
         g.moveTo(ox, oy + y * U).lineTo(ox + pw, oy + y * U);
-      g.stroke({ color: 0xd9d2c4, width: 1, alpha: 0.7 });
+      g.stroke({ color, width: lw, alpha });
       put(g);
+    };
+    if (gi * U * this.view.cam.k >= 14) {
+      line(gi, 0xcfc8ba, 0.5);                       // 每格：很淡
+      // 整米线：格子比 1 米还细就每 1 米一条，否则每 5 格一条
+      line(gi >= 1 ? gi * 5 : 1, 0xb9b2a4, 0.85);    // 主格：略深，当尺子用
     }
     // ③ 件件东西画【真资产】，不是圆点 —— 不看到灶台就不知道自己在挪什么
     const sizes = this._itemSizes(this.selected);

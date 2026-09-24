@@ -609,3 +609,17 @@ body.sum #summary{display:flex}
 body.open #veil{display:block}
 body.open #sheet{display:flex}
 /* 我们的遮罩层比 proto 的再多一层：面板打开时暂停（见 ui.js） */
+
+/* ══════════ 开始新场景：居中悬浮窗（只列名字）══════════ */
+#mListVeil{position:fixed;inset:0;z-index:59;background:#00000038}
+#mList{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;
+  width:min(340px,86vw);max-height:70vh;display:flex;flex-direction:column;
+  padding:0;box-shadow:0 14px 44px #0000003d}
+#mList .listhead{display:flex;align-items:center;gap:8px;padding:11px 14px;
+  border-bottom:1px solid var(--line);font-size:13px}
+#mList .listhead .x{margin-left:auto;width:24px;height:24px;border-radius:6px}
+#mListBody{overflow:auto;padding:6px}
+#mListBody button{display:block;width:100%;text-align:left;padding:9px 11px;
+  border-radius:7px;font-size:13px;color:var(--ink)}
+#mListBody button:hover{background:var(--paper2)}
+#mListBody button.now{font-weight:700}      /* 当前这个：只加重，不写多余的字 */

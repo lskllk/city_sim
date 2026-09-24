@@ -21,6 +21,23 @@ export async function openBuilding(pick) {
   renderBuildings();
 }
 
+/** 编辑器进出摆放模式时，让建筑面板跟着切。
+ *
+ *  ★ 为什么要有这个：屋里那行「屋内栅格」是【只在摆放时显示】的，
+ *    它由 renderBldForm 渲染。而双击楼进摆放是地图上的动作 ——
+ *    编辑器不知道有面板这回事，面板也不知道摆放状态变了，
+ *    于是：双击进去看不到栅格调节，一直等到某次保存重画面板才冒出来
+ *    （用户："双击后 无栅格调节 保存后栅格调节跳出"）。
+ *   加一个 hook：编辑器负责说"我进/出摆放了"，面板负责跟着重画。
+ *
+ *  ★ 不能直接调 openBuilding —— 它有一条"换楼就退出摆放"的规则，
+ *    而这里恰恰是"正在摆放时又双击了另一栋楼"，会被它踢出去。
+ */
+export function syncPlacing(bid) {
+  if (bid) { bldSel = bid; showPanel("building"); }
+  renderBldForm();
+}
+
 export function closeBuilding() {
   showPanel("");
   app.editor.hoverLoc = "";
@@ -113,9 +130,9 @@ function renderCompForm() {
     ? '<div class="row"><label>产出</label><select id="cProd">'
       + '<option value="">（没定）</option>'
       + mats.map((it) => '<option value="' + esc(it.type) + '"'
-          + (curProd === it.type ? " app.selected" : "") + ">" + esc(it.name) + "</option>").join("")
+          + (curProd === it.type ? " selected" : "") + ">" + esc(it.name) + "</option>").join("")
       + (curProd && !mats.some((it) => it.type === curProd)
-          ? '<option value="' + esc(curProd) + '" app.selected>' + esc(curProd) + "</option>" : "")
+          ? '<option value="' + esc(curProd) + '" selected>' + esc(curProd) + "</option>" : "")
       + "</select></div>" : "";
 
   host.innerHTML =
@@ -155,7 +172,7 @@ function renderCompForm() {
     c.name = nm;
     c.cash = Number($("cCash").value) || 0;
     if ($("cProd")) c.produces_item = $("cProd").value;
-    app.editor.doc.dirty = true; app.editor.ui.setDirty?.(true);
+    app.editor.doc._changed();   // ★ 走 _changed()（见上）
     renderCompanies();
     await app.editor.save();
     toast("已保存到 " + (app.editor.name || "场景"));
@@ -213,7 +230,7 @@ async function newCompanyOn(bid) {
   let moved = 0;
   for (const e2 of D.meta.entities || [])
     if (e2.at === bid) { e2.owner = cid; moved++; }
-  D.dirty = true; app.editor.ui.setDirty?.(true);
+  D._changed();   // ★ 走 _changed()：set dirty + 通知监听器（监听里整屏重画）
   compSel = cid;
   renderCompanies();
   await app.editor.save();
@@ -238,7 +255,7 @@ async function delCompany(c) {
   const cs = D.meta.companies || [];
   const k = cs.indexOf(c);
   if (k >= 0) cs.splice(k, 1);
-  D.dirty = true; app.editor.ui.setDirty?.(true);
+  D._changed();   // ★ 走 _changed()：set dirty + 通知监听器（监听里整屏重画）
   compSel = "";
   D.prune();
   renderCompanies();
@@ -304,7 +321,7 @@ async function moveCompany(c, dest) {
   for (const e of moved) { e.at = dest; e.owner = c.id; }
   for (const e of D.at(dest)) e.owner = c.id;
   c.shops = [dest];
-  D.dirty = true; app.editor.ui.setDirty?.(true);
+  D._changed();   // ★ 走 _changed()：set dirty + 通知监听器（监听里整屏重画）
   D.prune();
   renderCompanies();
   await app.editor.save();
@@ -353,7 +370,7 @@ function renderBldForm() {
   const isFix = (ty) => (items.find((x) => x.type === ty)?.tags || []).includes("fixture");
 
   const opt = (v, label, on) =>
-    '<option value="' + v + '"' + (on ? " app.selected" : "") + ">" + label + "</option>";
+    '<option value="' + v + '"' + (on ? " selected" : "") + ">" + label + "</option>";
   const typeOpts = (BPARTS?.types || []).map((x) =>
     opt(x.type, esc(x.name) + "（" + esc(x.kind) + " " + x.capacity + "）", b.type === x.type)).join("");
   // ★ 权限是【读出来】的，不是选出来的 —— 由建筑类型定，public 只是
@@ -387,10 +404,17 @@ function renderBldForm() {
     const fix = isFix(e.type);
     const ic = iconOf(e.type);
     const qt = fix ? "" : "×" + (e.stock ?? it.stock ?? 0);
-    return '<button class="th" data-open="' + i + '" title="点开改详情">'
+    // ★ 一行两个动作，用【两个地方】表达，不用单击/双击：
+    //     整行 = 拿起来拖动（不在摆放模式就自动进 —— 这一行的意思永远一样）
+    //     行尾 &#9998; = 改详情（存量/售价/删掉）
+    //   为什么不用双击：双击必然先触发两次单击，要么给拿起加 220ms 延迟
+    //   （每次拿起都卡一下），要么接受"弹框时手里还攥着东西"。两条都不干净。
+    //   &#9998; 必须 stopPropagation —— 不然点它会冒泡到整行、顺手把家具拿起来。
+    return '<button class="th" data-open="' + i + '" title="点一下拿起来摆；&#9998; 改详情">'
       + (ic ? '<img class="ic" src="' + ic + '">' : '<span class="ic"></span>')
       + '<span class="nm3">' + esc(it.name || e.type) + "</span>"
-      + '<span class="qt">' + qt + "</span></button>";
+      + '<span class="qt">' + qt + "</span>"
+      + '<span class="ed" data-edit="' + i + '" title="改详情">&#9998;</span></button>';
   }).join("") : '<div class="none2">空着</div>';
 
   // 候选（和头像那个一样：点「放一件」才弹）
@@ -474,21 +498,31 @@ function renderBldForm() {
           owner: mine ? mine.id : undefined }
       : { id: ty + "_" + String(Date.now()).slice(-5), at: bid, type: ty,
           owner: mine ? mine.id : undefined, stock: it.stock ?? 1, price: it.price ?? 0 });
-    D.dirty = true; app.editor.ui.setDirty?.(true);
+    D._changed();   // ★ 走 _changed()：set dirty + 通知监听器（监听里整屏重画）
     $("popVeil")?.remove();
     renderBldForm();
   }
 
-  // ★ 点一行 → 弹详情框（存量 / 售价 / 删掉）。
-  //   行里只放图标和名字 —— 296px 的栏塞不下"图标+名字+两个数字框+删除"。
+  // ★ 整行单击 = 【拿起来拖动】。不分模式 —— 不在摆放模式就先进去，
+  //   这样这一行的意思永远是同一个。（以前是"摆放时拿起、否则弹详情"，
+  //   同一行点两下结果不同 —— 用户："这里的逻辑不对，有重复"。）
+  //   叠在一起的东西在地图上点不中，所以列表必须能拿起 —— 这正是它的用处。
   for (const el2 of host.querySelectorAll("[data-open]")) {
     const ent = inside[+el2.dataset.open];
-    // ★ 摆放模式下：点右边这一行也【拿起来】—— 叠一起的时候在地图上点不中
-    //   （用户："放置重叠不好选"）。不摆放时才是弹详情框。
-    el2.onclick = app.editor.placing
-      ? () => { app.editor.takeItem(ent.id); markRow(ent.id); }
-      : () => openThing(ent);
+    el2.onclick = () => {
+      const ed = app.editor;
+      if (!ed.placing || ed.selected !== bid) ed.enterPlacing(bid);
+      ed.takeItem(ent.id);
+      renderBldForm();                 // 重画列表（反白）+ 地图
+    };
   }
+  // 行尾 ✎ = 改详情（存量 / 售价 / 删掉）。
+  //   ★ stopPropagation 是必须的 —— 不然点它会冒泡到整行、顺手把家具拿起来。
+  for (const el2 of host.querySelectorAll("[data-edit]"))
+    el2.onclick = (e) => {
+      e.stopPropagation();
+      openThing(inside[+el2.dataset.edit]);
+    };
 
   /** 把"手上拿着的那行"标出来，和地图上的高亮对上。 */
   function markRow(id) {
@@ -562,7 +596,7 @@ function renderBldForm() {
         ent.stock = Number($("tStock").value) || 0;
         ent.price = Number($("tPrice").value) || 0;
       }
-      D.dirty = true; app.editor.ui.setDirty?.(true);
+      D._changed();   // ★ 走 _changed()：set dirty + 通知监听器（监听里整屏重画）
       close();
       renderBldForm();
     });
@@ -571,7 +605,7 @@ function renderBldForm() {
       const arr = D.meta.entities || [];
       const k = arr.indexOf(ent);
       if (k >= 0) arr.splice(k, 1);
-      D.dirty = true; app.editor.ui.setDirty?.(true);
+      D._changed();   // ★ 走 _changed()：set dirty + 通知监听器（监听里整屏重画）
       close();
       renderBldForm();
     });
@@ -596,7 +630,7 @@ function renderBldForm() {
     // ★ 权限 / 公司 不在这里写 —— 它们是读出来的（权限由类型 + public 决定，
     //   公司由 companies[].shops 决定）。以前这里会重写 public 和 shops，
     //   对着"只读"的值瞎改，反而把数据弄坏。
-    D.dirty = true; app.editor.ui.setDirty?.(true);
+    D._changed();   // ★ 走 _changed()：set dirty + 通知监听器（监听里整屏重画）
     renderBuildings();
     // ★ 必须写盘。原来只改内存 —— 编辑完刷新一下改动全没了，
     //   看着就是"编辑失败"（顶栏那个「保存」才真写盘，两个按钮同名很容易混）。
@@ -614,7 +648,7 @@ function renderBldForm() {
     app.editor.pushUndo();
     D.removeBuilding(bid);
     bldSel = "";
-    D.dirty = true; app.editor.ui.setDirty?.(true);
+    D._changed();   // ★ 走 _changed()：set dirty + 通知监听器（监听里整屏重画）
     renderBuildings();
     await app.editor.save();
   });

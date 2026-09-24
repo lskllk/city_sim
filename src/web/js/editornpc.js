@@ -134,7 +134,7 @@ function renderNpcForm() {
     + '<div class="row"><label>性别</label><div class="inline">'
     + '<select id="pGender"' + (isNew ? "" : " disabled") + ">"
     + (PARTS?.genders || []).map((g) => '<option value="' + g + '"'
-        + (cur.gender === g ? " app.selected" : "") + ">"
+        + (cur.gender === g ? " selected" : "") + ">"
         + (g === "female" ? "女" : "男") + "</option>").join("")
     + "</select></div></div>"
 
@@ -201,7 +201,7 @@ function renderNpcForm() {
     app.editor.pushUndo();
     npcSel = app.editor.doc.upsertNpc(spec, isNew ? "" : npcSel);
     draft = null;
-    app.editor.doc.dirty = true;
+    app.editor.doc._changed();   // ★ 走 _changed()：set dirty + 通知监听器
     app.editor.ui.setDirty?.(true);
     renderPeople();
     await app.editor.save();          // ★ 写盘，不然刷新就没了（同建筑面板）

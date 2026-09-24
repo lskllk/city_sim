@@ -17,7 +17,7 @@ python -m uvicorn citysim.game.server:app --port 8765
 ```
 继续        最近一次的场景，直接进游戏
 新场景      空白地图（800×600，无路无房）→ 进编辑器，默认存 scene_<日期>.json
-打开场景    列 config/scenes/ 里的场景（标出最近编辑的那个），选了就进游戏
+开始新场景  列 config/scenes/ 里的场景（只列名字），选了就从第 1 天开始
 编辑器      打开最近编辑的那张地图
 ```
 

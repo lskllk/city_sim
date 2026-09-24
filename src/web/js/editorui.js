@@ -1,9 +1,11 @@
 /** editorui.js —— 编辑器的外壳：打开、顶栏、四个模式。 */
 import { $, esc, app, store, toast, show, ensureAssets, BUILD } from "./core.js";
 import { fetchManifest } from "./assets.js";
+import { worldToRel } from "./layout.js";
 import { Editor } from "./editor.js";
 import { openPeople, newNpc, closePeople, showPanel } from "./editornpc.js";
-import { openBuilding, openCompany, closeBuilding, closeCompany } from "./editorbld.js";
+import { openBuilding, openCompany, closeBuilding, closeCompany,
+         syncPlacing } from "./editorbld.js";
 
 export async function openEditor() {
   if (!app.editor) {
@@ -23,6 +25,8 @@ export async function openEditor() {
       setUndo: () => {},
       // 没吸附就不显示（原来是 "—"，纯噪音）
       setCursor: () => { $("eSnapLabel").textContent = app.editor.snapText() || ""; },
+      // 编辑器进出摆放模式 → 建筑面板跟着切（见 editorbld.syncPlacing 的注释）
+      onPlacing: (bid) => syncPlacing(bid),
       version: () => { $("eVer").textContent = BUILD; },
       openBuilding: (bid) => openBuilding(bid),   // 地图上点建筑 → 跳过来
       setTool: (t) => {
@@ -61,9 +65,16 @@ export async function openEditor() {
       //   十字坐标还是按照室外在动"）。
       const ed = app.editor, bid = ed?.placingIn?.();
       if (bid) {
+        // ★ _rect4 返回的是【对象】，不是数组 —— 拿 r4[0] 会算出 NaN
+        //   （用户："屋内坐标 NAN"）。这类数组/对象混用是静默的，
+        //   layout.js 那边已经加了 asRect 兜住换算，但取字段只能靠这里写对。
+        // ★ 还要【带旋转】：楼转过角度时，直接减左上角是不对的，
+        //   得先把光标转回楼内坐标系，出来的才是"离这面墙多少米"。
         const r4 = ed._rect4(bid);
-        const rx = (x - r4[0]), ry = (y - r4[1]);
-        $("eXY").textContent = "屋内 " + rx.toFixed(1) + ", " + ry.toFixed(1) + " m";
+        const rot = ed.doc.buildings[bid]?.rot || 0;
+        const [rx, ry] = worldToRel(r4, rot, x, y);
+        $("eXY").textContent = "屋内 " + (rx * r4.w).toFixed(1) + ", "
+                             + (ry * r4.h).toFixed(1) + " m";
       } else {
         $("eXY").textContent = `${Math.round(x)},${Math.round(y)}`;
       }

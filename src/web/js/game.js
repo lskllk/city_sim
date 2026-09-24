@@ -11,21 +11,39 @@ import { openSheet, closeSheet, renderQueue, infoTabs, infoPage,
          infoSub, personPage, shopPage, homePage } from "./ui.js";
 
 export async function play(sceneName) {
-  setStatus(sceneName ? `正在打开 ${sceneName}…` : "正在连后端…");
+  // ★ 打开哪个场景，必须【说得出名字】。
+  //   以前"继续"不带名字 → 不 reset → 后端那个进程从早跑到晚，
+  //   于是"打开的场景和我编辑的不是同一个，而且从第 50 天开始"（用户实测）。
+  //   这里定死：能拿到名字就一定重新加载它；拿不到才交给后端挑默认的。
+  const last = (() => {
+    try { return JSON.parse(localStorage.getItem(LS_LAST) || "null")?.scenario || ""; }
+    catch { return ""; }
+  })();
+  const target = sceneName || last || "";
+  setStatus(target ? `正在打开 ${target}…` : "正在连后端…");
   app.net = new Net(onMessage);
   try {
     const hello = await app.net.connect();
-    if (sceneName && hello.scenario !== sceneName) {
-      // 换场景 = 重置 runner 到那个场景（reset 会重新 build 并回一份新的 hello）
-      await app.net.send("reset", { scenario: sceneName });
-    }
-    store.applyHello(hello);
-    await loadLooks(hello);        // 美术 id（后端不发，前端自己读场景）
-    await startGame(hello);
+
+    // ★ 一律 reset，不再"名字一样就跳过"。
+    //   理由：编辑器存盘之后，后端内存里那份还是旧的 ——
+    //   世界（第几天、谁在哪）也只有 reset 才会从场景文件重建。
+    //   hello.scenario 发的是【原始参数】（默认空串），拿它和文件名比
+    //   本来也不可靠（比不出来 → 该重置的没重置）。
+    if (target) await app.net.send("reset", { scenario: target });
+
+    // reset 之后后端会再推一份 hello；store 里那份是最新的。
+    const h = store.hello || hello;
+    store.applyHello(h);
+    await loadLooks(h);            // 美术 id（后端不发，前端自己读场景）
+    await startGame(h);
+
+    // 到底开了哪一个 —— 状态栏里写清楚，不然"是不是同一个"没法判断
+    const got = h.scenario || target || "默认场景";
     const when = new Date().toLocaleString("zh-CN",
       { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-    rememberLast(hello.scenario || "scene", when);
-    setStatus(`后端已连上 · ${hello.n_npc ?? "?"} 人`, "ok");
+    rememberLast(target || "默认场景", when);
+    setStatus(`已打开 ${target || "默认场景"} · ${h.n_npc ?? "?"} 人 · 第 ${h.day ?? 1} 天`, "ok");
   } catch (e) {
     setStatus(String(e.message || e), "bad");
   }
@@ -137,6 +155,11 @@ export function startLoop() {
 
 let _hudAt = 0;
 function onMessage(msg) {
+  // ★ 处理 hello。以前这里只认 snapshot / __closed，
+  //   于是 reset 之后后端推的那份新 hello 被【丢掉】——
+  //   store 里还是上一个场景的 locations/map/companies，
+  //   症状就是「打开的场景和我编辑的不是同一个」（几何是旧的）。
+  if (msg.type === "hello") { store.applyHello(msg); return; }
   if (msg.type === "snapshot") {
     store.applySnapshot(msg);
     $("gDay").textContent = `第 ${msg.day} 天`;

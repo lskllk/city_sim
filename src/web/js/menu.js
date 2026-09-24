@@ -12,7 +12,7 @@ $("mLast").textContent = lastGame ? `${lastGame.scenario} · ${lastGame.when}` :
 $("mContinue").onclick = () => play();
 $("mNew").onclick = newScene;
 $("mOpen").onclick = toggleScenes;
-$("mListClose").onclick = () => $("mList").classList.add("hide");
+$("mListClose").onclick = () => hideList();
 $("mEditor").onclick = openEditor;
 
 // ── 新场景：空白地图，直接进编辑器画 ────────────────────────────────
@@ -41,21 +41,31 @@ export async function newScene() {
 }
 
 // ── 场景列表 ────────────────────────────────────────────────────────
+/** 关掉「开始新场景」那个悬浮窗（✕ / 蒙布 / 选完 / 再点一次，都走这里）。 */
+function hideList() {
+  $("mList").classList.add("hide");
+  $("mListVeil").classList.add("hide");
+}
+
+// ── 开始新场景：居中悬浮窗，只列名字 ──────────────────────────────────
 export async function toggleScenes() {
   const box = $("mList");
-  if (!box.classList.contains("hide")) return box.classList.add("hide");
+  if (!box.classList.contains("hide")) return hideList();
   const list = await (await fetch("/api/scenes", { cache: "no-store" })).json();
   const body = $("mListBody");
   body.innerHTML = "";
-  if (!list.scenes.length) { body.innerHTML = '<div class="dim" style="font-size:12px">还没有场景</div>'; }
+  if (!list.scenes.length)
+    body.innerHTML = '<div class="dim" style="font-size:12px;padding:10px">还没有场景</div>';
   for (const s of list.scenes) {
     const b = document.createElement("button");
-    const when = new Date(s.mtime * 1000).toLocaleString("zh-CN",
-      { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-    b.innerHTML = `<span>${s.name}</span><span class="meta">${(s.bytes / 1024).toFixed(1)}KB · ${when}</span>`;
-    if (s.name === list.last) b.classList.add("now");
-    b.onclick = () => { box.classList.add("hide"); play(s.name); };
+    // ★ 只要名字。大小 / 修改时间不显示 —— 选场景时没人看那个，
+    //   它们只会把名字淹掉（用户："只要名字不要脏"）。
+    b.textContent = s.name;
+    if (s.name === list.last) b.classList.add("now");   // 当前这个只加重，不写字
+    b.onclick = () => { hideList(); play(s.name); };
     body.appendChild(b);
   }
+  $("mListVeil").onclick = hideList;                 // 点蒙布 = 关掉
+  $("mListVeil").classList.remove("hide");
   box.classList.remove("hide");
 }

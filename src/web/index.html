@@ -170,15 +170,19 @@
       <button class="entry" id="mNew">
         <b>新场景</b><span>画一张新地图 —— 空白开始，进编辑器</span></button>
       <button class="entry" id="mOpen">
-        <b>打开场景</b><span>从 config/scenes/ 里挑一个</span></button>
+        <b>开始新场景</b><span>从 config/scenes/ 里挑一张，从第 1 天开始</span></button>
       <button class="entry" id="mEditor">
         <b>编辑器</b><span id="mEditorHint">打开最近编辑的那张</span></button>
     </nav>
   </div>
 
-  <!-- 场景列表：点「打开场景」才展开 -->
-  <div class="card hide" id="mList">
-    <div class="listhead">config/scenes/ <button class="x" id="mListClose">✕</button></div>
+  <!-- 场景列表：点「开始新场景」才展开 -->
+  <!-- 开始新场景：一个居中悬浮窗。
+       ★ 只列【名字】—— 以前还挂了"12.3KB · 08-14 15:22"，那是脏信息：
+         选场景的时候没人看大小和修改时间，它们只会把名字淹掉。 -->
+  <div class="hide" id="mListVeil"></div>
+  <div class="pane hide" id="mList">
+    <div class="listhead"><b>开始新场景</b><button class="x" id="mListClose">✕</button></div>
     <div id="mListBody"></div>
   </div>
 

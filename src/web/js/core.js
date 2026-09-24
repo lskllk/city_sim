@@ -2,7 +2,7 @@
 import { Store } from "./store.js";
 import { Assets2, fetchManifest } from "./assets.js";
 
-const BUILD = "r33";
+const BUILD = "r43";
 /** 我最近跑过哪一个场景（主菜单「继续」用）。 */
 const LS_LAST = "citysim.last";
 
